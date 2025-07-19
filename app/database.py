@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Float, Text, JSON, ForeignKey, Date, DECIMAL
+from sqlalchemy.dialects.mysql import VARCHAR
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -61,6 +62,7 @@ class User(Base):
     lazer_profile = relationship("LazerUserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     lazer_statistics = relationship("LazerUserStatistics", back_populates="user", cascade="all, delete-orphan")
     lazer_achievements = relationship("LazerUserAchievement", back_populates="user", cascade="all, delete-orphan")
+    lazer_profile_order=relationship("LazerUserProfileOrder", back_populates="user", cascade="all, delete-orphan")
     statistics = relationship("LegacyUserStatistics", back_populates="user", cascade="all, delete-orphan")
     achievements = relationship("LazerUserAchievement", back_populates="user", cascade="all, delete-orphan")
     team_membership = relationship("TeamMember", back_populates="user", cascade="all, delete-orphan")
@@ -126,6 +128,17 @@ class LazerUserProfile(Base):
     # 关联关系
     user = relationship("User", back_populates="lazer_profile")
 
+class LazerUserProfileSections(Base):
+    __tablename__ = "lazer_user_profile_sections"
+
+    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    section_name = Column(VARCHAR(50))
+    display_order=Column(Integer)
+
+    created_at=Column(DateTime, default=datetime.utcnow)
+    updated_at=Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="lazer_profile_order")
 
 class LazerUserCountry(Base):
     __tablename__ = "lazer_user_countries"

@@ -19,7 +19,14 @@ def convert_db_user_to_api_user(db_user: DBUser, ruleset: str = "osu", db_sessio
     if not profile:
         # 如果没有 lazer 资料，使用默认值
         profile = create_default_profile(db_user)
-    
+
+    # 获取 Lazer 用户计数
+
+    lzrcnt=db_user.lazer_statistics
+    if not lzrcnt:
+        # 如果没有 lazer 计数，使用默认值
+        lzrcnt = create_default_counts()
+
     # 获取指定模式的统计信息
     user_stats = None
     for stat in db_user.lazer_statistics:
@@ -252,37 +259,37 @@ def convert_db_user_to_api_user(db_user: DBUser, ruleset: str = "osu", db_sessio
         max_friends=profile.max_friends if profile and profile.max_friends else 500,
         post_count=profile.post_count if profile and profile.post_count else 0,
         profile_hue=profile.profile_hue if profile and profile.profile_hue else None,
-        profile_order= ['me', 'recent_activity', 'top_ranks', 'medals', 'historical', 'beatmaps', 'kudosu'],
-        title=None,
-        title_url=None,
-        twitter=None,
-        website='https://gmoe.cc',
+        profile_order=profile.profile_order if profile and profile.profile_order else ['me', 'recent_activity', 'top_ranks', 'medals', 'historical', 'beatmaps', 'kudosu'],
+        title=profile.title if profile else None,
+        title_url=profile.title_url if profile else None,
+        twitter=profile.twitter if profile else None,
+        website=profile.website if profile else None,
         session_verified=True,
-        support_level=0,
+        support_level=profile.support_level if profile else 0,
         country=country,
         cover=cover,
         kudosu=kudosu,
         statistics=statistics,
         statistics_rulesets=statistics_rulesets,
-        beatmap_playcounts_count=3306,
-        comments_count=0,
-        favourite_beatmapset_count=0,
-        follower_count=0,
-        graveyard_beatmapset_count=0,
-        guest_beatmapset_count=0,
-        loved_beatmapset_count=0,
-        mapping_follower_count=0,
-        nominated_beatmapset_count=0,
-        pending_beatmapset_count=0,
-        ranked_beatmapset_count=0,
-        ranked_and_approved_beatmapset_count=0,
-        unranked_beatmapset_count=0,
-        scores_best_count=0,
-        scores_first_count=0,
-        scores_pinned_count=0,
-        scores_recent_count=0,
+        beatmap_playcounts_count=db_user.beatmap_playcounts_count if db_user.beatmap_playcounts_count is not None else 0,
+        comments_count=lzrcnt.comments_count if lzrcnt else 0,
+        favourite_beatmapset_count=lzrcnt.favourite_beatmapset_count if lzrcnt else 0,
+        follower_count=lzrcnt.follower_count if lzrcnt else 0,
+        graveyard_beatmapset_count=lzrcnt.graveyard_beatmapset_count if lzrcnt else 0,
+        guest_beatmapset_count=lzrcnt.guest_beatmapset_count if lzrcnt else 0,
+        loved_beatmapset_count=lzrcnt.loved_beatmapset_count if lzrcnt else 0,
+        mapping_follower_count=lzrcnt.mapping_follower_count if lzrcnt else 0,
+        nominated_beatmapset_count=lzrcnt.nominated_beatmapset_count if lzrcnt else 0,
+        pending_beatmapset_count=lzrcnt.pending_beatmapset_count if lzrcnt else 0,
+        ranked_beatmapset_count=lzrcnt.ranked_beatmapset_count if lzrcnt else 0,
+        ranked_and_approved_beatmapset_count=lzrcnt.ranked_and_approved_beatmapset_count if lzrcnt else 0,
+        unranked_beatmapset_count=lzrcnt.unranked_beatmapset_count if lzrcnt else 0,
+        scores_best_count=lzrcnt.scores_best_count if lzrcnt else 0,
+        scores_first_count=lzrcnt.socres_first_count if lzrcnt else 0,
+        scores_pinned_count=lzrcnt.scores_pinned_count,
+        scores_recent_count=lzrcnt.recent_scores_count if lzrcnt else 0,
         account_history=[],
-        active_tournament_banner=None,
+        active_tournament_banner=0,
         active_tournament_banners=[],
         badges=[],
         current_season_stats=None,
@@ -419,6 +426,8 @@ def create_default_counts():
     """创建默认的计数信息"""
     class MockCounts:
         def __init__(self):
+            self.recent_scores_count = None
+            self.socres_first_count = None
             self.beatmap_playcounts_count = 0
             self.comments_count = 0
             self.favourite_beatmapset_count = 0
