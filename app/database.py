@@ -62,14 +62,28 @@ class User(Base):
     lazer_profile = relationship("LazerUserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     lazer_statistics = relationship("LazerUserStatistics", back_populates="user", cascade="all, delete-orphan")
     lazer_achievements = relationship("LazerUserAchievement", back_populates="user", cascade="all, delete-orphan")
-    lazer_profile_sections=relationship("LazerUserProfileSection", back_populates="user", cascade="all, delete-orphan")
+    lazer_profile_sections = relationship(
+        "LazerUserProfileSections",  # 修正类名拼写（添加s）
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
     statistics = relationship("LegacyUserStatistics", back_populates="user", cascade="all, delete-orphan")
-    achievements = relationship("LazerUserAchievement", back_populates="user", cascade="all, delete-orphan")
+    achievements = relationship(
+        "LazerUserAchievement", 
+        back_populates="user", 
+        cascade="all, delete-orphan",
+        overlaps="lazer_achievements"
+    )
     team_membership = relationship("TeamMember", back_populates="user", cascade="all, delete-orphan")
     daily_challenge_stats = relationship("DailyChallengeStats", back_populates="user", uselist=False, cascade="all, delete-orphan")
     rank_history = relationship("RankHistory", back_populates="user", cascade="all, delete-orphan")
     avatar = relationship("UserAvatar", back_populates="user", primaryjoin="and_(User.id==UserAvatar.user_id, UserAvatar.is_active==True)", uselist=False)
-    active_banners=relationship("LazerUserBanners",back_populates="user",cascade="all, delete-orphan")
+    active_banners = relationship(
+        "UserAvatar",  # 原定义指向LazerUserBanners，实际应为UserAvatar
+        back_populates="user",
+        primaryjoin="and_(User.id==UserAvatar.user_id, UserAvatar.is_active==True)",
+        uselist=False
+    )
     lazer_badges = relationship("LazerUserBadge", back_populates="user", cascade="all, delete-orphan")
     lazer_monthly_playcounts = relationship("LazerUserMonthlyPlaycounts", back_populates="user", cascade="all, delete-orphan")
     lazer_previous_usernames = relationship("LazerUserPreviousUsername", back_populates="user", cascade="all, delete-orphan")
@@ -132,6 +146,7 @@ class LazerUserProfile(Base):
     # 关联关系
     user = relationship("User", back_populates="lazer_profile")
 
+
 class LazerUserProfileSections(Base):
     __tablename__ = "lazer_user_profile_sections"
 
@@ -143,7 +158,8 @@ class LazerUserProfileSections(Base):
     created_at=Column(DateTime, default=datetime.utcnow)
     updated_at=Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    user = relationship("User", back_populates="lazer_profile_order")
+    user = relationship("User", back_populates="lazer_profile_sections")
+
 
 class LazerUserCountry(Base):
     __tablename__ = "lazer_user_countries"
@@ -251,13 +267,17 @@ class LazerUserStatistics(Base):
 class LazerUserBanners(Base):
     __tablename__ = "lazer_user_tournament_banners"
 
-    id=Column(Integer,primary_key=True)
+    id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    tournament_id=Column(Integer, nullable=False)
-    image_url = Column(VARCHAR(500),nullable=False)
-    is_active=Column(TINYINT(1))
+    tournament_id = Column(Integer, nullable=False)
+    image_url = Column(VARCHAR(500), nullable=False)
+    is_active = Column(TINYINT(1))
 
-    user=relationship("User", back_populates="lazer_active_banners")
+    # 修正user关系的back_populates值
+    user = relationship(
+        "User", 
+        back_populates="active_banners"  # 改为实际存在的属性名
+    )
 
 
 class LazerUserAchievement(Base):
