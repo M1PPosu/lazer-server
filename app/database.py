@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Float, Text, JSON, ForeignKey, Date, DECIMAL
-from sqlalchemy.dialects.mysql import VARCHAR
+from sqlalchemy.dialects.mysql import VARCHAR, TINYINT
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -62,14 +62,18 @@ class User(Base):
     lazer_profile = relationship("LazerUserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     lazer_statistics = relationship("LazerUserStatistics", back_populates="user", cascade="all, delete-orphan")
     lazer_achievements = relationship("LazerUserAchievement", back_populates="user", cascade="all, delete-orphan")
-    lazer_profile_order=relationship("LazerUserProfileOrder", back_populates="user", cascade="all, delete-orphan")
+    lazer_profile_sections=relationship("LazerUserProfileSection", back_populates="user", cascade="all, delete-orphan")
     statistics = relationship("LegacyUserStatistics", back_populates="user", cascade="all, delete-orphan")
     achievements = relationship("LazerUserAchievement", back_populates="user", cascade="all, delete-orphan")
     team_membership = relationship("TeamMember", back_populates="user", cascade="all, delete-orphan")
     daily_challenge_stats = relationship("DailyChallengeStats", back_populates="user", uselist=False, cascade="all, delete-orphan")
     rank_history = relationship("RankHistory", back_populates="user", cascade="all, delete-orphan")
     avatar = relationship("UserAvatar", back_populates="user", primaryjoin="and_(User.id==UserAvatar.user_id, UserAvatar.is_active==True)", uselist=False)
-
+    active_banners=relationship("LazerUserBanners",back_populates="user",cascade="all, delete-orphan")
+    lazer_badges = relationship("LazerUserBadge", back_populates="user", cascade="all, delete-orphan")
+    lazer_monthly_playcounts = relationship("LazerUserMonthlyPlaycounts", back_populates="user", cascade="all, delete-orphan")
+    lazer_previous_usernames = relationship("LazerUserPreviousUsername", back_populates="user", cascade="all, delete-orphan")
+    lazer_replays_watched = relationship("LazerUserReplaysWatched", back_populates="user", cascade="all, delete-orphan")
 
 # ============================================
 # Lazer API 专用表模型
@@ -131,8 +135,9 @@ class LazerUserProfile(Base):
 class LazerUserProfileSections(Base):
     __tablename__ = "lazer_user_profile_sections"
 
-    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
-    section_name = Column(VARCHAR(50))
+    id=Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"),nullable=False)
+    section_name = Column(VARCHAR(50),nullable=False)
     display_order=Column(Integer)
 
     created_at=Column(DateTime, default=datetime.utcnow)
@@ -167,7 +172,7 @@ class LazerUserCounts(Base):
     
     user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
     
-    # 统计计数字段
+    # 统计计数字段f
     beatmap_playcounts_count = Column(Integer, default=0)
     comments_count = Column(Integer, default=0)
     favourite_beatmapset_count = Column(Integer, default=0)
@@ -243,6 +248,17 @@ class LazerUserStatistics(Base):
     # 关联关系
     user = relationship("User", back_populates="lazer_statistics")
 
+class LazerUserBanners(Base):
+    __tablename__ = "lazer_user_tournament_banners"
+
+    id=Column(Integer,primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    tournament_id=Column(Integer, nullable=False)
+    image_url = Column(VARCHAR(500),nullable=False)
+    is_active=Column(TINYINT(1))
+
+    user=relationship("User", back_populates="lazer_active_banners")
+
 
 class LazerUserAchievement(Base):
     __tablename__ = "lazer_user_achievements"
@@ -256,6 +272,64 @@ class LazerUserAchievement(Base):
     #updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     user = relationship("User", back_populates="lazer_achievements")
+
+class LazerUserBadge(Base):
+    __tablename__ = "lazer_user_badges"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    badge_id = Column(Integer, nullable=False)
+    awarded_at = Column(DateTime)
+    description = Column(Text)
+    image_url = Column(String(500))
+    url = Column(String(500))
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="lazer_badges")
+
+
+class LazerUserMonthlyPlaycounts(Base):
+    __tablename__ = "lazer_user_monthly_playcounts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    start_date = Column(Date, nullable=False)
+    play_count = Column(Integer, default=0)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="lazer_monthly_playcounts")
+
+
+class LazerUserPreviousUsername(Base):
+    __tablename__ = "lazer_user_previous_usernames"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    username = Column(String(32), nullable=False)
+    changed_at = Column(DateTime, nullable=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="lazer_previous_usernames")
+
+
+class LazerUserReplaysWatched(Base):
+    __tablename__ = "lazer_user_replays_watched"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    start_date = Column(Date, nullable=False)
+    count = Column(Integer, default=0)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="lazer_replays_watched")
 
 # ============================================
 # 旧的兼容性表模型（保留以便向后兼容）
