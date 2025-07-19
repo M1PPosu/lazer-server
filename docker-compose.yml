@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: osu_api_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: osu_api
+      MYSQL_USER: osu_user
+      MYSQL_PASSWORD: osu_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: osu_api_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  api:
+    build: .
+    container_name: osu_api_server
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: mysql+pymysql://osu_user:osu_password@mysql:3306/osu_api
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: your-production-secret-key-here
+      OSU_CLIENT_ID: "5"
+      OSU_CLIENT_SECRET: "FGc9GAtyHzeQDshWP5Ah7dega8hJACAJpQtw6OXk"
+    depends_on:
+      - mysql
+      - redis
+    restart: unless-stopped
+    volumes:
+      - ./:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  mysql_data:
+  redis_data:
