@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional
-from datetime import datetime
-from app.models import *
-from app.database import User as DBUser, LazerUserStatistics, LazerUserProfile, LazerUserCountry, LazerUserKudosu, LazerUserCounts, LazerUserAchievement
+from datetime import datetime, UTC
+from app.models import User, Statistics, Level, GradeCounts, Country, Cover, Kudosu, GameMode, PlayStyle, Team, UserAchievement, RankHistory, DailyChallengeStats, RankHighest, Page
+from app.database import User as DBUser, LazerUserProfile, LazerUserStatistics, LazerUserCountry, LazerUserKudosu, LazerUserCounts, LazerUserAchievement
 from sqlalchemy.orm import Session
 
 
@@ -32,9 +32,11 @@ def convert_db_user_to_api_user(db_user: DBUser, ruleset: str = "osu", db_sessio
         user_stats = create_default_lazer_statistics(ruleset)
     
     # 获取国家信息
+    country_code = db_user.country_code if db_user.country_code else 'XX'
+    
     country = Country(
-        code=db_user.country_code,
-        name=get_country_name(db_user.country_code)
+        code=country_code,
+        name=get_country_name(country_code)
     )
     
     # 获取 Kudosu 信息
@@ -186,14 +188,14 @@ def convert_db_user_to_api_user(db_user: DBUser, ruleset: str = "osu", db_sessio
     user_id = getattr(db_user, 'id')
     user_name = getattr(db_user, 'name')
     user_country = getattr(db_user, 'country')
-    
+
     # 获取用户头像URL
     avatar_url = None
 
     # 首先检查 profile 中的 avatar_url
     if profile and hasattr(profile, 'avatar_url') and profile.avatar_url:
         avatar_url = str(profile.avatar_url)
-    
+
     # 然后检查是否有关联的头像记录
     if avatar_url is None and hasattr(db_user, 'avatar') and db_user.avatar is not None:
         if db_user.avatar.r2_game_url:
@@ -202,13 +204,13 @@ def convert_db_user_to_api_user(db_user: DBUser, ruleset: str = "osu", db_sessio
         elif db_user.avatar.r2_original_url:
             # 其次使用原始头像URL
             avatar_url = str(db_user.avatar.r2_original_url)
-    
+
     # 如果还是没有找到，通过查询获取
     if db_session and avatar_url is None:
         try:
             # 导入UserAvatar模型
             from app.database import UserAvatar
-            
+
             # 尝试查找用户的头像记录
             avatar_record = db_session.query(UserAvatar).filter_by(user_id=user_id, is_active=True).first()
             if avatar_record is not None:
@@ -229,7 +231,7 @@ def convert_db_user_to_api_user(db_user: DBUser, ruleset: str = "osu", db_sessio
         id=user_id,
         username=user_name,
         avatar_url=avatar_url,  # 使用我们上面获取的头像URL
-        country_code=user_country,
+        country_code=country_code,
         default_group=profile.default_group if profile else "default",
         is_active=profile.is_active if profile else True,
         is_bot=profile.is_bot if profile else False,
@@ -237,27 +239,19 @@ def convert_db_user_to_api_user(db_user: DBUser, ruleset: str = "osu", db_sessio
         is_online=profile.is_online if profile else True,
         is_supporter=profile.is_supporter if profile else False,
         is_restricted=profile.is_restricted if profile else False,
-        last_visit=db_user.last_visit,
+        last_visit=db_user.last_visit if db_user.last_visit else None,
         pm_friends_only=profile.pm_friends_only if profile else False,
         profile_colour=profile.profile_colour if profile else None,
-        cover_url=cover_url,
+        cover_url=profile.cover_url if profile and profile.cover_url else "https://assets.ppy.sh/user-profile-covers/default.jpeg",
         discord=profile.discord if profile else None,
         has_supported=profile.has_supported if profile else False,
         interests=profile.interests if profile else None,
-        join_date=db_user.join_date,
+        join_date=db_user.join_date if db_user.join_date else None,
         location=profile.location if profile else None,
-        max_blocks=profile.max_blocks if profile else 100,
-        max_friends=profile.max_friends if profile else 500,
-
-        occupation=None,  # 职业字段，默认为 None #待修改
-
-        #playmode=GameMode(db_user.playmode),
-        playmode=GameMode("osu"), #待修改
-
-        playstyle=[PlayStyle.MOUSE, PlayStyle.KEYBOARD, PlayStyle.TABLET], #待修改
-
-        post_count=0,
-        profile_hue=None,
+        max_blocks=profile.max_blocks if profile and profile.max_blocks else 100,
+        max_friends=profile.max_friends if profile and profile.max_friends else 500,
+        post_count=profile.post_count if profile and profile.post_count else 0,
+        profile_hue=profile.profile_hue if profile and profile.profile_hue else None,
         profile_order= ['me', 'recent_activity', 'top_ranks', 'medals', 'historical', 'beatmaps', 'kudosu'],
         title=None,
         title_url=None,
@@ -295,12 +289,11 @@ def convert_db_user_to_api_user(db_user: DBUser, ruleset: str = "osu", db_sessio
         daily_challenge_user_stats=None,
         groups=[],
         monthly_playcounts=[],
-        #page=Page(html=db_user.page_html, raw=db_user.page_raw),
-        page=Page(),  # Provide a default Page object
+        page=Page(html=profile.page_html, raw=profile.page_raw) if profile.page_html or profile.page_raw else Page(),
         previous_usernames=[],
         rank_highest=rank_highest,
         rank_history=rank_history,
-        rankHistory=rank_history,  # 兼容性别名
+        rankHistory=rank_history,  # 保留旧API兼容性字段
         replays_watched_counts=[],
         team=team,
         user_achievements=user_achievements

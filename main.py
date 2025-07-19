@@ -20,7 +20,6 @@ app = FastAPI(title="osu! API 模拟服务器", version="1.0.0")
 
 security = HTTPBearer()
 
-
 @app.post("/oauth/token", response_model=TokenResponse)
 async def oauth_token(
     grant_type: str = Form(...),
@@ -104,7 +103,7 @@ async def oauth_token(
             refresh_token=new_refresh_token,
             scope=scope
         )
-    
+
     else:
         raise HTTPException(status_code=400, detail="Unsupported grant type")
 
