@@ -7,12 +7,10 @@ from app.models import (
     Country,
     Cover,
     DailyChallengeStats,
-    GameMode,
     GradeCounts,
     Kudosu,
     Level,
     Page,
-    PlayStyle,
     RankHighest,
     RankHistory,
     Statistics,
@@ -41,6 +39,13 @@ def convert_db_user_to_api_user(
         # 如果没有 lazer 资料，使用默认值
         profile = create_default_profile(db_user)
 
+    # 获取 Lazer 用户计数
+
+    lzrcnt = db_user.lazer_statistics
+    if not lzrcnt:
+        # 如果没有 lazer 计数，使用默认值
+        lzrcnt = create_default_counts()
+
     # 获取指定模式的统计信息
     user_stats = None
     for stat in db_user.lazer_statistics:
@@ -53,9 +58,9 @@ def convert_db_user_to_api_user(
         user_stats = create_default_lazer_statistics(ruleset)
 
     # 获取国家信息
-    country = Country(
-        code=user_country_code, name=get_country_name(user_country_code)
-    )
+    country_code = db_user.country_code if db_user.country_code else "XX"
+
+    country = Country(code=country_code, name=get_country_name(country_code))
 
     # 获取 Kudosu 信息
     kudosu = Kudosu(available=0, total=0)
@@ -249,11 +254,99 @@ def convert_db_user_to_api_user(
     if avatar_url is None:
         avatar_url = "https://a.gu-osu.gmoe.cc/api/users/avatar/1"
 
+    # 处理 profile_order 列表排序
+    profile_order = [
+        "me",
+        "recent_activity",
+        "top_ranks",
+        "medals",
+        "historical",
+        "beatmaps",
+        "kudosu",
+    ]
+    if profile and profile.profile_order:
+        profile_order = profile.profile_order
+
+    # 在convert_db_user_to_api_user函数中添加active_tournament_banners处理
+    active_tournament_banners = []
+    if (
+        hasattr(db_user, "lazer_tournament_banners")
+        and db_user.lazer_tournament_banners
+    ):
+        for banner in db_user.lazer_tournament_banners:
+            active_tournament_banners.append(
+                {
+                    "tournament_id": banner.tournament_id,
+                    "image_url": banner.image_url,
+                    "is_active": banner.is_active,
+                }
+            )
+
+    # 在convert_db_user_to_api_user函数中添加badges处理
+    badges = []
+    if hasattr(db_user, "lazer_badges") and db_user.lazer_badges:
+        for badge in db_user.lazer_badges:
+            badges.append(
+                {
+                    "badge_id": badge.badge_id,
+                    "awarded_at": badge.awarded_at,
+                    "description": badge.description,
+                    "image_url": badge.image_url,
+                    "url": badge.url,
+                }
+            )
+
+    # 在convert_db_user_to_api_user函数中添加monthly_playcounts处理
+    monthly_playcounts = []
+    if (
+        hasattr(db_user, "lazer_monthly_playcounts")
+        and db_user.lazer_monthly_playcounts
+    ):
+        for playcount in db_user.lazer_monthly_playcounts:
+            monthly_playcounts.append(
+                {
+                    "start_date": playcount.start_date.isoformat()
+                    if playcount.start_date
+                    else None,
+                    "play_count": playcount.play_count,
+                }
+            )
+
+    # 在convert_db_user_to_api_user函数中添加previous_usernames处理
+    previous_usernames = []
+    if (
+        hasattr(db_user, "lazer_previous_usernames")
+        and db_user.lazer_previous_usernames
+    ):
+        for username in db_user.lazer_previous_usernames:
+            previous_usernames.append(
+                {
+                    "username": username.username,
+                    "changed_at": username.changed_at.isoformat()
+                    if username.changed_at
+                    else None,
+                }
+            )
+
+    # 在convert_db_user_to_api_user函数中添加replays_watched_counts处理
+    replays_watched_counts = []
+    if hasattr(db_user, "lazer_replays_watched") and db_user.lazer_replays_watched:
+        for replay in db_user.lazer_replays_watched:
+            replays_watched_counts.append(
+                {
+                    "start_date": replay.start_date.isoformat()
+                    if replay.start_date
+                    else None,
+                    "count": replay.count,
+                }
+            )
+
+    # 创建用户对象
     user = User(
         id=user_id,
         username=user_name,
-        avatar_url=avatar_url,  # 使用我们上面获取的头像URL
-        country_code=user_country,
+        avatar_url=avatar_url,
+        country_code=country_code,
         default_group=profile.default_group if profile else "default",
         is_active=profile.is_active if profile else True,
         is_bot=profile.is_bot if profile else False,
@@ -261,75 +354,68 @@ def convert_db_user_to_api_user(
         is_online=profile.is_online if profile else True,
         is_supporter=profile.is_supporter if profile else False,
         is_restricted=profile.is_restricted if profile else False,
-        last_visit=db_user.last_visit,
+        last_visit=db_user.last_visit if db_user.last_visit else None,
         pm_friends_only=profile.pm_friends_only if profile else False,
         profile_colour=profile.profile_colour if profile else None,
-        cover_url=cover_url,
+        cover_url=profile.cover_url
+        if profile and profile.cover_url
+        else "https://assets.ppy.sh/user-profile-covers/default.jpeg",
         discord=profile.discord if profile else None,
         has_supported=profile.has_supported if profile else False,
         interests=profile.interests if profile else None,
-        join_date=db_user.join_date,
+        join_date=profile.join_date,
         location=profile.location if profile else None,
-        max_blocks=profile.max_blocks if profile else 100,
-        max_friends=profile.max_friends if profile else 500,
-        occupation=None,  # 职业字段，默认为 None #待修改
-        # playmode=GameMode(db_user.playmode),
-        playmode=GameMode("osu"),  # 待修改
-        playstyle=[PlayStyle.MOUSE, PlayStyle.KEYBOARD, PlayStyle.TABLET],  # 待修改
-        post_count=0,
-        profile_hue=None,
-        profile_order=[
-            "me",
-            "recent_activity",
-            "top_ranks",
-            "medals",
-            "historical",
-            "beatmaps",
-            "kudosu",
-        ],
-        title=None,
-        title_url=None,
-        twitter=None,
-        website="https://gmoe.cc",
+        max_blocks=profile.max_blocks if profile and profile.max_blocks else 100,
+        max_friends=profile.max_friends if profile and profile.max_friends else 500,
+        post_count=profile.post_count if profile and profile.post_count else 0,
+        profile_hue=profile.profile_hue if profile and profile.profile_hue else None,
+        profile_order=profile_order,  # 使用排序后的 profile_order
+        title=profile.title if profile else None,
+        title_url=profile.title_url if profile else None,
+        twitter=profile.twitter if profile else None,
+        website=profile.website if profile else None,
         session_verified=True,
-        support_level=0,
+        support_level=profile.support_level if profile else 0,
         country=country,
         cover=cover,
         kudosu=kudosu,
         statistics=statistics,
         statistics_rulesets=statistics_rulesets,
-        beatmap_playcounts_count=3306,
-        comments_count=0,
-        favourite_beatmapset_count=0,
-        follower_count=0,
-        graveyard_beatmapset_count=0,
-        guest_beatmapset_count=0,
-        loved_beatmapset_count=0,
-        mapping_follower_count=0,
-        nominated_beatmapset_count=0,
-        pending_beatmapset_count=0,
-        ranked_beatmapset_count=0,
-        ranked_and_approved_beatmapset_count=0,
-        unranked_beatmapset_count=0,
-        scores_best_count=0,
-        scores_first_count=0,
-        scores_pinned_count=0,
-        scores_recent_count=0,
-        account_history=[],
-        active_tournament_banner=None,
-        active_tournament_banners=[],
-        badges=[],
+        beatmap_playcounts_count=lzrcnt.beatmap_playcounts_count if lzrcnt else 0,
+        comments_count=lzrcnt.comments_count if lzrcnt else 0,
+        favourite_beatmapset_count=lzrcnt.favourite_beatmapset_count if lzrcnt else 0,
+        follower_count=lzrcnt.follower_count if lzrcnt else 0,
+        graveyard_beatmapset_count=lzrcnt.graveyard_beatmapset_count if lzrcnt else 0,
+        guest_beatmapset_count=lzrcnt.guest_beatmapset_count if lzrcnt else 0,
+        loved_beatmapset_count=lzrcnt.loved_beatmapset_count if lzrcnt else 0,
+        mapping_follower_count=lzrcnt.mapping_follower_count if lzrcnt else 0,
+        nominated_beatmapset_count=lzrcnt.nominated_beatmapset_count if lzrcnt else 0,
+        pending_beatmapset_count=lzrcnt.pending_beatmapset_count if lzrcnt else 0,
+        ranked_beatmapset_count=lzrcnt.ranked_beatmapset_count if lzrcnt else 0,
+        ranked_and_approved_beatmapset_count=lzrcnt.ranked_and_approved_beatmapset_count
+        if lzrcnt
+        else 0,
+        unranked_beatmapset_count=lzrcnt.unranked_beatmapset_count if lzrcnt else 0,
+        scores_best_count=lzrcnt.scores_best_count if lzrcnt else 0,
+        scores_first_count=lzrcnt.scores_first_count if lzrcnt else 0,
+        scores_pinned_count=lzrcnt.scores_pinned_count,
+        scores_recent_count=lzrcnt.scores_recent_count if lzrcnt else 0,
+        account_history=[],  # TODO: 获取用户历史账户信息
+        # active_tournament_banner=len(active_tournament_banners),
+        active_tournament_banners=active_tournament_banners,
+        badges=badges,
         current_season_stats=None,
         daily_challenge_user_stats=None,
         groups=[],
-        monthly_playcounts=[],
-        # page=Page(html=db_user.page_html, raw=db_user.page_raw),
-        page=Page(),  # Provide a default Page object
-        previous_usernames=[],
+        monthly_playcounts=monthly_playcounts,
+        page=Page(html=profile.page_html, raw=profile.page_raw)
+        if profile.page_html or profile.page_raw
+        else Page(),
+        previous_usernames=previous_usernames,
         rank_highest=rank_highest,
         rank_history=rank_history,
-        rankHistory=rank_history,  # 兼容性别名
-        replays_watched_counts=[],
+        rankHistory=rank_history,
+        replays_watched_counts=replays_watched_counts,
         team=team,
         user_achievements=user_achievements,
     )
@@ -358,6 +444,7 @@ def get_country_name(country_code: str) -> str:
 def create_default_profile(db_user: DBUser):
     """创建默认的用户资料"""
 
+    # 完善 MockProfile 类定义
     class MockProfile:
         def __init__(self):
             self.is_active = True
@@ -371,7 +458,7 @@ def create_default_profile(db_user: DBUser):
             self.pm_friends_only = False
             self.default_group = "default"
             self.last_visit = None
-            self.join_date = db_user.join_date
+            self.join_date = db_user.join_date if db_user else datetime.utcnow()
             self.profile_colour = None
             self.profile_hue = None
             self.avatar_url = None
@@ -389,8 +476,23 @@ def create_default_profile(db_user: DBUser):
             self.max_blocks = 100
             self.max_friends = 500
             self.post_count = 0
-            self.page_html = None
-            self.page_raw = None
+            # 添加profile_order字段
+            self.profile_order = [
+                "me",
+                "recent_activity",
+                "top_ranks",
+                "medals",
+                "historical",
+                "beatmaps",
+                "kudosu",
+            ]
+            self.page_html = ""
+            self.page_raw = ""
+            # 在MockProfile类中添加active_tournament_banners字段
+            self.active_tournament_banners = (
+                MockLazerTournamentBanner.create_default_banners()
+            )
+            self.active_tournament_banners = []  # 默认空列表
 
     return MockProfile()
 
@@ -413,11 +515,11 @@ def create_default_lazer_statistics(mode: str):
             self.pp_exp = 0.0
             self.ranked_score = 0
             self.hit_accuracy = 0.0
-            self.play_count = 0
-            self.play_time = 0
             self.total_score = 0
             self.total_hits = 0
             self.maximum_combo = 0
+            self.play_count = 0
+            self.play_time = 0
             self.replays_watched_by_others = 0
             self.is_ranked = False
             self.grade_ss = 0
@@ -459,7 +561,10 @@ def create_default_counts():
 
     class MockCounts:
         def __init__(self):
+            self.recent_scores_count = None
             self.beatmap_playcounts_count = 0
+            self.scores_first_count = 0
+            self.scores_pinned_count = 0
             self.comments_count = 0
             self.favourite_beatmapset_count = 0
             self.follower_count = 0
@@ -478,3 +583,18 @@ def create_default_counts():
             self.scores_recent_count = 0
 
     return MockCounts()
+
+
+class MockLazerTournamentBanner:
+    def __init__(self, tournament_id: int, image_url: str, is_active: bool = True):
+        self.tournament_id = tournament_id
+        self.image_url = image_url
+        self.is_active = is_active
+
+    @staticmethod
+    def create_default_banners():
+        """创建默认的锦标赛横幅配置"""
+        return [
+            MockLazerTournamentBanner(1, "https://example.com/banner1.jpg", True),
+            MockLazerTournamentBanner(2, "https://example.com/banner2.jpg", False),
+        ]

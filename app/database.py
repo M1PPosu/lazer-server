@@ -8,6 +8,7 @@ from sqlalchemy import (
     JSON,
     Boolean,
     Column,
+    Date,
     DateTime,
     Float,
     ForeignKey,
@@ -15,6 +16,7 @@ from sqlalchemy import (
     String,
     Text,
 )
+from sqlalchemy.dialects.mysql import TINYINT, VARCHAR
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -91,11 +93,19 @@ class User(Base):
     lazer_achievements = relationship(
         "LazerUserAchievement", back_populates="user", cascade="all, delete-orphan"
     )
+    lazer_profile_sections = relationship(
+        "LazerUserProfileSections",  # 修正类名拼写（添加s）
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
     statistics = relationship(
         "LegacyUserStatistics", back_populates="user", cascade="all, delete-orphan"
     )
     achievements = relationship(
-        "LazerUserAchievement", back_populates="user", cascade="all, delete-orphan"
+        "LazerUserAchievement",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        overlaps="lazer_achievements",
     )
     team_membership = relationship(
         "TeamMember", back_populates="user", cascade="all, delete-orphan"
@@ -114,6 +124,28 @@ class User(Base):
         back_populates="user",
         primaryjoin="and_(User.id==UserAvatar.user_id, UserAvatar.is_active==True)",
         uselist=False,
+    )
+    active_banners = relationship(
+        "LazerUserBanners",  # 原定义指向LazerUserBanners，实际应为UserAvatar
+        back_populates="user",
+        primaryjoin=(
+            "and_(User.id==LazerUserBanners.user_id, LazerUserBanners.is_active==True)"
+        ),
+        uselist=False,
+    )
+    lazer_badges = relationship(
+        "LazerUserBadge", back_populates="user", cascade="all, delete-orphan"
+    )
+    lazer_monthly_playcounts = relationship(
+        "LazerUserMonthlyPlaycounts",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    lazer_previous_usernames = relationship(
+        "LazerUserPreviousUsername", back_populates="user", cascade="all, delete-orphan"
+    )
+    lazer_replays_watched = relationship(
+        "LazerUserReplaysWatched", back_populates="user", cascade="all, delete-orphan"
     )
 
 
@@ -174,6 +206,20 @@ class LazerUserProfile(Base):
 
     # 关联关系
     user = relationship("User", back_populates="lazer_profile")
+
+
+class LazerUserProfileSections(Base):
+    __tablename__ = "lazer_user_profile_sections"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    section_name = Column(VARCHAR(50), nullable=False)
+    display_order = Column(Integer)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="lazer_profile_sections")
 
 
 class LazerUserCountry(Base):
@@ -280,6 +326,22 @@ class LazerUserStatistics(Base):
     user = relationship("User", back_populates="lazer_statistics")
 
 
+class LazerUserBanners(Base):
+    __tablename__ = "lazer_user_tournament_banners"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    tournament_id = Column(Integer, nullable=False)
+    image_url = Column(VARCHAR(500), nullable=False)
+    is_active = Column(TINYINT(1))
+
+    # 修正user关系的back_populates值
+    user = relationship(
+        "User",
+        back_populates="active_banners",  # 改为实际存在的属性名
+    )
+
+
 class LazerUserAchievement(Base):
     __tablename__ = "lazer_user_achievements"
 
@@ -292,6 +354,65 @@ class LazerUserAchievement(Base):
     # updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user = relationship("User", back_populates="lazer_achievements")
+
+
+class LazerUserBadge(Base):
+    __tablename__ = "lazer_user_badges"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    badge_id = Column(Integer, nullable=False)
+    awarded_at = Column(DateTime)
+    description = Column(Text)
+    image_url = Column(String(500))
+    url = Column(String(500))
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="lazer_badges")
+
+
+class LazerUserMonthlyPlaycounts(Base):
+    __tablename__ = "lazer_user_monthly_playcounts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    start_date = Column(Date, nullable=False)
+    play_count = Column(Integer, default=0)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="lazer_monthly_playcounts")
+
+
+class LazerUserPreviousUsername(Base):
+    __tablename__ = "lazer_user_previous_usernames"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    username = Column(String(32), nullable=False)
+    changed_at = Column(DateTime, nullable=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="lazer_previous_usernames")
+
+
+class LazerUserReplaysWatched(Base):
+    __tablename__ = "lazer_user_replays_watched"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    start_date = Column(Date, nullable=False)
+    count = Column(Integer, default=0)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="lazer_replays_watched")
 
 
 # ============================================
