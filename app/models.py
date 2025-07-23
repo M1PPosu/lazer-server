@@ -1,7 +1,10 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List
+from __future__ import annotations
+
 from datetime import datetime
 from enum import Enum
+from typing import Optional
+
+from pydantic import BaseModel
 
 
 class GameMode(str, Enum):
@@ -88,7 +91,7 @@ class RankHighest(BaseModel):
 
 class RankHistory(BaseModel):
     mode: str
-    data: List[int]
+    data: list[int]
 
 
 class DailyChallengeStats(BaseModel):
@@ -132,7 +135,7 @@ class User(BaseModel):
     last_visit: Optional[datetime] = None
     pm_friends_only: bool = False
     profile_colour: Optional[str] = None
-    
+
     # 个人资料
     cover_url: Optional[str] = None
     discord: Optional[str] = None
@@ -144,24 +147,32 @@ class User(BaseModel):
     max_friends: int = 500
     occupation: Optional[str] = None
     playmode: GameMode = GameMode.OSU
-    playstyle: List[PlayStyle] = []
+    playstyle: list[PlayStyle] = []
     post_count: int = 0
     profile_hue: Optional[int] = None
-    profile_order: List[str] = ["me", "recent_activity", "top_ranks", "medals", "historical", "beatmaps", "kudosu"]
+    profile_order: list[str] = [
+        "me",
+        "recent_activity",
+        "top_ranks",
+        "medals",
+        "historical",
+        "beatmaps",
+        "kudosu",
+    ]
     title: Optional[str] = None
     title_url: Optional[str] = None
     twitter: Optional[str] = None
     website: Optional[str] = None
     session_verified: bool = False
     support_level: int = 0
-    
+
     # 关联对象
     country: Country
     cover: Cover
     kudosu: Kudosu
     statistics: Statistics
     statistics_rulesets: dict[str, Statistics]
-    
+
     # 计数信息
     beatmap_playcounts_count: int = 0
     comments_count: int = 0
@@ -180,24 +191,24 @@ class User(BaseModel):
     scores_first_count: int = 0
     scores_pinned_count: int = 0
     scores_recent_count: int = 0
-    
+
     # 历史数据
-    account_history: List[dict] = []
+    account_history: list[dict] = []
     active_tournament_banner: Optional[dict] = None
-    active_tournament_banners: List[dict] = []
-    badges: List[dict] = []
+    active_tournament_banners: list[dict] = []
+    badges: list[dict] = []
     current_season_stats: Optional[dict] = None
     daily_challenge_user_stats: Optional[DailyChallengeStats] = None
-    groups: List[dict] = []
-    monthly_playcounts: List[MonthlyPlaycount] = []
+    groups: list[dict] = []
+    monthly_playcounts: list[MonthlyPlaycount] = []
     page: Page = Page()
-    previous_usernames: List[str] = []
+    previous_usernames: list[str] = []
     rank_highest: Optional[RankHighest] = None
     rank_history: Optional[RankHistory] = None
     rankHistory: Optional[RankHistory] = None  # 兼容性别名
-    replays_watched_counts: List[dict] = []
+    replays_watched_counts: list[dict] = []
     team: Optional[Team] = None
-    user_achievements: List[UserAchievement] = []
+    user_achievements: list[UserAchievement] = []
 
 
 # OAuth 相关模型

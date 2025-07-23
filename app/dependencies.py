@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+
 try:
     import redis
 except ImportError:
@@ -16,6 +19,7 @@ if redis:
 else:
     redis_client = None
 
+
 # 数据库依赖
 def get_db():
     db = SessionLocal()
@@ -23,6 +27,7 @@ def get_db():
         yield db
     finally:
         db.close()
+
 
 # Redis 依赖
 def get_redis():

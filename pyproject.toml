@@ -1,0 +1,86 @@
+[project]
+name = "osu-lazer-api"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "alembic>=1.12.1",
+    "bcrypt>=4.1.2",
+    "cryptography>=41.0.7",
+    "fastapi>=0.104.1",
+    "passlib[bcrypt]>=1.7.4",
+    "pydantic[email]>=2.5.0",
+    "pymysql>=1.1.0",
+    "python-dotenv>=1.0.0",
+    "python-jose[cryptography]>=3.3.0",
+    "python-multipart>=0.0.6",
+    "redis>=5.0.1",
+    "sqlalchemy>=2.0.23",
+    "uvicorn[standard]>=0.24.0",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+
+[tool.ruff.format]
+line-ending = "lf"
+
+[tool.ruff.lint]
+select = [
+  "F",     # Pyflakes
+  "W",     # pycodestyle warnings
+  "E",     # pycodestyle errors
+  "I",     # isort
+  "UP",    # pyupgrade
+  "ASYNC", # flake8-async
+  "C4",    # flake8-comprehensions
+  "T10",   # flake8-debugger
+  # "T20",   # flake8-print
+  "PYI",   # flake8-pyi
+  "PT",    # flake8-pytest-style
+  "Q",     # flake8-quotes
+  "TID",   # flake8-tidy-imports
+  "RUF",   # Ruff-specific rules
+]
+ignore = [
+  "E402",   # module-import-not-at-top-of-file
+  "UP037",  # quoted-annotation
+  "RUF001", # ambiguous-unicode-character-string
+  "RUF002", # ambiguous-unicode-character-docstring
+  "RUF003", # ambiguous-unicode-character-comment
+]
+
+
+[tool.ruff.lint.isort]
+force-sort-within-sections = true
+force-wrap-aliases = true
+combine-as-imports = true
+order-by-type = true
+relative-imports-order = "closest-to-furthest"
+required-imports = ["from __future__ import annotations"]
+extra-standard-library = ["typing_extensions"]
+section-order = ["future", "standard-library", "first-party", "local-folder", "third-party"]
+
+[tool.ruff.lint.flake8-pytest-style]
+fixture-parentheses = false
+mark-parentheses = false
+
+[tool.ruff.lint.pyupgrade]
+keep-runtime-typing = true
+
+[tool.pyright]
+pythonVersion = "3.11"
+pythonPlatform = "All"
+
+typeCheckingMode = "standard"
+reportShadowedImports = false
+disableBytesTypePromotions = true
+reportIncompatibleMethodOverride = false
+reportIncompatibleVariableOverride = false
+
+[dependency-groups]
+dev = [
+    "ruff>=0.12.4",
+]

@@ -1,9 +1,14 @@
-import requests
+from __future__ import annotations
+
 import os
 
-CLIENT_ID = os.environ.get('OSU_CLIENT_ID', '5')
-CLIENT_SECRET = os.environ.get('OSU_CLIENT_SECRET', 'FGc9GAtyHzeQDshWP5Ah7dega8hJACAJpQtw6OXk')
-API_URL = os.environ.get('OSU_API_URL', 'https://osu.ppy.sh')
+import requests
+
+CLIENT_ID = os.environ.get("OSU_CLIENT_ID", "5")
+CLIENT_SECRET = os.environ.get(
+    "OSU_CLIENT_SECRET", "FGc9GAtyHzeQDshWP5Ah7dega8hJACAJpQtw6OXk"
+)
+API_URL = os.environ.get("OSU_API_URL", "https://osu.ppy.sh")
 
 
 def authenticate(username: str, password: str):
