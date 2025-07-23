@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 import time
 from sqlalchemy.orm import Session
 from app.dependencies import get_db, engine
-from app.database import Base, User, UserStatistics, UserAchievement, DailyChallengeStats, RankHistory
+from app.database import Base, User, LazerUserStatistics, UserAchievement, DailyChallengeStats, RankHistory
 from app.auth import get_password_hash
 
 # 创建所有表
@@ -134,7 +134,7 @@ def create_sample_user():
     db.refresh(user)
     
     # 创建 osu! 模式统计
-    osu_stats = UserStatistics(
+    osu_stats = LazerUserStatistics(
         user_id=user.id,
         mode="osu",
         count_100=276274,
@@ -165,7 +165,7 @@ def create_sample_user():
     )
     
     # 创建 taiko 模式统计
-    taiko_stats = UserStatistics(
+    taiko_stats = LazerUserStatistics(
         user_id=user.id,
         mode="taiko",
         count_100=160,
@@ -188,7 +188,7 @@ def create_sample_user():
     )
     
     # 创建 fruits 模式统计
-    fruits_stats = UserStatistics(
+    fruits_stats = LazerUserStatistics(
         user_id=user.id,
         mode="fruits",
         count_100=109,
@@ -212,7 +212,7 @@ def create_sample_user():
     )
     
     # 创建 mania 模式统计
-    mania_stats = UserStatistics(
+    mania_stats = LazerUserStatistics(
         user_id=user.id,
         mode="mania",
         count_100=7867,
