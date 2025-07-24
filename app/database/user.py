@@ -1,14 +1,14 @@
 # ruff: noqa: I002
 from dataclasses import dataclass
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
+
+from .legacy import LegacyUserStatistics
+from .team import TeamMember
 
 from sqlalchemy import DECIMAL, JSON, Column, Date, DateTime, Text
 from sqlalchemy.dialects.mysql import VARCHAR
 from sqlmodel import Field, Relationship, SQLModel
-
-if TYPE_CHECKING:
-    pass
 
 
 class User(SQLModel, table=True):
@@ -76,8 +76,8 @@ class User(SQLModel, table=True):
     lazer_profile_sections: list["LazerUserProfileSections"] = Relationship(
         back_populates="user"
     )
-    statistics: list["LegacyUserStatistics"] = Relationship(back_populates="user")
-    team_membership: list["TeamMember"] = Relationship(back_populates="user")
+    statistics: list[LegacyUserStatistics] = Relationship(back_populates="user")
+    team_membership: list[TeamMember] = Relationship(back_populates="user")
     daily_challenge_stats: Optional["DailyChallengeStats"] = Relationship(
         back_populates="user"
     )
@@ -400,127 +400,11 @@ class LazerUserReplaysWatched(SQLModel, table=True):
     user: "User" = Relationship(back_populates="lazer_replays_watched")
 
 
-# ============================================
-# 旧的兼容性表模型（保留以便向后兼容）
-# ============================================
-
-
-class LegacyUserStatistics(SQLModel, table=True):
-    __tablename__ = "user_statistics"  # pyright: ignore[reportAssignmentType]
-
-    id: int | None = Field(default=None, primary_key=True, index=True)
-    user_id: int = Field(foreign_key="users.id")
-    mode: str = Field(max_length=10)  # osu, taiko, fruits, mania
-
-    # 基本统计
-    count_100: int = Field(default=0)
-    count_300: int = Field(default=0)
-    count_50: int = Field(default=0)
-    count_miss: int = Field(default=0)
-
-    # 等级信息
-    level_current: int = Field(default=1)
-    level_progress: int = Field(default=0)
-
-    # 排名信息
-    global_rank: int | None = Field(default=None)
-    global_rank_exp: int | None = Field(default=None)
-    country_rank: int | None = Field(default=None)
-
-    # PP 和分数
-    pp: float = Field(default=0.0)
-    pp_exp: float = Field(default=0.0)
-    ranked_score: int = Field(default=0)
-    hit_accuracy: float = Field(default=0.0)
-    total_score: int = Field(default=0)
-    total_hits: int = Field(default=0)
-    maximum_combo: int = Field(default=0)
-
-    # 游戏统计
-    play_count: int = Field(default=0)
-    play_time: int = Field(default=0)
-    replays_watched_by_others: int = Field(default=0)
-    is_ranked: bool = Field(default=False)
-
-    # 成绩等级计数
-    grade_ss: int = Field(default=0)
-    grade_ssh: int = Field(default=0)
-    grade_s: int = Field(default=0)
-    grade_sh: int = Field(default=0)
-    grade_a: int = Field(default=0)
-
-    # 最高排名记录
-    rank_highest: int | None = Field(default=None)
-    rank_highest_updated_at: datetime | None = Field(
-        default=None, sa_column=Column(DateTime)
-    )
-
-    created_at: datetime = Field(
-        default_factory=datetime.utcnow, sa_column=Column(DateTime)
-    )
-    updated_at: datetime = Field(
-        default_factory=datetime.utcnow, sa_column=Column(DateTime)
-    )
-
-    # 关联关系
-    user: "User" = Relationship(back_populates="statistics")
-
-
-class LegacyOAuthToken(SQLModel, table=True):
-    __tablename__ = "legacy_oauth_tokens"  # pyright: ignore[reportAssignmentType]
-
-    id: int | None = Field(default=None, primary_key=True)
-    user_id: int = Field(foreign_key="users.id")
-    access_token: str = Field(max_length=255, index=True)
-    refresh_token: str = Field(max_length=255, index=True)
-    expires_at: datetime = Field(sa_column=Column(DateTime))
-    created_at: datetime = Field(
-        default_factory=datetime.utcnow, sa_column=Column(DateTime)
-    )
-    updated_at: datetime = Field(
-        default_factory=datetime.utcnow, sa_column=Column(DateTime)
-    )
-    previous_usernames: list = Field(default_factory=list, sa_column=Column(JSON))
-    replays_watched_counts: list = Field(default_factory=list, sa_column=Column(JSON))
-
-    # 用户关系
-    user: "User" = Relationship()
-
-
 # 类型转换用的 UserAchievement（不是 SQLAlchemy 模型）
 @dataclass
 class UserAchievement:
     achieved_at: datetime
     achievement_id: int
-
-
-class Team(SQLModel, table=True):
-    __tablename__ = "teams"  # pyright: ignore[reportAssignmentType]
-
-    id: int | None = Field(default=None, primary_key=True, index=True)
-    name: str = Field(max_length=100)
-    short_name: str = Field(max_length=10)
-    flag_url: str | None = Field(default=None, max_length=500)
-    created_at: datetime = Field(
-        default_factory=datetime.utcnow, sa_column=Column(DateTime)
-    )
-
-    members: list["TeamMember"] = Relationship(back_populates="team")
-
-
-class TeamMember(SQLModel, table=True):
-    __tablename__ = "team_members"  # pyright: ignore[reportAssignmentType]
-
-    id: int | None = Field(default=None, primary_key=True, index=True)
-    user_id: int = Field(foreign_key="users.id")
-    team_id: int = Field(foreign_key="teams.id")
-    joined_at: datetime = Field(
-        default_factory=datetime.utcnow, sa_column=Column(DateTime)
-    )
-
-    user: "User" = Relationship(back_populates="team_membership")
-    team: "Team" = Relationship(back_populates="members")
-
 
 class DailyChallengeStats(SQLModel, table=True):
     __tablename__ = "daily_challenge_stats"  # pyright: ignore[reportAssignmentType]
@@ -556,22 +440,6 @@ class RankHistory(SQLModel, table=True):
 
     user: "User" = Relationship(back_populates="rank_history")
 
-
-class OAuthToken(SQLModel, table=True):
-    __tablename__ = "oauth_tokens"  # pyright: ignore[reportAssignmentType]
-
-    id: int | None = Field(default=None, primary_key=True, index=True)
-    user_id: int = Field(foreign_key="users.id")
-    access_token: str = Field(max_length=500, unique=True)
-    refresh_token: str = Field(max_length=500, unique=True)
-    token_type: str = Field(default="Bearer", max_length=20)
-    scope: str = Field(default="*", max_length=100)
-    expires_at: datetime = Field(sa_column=Column(DateTime))
-    created_at: datetime = Field(
-        default_factory=datetime.utcnow, sa_column=Column(DateTime)
-    )
-
-    user: "User" = Relationship()
 
 
 class UserAvatar(SQLModel, table=True):
