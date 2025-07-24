@@ -83,7 +83,7 @@ def authenticate_user_legacy(db: Session, name: str, password: str) -> DBUser | 
     if not user:
         return None
 
-    # 3. 验证密码 - 修复逻辑错误
+    # 3. 验证密码
     if user.pw_bcrypt is None or user.pw_bcrypt == "":
         return None
 
