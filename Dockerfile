@@ -1,7 +1,6 @@
-FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim
+FROM python:3.11-slim
 
 WORKDIR /app
-ENV UV_PROJECT_ENVIRONMENT venv
 
 # 安装系统依赖
 RUN apt-get update && apt-get install -y \
@@ -11,11 +10,10 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # 复制依赖文件
-COPY uv.lock .
-COPY pyproject.toml .
+COPY requirements.txt .
 
 # 安装Python依赖
-RUN uv sync --locked
+RUN pip install --no-cache-dir -r requirements.txt
 
 # 复制应用代码
 COPY . .
@@ -24,4 +22,4 @@ COPY . .
 EXPOSE 8000
 
 # 启动命令
-CMD ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
