@@ -14,7 +14,7 @@ from app.dependencies import get_db
 from app.models.oauth import TokenResponse
 
 from fastapi import APIRouter, Depends, Form, HTTPException
-from sqlalchemy.orm import Session
+from sqlmodel import Session
 
 router = APIRouter(tags=["osu! OAuth 认证"])
 
@@ -92,7 +92,7 @@ async def oauth_token(
         new_refresh_token = generate_refresh_token()
 
         # 更新令牌
-        user_id = int(getattr(token_record, 'user_id'))
+        user_id = int(getattr(token_record, "user_id"))
         store_token(
             db,
             user_id,

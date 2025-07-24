@@ -10,33 +10,36 @@ import time
 
 from app.auth import get_password_hash
 from app.database import (
-    Base,
     DailyChallengeStats,
+    LazerUserAchievement,
     LazerUserStatistics,
     RankHistory,
     User,
-    UserAchievement,
 )
 from app.dependencies.database import engine, get_db
 
+from sqlmodel import SQLModel
+
 # 创建所有表
-Base.metadata.create_all(bind=engine)
+SQLModel.metadata.create_all(bind=engine)
 
 
 def create_sample_user():
     """创建示例用户数据"""
-    db = next(get_db())
+    with next(get_db()) as db:
+        # 检查用户是否已存在
+        from sqlmodel import select
 
-    # 检查用户是否已存在
-    existing_user = db.query(User).filter(User.name == "Googujiang").first()
-    if existing_user:
-        print("示例用户已存在，跳过创建")
-        return existing_user
+        statement = select(User).where(User.name == "Googujiang")
+        existing_user = db.exec(statement).first()
+        if existing_user:
+            print("示例用户已存在，跳过创建")
+            return existing_user
 
-    # 当前时间戳
-    current_timestamp = int(time.time())
-    join_timestamp = int(datetime(2019, 11, 29, 17, 23, 13).timestamp())
-    last_visit_timestamp = int(datetime(2025, 7, 18, 16, 31, 29).timestamp())
+        # 当前时间戳
+        current_timestamp = int(time.time())
+        join_timestamp = int(datetime(2019, 11, 29, 17, 23, 13).timestamp())
+        last_visit_timestamp = int(datetime(2025, 7, 18, 16, 31, 29).timestamp())
 
     # 创建用户
     user = User(
@@ -149,6 +152,10 @@ def create_sample_user():
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    # 确保用户ID存在
+    if user.id is None:
+        raise ValueError("User ID is None after saving to database")
 
     # 创建 osu! 模式统计
     osu_stats = LazerUserStatistics(
@@ -370,28 +377,28 @@ def create_sample_user():
 
     # 创建一些成就
     achievements = [
-        UserAchievement(
-            # user_id=user.id,
+        LazerUserAchievement(
+            user_id=user.id,
             achievement_id=336,
             achieved_at=datetime(2025, 6, 21, 19, 6, 32),
         ),
-        UserAchievement(
-            # user_id=user.id,
+        LazerUserAchievement(
+            user_id=user.id,
             achievement_id=319,
             achieved_at=datetime(2025, 6, 1, 0, 52, 0),
         ),
-        UserAchievement(
-            # user_id=user.id,
+        LazerUserAchievement(
+            user_id=user.id,
             achievement_id=222,
             achieved_at=datetime(2025, 5, 28, 12, 24, 37),
         ),
-        UserAchievement(
-            # user_id=user.id,
+        LazerUserAchievement(
+            user_id=user.id,
             achievement_id=38,
             achieved_at=datetime(2024, 7, 5, 15, 43, 23),
         ),
-        UserAchievement(
-            # user_id=user.id,
+        LazerUserAchievement(
+            user_id=user.id,
             achievement_id=67,
             achieved_at=datetime(2024, 6, 24, 5, 6, 44),
         ),

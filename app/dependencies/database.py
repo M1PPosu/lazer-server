@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlmodel import Session, create_engine
 
 try:
     import redis
@@ -11,7 +10,6 @@ from app.config import settings
 
 # 数据库引擎
 engine = create_engine(settings.DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Redis 连接
 if redis:
@@ -22,11 +20,8 @@ else:
 
 # 数据库依赖
 def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    with Session(engine) as session:
+        yield session
 
 
 # Redis 依赖

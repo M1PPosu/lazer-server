@@ -3,10 +3,14 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 
+from app.database import (
+    LazerUserAchievement,
+    Team as Team,
+)
+
 from .score import GameMode
 
 from pydantic import BaseModel
-from app.database import LazerUserAchievement  # 添加数据库模型导入
 
 
 class PlayStyle(str, Enum):
@@ -108,13 +112,6 @@ class DailyChallengeStats(BaseModel):
     user_id: int
     weekly_streak_best: int = 0
     weekly_streak_current: int = 0
-
-
-class Team(BaseModel):
-    flag_url: str
-    id: int
-    name: str
-    short_name: str
 
 
 class Page(BaseModel):

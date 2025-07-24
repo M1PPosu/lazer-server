@@ -12,8 +12,10 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from app.database import User
-from app.dependencies import get_db
+from app.dependencies.database import get_db
 from app.utils import convert_db_user_to_api_user
+
+from sqlmodel import select
 
 
 def test_lazer_tables():
@@ -26,7 +28,8 @@ def test_lazer_tables():
 
     try:
         # 测试查询用户
-        user = db.query(User).first()
+        statement = select(User)
+        user = db.exec(statement).first()
         if not user:
             print("❌ 没有找到用户，请先同步数据")
             return False
@@ -83,7 +86,8 @@ def test_authentication():
 
     try:
         # 尝试认证第一个用户
-        user = db.query(User).first()
+        statement = select(User)
+        user = db.exec(statement).first()
         if not user:
             print("❌ 没有用户进行认证测试")
             return False
