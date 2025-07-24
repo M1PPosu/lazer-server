@@ -84,7 +84,7 @@ def authenticate_user_legacy(db: Session, name: str, password: str) -> Optional[
         return None
 
     # 3. 验证密码
-    if not (user.pw_bcrypt is None and user.pw_bcrypt != ""):
+    if user.pw_bcrypt is None or str(user.pw_bcrypt) == "":  # 修改条件判断逻辑
         return None
 
     # 4. 检查缓存
