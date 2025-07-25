@@ -16,6 +16,7 @@ COPY pyproject.toml .
 
 # 安装Python依赖
 RUN uv sync --locked
+RUN pip install uvicorn
 
 # 复制应用代码
 COPY . .
