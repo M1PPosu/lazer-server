@@ -98,3 +98,5 @@ class Score(BaseModel):
     legacy_perfect: bool
 
     # mp字段
+    playlist_item_id: Optional[int] = None
+    room_id: Optional[int] = None
