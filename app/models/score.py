@@ -19,6 +19,7 @@ MODE_TO_INT = {
     GameMode.FRUITS: 2,
     GameMode.MANIA: 3,
 }
+INT_TO_MODE = {v: k for k, v in MODE_TO_INT.items()}
 
 
 class Rank(str, Enum):

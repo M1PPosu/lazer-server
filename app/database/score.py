@@ -6,9 +6,8 @@ from typing import Literal
 
 from app.models.score import Rank
 
-from .beatmap import Beatmap
-from .beatmapset import Beatmapset
-from .user import User
+from .beatmap import Beatmap, BeatmapResp
+from .beatmapset import Beatmapset, BeatmapsetResp
 
 from pydantic import BaseModel
 from sqlalchemy import Column, DateTime
@@ -18,7 +17,6 @@ from sqlmodel import BigInteger, Field, Relationship, SQLModel
 class ScoreBase(SQLModel):
     # 基本字段
     accuracy: float
-    beatmap_id: int = Field(index=True, foreign_key="_beatmap.id")
     map_md5: str = Field(max_length=32, index=True)
     best_id: int | None = Field(default=None)
     build_id: int | None = Field(default=None)
@@ -39,23 +37,10 @@ class ScoreBase(SQLModel):
     started_at: datetime = Field(sa_column=Column(DateTime))
     total_score: int = Field(default=0, sa_column=Column(BigInteger))
     type: str
-    user_id: int = Field(foreign_key="user.id", index=True)
-    # ScoreStatistics
-    n300: int = Field(default=0, exclude=True)
-    n100: int
-    n50: int
-    nmiss: int
-    ngeki: int
-    nkatu: int
-    nlarge_tick_miss: int | None = Field(default=None, exclude=True)
-    nslider_tail_hit: int | None = Field(default=None, exclude=True)
 
     # optional
-    beatmap: "Beatmap" = Relationship(back_populates="scores")
-    beatmapset: "Beatmapset" = Relationship(back_populates="scores")
     # TODO: current_user_attributes
     position: int | None = Field(default=None)  # multiplayer
-    user: "User" = Relationship(back_populates="scores")
 
 
 class ScoreStatistics(BaseModel):
@@ -72,6 +57,22 @@ class ScoreStatistics(BaseModel):
 class Score(ScoreBase, table=True):
     __tablename__ = "scores"  # pyright: ignore[reportAssignmentType]
     id: int = Field(primary_key=True)
+    beatmap_id: int = Field(index=True, foreign_key="beatmap.id")
+    user_id: int = Field(foreign_key="user.id", index=True)
+    # ScoreStatistics
+    n300: int = Field(exclude=True)
+    n100: int = Field(exclude=True)
+    n50: int = Field(exclude=True)
+    nmiss: int = Field(exclude=True)
+    ngeki: int = Field(exclude=True)
+    nkatu: int = Field(exclude=True)
+    nlarge_tick_miss: int | None = Field(default=None, exclude=True)
+    nslider_tail_hit: int | None = Field(default=None, exclude=True)
+
+    # optional
+    beatmap: "Beatmap" = Relationship(back_populates="scores")
+    beatmapset: "Beatmapset" = Relationship(back_populates="scores")
+    # FIXME: user: "User" = Relationship(back_populates="scores")
 
 
 class ScoreResp(ScoreBase):
@@ -81,11 +82,16 @@ class ScoreResp(ScoreBase):
     legacy_total_score: int = 0  # FIXME
     processed: bool = False  # solo_score
     weight: float = 0.0
+    beatmap: BeatmapResp | None = None
+    beatmapset: BeatmapsetResp | None = None
+    # FIXME: user: APIUser | None = None
     statistics: ScoreStatistics | None = None
 
     @classmethod
     def from_db(cls, score: Score) -> "ScoreResp":
         s = cls.model_validate(score)
+        s.beatmap = BeatmapResp.from_db(score.beatmap)
+        s.beatmapset = BeatmapsetResp.from_db(score.beatmap.beatmapset)
         s.is_perfect_combo = s.max_combo == s.beatmap.max_combo
         s.legacy_perfect = s.max_combo == s.beatmap.max_combo
         if score.best_id:
