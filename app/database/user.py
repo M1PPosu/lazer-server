@@ -10,7 +10,7 @@ from .team import TeamMember
 
 from sqlalchemy import DECIMAL, JSON, Column, Date, DateTime, Text
 from sqlalchemy.dialects.mysql import VARCHAR
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import BigInteger, Field, Relationship, SQLModel
 
 
 class User(SQLModel, table=True):
@@ -264,10 +264,10 @@ class LazerUserStatistics(SQLModel, table=True):
     # PP 和分数
     pp: float = Field(default=0.00, sa_column=Column(DECIMAL(10, 2)))
     pp_exp: float = Field(default=0.00, sa_column=Column(DECIMAL(10, 2)))
-    ranked_score: int = Field(default=0)
+    ranked_score: int = Field(default=0, sa_column=Column(BigInteger))
     hit_accuracy: float = Field(default=0.00, sa_column=Column(DECIMAL(5, 2)))
-    total_score: int = Field(default=0)
-    total_hits: int = Field(default=0)
+    total_score: int = Field(default=0, sa_column=Column(BigInteger))
+    total_hits: int = Field(default=0, sa_column=Column(BigInteger))
     maximum_combo: int = Field(default=0)
 
     # 游戏统计
@@ -407,6 +407,7 @@ class UserAchievement:
     achieved_at: datetime
     achievement_id: int
 
+
 class DailyChallengeStats(SQLModel, table=True):
     __tablename__ = "daily_challenge_stats"  # pyright: ignore[reportAssignmentType]
 
@@ -440,7 +441,6 @@ class RankHistory(SQLModel, table=True):
     )
 
     user: "User" = Relationship(back_populates="rank_history")
-
 
 
 class UserAvatar(SQLModel, table=True):

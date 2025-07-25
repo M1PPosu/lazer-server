@@ -132,8 +132,8 @@ def main():
         print("身份验证失败，请检查用户名和密码")
         return
 
-    print(f"访问令牌: {token_data['access_token'][:50]}...")
-    print(f"刷新令牌: {token_data['refresh_token'][:30]}...")
+    print(f"访问令牌: {token_data['access_token']}")
+    print(f"刷新令牌: {token_data['refresh_token']}")
     print(f"令牌有效期: {token_data['expires_in']} 秒")
 
     # 4. 获取用户数据
@@ -153,7 +153,7 @@ def main():
     print("\n5. 测试令牌刷新...")
     new_token_data = refresh_token(token_data["refresh_token"])
     if new_token_data:
-        print(f"新访问令牌: {new_token_data['access_token'][:50]}...")
+        print(f"新访问令牌: {new_token_data['access_token']}")
 
         # 使用新令牌获取用户数据
         print("\n6. 使用新令牌获取用户数据...")

@@ -1,8 +1,12 @@
+from __future__ import annotations
+
 from enum import Enum, IntEnum
 from typing import Any, Optional
+
 from pydantic import BaseModel
 from datetime import datetime
 from .user import User
+
 
 class GameMode(str, Enum):
     OSU = "osu"
@@ -10,9 +14,19 @@ class GameMode(str, Enum):
     FRUITS = "fruits"
     MANIA = "mania"
 
+
+MODE_TO_INT = {
+    GameMode.OSU: 0,
+    GameMode.TAIKO: 1,
+    GameMode.FRUITS: 2,
+    GameMode.MANIA: 3,
+}
+
+
 class APIMod(BaseModel):
     acronym: str
     settings: dict[str, Any] = {}
+
 
 # https://github.com/ppy/osu/blob/master/osu.Game/Rulesets/Scoring/HitResult.cs
 class HitResult(IntEnum):
