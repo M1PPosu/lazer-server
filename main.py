@@ -3,9 +3,11 @@ from __future__ import annotations
 from datetime import datetime
 
 from app.config import settings
+from app.dependencies.database import engine
 from app.router import api_router, auth_router, signalr_router
 
 from fastapi import FastAPI
+from sqlmodel import SQLModel
 
 # 注意: 表结构现在通过 migrations 管理，不再自动创建
 # 如需创建表，请运行: python quick_sync.py
@@ -14,6 +16,8 @@ app = FastAPI(title="osu! API 模拟服务器", version="1.0.0")
 app.include_router(api_router, prefix="/api/v2")
 app.include_router(signalr_router, prefix="/signalr")
 app.include_router(auth_router)
+
+SQLModel.metadata.create_all(bind=engine)
 
 
 @app.get("/")

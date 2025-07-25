@@ -159,6 +159,13 @@ def store_token(
     for token in old_tokens:
         db.delete(token)
 
+    # 检查是否有重复的 access_token
+    duplicate_token = db.exec(
+        select(OAuthToken).where(OAuthToken.access_token == access_token)
+    ).first()
+    if duplicate_token:
+        db.delete(duplicate_token)
+
     # 创建新令牌记录
     token_record = OAuthToken(
         user_id=user_id,
