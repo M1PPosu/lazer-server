@@ -1,4 +1,6 @@
 # ruff: noqa: I002
+from __future__ import annotations
+
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
@@ -94,7 +96,6 @@ class User(SQLModel, table=True):
     lazer_replays_watched: list["LazerUserReplaysWatched"] = Relationship(
         back_populates="user"
     )
-
 
 # ============================================
 # Lazer API 专用表模型
