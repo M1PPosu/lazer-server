@@ -4,13 +4,13 @@ from datetime import datetime
 import math
 from typing import Literal
 
-from app.models.score import Rank
+from app.models.score import Rank, APIMod
 
 from .beatmap import Beatmap, BeatmapResp
 from .beatmapset import Beatmapset, BeatmapsetResp
 
 from pydantic import BaseModel
-from sqlalchemy import Column, DateTime
+from sqlalchemy import Column, DateTime, JSON
 from sqlmodel import BigInteger, Field, Relationship, SQLModel
 
 
@@ -26,7 +26,7 @@ class ScoreBase(SQLModel):
     ended_at: datetime = Field(sa_column=Column(DateTime))
     has_replay: bool
     max_combo: int
-    mods: int = Field(index=True)
+    mods: list[APIMod] = Field(sa_column=Column(JSON))
     passed: bool
     playlist_item_id: int | None = Field(default=None)  # multiplayer
     pp: float
