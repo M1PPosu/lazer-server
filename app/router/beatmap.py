@@ -5,6 +5,7 @@ from app.database import (
     BeatmapResp,
     User as DBUser,
 )
+from app.database.score import Score, ScoreResp, APIMod
 from app.database.beatmapset import Beatmapset
 from app.dependencies.database import get_db
 from app.dependencies.user import get_current_user
@@ -27,7 +28,8 @@ async def get_beatmap(
     beatmap = (
         await db.exec(
             select(Beatmap)
-            .options(joinedload(Beatmap.beatmapset).selectinload(Beatmapset.beatmaps))  # pyright: ignore[reportArgumentType]
+            .options(
+                joinedload(Beatmap.beatmapset).selectinload(Beatmapset.beatmaps))  # pyright: ignore[reportArgumentType]
             .where(Beatmap.id == bid)
         )
     ).first()
@@ -72,3 +74,47 @@ async def batch_get_beatmaps(
         ).all()
 
     return BatchGetResp(beatmaps=[BeatmapResp.from_db(bm) for bm in beatmaps])
+
+
+class BeatmapScores(BaseModel):
+    scores: list[ScoreResp]
+    userScore: ScoreResp | None
+
+
+@router.get(
+    "/beatmaps/{beatmap}/scores", tags=["beatmapset"], response_model=BeatmapScores
+)
+async def get_beatmapset_scores(
+    beatmap: int,
+    legacy_only: bool = Query(None),  # TODO:加入对这个参数的查询
+    mode: str = Query(None),
+    mods: list[APIMod] = Query(None),
+    type: str = Query(None),
+    current_user: DBUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if legacy_only:
+        raise HTTPException(
+            status_code=404, detail="this server only contains lazer scores"
+        )
+
+    all_scores = (
+        await db.exec(
+            select(Score)
+            .where(Score.beatmap_id == beatmap)
+            .where(Score.mods == APIMod if mods else True)
+        )
+    ).all()
+
+    user_score = (
+        await db.exec(
+            select(Score)
+            .where(Score.beatmap_id == beatmap)
+            .where(Score.user_id == current_user.id)
+        )
+    ).first()
+
+    return BeatmapScores(
+        scores=[ScoreResp.from_db(score) for score in all_scores],
+        userScore=ScoreResp.from_db(user_score) if user_score else None,
+    )
