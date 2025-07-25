@@ -11,16 +11,24 @@ from app.dependencies.user import get_current_user
 from .api_router import router
 
 from fastapi import Depends, HTTPException
-from sqlmodel import Session, select
+from sqlalchemy.orm import selectinload
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 @router.get("/beatmapsets/{sid}", tags=["beatmapset"], response_model=BeatmapsetResp)
 async def get_beatmapset(
     sid: int,
     current_user: DBUser = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    beatmapset = db.exec(select(Beatmapset).where(Beatmapset.id == sid)).first()
+    beatmapset = (
+        await db.exec(
+            select(Beatmapset)
+            .options(selectinload(Beatmapset.beatmaps))  # pyright: ignore[reportArgumentType]
+            .where(Beatmapset.id == sid)
+        )
+    ).first()
     if not beatmapset:
         raise HTTPException(status_code=404, detail="Beatmapset not found")
     return BeatmapsetResp.from_db(beatmapset)

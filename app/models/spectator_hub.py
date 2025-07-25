@@ -4,14 +4,14 @@ import datetime
 from enum import IntEnum
 from typing import Any
 
-import msgpack
-from pydantic import Field, field_validator
-
-from .signalr import MessagePackArrayModel
 from .score import (
     APIMod as APIModBase,
     HitResult,
 )
+from .signalr import MessagePackArrayModel
+
+import msgpack
+from pydantic import Field, field_validator
 
 
 class APIMod(APIModBase, MessagePackArrayModel): ...

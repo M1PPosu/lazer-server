@@ -87,7 +87,7 @@ class UserAchievement(BaseModel):
         return LazerUserAchievement(
             user_id=user_id,
             achievement_id=self.achievement_id,
-            achieved_at=self.achieved_at
+            achieved_at=self.achieved_at,
         )
 
 
