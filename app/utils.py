@@ -11,7 +11,6 @@ from app.database import (
 from app.models.user import (
     Country,
     Cover,
-    DailyChallengeStats,
     GradeCounts,
     Kudosu,
     Level,
@@ -24,9 +23,7 @@ from app.models.user import (
 )
 
 
-async def convert_db_user_to_api_user(
-    db_user: DBUser, ruleset: str = "osu"
-) -> User:
+async def convert_db_user_to_api_user(db_user: DBUser, ruleset: str = "osu") -> User:
     """将数据库用户模型转换为API用户模型（使用 Lazer 表）"""
 
     # 从db_user获取基本字段值
@@ -71,7 +68,7 @@ async def convert_db_user_to_api_user(
     kudosu = Kudosu(available=0, total=0)
 
     # 获取计数信息
-    counts = LazerUserCounts(user_id=user_id)
+    # counts = LazerUserCounts(user_id=user_id)
 
     # 转换统计信息
     statistics = Statistics(
@@ -176,21 +173,21 @@ async def convert_db_user_to_api_user(
         rank_history = RankHistory(mode=ruleset, data=rank_history_data)
 
     # 转换每日挑战统计
-    daily_challenge_stats = None
-    if db_user.daily_challenge_stats:
-        dcs = db_user.daily_challenge_stats
-        daily_challenge_stats = DailyChallengeStats(
-            daily_streak_best=dcs.daily_streak_best,
-            daily_streak_current=dcs.daily_streak_current,
-            last_update=dcs.last_update,
-            last_weekly_streak=dcs.last_weekly_streak,
-            playcount=dcs.playcount,
-            top_10p_placements=dcs.top_10p_placements,
-            top_50p_placements=dcs.top_50p_placements,
-            user_id=dcs.user_id,
-            weekly_streak_best=dcs.weekly_streak_best,
-            weekly_streak_current=dcs.weekly_streak_current,
-        )
+    # daily_challenge_stats = None
+    # if db_user.daily_challenge_stats:
+    # dcs = db_user.daily_challenge_stats
+    # daily_challenge_stats = DailyChallengeStats(
+    #     daily_streak_best=dcs.daily_streak_best,
+    #     daily_streak_current=dcs.daily_streak_current,
+    #     last_update=dcs.last_update,
+    #     last_weekly_streak=dcs.last_weekly_streak,
+    #     playcount=dcs.playcount,
+    #     top_10p_placements=dcs.top_10p_placements,
+    #     top_50p_placements=dcs.top_50p_placements,
+    #     user_id=dcs.user_id,
+    #     weekly_streak_best=dcs.weekly_streak_best,
+    #     weekly_streak_current=dcs.weekly_streak_current,
+    # )
 
     # 转换最高排名
     rank_highest = None

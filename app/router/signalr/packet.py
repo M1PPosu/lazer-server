@@ -4,7 +4,6 @@ from enum import IntEnum
 from typing import Any
 
 import msgpack
-from pydantic import BaseModel, model_validator
 
 SEP = b"\x1e"
 
@@ -17,6 +16,7 @@ class PacketType(IntEnum):
     CANCEL_INVOCATION = 5
     PING = 6
     CLOSE = 7
+
 
 class ResultKind(IntEnum):
     ERROR = 1

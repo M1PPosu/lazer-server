@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
-import time
 
 from app.auth import get_password_hash
 from app.database import (
@@ -23,7 +22,6 @@ async def create_sample_user():
     """创建示例用户数据"""
     async with AsyncSession(engine) as session:
         async with session.begin():
-
             # 检查用户是否已存在
             statement = select(User).where(User.name == "Googujiang")
             result = await session.execute(statement)
@@ -33,7 +31,7 @@ async def create_sample_user():
                 return existing_user
 
             # 当前时间戳
-            current_timestamp = int(time.time())
+            # current_timestamp = int(time.time())
             join_timestamp = int(datetime(2019, 11, 29, 17, 23, 13).timestamp())
             last_visit_timestamp = int(datetime(2025, 7, 18, 16, 31, 29).timestamp())
 

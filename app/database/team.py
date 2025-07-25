@@ -7,6 +7,8 @@ from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
     from .user import User
+
+
 class Team(SQLModel, table=True):
     __tablename__ = "teams"  # pyright: ignore[reportAssignmentType]
 

@@ -85,5 +85,6 @@ reportIncompatibleVariableOverride = false
 [dependency-groups]
 dev = [
     "msgpack-types>=0.5.0",
+    "pre-commit>=4.2.0",
     "ruff>=0.12.4",
 ]

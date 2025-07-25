@@ -80,7 +80,7 @@ async def oauth_token(
             raise HTTPException(status_code=400, detail="Refresh token required")
 
         # 验证刷新令牌
-        token_record =await get_token_by_refresh_token(db, refresh_token)
+        token_record = await get_token_by_refresh_token(db, refresh_token)
         if not token_record:
             raise HTTPException(status_code=401, detail="Invalid refresh token")
 
