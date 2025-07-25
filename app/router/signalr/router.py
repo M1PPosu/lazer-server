@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from logging import info
 import time
 from typing import Literal
 import uuid
@@ -9,15 +8,14 @@ import uuid
 from app.database import User as DBUser
 from app.dependencies import get_current_user
 from app.dependencies.database import get_db
-from app.dependencies.user import get_current_user_by_token, security
+from app.dependencies.user import get_current_user_by_token
 from app.models.signalr import NegotiateResponse, Transport
 from app.router.signalr.packet import SEP
 
 from .hub import Hubs
 
 from fastapi import APIRouter, Depends, Header, Query, WebSocket
-from fastapi.security import HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 router = APIRouter()
 
@@ -48,7 +46,7 @@ async def connect(
     websocket: WebSocket,
     id: str,
     authorization: str = Header(...),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     token = authorization[7:]
     user_id = id.split(":")[0]

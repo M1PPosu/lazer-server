@@ -23,11 +23,9 @@ from app.models.user import (
     UserAchievement,
 )
 
-from sqlalchemy.orm import Session
 
-
-def convert_db_user_to_api_user(
-    db_user: DBUser, ruleset: str = "osu", db_session: Session | None = None
+async def convert_db_user_to_api_user(
+    db_user: DBUser, ruleset: str = "osu"
 ) -> User:
     """将数据库用户模型转换为API用户模型（使用 Lazer 表）"""
 

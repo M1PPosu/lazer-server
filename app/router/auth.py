@@ -14,7 +14,7 @@ from app.dependencies import get_db
 from app.models.oauth import TokenResponse
 
 from fastapi import APIRouter, Depends, Form, HTTPException
-from sqlmodel import Session
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 router = APIRouter(tags=["osu! OAuth 认证"])
 
@@ -28,7 +28,7 @@ async def oauth_token(
     username: str | None = Form(None),
     password: str | None = Form(None),
     refresh_token: str | None = Form(None),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """OAuth 令牌端点"""
     # 验证客户端凭据
@@ -46,7 +46,7 @@ async def oauth_token(
             )
 
         # 验证用户
-        user = authenticate_user(db, username, password)
+        user = await authenticate_user(db, username, password)
         if not user:
             raise HTTPException(status_code=401, detail="Invalid username or password")
 
@@ -58,9 +58,9 @@ async def oauth_token(
         refresh_token_str = generate_refresh_token()
 
         # 存储令牌
-        store_token(
+        await store_token(
             db,
-            getattr(user, "id"),
+            user.id,
             access_token,
             refresh_token_str,
             settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
@@ -80,7 +80,7 @@ async def oauth_token(
             raise HTTPException(status_code=400, detail="Refresh token required")
 
         # 验证刷新令牌
-        token_record = get_token_by_refresh_token(db, refresh_token)
+        token_record =await get_token_by_refresh_token(db, refresh_token)
         if not token_record:
             raise HTTPException(status_code=401, detail="Invalid refresh token")
 
@@ -92,10 +92,9 @@ async def oauth_token(
         new_refresh_token = generate_refresh_token()
 
         # 更新令牌
-        user_id = int(getattr(token_record, "user_id"))
-        store_token(
+        await store_token(
             db,
-            user_id,
+            token_record.user_id,
             access_token,
             new_refresh_token,
             settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,

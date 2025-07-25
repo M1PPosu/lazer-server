@@ -1,5 +1,8 @@
+from __future__ import annotations
+
+from collections.abc import Callable
 import inspect
-from typing import Any, Callable, ForwardRef, cast
+from typing import Any, ForwardRef, cast
 
 
 # https://github.com/pydantic/pydantic/blob/main/pydantic/v1/typing.py#L56-L66

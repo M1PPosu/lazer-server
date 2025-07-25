@@ -15,7 +15,7 @@ class User(SQLModel, table=True):
     __tablename__ = "users"  # pyright: ignore[reportAssignmentType]
 
     # 主键
-    id: int | None = Field(default=None, primary_key=True, index=True)
+    id: int = Field(default=None, primary_key=True, index=True, nullable=False)
 
     # 基本信息（匹配 migrations 中的结构）
     name: str = Field(max_length=32, unique=True, index=True)  # 用户名
