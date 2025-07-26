@@ -2,17 +2,19 @@
 
 from datetime import datetime
 import math
-from typing import Literal
+from typing import Literal, TYPE_CHECKING, List
 
-from app.models.score import Rank, APIMod
+from app.models.score import Rank, APIMod, GameMode
 
 from .beatmap import Beatmap, BeatmapResp
 from .beatmapset import Beatmapset, BeatmapsetResp
 
 from pydantic import BaseModel
 from sqlalchemy import Column, DateTime, JSON
-from sqlmodel import BigInteger, Field, Relationship, SQLModel
+from sqlmodel import BigInteger, Field, Relationship, SQLModel, JSON as SQLModeJSON
 
+if TYPE_CHECKING:
+    from .user import User
 
 class ScoreBase(SQLModel):
     # 基本字段
@@ -33,7 +35,7 @@ class ScoreBase(SQLModel):
     preserve: bool = Field(default=True)
     rank: Rank
     room_id: int | None = Field(default=None)  # multiplayer
-    ruleset_id: Literal[0, 1, 2, 3] = Field(index=True)
+    ruleset_id: GameMode = Field(index=True)
     started_at: datetime = Field(sa_column=Column(DateTime))
     total_score: int = Field(default=0, sa_column=Column(BigInteger))
     type: str
