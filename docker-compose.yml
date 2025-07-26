@@ -32,7 +32,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: mysql+pymysql://osu_user:osu_password@mysql:3306/osu_api
+      DATABASE_URL: mysql+aiomysql://osu_user:osu_password@mysql:3306/osu_api
       REDIS_URL: redis://redis:6379/0
       SECRET_KEY: your-production-secret-key-here
       OSU_CLIENT_ID: "5"
