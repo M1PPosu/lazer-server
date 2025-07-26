@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from enum import Enum, IntEnum
-from typing import Any, TypedDict
+
+import rosu_pp_py as rosu
 
 
 class GameMode(str, Enum):
@@ -9,6 +10,14 @@ class GameMode(str, Enum):
     TAIKO = "taiko"
     FRUITS = "fruits"
     MANIA = "mania"
+
+    def to_rosu(self) -> rosu.GameMode:
+        return {
+            GameMode.OSU: rosu.GameMode.Osu,
+            GameMode.TAIKO: rosu.GameMode.Taiko,
+            GameMode.FRUITS: rosu.GameMode.Catch,
+            GameMode.MANIA: rosu.GameMode.Mania,
+        }[self]
 
 
 MODE_TO_INT = {
@@ -30,11 +39,6 @@ class Rank(str, Enum):
     C = "c"
     D = "d"
     F = "f"
-
-
-class APIMod(TypedDict):
-    acronym: str
-    settings: dict[str, Any]
 
 
 # https://github.com/ppy/osu/blob/master/osu.Game/Rulesets/Scoring/HitResult.cs

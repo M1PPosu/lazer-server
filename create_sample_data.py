@@ -18,7 +18,8 @@ from app.database.beatmapset import Beatmapset
 from app.database.score import Score
 from app.dependencies.database import create_tables, engine
 from app.models.beatmap import BeatmapRankStatus, Genre, Language
-from app.models.score import APIMod, GameMode, Rank
+from app.models.mods import APIMod
+from app.models.score import GameMode, Rank
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession

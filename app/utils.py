@@ -8,6 +8,9 @@ from app.database import (
     LazerUserStatistics,
     User as DBUser,
 )
+from app.models.beatmap import BeatmapAttributes
+from app.models.mods import APIMod
+from app.models.score import GameMode
 from app.models.user import (
     Country,
     Cover,
@@ -21,6 +24,8 @@ from app.models.user import (
     User,
     UserAchievement,
 )
+
+import rosu_pp_py as rosu
 
 
 async def convert_db_user_to_api_user(db_user: DBUser, ruleset: str = "osu") -> User:
@@ -425,3 +430,26 @@ def get_country_name(country_code: str) -> str:
         # 可以添加更多国家
     }
     return country_names.get(country_code, "Unknown")
+
+
+def calculate_beatmap_attribute(
+    beatmap: str,
+    gamemode: GameMode | None = None,
+    mods: int | list[APIMod] | list[str] = 0,
+) -> BeatmapAttributes:
+    map = rosu.Beatmap(content=beatmap)
+    if gamemode is not None:
+        map.convert(gamemode.to_rosu(), mods)
+    diff = rosu.Difficulty(mods=mods).calculate(map)
+    return BeatmapAttributes(
+        star_rating=diff.stars,
+        max_combo=diff.max_combo,
+        aim_difficulty=diff.aim,
+        aim_difficult_slider_count=diff.aim_difficult_slider_count,
+        speed_difficulty=diff.speed,
+        speed_note_count=diff.speed_note_count,
+        slider_factor=diff.slider_factor,
+        aim_difficult_strain_count=diff.aim_difficult_strain_count,
+        speed_difficult_strain_count=diff.speed_difficult_strain_count,
+        mono_stamina_factor=diff.stamina,
+    )

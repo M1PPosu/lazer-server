@@ -1,12 +1,14 @@
 from datetime import datetime
 
+from app.fetcher import Fetcher
 from app.models.beatmap import BeatmapRankStatus
 from app.models.score import MODE_TO_INT, GameMode
 
 from .beatmapset import Beatmapset, BeatmapsetResp
 
 from sqlalchemy import DECIMAL, Column, DateTime
-from sqlmodel import VARCHAR, Field, Relationship, SQLModel
+from sqlalchemy.orm import joinedload
+from sqlmodel import VARCHAR, Field, Relationship, SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
@@ -77,6 +79,7 @@ class Beatmap(BeatmapBase, table=True):
         )
         session.add(beatmap)
         await session.commit()
+        await session.refresh(beatmap)
         return beatmap
 
     @classmethod
@@ -101,6 +104,30 @@ class Beatmap(BeatmapBase, table=True):
             beatmaps.append(beatmap)
         await session.commit()
         return beatmaps
+
+    @classmethod
+    async def get_or_fetch(
+        cls, session: AsyncSession, bid: int, fetcher: Fetcher
+    ) -> "Beatmap":
+        beatmap = (
+            await session.exec(
+                select(Beatmap)
+                .where(Beatmap.id == bid)
+                .options(
+                    joinedload(Beatmap.beatmapset).selectinload(Beatmapset.beatmaps)  # pyright: ignore[reportArgumentType]
+                )
+            )
+        ).first()
+        if not beatmap:
+            resp = await fetcher.get_beatmap(bid)
+            r = await session.exec(
+                select(Beatmapset.id).where(Beatmapset.id == resp.beatmapset_id)
+            )
+            if not r.first():
+                set_resp = await fetcher.get_beatmapset(resp.beatmapset_id)
+                await Beatmapset.from_resp(session, set_resp, from_=resp.id)
+            return await Beatmap.from_resp(session, resp)
+        return beatmap
 
 
 class BeatmapResp(BeatmapBase):

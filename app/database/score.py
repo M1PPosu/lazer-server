@@ -2,7 +2,8 @@ from datetime import datetime
 import math
 
 from app.database.user import User
-from app.models.score import MODE_TO_INT, APIMod, GameMode, Rank
+from app.models.mods import APIMod
+from app.models.score import MODE_TO_INT, GameMode, Rank
 
 from .beatmap import Beatmap, BeatmapResp
 from .beatmapset import BeatmapsetResp
