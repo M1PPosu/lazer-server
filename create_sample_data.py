@@ -29,12 +29,14 @@ async def create_sample_user():
     async with AsyncSession(engine) as session:
         async with session.begin():
             # 检查用户是否已存在
-            statement = select(User).where(User.name == "Googujiang")
-            result = await session.exec(statement)
+            result = await session.exec(select(User).where(User.name == "Googujiang"))
+            result2 = await session.exec(
+                select(User).where(User.name == "MingxuanGame")
+            )
             existing_user = result.first()
-            if existing_user:
+            existing_user2 = result2.first()
+            if existing_user is not None and existing_user2 is not None:
                 print("示例用户已存在，跳过创建")
-                return existing_user
 
             # 当前时间戳
             # current_timestamp = int(time.time())
@@ -62,13 +64,37 @@ async def create_sample_user():
                 userpage_content="「世界に忘れられた」",
                 api_key=None,
             )
+            user2 = User(
+                name="MingxuanGame",
+                safe_name="mingxuangame",  # 安全用户名（小写）
+                email="mingxuangame@example.com",
+                priv=1,  # 默认权限
+                pw_bcrypt=get_password_hash("password123"),  # 使用新的哈希方式
+                country="US",
+                silence_end=0,
+                donor_end=0,
+                creation_time=join_timestamp,
+                latest_activity=last_visit_timestamp,
+                clan_id=0,
+                clan_priv=0,
+                preferred_mode=0,  # 0 = osu!
+                play_style=0,
+                custom_badge_name=None,
+                custom_badge_icon=None,
+                userpage_content="For love and fun!",
+                api_key=None,
+            )
 
             session.add(user)
+            session.add(user2)
             print(f"成功创建示例用户: {user.name} (ID: {user.id})")
             print(f"安全用户名: {user.safe_name}")
             print(f"邮箱: {user.email}")
             print(f"国家: {user.country}")
-            return user
+            print(f"成功创建示例用户: {user2.name} (ID: {user2.id})")
+            print(f"安全用户名: {user2.safe_name}")
+            print(f"邮箱: {user2.email}")
+            print(f"国家: {user2.country}")
 
 
 async def create_sample_beatmap_data():

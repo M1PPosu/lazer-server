@@ -4,6 +4,7 @@ from . import (  # pyright: ignore[reportUnusedImport]  # noqa: F401
     beatmap,
     beatmapset,
     me,
+    relationship,
 )
 from .api_router import router as api_router
 from .auth import router as auth_router

@@ -65,7 +65,7 @@ class Score(ScoreBase, table=True):
     nkatu: int = Field(exclude=True)
     nlarge_tick_miss: int | None = Field(default=None, exclude=True)
     nslider_tail_hit: int | None = Field(default=None, exclude=True)
-    gamemode: GameMode = Field(index=True, alias="ruleset_id")
+    gamemode: GameMode = Field(index=True)
 
     # optional
     beatmap: "Beatmap" = Relationship()

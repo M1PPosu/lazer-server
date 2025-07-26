@@ -1,0 +1,62 @@
+from enum import Enum
+
+from .user import User
+
+from pydantic import BaseModel
+from sqlmodel import (
+    Field,
+    Relationship as SQLRelationship,
+    SQLModel,
+    select,
+)
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+
+class RelationshipType(str, Enum):
+    FOLLOW = "Friend"
+    BLOCK = "Block"
+
+
+class Relationship(SQLModel, table=True):
+    __tablename__ = "relationship"  # pyright: ignore[reportAssignmentType]
+    user_id: int = Field(
+        default=None, foreign_key="users.id", primary_key=True, index=True
+    )
+    target_id: int = Field(
+        default=None, foreign_key="users.id", primary_key=True, index=True
+    )
+    type: RelationshipType = Field(default=RelationshipType.FOLLOW, nullable=False)
+    target: "User" = SQLRelationship(
+        sa_relationship_kwargs={"foreign_keys": "[Relationship.target_id]"}
+    )
+
+
+class RelationshipResp(BaseModel):
+    target_id: int
+    # FIXME: target: User
+    mutual: bool = False
+    type: RelationshipType
+
+    @classmethod
+    async def from_db(
+        cls, session: AsyncSession, relationship: Relationship
+    ) -> "RelationshipResp":
+        target_relationship = (
+            await session.exec(
+                select(Relationship).where(
+                    Relationship.user_id == relationship.target_id,
+                    Relationship.target_id == relationship.user_id,
+                )
+            )
+        ).first()
+        mutual = bool(
+            target_relationship is not None
+            and relationship.type == RelationshipType.FOLLOW
+            and target_relationship.type == RelationshipType.FOLLOW
+        )
+        return cls(
+            target_id=relationship.target_id,
+            # target=relationship.target,
+            mutual=mutual,
+            type=relationship.type,
+        )
