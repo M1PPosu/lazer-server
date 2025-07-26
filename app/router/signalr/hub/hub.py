@@ -127,7 +127,7 @@ class Hub:
                 args: list[Any] | None = packet[3]
                 if args is None:
                     args = []
-                streams: list[str] | None = packet[4]  # TODO: stream support
+                # streams: list[str] | None = packet[4]  # TODO: stream support
                 code = ResultKind.VOID
                 result = None
                 try:
