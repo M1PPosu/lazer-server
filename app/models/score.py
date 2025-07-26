@@ -36,7 +36,7 @@ class Rank(str, Enum):
 
 class APIMod(BaseModel):
     acronym: str
-    settings: dict[str, Any] = {}
+    # settings: dict[str, Any] = {}
 
 
 # https://github.com/ppy/osu/blob/master/osu.Game/Rulesets/Scoring/HitResult.cs

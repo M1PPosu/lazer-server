@@ -9,6 +9,7 @@ from app.database.score import Score, ScoreResp, APIMod
 from app.database.beatmapset import Beatmapset
 from app.dependencies.database import get_db
 from app.dependencies.user import get_current_user
+from typing import List, Optional
 
 from .api_router import router
 
@@ -77,8 +78,8 @@ async def batch_get_beatmaps(
 
 
 class BeatmapScores(BaseModel):
-    scores: list[ScoreResp]
-    userScore: ScoreResp | None
+    scores: List[ScoreResp]
+    userScore: Optional[ScoreResp] = None
 
 
 @router.get(
@@ -88,7 +89,7 @@ async def get_beatmapset_scores(
     beatmap: int,
     legacy_only: bool = Query(None),  # TODO:加入对这个参数的查询
     mode: str = Query(None),
-    mods: list[APIMod] = Query(None),
+    # mods: List[APIMod] = Query(None), # TODO:加入指定MOD的查询
     type: str = Query(None),
     current_user: DBUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -102,7 +103,7 @@ async def get_beatmapset_scores(
         await db.exec(
             select(Score)
             .where(Score.beatmap_id == beatmap)
-            .where(Score.mods == APIMod if mods else True)
+            # .where(Score.mods == mods if mods else True)
         )
     ).all()
 
