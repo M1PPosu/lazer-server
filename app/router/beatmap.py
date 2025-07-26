@@ -186,9 +186,9 @@ async def get_user_beatmap_score(
                     Beatmapset.beatmaps # pyright: ignore[reportArgumentType]
                 )  
             )
+            .where(Score.gamemode==mode if mode is not None else True)
             .where(Score.beatmap_id == beatmap)
             .where(Score.user_id == user)
-            .where(Score.gamemode == mode)
             .order_by(col(Score.classic_total_score).desc())
         )
     ).first()
@@ -229,7 +229,7 @@ async def get_user_all_beatmap_scores(
                     Beatmapset.beatmaps # pyright: ignore[reportArgumentType]
                 )
             )
-            .where(Score.gamemode==ruleset)
+            .where(Score.gamemode==ruleset if ruleset is not None else True)
             .where(Score.beatmap_id == beatmap)
             .where(Score.user_id == user)
             .order_by(col(Score.classic_total_score).desc())

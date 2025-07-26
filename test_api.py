@@ -142,6 +142,24 @@ def get_user_beatmap_score(access_token: str, beatmap_id: int, user_id: int):
         return None
 
 
+def get_user_beatmap_score_all(access_token: str, beatmap_id: int, user_id: int):
+    """获取玩家成绩"""
+    url = f"{API_URL}/api/v2/beatmaps/{beatmap_id}/scores/users/{user_id}/all"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    try:
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            print(f"✅ 成功获取谱面 {beatmap_id} 中用户 {user_id} 的成绩数据")
+            return response.json()
+        else:
+            print(f"❌ 获取谱面成绩失败: {response.status_code}")
+            print(f"响应内容: {response.text}")
+            return None
+    except Exception as e:
+        print(f"❌ 获取谱面成绩请求失败: {e}")
+        return None
+
+
 def main():
     """主测试函数"""
     print("=== osu! API 模拟服务器测试 ===\n")
@@ -194,27 +212,39 @@ def main():
         if scores_data["userScore"]:
             print("用户在该谱面有成绩记录")
             print(f"用户成绩 ID: {scores_data['userScore']['id']}")
-            print(f"用户成绩分数: {scores_data['userScore']['total_score']}")
+            print(f"用户成绩分数: {scores_data['userScore']['total_score']}\n")
         else:
-            print("用户在该谱面没有成绩记录")
+            print("用户在该谱面没有成绩记录\n")
 
-    # 6. 测试谱面指定用户成绩
+    # 5a. 测试谱面指定用户成绩
     user_score = get_user_beatmap_score(token_data["access_token"], 1, 1)
     if user_score:
         print(f"用户成绩ID:{user_score['score']['id']}")
         print(f"此成绩acc:{user_score['score']['accuracy']}")
-        print(f"总分:{user_score['score']['classic_total_score']}")
+        print(f"总分:{user_score['score']['classic_total_score']}\n")
+    else:
+        print("该用户在此谱面没有记录\n")
+
+    # 5b. 测试谱面指定用户成绩
+    user_score_all = get_user_beatmap_score_all(token_data["access_token"], 1, 1)
+    if user_score_all:
+        index = 1
+        for score in user_score_all:
+            print(f"第{index}个成绩:")
+            print(f"用户成绩ID:{score['id']}")
+            print(f"此成绩acc:{score['accuracy']}")
+            print(f"总分:{score['classic_total_score']}")
     else:
         print("该用户在此谱面没有记录")
 
-    # 7. 测试令牌刷新
-    print("\n7. 测试令牌刷新...")
+    # 6. 测试令牌刷新
+    print("\n6. 测试令牌刷新...")
     new_token_data = refresh_token(token_data["refresh_token"])
     if new_token_data:
         print(f"新访问令牌: {new_token_data['access_token']}")
 
         # 使用新令牌获取用户数据
-        print("\n7. 使用新令牌获取用户数据...")
+        print("\n6. 使用新令牌获取用户数据...")
         user_data = get_current_user(new_token_data["access_token"])
         if user_data:
             print(f"✅ 新令牌有效，用户: {user_data['username']}")
