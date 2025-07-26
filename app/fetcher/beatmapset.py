@@ -8,7 +8,7 @@ from httpx import AsyncClient
 
 
 class BeatmapsetFetcher(BaseFetcher):
-    async def get_beatmap_set(self, beatmap_set_id: int) -> BeatmapsetResp:
+    async def get_beatmapset(self, beatmap_set_id: int) -> BeatmapsetResp:
         async with AsyncClient() as client:
             response = await client.get(
                 f"https://osu.ppy.sh/api/v2/beatmapsets/{beatmap_set_id}",

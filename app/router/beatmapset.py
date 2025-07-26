@@ -6,11 +6,14 @@ from app.database import (
     User as DBUser,
 )
 from app.dependencies.database import get_db
+from app.dependencies.fetcher import get_fetcher
 from app.dependencies.user import get_current_user
+from app.fetcher import Fetcher
 
 from .api_router import router
 
 from fastapi import Depends, HTTPException
+from httpx import HTTPStatusError
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -21,6 +24,7 @@ async def get_beatmapset(
     sid: int,
     current_user: DBUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    fetcher: Fetcher = Depends(get_fetcher),
 ):
     beatmapset = (
         await db.exec(
@@ -30,5 +34,11 @@ async def get_beatmapset(
         )
     ).first()
     if not beatmapset:
-        raise HTTPException(status_code=404, detail="Beatmapset not found")
-    return BeatmapsetResp.from_db(beatmapset)
+        try:
+            resp = await fetcher.get_beatmapset(sid)
+            await Beatmapset.from_resp(db, resp)
+        except HTTPStatusError:
+            raise HTTPException(status_code=404, detail="Beatmapset not found")
+    else:
+        resp = BeatmapsetResp.from_db(beatmapset)
+    return resp

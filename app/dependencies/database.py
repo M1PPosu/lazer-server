@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import json
+
+from app.config import settings
+
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -8,10 +13,16 @@ try:
     import redis
 except ImportError:
     redis = None
-from app.config import settings
+
+
+def json_serializer(value):
+    if isinstance(value, BaseModel | SQLModel):
+        return value.model_dump_json()
+    return json.dumps(value)
+
 
 # 数据库引擎
-engine = create_async_engine(settings.DATABASE_URL)
+engine = create_async_engine(settings.DATABASE_URL, json_serializer=json_serializer)
 
 # Redis 连接
 if redis:

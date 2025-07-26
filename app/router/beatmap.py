@@ -8,11 +8,14 @@ from app.database import (
 from app.database.beatmapset import Beatmapset
 from app.database.score import Score, ScoreResp
 from app.dependencies.database import get_db
+from app.dependencies.fetcher import get_fetcher
 from app.dependencies.user import get_current_user
+from app.fetcher import Fetcher
 
 from .api_router import router
 
 from fastapi import Depends, HTTPException, Query
+from httpx import HTTPStatusError
 from pydantic import BaseModel
 from sqlalchemy.orm import joinedload
 from sqlmodel import col, select
@@ -24,6 +27,7 @@ async def get_beatmap(
     bid: int,
     current_user: DBUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    fetcher: Fetcher = Depends(get_fetcher),
 ):
     beatmap = (
         await db.exec(
@@ -33,8 +37,20 @@ async def get_beatmap(
         )
     ).first()
     if not beatmap:
-        raise HTTPException(status_code=404, detail="Beatmap not found")
-    return BeatmapResp.from_db(beatmap)
+        try:
+            resp = await fetcher.get_beatmap(bid)
+            r = await db.exec(
+                select(Beatmapset.id).where(Beatmapset.id == resp.beatmapset_id)
+            )
+            if not r.first():
+                set_resp = await fetcher.get_beatmapset(resp.beatmapset_id)
+                await Beatmapset.from_resp(db, set_resp, from_=resp.id)
+            await Beatmap.from_resp(db, resp)
+        except HTTPStatusError:
+            raise HTTPException(status_code=404, detail="Beatmap not found")
+    else:
+        resp = BeatmapResp.from_db(beatmap)
+    return resp
 
 
 class BatchGetResp(BaseModel):

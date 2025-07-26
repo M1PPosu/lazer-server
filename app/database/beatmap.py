@@ -7,6 +7,7 @@ from .beatmapset import Beatmapset, BeatmapsetResp
 
 from sqlalchemy import DECIMAL, Column, DateTime
 from sqlmodel import VARCHAR, Field, Relationship, SQLModel
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 class BeatmapOwner(SQLModel):
@@ -22,7 +23,6 @@ class BeatmapBase(SQLModel):
     difficulty_rating: float = Field(
         default=0.0, sa_column=Column(DECIMAL(precision=10, scale=6))
     )
-    beatmap_status: BeatmapRankStatus
     total_length: int
     user_id: int
     version: str
@@ -59,8 +59,48 @@ class Beatmap(BeatmapBase, table=True):
     __tablename__ = "beatmaps"  # pyright: ignore[reportAssignmentType]
     id: int | None = Field(default=None, primary_key=True, index=True)
     beatmapset_id: int = Field(foreign_key="beatmapsets.id", index=True)
+    beatmap_status: BeatmapRankStatus
     # optional
     beatmapset: Beatmapset = Relationship(back_populates="beatmaps")
+
+    @classmethod
+    async def from_resp(cls, session: AsyncSession, resp: "BeatmapResp") -> "Beatmap":
+        d = resp.model_dump()
+        del d["beatmapset"]
+        beatmap = Beatmap.model_validate(
+            {
+                **d,
+                "beatmapset_id": resp.beatmapset_id,
+                "id": resp.id,
+                "beatmap_status": BeatmapRankStatus(resp.ranked),
+            }
+        )
+        session.add(beatmap)
+        await session.commit()
+        return beatmap
+
+    @classmethod
+    async def from_resp_batch(
+        cls, session: AsyncSession, inp: list["BeatmapResp"], from_: int = 0
+    ) -> list["Beatmap"]:
+        beatmaps = []
+        for resp in inp:
+            if resp.id == from_:
+                continue
+            d = resp.model_dump()
+            del d["beatmapset"]
+            beatmap = Beatmap.model_validate(
+                {
+                    **d,
+                    "beatmapset_id": resp.beatmapset_id,
+                    "id": resp.id,
+                    "beatmap_status": BeatmapRankStatus(resp.ranked),
+                }
+            )
+            session.add(beatmap)
+            beatmaps.append(beatmap)
+        await session.commit()
+        return beatmaps
 
 
 class BeatmapResp(BeatmapBase):

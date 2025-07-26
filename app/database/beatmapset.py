@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, TypedDict, cast
 
 from app.models.beatmap import BeatmapRankStatus, Genre, Language
 from app.models.score import GameMode
@@ -7,6 +7,7 @@ from app.models.score import GameMode
 from pydantic import BaseModel, model_serializer
 from sqlalchemy import DECIMAL, JSON, Column, DateTime, Text
 from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 if TYPE_CHECKING:
     from .beatmap import Beatmap, BeatmapResp
@@ -64,11 +65,11 @@ class BeatmapNominations(SQLModel):
     required: int | None = Field(default=None)
 
 
-class BeatmapNomination(SQLModel):
+class BeatmapNomination(TypedDict):
     beatmapset_id: int
     reset: bool
     user_id: int
-    rulesets: list[GameMode] | None = None
+    rulesets: dict[str, GameMode] | None
 
 
 class BeatmapDescription(SQLModel):
@@ -150,20 +151,52 @@ class Beatmapset(BeatmapsetBase, table=True):
     availability_info: str | None = Field(default=None)
     download_disabled: bool = Field(default=False)
 
+    @classmethod
+    async def from_resp(
+        cls, session: AsyncSession, resp: "BeatmapsetResp", from_: int = 0
+    ) -> "Beatmapset":
+        from .beatmap import Beatmap
+
+        d = resp.model_dump()
+        update = {}
+        if resp.nominations:
+            update["nominations_required"] = resp.nominations.required
+            update["nominations_current"] = resp.nominations.current
+        if resp.hype:
+            update["hype_current"] = resp.hype.current
+            update["hype_required"] = resp.hype.required
+        if resp.genre:
+            update["beatmap_genre"] = Genre(resp.genre.id)
+        if resp.language:
+            update["beatmap_language"] = Language(resp.language.id)
+        beatmapset = Beatmapset.model_validate(
+            {
+                **d,
+                "id": resp.id,
+                "beatmap_status": BeatmapRankStatus(resp.ranked),
+                "availability_info": resp.availability.more_information,
+                "download_disabled": resp.availability.download_disabled or False,
+            }
+        )
+        session.add(beatmapset)
+        await session.commit()
+        await Beatmap.from_resp_batch(session, resp.beatmaps, from_=from_)
+        return beatmapset
+
 
 class BeatmapsetResp(BeatmapsetBase):
     id: int
-    beatmaps: list["BeatmapResp"]
+    beatmaps: list["BeatmapResp"] = Field(default_factory=list)
     discussion_enabled: bool = True
     status: str
     ranked: int
     legacy_thread_url: str = ""
     is_scoreable: bool
-    hype: BeatmapHype
+    hype: BeatmapHype | None = None
     availability: BeatmapAvailability
-    genre: BeatmapTranslationText
-    language: BeatmapTranslationText
-    nominations: BeatmapNominations
+    genre: BeatmapTranslationText | None = None
+    language: BeatmapTranslationText | None = None
+    nominations: BeatmapNominations | None = None
 
     @classmethod
     def from_db(cls, beatmapset: Beatmapset) -> "BeatmapsetResp":
