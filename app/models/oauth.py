@@ -27,3 +27,10 @@ class UserCreate(BaseModel):
     password: str
     email: str
     country_code: str = "CN"
+
+
+class OAuthErrorResponse(BaseModel):
+    error: str
+    error_description: str
+    hint: str
+    message: str
