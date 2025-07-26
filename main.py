@@ -5,7 +5,8 @@ from datetime import datetime
 
 from app.config import settings
 from app.dependencies.database import create_tables, engine
-from app.router import api_router, auth_router, signalr_router
+from app.dependencies.fetcher import get_fetcher
+from app.router import api_router, auth_router, fetcher_router, signalr_router
 
 from fastapi import FastAPI
 
@@ -17,6 +18,7 @@ from fastapi import FastAPI
 async def lifespan(app: FastAPI):
     # on startup
     await create_tables()
+    get_fetcher()  # 初始化 fetcher
     # on shutdown
     yield
     await engine.dispose()
@@ -25,6 +27,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="osu! API 模拟服务器", version="1.0.0", lifespan=lifespan)
 app.include_router(api_router, prefix="/api/v2")
 app.include_router(signalr_router, prefix="/signalr")
+app.include_router(fetcher_router, prefix="/fetcher")
 app.include_router(auth_router)
 
 

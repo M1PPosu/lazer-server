@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 
 from dotenv import load_dotenv
-import requests
+import httpx as requests
 
 # 加载 .env 文件
 load_dotenv()
@@ -173,7 +173,7 @@ def main():
     scores_data = get_beatmap_scores(token_data["access_token"], 1)
     if scores_data:
         print(f"谱面成绩总数: {len(scores_data['scores'])}")
-        if scores_data['userScore']:
+        if scores_data["userScore"]:
             print("用户在该谱面有成绩记录")
             print(f"用户成绩 ID: {scores_data['userScore']['id']}")
             print(f"用户成绩分数: {scores_data['userScore']['total_score']}")

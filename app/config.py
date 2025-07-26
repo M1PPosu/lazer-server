@@ -36,5 +36,13 @@ class Settings:
     SIGNALR_NEGOTIATE_TIMEOUT: int = int(os.getenv("SIGNALR_NEGOTIATE_TIMEOUT", "30"))
     SIGNALR_PING_INTERVAL: int = int(os.getenv("SIGNALR_PING_INTERVAL", "120"))
 
+    # Fetcher 设置
+    FETCHER_CLIENT_ID: str = os.getenv("FETCHER_CLIENT_ID", "")
+    FETCHER_CLIENT_SECRET: str = os.getenv("FETCHER_CLIENT_SECRET", "")
+    FETCHER_SCOPES: list[str] = os.getenv("FETCHER_SCOPES", "public").split(",")
+    FETCHER_CALLBACK_URL: str = os.getenv(
+        "FETCHER_CALLBACK_URL", "http://localhost:8000/fetcher/callback"
+    )
+
 
 settings = Settings()
