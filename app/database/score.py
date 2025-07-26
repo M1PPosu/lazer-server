@@ -4,7 +4,7 @@ from datetime import datetime
 import math
 from typing import Literal, TYPE_CHECKING, List
 
-from app.models.score import Rank, APIMod, GameMode
+from app.models.score import Rank, APIMod, GameMode, MODE_TO_INT
 
 from .beatmap import Beatmap, BeatmapResp
 from .beatmapset import Beatmapset, BeatmapsetResp
@@ -84,6 +84,7 @@ class ScoreResp(ScoreBase):
     legacy_total_score: int = 0  # FIXME
     processed: bool = False  # solo_score
     weight: float = 0.0
+    ruleset_id: int | None
     beatmap: BeatmapResp | None = None
     beatmapset: BeatmapsetResp | None = None
     # FIXME: user: APIUser | None = None
@@ -96,6 +97,7 @@ class ScoreResp(ScoreBase):
         s.beatmapset = BeatmapsetResp.from_db(score.beatmap.beatmapset)
         s.is_perfect_combo = s.max_combo == s.beatmap.max_combo
         s.legacy_perfect = s.max_combo == s.beatmap.max_combo
+        s.ruleset_id=MODE_TO_INT[score.ruleset_id]
         if score.best_id:
             # https://osu.ppy.sh/wiki/Performance_points/Weighting_system
             s.weight = math.pow(0.95, score.best_id)

@@ -10,9 +10,9 @@ load_dotenv()
 class Settings:
     # 数据库设置
     DATABASE_URL: str = os.getenv(
-        "DATABASE_URL", "mysql+aiomysql://root:password@localhost:3306/osu_api"
+        "DATABASE_URL", "mysql+aiomysql://root:password@127.0.0.1:3306/osu_api"
     )
-    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
 
     # JWT 设置
     SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-here")

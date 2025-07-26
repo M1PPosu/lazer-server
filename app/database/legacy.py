@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import JSON, Column, DateTime
 from sqlmodel import Field, Relationship, SQLModel
+from sqlalchemy.orm import Mapped
 
 if TYPE_CHECKING:
     from .user import User
@@ -70,7 +71,7 @@ class LegacyUserStatistics(SQLModel, table=True):
     )
 
     # 关联关系
-    user: "User" = Relationship(back_populates="statistics")
+    user: Mapped["User"] = Relationship(back_populates="statistics")
 
 
 class LegacyOAuthToken(SQLModel, table=True):

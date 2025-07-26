@@ -105,6 +105,25 @@ def get_current_user(access_token: str, ruleset: str = "osu"):
         return None
 
 
+def get_beatmap_scores(access_token: str, beatmap_id: int):
+    """获取谱面成绩数据"""
+    url = f"{API_URL}/api/v2/beatmaps/{beatmap_id}/scores"
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    try:
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            print(f"✅ 成功获取谱面 {beatmap_id} 的成绩数据")
+            return response.json()
+        else:
+            print(f"❌ 获取谱面成绩失败: {response.status_code}")
+            print(f"响应内容: {response.text}")
+            return None
+    except Exception as e:
+        print(f"❌ 获取谱面成绩请求失败: {e}")
+        return None
+
+
 def main():
     """主测试函数"""
     print("=== osu! API 模拟服务器测试 ===\n")
@@ -149,14 +168,26 @@ def main():
             print(f"游戏次数: {user_data['statistics']['play_count']}")
             print(f"命中精度: {user_data['statistics']['hit_accuracy']:.2f}%")
 
-    # 5. 测试令牌刷新
-    print("\n5. 测试令牌刷新...")
+    # 5. 测试获取谱面成绩
+    print("\n5. 测试获取谱面成绩...")
+    scores_data = get_beatmap_scores(token_data["access_token"], 1)
+    if scores_data:
+        print(f"谱面成绩总数: {len(scores_data['scores'])}")
+        if scores_data['userScore']:
+            print("用户在该谱面有成绩记录")
+            print(f"用户成绩 ID: {scores_data['userScore']['id']}")
+            print(f"用户成绩分数: {scores_data['userScore']['total_score']}")
+        else:
+            print("用户在该谱面没有成绩记录")
+
+    # 6. 测试令牌刷新
+    print("\n6. 测试令牌刷新...")
     new_token_data = refresh_token(token_data["refresh_token"])
     if new_token_data:
         print(f"新访问令牌: {new_token_data['access_token']}")
 
         # 使用新令牌获取用户数据
-        print("\n6. 使用新令牌获取用户数据...")
+        print("\n7. 使用新令牌获取用户数据...")
         user_data = get_current_user(new_token_data["access_token"])
         if user_data:
             print(f"✅ 新令牌有效，用户: {user_data['username']}")

@@ -13,10 +13,11 @@ RUN apt-get update && apt-get install -y \
 # 复制依赖文件
 COPY uv.lock .
 COPY pyproject.toml .
+COPY requirements.txt .
 
 # 安装Python依赖
-RUN uv sync --locked
-RUN pip install uvicorn
+RUN uv sync
+RUN pip install -r requirements.txt
 
 # 复制应用代码
 COPY . .

@@ -87,7 +87,7 @@ class BeatmapsetBase(SQLModel):
     # Beatmapset
     artist: str = Field(index=True)
     artist_unicode: str = Field(index=True)
-    covers: BeatmapCovers = Field(sa_column=Column(JSON))
+    covers: BeatmapCovers | None = Field(sa_column=Column(JSON))
     creator: str
     favourite_count: int
     nsfw: bool = Field(default=False)

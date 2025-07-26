@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Column, DateTime
+from sqlalchemy.orm import Mapped
 from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
@@ -20,7 +21,7 @@ class Team(SQLModel, table=True):
         default_factory=datetime.utcnow, sa_column=Column(DateTime)
     )
 
-    members: list["TeamMember"] = Relationship(back_populates="team")
+    members: Mapped[list["TeamMember"]] = Relationship(back_populates="team")
 
 
 class TeamMember(SQLModel, table=True):
@@ -33,5 +34,5 @@ class TeamMember(SQLModel, table=True):
         default_factory=datetime.utcnow, sa_column=Column(DateTime)
     )
 
-    user: "User" = Relationship(back_populates="team_membership")
-    team: "Team" = Relationship(back_populates="members")
+    user: Mapped["User"] = Relationship(back_populates="team_membership")
+    team: Mapped["Team"] = Relationship(back_populates="members")
