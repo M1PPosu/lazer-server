@@ -105,7 +105,7 @@ class BeatmapScores(BaseModel):
 @router.get(
     "/beatmaps/{beatmap}/scores", tags=["beatmap"], response_model=BeatmapScores
 )
-async def get_beatmapset_scores(
+async def get_beatmap_scores(
     beatmap: int,
     legacy_only: bool = Query(None),  # TODO:加入对这个参数的查询
     mode: str = Query(None),
