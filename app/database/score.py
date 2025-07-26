@@ -1,20 +1,16 @@
-# ruff: noqa: I002
-
 from datetime import datetime
 import math
-from typing import Literal, TYPE_CHECKING, List
 
-from app.models.score import Rank, APIMod, GameMode, MODE_TO_INT
+from app.database.user import User
+from app.models.score import MODE_TO_INT, APIMod, GameMode, Rank
 
 from .beatmap import Beatmap, BeatmapResp
-from .beatmapset import Beatmapset, BeatmapsetResp
+from .beatmapset import BeatmapsetResp
 
 from pydantic import BaseModel
-from sqlalchemy import Column, DateTime, JSON
-from sqlmodel import BigInteger, Field, Relationship, SQLModel, JSON as SQLModeJSON
+from sqlalchemy import Column, DateTime
+from sqlmodel import JSON, BigInteger, Field, Relationship, SQLModel
 
-if TYPE_CHECKING:
-    from .user import User
 
 class ScoreBase(SQLModel):
     # 基本字段
@@ -35,7 +31,6 @@ class ScoreBase(SQLModel):
     preserve: bool = Field(default=True)
     rank: Rank
     room_id: int | None = Field(default=None)  # multiplayer
-    ruleset_id: GameMode = Field(index=True)
     started_at: datetime = Field(sa_column=Column(DateTime))
     total_score: int = Field(default=0, sa_column=Column(BigInteger))
     type: str
@@ -59,8 +54,8 @@ class ScoreStatistics(BaseModel):
 class Score(ScoreBase, table=True):
     __tablename__ = "scores"  # pyright: ignore[reportAssignmentType]
     id: int = Field(primary_key=True)
-    beatmap_id: int = Field(index=True, foreign_key="beatmap.id")
-    user_id: int = Field(foreign_key="user.id", index=True)
+    beatmap_id: int = Field(index=True, foreign_key="beatmaps.id")
+    user_id: int = Field(foreign_key="users.id", index=True)
     # ScoreStatistics
     n300: int = Field(exclude=True)
     n100: int = Field(exclude=True)
@@ -70,11 +65,11 @@ class Score(ScoreBase, table=True):
     nkatu: int = Field(exclude=True)
     nlarge_tick_miss: int | None = Field(default=None, exclude=True)
     nslider_tail_hit: int | None = Field(default=None, exclude=True)
+    gamemode: GameMode = Field(index=True, alias="ruleset_id")
 
     # optional
-    beatmap: "Beatmap" = Relationship(back_populates="scores")
-    beatmapset: "Beatmapset" = Relationship(back_populates="scores")
-    # FIXME: user: "User" = Relationship(back_populates="scores")
+    beatmap: "Beatmap" = Relationship()
+    user: "User" = Relationship()
 
 
 class ScoreResp(ScoreBase):
@@ -84,7 +79,7 @@ class ScoreResp(ScoreBase):
     legacy_total_score: int = 0  # FIXME
     processed: bool = False  # solo_score
     weight: float = 0.0
-    ruleset_id: int | None
+    ruleset_id: int | None = None
     beatmap: BeatmapResp | None = None
     beatmapset: BeatmapsetResp | None = None
     # FIXME: user: APIUser | None = None
@@ -92,12 +87,12 @@ class ScoreResp(ScoreBase):
 
     @classmethod
     def from_db(cls, score: Score) -> "ScoreResp":
-        s = cls.model_validate(score)
+        s = cls.model_validate(score.model_dump())
         s.beatmap = BeatmapResp.from_db(score.beatmap)
         s.beatmapset = BeatmapsetResp.from_db(score.beatmap.beatmapset)
         s.is_perfect_combo = s.max_combo == s.beatmap.max_combo
         s.legacy_perfect = s.max_combo == s.beatmap.max_combo
-        s.ruleset_id=MODE_TO_INT[score.ruleset_id]
+        s.ruleset_id = MODE_TO_INT[score.gamemode]
         if score.best_id:
             # https://osu.ppy.sh/wiki/Performance_points/Weighting_system
             s.weight = math.pow(0.95, score.best_id)

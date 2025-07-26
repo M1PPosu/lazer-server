@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum, IntEnum
-from typing import Any
-
-from pydantic import BaseModel
+from typing import Any, TypedDict
 
 
 class GameMode(str, Enum):
@@ -34,9 +32,9 @@ class Rank(str, Enum):
     F = "f"
 
 
-class APIMod(BaseModel):
+class APIMod(TypedDict):
     acronym: str
-    # settings: dict[str, Any] = {}
+    settings: dict[str, Any]
 
 
 # https://github.com/ppy/osu/blob/master/osu.Game/Rulesets/Scoring/HitResult.cs

@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 
 from app.config import settings
-from app.dependencies.database import create_tables
+from app.dependencies.database import create_tables, engine
 from app.router import api_router, auth_router, signalr_router
 
 from fastapi import FastAPI
@@ -19,6 +19,7 @@ async def lifespan(app: FastAPI):
     await create_tables()
     # on shutdown
     yield
+    await engine.dispose()
 
 
 app = FastAPI(title="osu! API 模拟服务器", version="1.0.0", lifespan=lifespan)

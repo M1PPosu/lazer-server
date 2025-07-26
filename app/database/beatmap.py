@@ -1,4 +1,3 @@
-# ruff: noqa: I002
 from datetime import datetime
 
 from app.models.beatmap import BeatmapRankStatus

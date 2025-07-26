@@ -5,7 +5,6 @@ from enum import IntEnum
 from typing import Any
 
 from .score import (
-    APIMod as APIModBase,
     HitResult,
 )
 from .signalr import MessagePackArrayModel
@@ -14,7 +13,9 @@ import msgpack
 from pydantic import Field, field_validator
 
 
-class APIMod(APIModBase, MessagePackArrayModel): ...
+class APIMod(MessagePackArrayModel):
+    acronym: str
+    settings: dict[str, Any] = Field(default_factory=dict)
 
 
 class SpectatedUserState(IntEnum):

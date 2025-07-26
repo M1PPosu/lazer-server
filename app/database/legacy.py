@@ -1,10 +1,9 @@
-# ruff: noqa: I002
 from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import JSON, Column, DateTime
-from sqlmodel import Field, Relationship, SQLModel
 from sqlalchemy.orm import Mapped
+from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
     from .user import User

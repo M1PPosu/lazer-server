@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from .auth import OAuthToken
 from .beatmap import (
     Beatmap as Beatmap,

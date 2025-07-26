@@ -1,6 +1,3 @@
-# ruff: noqa: I002
-from __future__ import annotations
-
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
@@ -10,7 +7,6 @@ from .team import TeamMember
 
 from sqlalchemy import DECIMAL, JSON, Column, Date, DateTime, Text
 from sqlalchemy.dialects.mysql import VARCHAR
-from sqlalchemy.orm import Mapped
 from sqlmodel import BigInteger, Field, Relationship, SQLModel
 
 
@@ -70,33 +66,34 @@ class User(SQLModel, table=True):
         return datetime.fromtimestamp(latest_activity) if latest_activity > 0 else None
 
     # 关联关系
-    lazer_profile: Mapped[Optional["LazerUserProfile"]] = Relationship(back_populates="user")
-    lazer_statistics: Mapped[list["LazerUserStatistics"]] = Relationship(back_populates="user")
-    lazer_counts: Mapped[Optional["LazerUserCounts"]] = Relationship(back_populates="user")
-    lazer_achievements: Mapped[list["LazerUserAchievement"]] = Relationship(
+    lazer_profile: Optional["LazerUserProfile"] = Relationship(back_populates="user")
+    lazer_statistics: list["LazerUserStatistics"] = Relationship(back_populates="user")
+    lazer_counts: Optional["LazerUserCounts"] = Relationship(back_populates="user")
+    lazer_achievements: list["LazerUserAchievement"] = Relationship(
         back_populates="user"
     )
-    lazer_profile_sections: Mapped[list["LazerUserProfileSections"]] = Relationship(
+    lazer_profile_sections: list["LazerUserProfileSections"] = Relationship(
         back_populates="user"
     )
     statistics: list["LegacyUserStatistics"] = Relationship(back_populates="user")
-    team_membership: Mapped[list["TeamMember"]] = Relationship(back_populates="user")
-    daily_challenge_stats: Mapped[Optional["DailyChallengeStats"]] = Relationship(
+    team_membership: list["TeamMember"] = Relationship(back_populates="user")
+    daily_challenge_stats: Optional["DailyChallengeStats"] = Relationship(
         back_populates="user"
     )
-    rank_history: Mapped[list["RankHistory"]] = Relationship(back_populates="user")
-    avatar: Mapped[Optional["UserAvatar"]] = Relationship(back_populates="user")
-    active_banners: Mapped[list["LazerUserBanners"]] = Relationship(back_populates="user")
-    lazer_badges: Mapped[list["LazerUserBadge"]] = Relationship(back_populates="user")
-    lazer_monthly_playcounts: Mapped[list["LazerUserMonthlyPlaycounts"]] = Relationship(
+    rank_history: list["RankHistory"] = Relationship(back_populates="user")
+    avatar: Optional["UserAvatar"] = Relationship(back_populates="user")
+    active_banners: list["LazerUserBanners"] = Relationship(back_populates="user")
+    lazer_badges: list["LazerUserBadge"] = Relationship(back_populates="user")
+    lazer_monthly_playcounts: list["LazerUserMonthlyPlaycounts"] = Relationship(
         back_populates="user"
     )
-    lazer_previous_usernames: Mapped[list["LazerUserPreviousUsername"]] = Relationship(
+    lazer_previous_usernames: list["LazerUserPreviousUsername"] = Relationship(
         back_populates="user"
     )
-    lazer_replays_watched: Mapped[list["LazerUserReplaysWatched"]] = Relationship(
+    lazer_replays_watched: list["LazerUserReplaysWatched"] = Relationship(
         back_populates="user"
     )
+
 
 # ============================================
 # Lazer API 专用表模型
@@ -155,7 +152,7 @@ class LazerUserProfile(SQLModel, table=True):
     )
 
     # 关联关系
-    user: Mapped["User"] = Relationship(back_populates="lazer_profile")
+    user: "User" = Relationship(back_populates="lazer_profile")
 
 
 class LazerUserProfileSections(SQLModel, table=True):
@@ -173,7 +170,7 @@ class LazerUserProfileSections(SQLModel, table=True):
         default_factory=datetime.utcnow, sa_column=Column(DateTime)
     )
 
-    user: Mapped["User"] = Relationship(back_populates="lazer_profile_sections")
+    user: "User" = Relationship(back_populates="lazer_profile_sections")
 
 
 class LazerUserCountry(SQLModel, table=True):
@@ -238,7 +235,7 @@ class LazerUserCounts(SQLModel, table=True):
     )
 
     # 关联关系
-    user: Mapped["User"] = Relationship(back_populates="lazer_counts")
+    user: "User" = Relationship(back_populates="lazer_counts")
 
 
 class LazerUserStatistics(SQLModel, table=True):
@@ -298,7 +295,7 @@ class LazerUserStatistics(SQLModel, table=True):
     )
 
     # 关联关系
-    user: Mapped["User"] = Relationship(back_populates="lazer_statistics")
+    user: "User" = Relationship(back_populates="lazer_statistics")
 
 
 class LazerUserBanners(SQLModel, table=True):
@@ -311,7 +308,7 @@ class LazerUserBanners(SQLModel, table=True):
     is_active: bool | None = Field(default=None)
 
     # 修正user关系的back_populates值
-    user: Mapped["User"] = Relationship(back_populates="active_banners")
+    user: "User" = Relationship(back_populates="active_banners")
 
 
 class LazerUserAchievement(SQLModel, table=True):
@@ -324,7 +321,7 @@ class LazerUserAchievement(SQLModel, table=True):
         default_factory=datetime.utcnow, sa_column=Column(DateTime)
     )
 
-    user: Mapped["User"] = Relationship(back_populates="lazer_achievements")
+    user: "User" = Relationship(back_populates="lazer_achievements")
 
 
 class LazerUserBadge(SQLModel, table=True):
@@ -345,7 +342,7 @@ class LazerUserBadge(SQLModel, table=True):
         default_factory=datetime.utcnow, sa_column=Column(DateTime)
     )
 
-    user: Mapped["User"] = Relationship(back_populates="lazer_badges")
+    user: "User" = Relationship(back_populates="lazer_badges")
 
 
 class LazerUserMonthlyPlaycounts(SQLModel, table=True):
@@ -363,7 +360,7 @@ class LazerUserMonthlyPlaycounts(SQLModel, table=True):
         default_factory=datetime.utcnow, sa_column=Column(DateTime)
     )
 
-    user: Mapped["User"] = Relationship(back_populates="lazer_monthly_playcounts")
+    user: "User" = Relationship(back_populates="lazer_monthly_playcounts")
 
 
 class LazerUserPreviousUsername(SQLModel, table=True):
@@ -381,7 +378,7 @@ class LazerUserPreviousUsername(SQLModel, table=True):
         default_factory=datetime.utcnow, sa_column=Column(DateTime)
     )
 
-    user: Mapped["User"] = Relationship(back_populates="lazer_previous_usernames")
+    user: "User" = Relationship(back_populates="lazer_previous_usernames")
 
 
 class LazerUserReplaysWatched(SQLModel, table=True):
@@ -399,7 +396,7 @@ class LazerUserReplaysWatched(SQLModel, table=True):
         default_factory=datetime.utcnow, sa_column=Column(DateTime)
     )
 
-    user: Mapped["User"] = Relationship(back_populates="lazer_replays_watched")
+    user: "User" = Relationship(back_populates="lazer_replays_watched")
 
 
 # 类型转换用的 UserAchievement（不是 SQLAlchemy 模型）
@@ -427,7 +424,7 @@ class DailyChallengeStats(SQLModel, table=True):
     weekly_streak_best: int = Field(default=0)
     weekly_streak_current: int = Field(default=0)
 
-    user: Mapped["User"] = Relationship(back_populates="daily_challenge_stats")
+    user: "User" = Relationship(back_populates="daily_challenge_stats")
 
 
 class RankHistory(SQLModel, table=True):
@@ -441,7 +438,7 @@ class RankHistory(SQLModel, table=True):
         default_factory=datetime.utcnow, sa_column=Column(DateTime)
     )
 
-    user: Mapped["User"] = Relationship(back_populates="rank_history")
+    user: "User" = Relationship(back_populates="rank_history")
 
 
 class UserAvatar(SQLModel, table=True):
@@ -459,4 +456,4 @@ class UserAvatar(SQLModel, table=True):
     r2_original_url: str | None = Field(default=None, max_length=500)
     r2_game_url: str | None = Field(default=None, max_length=500)
 
-    user: Mapped["User"] = Relationship(back_populates="avatar")
+    user: "User" = Relationship(back_populates="avatar")

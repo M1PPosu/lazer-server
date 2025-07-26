@@ -5,11 +5,10 @@ from app.database import (
     BeatmapResp,
     User as DBUser,
 )
-from app.database.score import Score, ScoreResp, APIMod
 from app.database.beatmapset import Beatmapset
+from app.database.score import Score, ScoreResp
 from app.dependencies.database import get_db
 from app.dependencies.user import get_current_user
-from typing import List, Optional
 
 from .api_router import router
 
@@ -29,8 +28,7 @@ async def get_beatmap(
     beatmap = (
         await db.exec(
             select(Beatmap)
-            .options(
-                joinedload(Beatmap.beatmapset).selectinload(Beatmapset.beatmaps))  # pyright: ignore[reportArgumentType]
+            .options(joinedload(Beatmap.beatmapset).selectinload(Beatmapset.beatmaps))  # pyright: ignore[reportArgumentType]
             .where(Beatmap.id == bid)
         )
     ).first()
@@ -78,8 +76,8 @@ async def batch_get_beatmaps(
 
 
 class BeatmapScores(BaseModel):
-    scores: List[ScoreResp]
-    userScore: Optional[ScoreResp] = None
+    scores: list[ScoreResp]
+    userScore: ScoreResp | None = None
 
 
 @router.get(
@@ -101,8 +99,7 @@ async def get_beatmapset_scores(
 
     all_scores = (
         await db.exec(
-            select(Score)
-            .where(Score.beatmap_id == beatmap)
+            select(Score).where(Score.beatmap_id == beatmap)
             # .where(Score.mods == mods if mods else True)
         )
     ).all()
@@ -110,6 +107,11 @@ async def get_beatmapset_scores(
     user_score = (
         await db.exec(
             select(Score)
+            .options(
+                joinedload(Score.beatmap)  # pyright: ignore[reportArgumentType]
+                .joinedload(Beatmap.beatmapset)  # pyright: ignore[reportArgumentType]
+                .selectinload(Beatmapset.beatmaps)  # pyright: ignore[reportArgumentType]
+            )
             .where(Score.beatmap_id == beatmap)
             .where(Score.user_id == current_user.id)
         )

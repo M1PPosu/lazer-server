@@ -54,6 +54,8 @@ ignore = [
   "RUF003", # ambiguous-unicode-character-comment
 ]
 
+[tool.ruff.lint.extend-per-file-ignores]
+"app/database/**/*.py" = ["I002"]
 
 [tool.ruff.lint.isort]
 force-sort-within-sections = true
