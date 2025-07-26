@@ -32,7 +32,11 @@ async def get_beatmap(
     beatmap = (
         await db.exec(
             select(Beatmap)
-            .options(joinedload(Beatmap.beatmapset).selectinload(Beatmapset.beatmaps))  # pyright: ignore[reportArgumentType]
+            .options(
+                joinedload(Beatmap.beatmapset).selectinload( # pyright: ignore[reportArgumentType]
+                    Beatmapset.beatmaps  # pyright: ignore[reportArgumentType]
+                ) 
+            )
             .where(Beatmap.id == bid)
         )
     ).first()
@@ -70,7 +74,11 @@ async def batch_get_beatmaps(
             await db.exec(
                 select(Beatmap)
                 .options(
-                    joinedload(Beatmap.beatmapset).selectinload(Beatmapset.beatmaps)  # pyright: ignore[reportArgumentType]
+                    joinedload(
+                        Beatmap.beatmapset # pyright: ignore[reportArgumentType]
+                    ).selectinload(
+                        Beatmapset.beatmaps  # pyright: ignore[reportArgumentType]
+                    )
                 )
                 .order_by(col(Beatmap.last_updated).desc())
                 .limit(50)
@@ -81,7 +89,11 @@ async def batch_get_beatmaps(
             await db.exec(
                 select(Beatmap)
                 .options(
-                    joinedload(Beatmap.beatmapset).selectinload(Beatmapset.beatmaps)  # pyright: ignore[reportArgumentType]
+                    joinedload(
+                        Beatmap.beatmapset # pyright: ignore[reportArgumentType]
+                    ).selectinload(  
+                        Beatmapset.beatmaps  # pyright: ignore[reportArgumentType]
+                    )
                 )
                 .where(col(Beatmap.id).in_(b_ids))
                 .limit(50)
@@ -97,9 +109,9 @@ class BeatmapScores(BaseModel):
 
 
 @router.get(
-    "/beatmaps/{beatmap}/scores", tags=["beatmapset"], response_model=BeatmapScores
+    "/beatmaps/{beatmap}/scores", tags=["beatmap"], response_model=BeatmapScores
 )
-async def get_beatmapset_scores(
+async def get_beatmap_scores(
     beatmap: int,
     legacy_only: bool = Query(None),  # TODO:加入对这个参数的查询
     mode: str = Query(None),
@@ -126,7 +138,9 @@ async def get_beatmapset_scores(
             .options(
                 joinedload(Score.beatmap)  # pyright: ignore[reportArgumentType]
                 .joinedload(Beatmap.beatmapset)  # pyright: ignore[reportArgumentType]
-                .selectinload(Beatmapset.beatmaps)  # pyright: ignore[reportArgumentType]
+                .selectinload(
+                    Beatmapset.beatmaps  # pyright: ignore[reportArgumentType]
+                )
             )
             .where(Score.beatmap_id == beatmap)
             .where(Score.user_id == current_user.id)
@@ -137,3 +151,89 @@ async def get_beatmapset_scores(
         scores=[ScoreResp.from_db(score) for score in all_scores],
         userScore=ScoreResp.from_db(user_score) if user_score else None,
     )
+
+
+class BeatmapUserScore(BaseModel):
+    position: int
+    score: ScoreResp
+
+
+@router.get(
+    "/beatmaps/{beatmap}/scores/users/{user}",
+    tags=["beatmap"],
+    response_model=BeatmapUserScore,
+)
+async def get_user_beatmap_score(
+    beatmap: int,
+    user: int,
+    legacy_only: bool = Query(None),
+    mode: str = Query(None),
+    mods: str = Query(None),  # TODO:添加mods筛选
+    current_user: DBUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if legacy_only:
+        raise HTTPException(
+            status_code=404, detail="This server only contains non-legacy scores"
+        )
+    user_score = (
+        await db.exec(
+            select(Score)
+            .options(
+                joinedload(Score.beatmap)  # pyright: ignore[reportArgumentType]
+                .joinedload(Beatmap.beatmapset)  # pyright: ignore[reportArgumentType]
+                .selectinload(
+                    Beatmapset.beatmaps # pyright: ignore[reportArgumentType]
+                )  
+            )
+            .where(Score.beatmap_id == beatmap)
+            .where(Score.user_id == user)
+            .where(Score.gamemode == mode)
+            .order_by(col(Score.classic_total_score).desc())
+        )
+    ).first()
+
+    if not user_score:
+        raise HTTPException(
+            status_code=404, detail="Cannot find user %s's score on this beatmap" % user
+        )
+    else:
+        return BeatmapUserScore(
+            position=user_score.position if user_score.position is not None else 0,
+            score=ScoreResp.from_db(user_score),
+        )
+
+
+@router.get(
+    "/beatmaps/{beatmap}/scores/users/{user}/all",
+    tags=["beatmap"],
+    response_model=list[ScoreResp],
+)
+async def get_user_all_beatmap_scores(
+    beatmap: int,
+    user: int,
+    legacy_only: bool = Query(None),
+    ruleset: str = Query(None),
+    current_user: DBUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if legacy_only:
+        raise HTTPException(status_code=404,detail="This server only contains non-legacy scores")
+    all_user_scores=(
+        await db.exec(
+            select(Score)
+            .options(
+                joinedload(Score.beatmap)  # pyright: ignore[reportArgumentType]
+                .joinedload(Beatmap.beatmapset)  # pyright: ignore[reportArgumentType]
+                .selectinload(
+                    Beatmapset.beatmaps # pyright: ignore[reportArgumentType]
+                )
+            )
+            .where(Score.gamemode==ruleset)
+            .where(Score.beatmap_id == beatmap)
+            .where(Score.user_id == user)
+            .order_by(col(Score.classic_total_score).desc())
+        )
+    ).all()
+    
+    return [ScoreResp.from_db(score) for score in all_user_scores]
