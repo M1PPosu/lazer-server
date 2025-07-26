@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  devcontainer:
+    image: mcr.microsoft.com/devcontainers/python:3.13
+    volumes:
+      - ../..:/workspaces:cached
+      - ~/.ssh:/home/vscode/.ssh:ro
+    command: sleep infinity
+    networks:
+      - devcontainer-network
+    depends_on:
+      - mysql
+      - redis
+    environment:
+      DATABASE_URL: mysql+aiomysql://osu_user:osu_password@mysql:3306/osu_api
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: dev-secret-key-change-in-production
+      OSU_CLIENT_ID: "5"
+      OSU_CLIENT_SECRET: "FGc9GAtyHzeQDshWP5Ah7dega8hJACAJpQtw6OXk"
+
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: osu_api
+      MYSQL_USER: osu_user
+      MYSQL_PASSWORD: osu_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ../mysql-init:/docker-entrypoint-initdb.d:cached
+    networks:
+      - devcontainer-network
+    command: --default-authentication-plugin=mysql_native_password
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - devcontainer-network
+    command: redis-server --appendonly yes
+
+networks:
+  devcontainer-network:
+    driver: bridge
+
+volumes:
+  mysql-data:
+  redis-data:
