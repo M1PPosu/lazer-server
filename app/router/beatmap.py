@@ -33,9 +33,11 @@ async def get_beatmap(
         await db.exec(
             select(Beatmap)
             .options(
-                joinedload(Beatmap.beatmapset).selectinload( # pyright: ignore[reportArgumentType]
+                joinedload(
+                    Beatmap.beatmapset # pyright: ignore[reportArgumentType]
+                ).selectinload(  
                     Beatmapset.beatmaps  # pyright: ignore[reportArgumentType]
-                ) 
+                )
             )
             .where(Beatmap.id == bid)
         )
@@ -75,7 +77,7 @@ async def batch_get_beatmaps(
                 select(Beatmap)
                 .options(
                     joinedload(
-                        Beatmap.beatmapset # pyright: ignore[reportArgumentType]
+                        Beatmap.beatmapset  # pyright: ignore[reportArgumentType]
                     ).selectinload(
                         Beatmapset.beatmaps  # pyright: ignore[reportArgumentType]
                     )
@@ -90,8 +92,8 @@ async def batch_get_beatmaps(
                 select(Beatmap)
                 .options(
                     joinedload(
-                        Beatmap.beatmapset # pyright: ignore[reportArgumentType]
-                    ).selectinload(  
+                        Beatmap.beatmapset  # pyright: ignore[reportArgumentType]
+                    ).selectinload(
                         Beatmapset.beatmaps  # pyright: ignore[reportArgumentType]
                     )
                 )
@@ -144,6 +146,7 @@ async def get_beatmap_scores(
             )
             .where(Score.beatmap_id == beatmap)
             .where(Score.user_id == current_user.id)
+            .order_by(col(Score.classic_total_score).desc())
         )
     ).first()
 
@@ -176,22 +179,29 @@ async def get_user_beatmap_score(
         raise HTTPException(
             status_code=404, detail="This server only contains non-legacy scores"
         )
-    user_score = (
+    all_scores = (
         await db.exec(
             select(Score)
             .options(
                 joinedload(Score.beatmap)  # pyright: ignore[reportArgumentType]
                 .joinedload(Beatmap.beatmapset)  # pyright: ignore[reportArgumentType]
                 .selectinload(
-                    Beatmapset.beatmaps # pyright: ignore[reportArgumentType]
-                )  
+                    Beatmapset.beatmaps  # pyright: ignore[reportArgumentType]
+                )
             )
-            .where(Score.beatmap_id == beatmap)
-            .where(Score.user_id == user)
             .where(Score.gamemode == mode)
+            .where(Score.beatmap_id == beatmap)
             .order_by(col(Score.classic_total_score).desc())
         )
-    ).first()
+    ).all()
+
+    rank = 1
+    user_score = None
+    for score in all_scores:
+        if score.user_id == user:
+            user_score = score
+            break
+        rank += 1
 
     if not user_score:
         raise HTTPException(
@@ -199,7 +209,7 @@ async def get_user_beatmap_score(
         )
     else:
         return BeatmapUserScore(
-            position=user_score.position if user_score.position is not None else 0,
+            position=rank,
             score=ScoreResp.from_db(user_score),
         )
 
@@ -218,22 +228,24 @@ async def get_user_all_beatmap_scores(
     db: AsyncSession = Depends(get_db),
 ):
     if legacy_only:
-        raise HTTPException(status_code=404,detail="This server only contains non-legacy scores")
-    all_user_scores=(
+        raise HTTPException(
+            status_code=404, detail="This server only contains non-legacy scores"
+        )
+    all_user_scores = (
         await db.exec(
             select(Score)
             .options(
                 joinedload(Score.beatmap)  # pyright: ignore[reportArgumentType]
                 .joinedload(Beatmap.beatmapset)  # pyright: ignore[reportArgumentType]
                 .selectinload(
-                    Beatmapset.beatmaps # pyright: ignore[reportArgumentType]
+                    Beatmapset.beatmaps  # pyright: ignore[reportArgumentType]
                 )
             )
-            .where(Score.gamemode==ruleset)
+            .where(Score.gamemode == ruleset)
             .where(Score.beatmap_id == beatmap)
             .where(Score.user_id == user)
             .order_by(col(Score.classic_total_score).desc())
         )
     ).all()
-    
+
     return [ScoreResp.from_db(score) for score in all_user_scores]
