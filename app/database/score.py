@@ -14,10 +14,10 @@ from app.models.score import (
 )
 
 from .beatmap import Beatmap, BeatmapResp
-from .beatmapset import BeatmapsetResp
+from .beatmapset import Beatmapset, BeatmapsetResp
 
-from sqlalchemy import Column, DateTime
-from sqlalchemy.orm import joinedload
+from sqlalchemy import Column, ColumnExpressionArgument, DateTime
+from sqlalchemy.orm import aliased, joinedload
 from sqlmodel import (
     JSON,
     BigInteger,
@@ -31,6 +31,7 @@ from sqlmodel import (
     select,
 )
 from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlmodel.sql._expression_select_cls import SelectOfScalar
 
 
 class ScoreBase(SQLModel):
@@ -96,6 +97,43 @@ class Score(ScoreBase, table=True):
     @property
     def is_perfect_combo(self) -> bool:
         return self.max_combo == self.beatmap.max_combo
+
+    @staticmethod
+    def select_clause() -> SelectOfScalar["Score"]:
+        return select(Score).options(
+            joinedload(Score.beatmap)  # pyright: ignore[reportArgumentType]
+            .joinedload(Beatmap.beatmapset)  # pyright: ignore[reportArgumentType]
+            .selectinload(
+                Beatmapset.beatmaps  # pyright: ignore[reportArgumentType]
+            ),
+            joinedload(Score.user).joinedload(User.lazer_profile),  # pyright: ignore[reportArgumentType]
+        )
+
+    @staticmethod
+    def select_clause_unique(
+        *where_clauses: ColumnExpressionArgument[bool] | bool,
+    ) -> SelectOfScalar["Score"]:
+        rownum = (
+            func.row_number()
+            .over(
+                partition_by=col(Score.user_id), order_by=col(Score.total_score).desc()
+            )
+            .label("rn")
+        )
+        subq = select(Score, rownum).where(*where_clauses).subquery()
+        best = aliased(Score, subq, adapt_on_names=True)
+        return (
+            select(best)
+            .where(subq.c.rn == 1)
+            .options(
+                joinedload(best.beatmap)  # pyright: ignore[reportArgumentType]
+                .joinedload(Beatmap.beatmapset)  # pyright: ignore[reportArgumentType]
+                .selectinload(
+                    Beatmapset.beatmaps  # pyright: ignore[reportArgumentType]
+                ),
+                joinedload(best.user).joinedload(User.lazer_profile),  # pyright: ignore[reportArgumentType]
+            )
+        )
 
 
 class ScoreResp(ScoreBase):
@@ -300,6 +338,7 @@ async def get_score_position_by_id(
         Score.map_md5 == beatmap_md5,
         Score.id == score_id,
         Score.gamemode == mode,
+        col(Score.passed).is_(True),
         col(Beatmap.beatmap_status).in_(
             [
                 BeatmapRankStatus.RANKED,
@@ -316,13 +355,29 @@ async def get_score_position_by_id(
     rownum = (
         func.row_number()
         .over(
-            partition_by=Score.map_md5,
+            partition_by=[col(Score.user_id), col(Score.map_md5)],
             order_by=col(Score.total_score).desc(),
         )
-        .label("row_number")
+        .label("rownum")
     )
-    subq = select(Score, rownum).join(Beatmap).where(*where_clause).subquery()
-    stmt = select(subq.c.row_number).where(subq.c.id == score_id)
+    subq = (
+        select(Score.user_id, Score.id, Score.total_score, rownum)
+        .join(Beatmap)
+        .where(*where_clause)
+        .subquery()
+    )
+    best_scores = aliased(subq)
+    overall_rank = (
+        func.rank().over(order_by=best_scores.c.total_score.desc()).label("global_rank")
+    )
+    final_q = (
+        select(best_scores.c.id, overall_rank)
+        .select_from(best_scores)
+        .where(best_scores.c.rownum == 1)
+        .subquery()
+    )
+
+    stmt = select(final_q.c.global_rank).where(final_q.c.id == score_id)
     result = await session.exec(stmt)
     s = result.one_or_none()
     return s if s else 0

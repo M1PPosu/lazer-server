@@ -3,23 +3,26 @@ from __future__ import annotations
 import datetime
 
 from app.database import (
-    Beatmap,
     User as DBUser,
 )
-from app.database.beatmapset import Beatmapset
 from app.database.score import Score, ScoreResp
 from app.database.score_token import ScoreToken, ScoreTokenResp
-from app.database.user import User
 from app.dependencies.database import get_db
 from app.dependencies.user import get_current_user
-from app.models.score import INT_TO_MODE, HitResult, Rank, SoloScoreSubmissionInfo
+from app.models.score import (
+    INT_TO_MODE,
+    GameMode,
+    HitResult,
+    Rank,
+    SoloScoreSubmissionInfo,
+)
 
 from .api_router import router
 
 from fastapi import Depends, Form, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import joinedload
-from sqlmodel import col, select
+from sqlmodel import col, select, true
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
@@ -34,7 +37,7 @@ class BeatmapScores(BaseModel):
 async def get_beatmap_scores(
     beatmap: int,
     legacy_only: bool = Query(None),  # TODO:加入对这个参数的查询
-    mode: str = Query(None),
+    mode: GameMode | None = Query(None),
     # mods: List[APIMod] = Query(None), # TODO:加入指定MOD的查询
     type: str = Query(None),
     current_user: DBUser = Depends(get_current_user),
@@ -47,23 +50,22 @@ async def get_beatmap_scores(
 
     all_scores = (
         await db.exec(
-            select(Score).where(Score.beatmap_id == beatmap)
-            # .where(Score.mods == mods if mods else True)
+            Score.select_clause_unique(
+                Score.beatmap_id == beatmap,
+                col(Score.passed).is_(True),
+                Score.gamemode == mode if mode is not None else true(),
+            )
         )
     ).all()
 
     user_score = (
         await db.exec(
-            select(Score)
-            .options(
-                joinedload(Score.beatmap)  # pyright: ignore[reportArgumentType]
-                .joinedload(Beatmap.beatmapset)  # pyright: ignore[reportArgumentType]
-                .selectinload(
-                    Beatmapset.beatmaps  # pyright: ignore[reportArgumentType]
-                )
+            Score.select_clause_unique(
+                Score.beatmap_id == beatmap,
+                Score.user_id == current_user.id,
+                col(Score.passed).is_(True),
+                Score.gamemode == mode if mode is not None else true(),
             )
-            .where(Score.beatmap_id == beatmap)
-            .where(Score.user_id == current_user.id)
         )
     ).first()
 
@@ -98,18 +100,13 @@ async def get_user_beatmap_score(
         )
     user_score = (
         await db.exec(
-            select(Score)
-            .options(
-                joinedload(Score.beatmap)  # pyright: ignore[reportArgumentType]
-                .joinedload(Beatmap.beatmapset)  # pyright: ignore[reportArgumentType]
-                .selectinload(
-                    Beatmapset.beatmaps  # pyright: ignore[reportArgumentType]
-                )
+            Score.select_clause()
+            .where(
+                Score.gamemode == mode if mode is not None else True,
+                Score.beatmap_id == beatmap,
+                Score.user_id == user,
             )
-            .where(Score.gamemode == mode if mode is not None else True)
-            .where(Score.beatmap_id == beatmap)
-            .where(Score.user_id == user)
-            .order_by(col(Score.classic_total_score).desc())
+            .order_by(col(Score.total_score).desc())
         )
     ).first()
 
@@ -143,17 +140,12 @@ async def get_user_all_beatmap_scores(
         )
     all_user_scores = (
         await db.exec(
-            select(Score)
-            .options(
-                joinedload(Score.beatmap)  # pyright: ignore[reportArgumentType]
-                .joinedload(Beatmap.beatmapset)  # pyright: ignore[reportArgumentType]
-                .selectinload(
-                    Beatmapset.beatmaps  # pyright: ignore[reportArgumentType]
-                )
+            Score.select_clause()
+            .where(
+                Score.gamemode == ruleset if ruleset is not None else True,
+                Score.beatmap_id == beatmap,
+                Score.user_id == user,
             )
-            .where(Score.gamemode == ruleset if ruleset is not None else True)
-            .where(Score.beatmap_id == beatmap)
-            .where(Score.user_id == user)
             .order_by(col(Score.classic_total_score).desc())
         )
     ).all()
@@ -255,16 +247,7 @@ async def submit_solo_score(
             score_token.score_id = score_id
             await db.commit()
             score = (
-                await db.exec(
-                    select(Score)
-                    .options(
-                        joinedload(Score.beatmap)  # pyright: ignore[reportArgumentType]
-                        .joinedload(Beatmap.beatmapset)  # pyright: ignore[reportArgumentType]
-                        .selectinload(Beatmapset.beatmaps),  # pyright: ignore[reportArgumentType]
-                        joinedload(Score.user).joinedload(User.lazer_profile),  # pyright: ignore[reportArgumentType]
-                    )
-                    .where(Score.id == score_id)
-                )
+                await db.exec(Score.select_clause().where(Score.id == score_id))
             ).first()
             assert score is not None
         return await ScoreResp.from_db(db, score)
