@@ -4,7 +4,7 @@ import asyncio
 import sys
 from typing import Any, Literal
 
-from app.router.signalr.packet import ResultKind
+from .packet import ResultKind
 
 
 class ResultStore:

@@ -10,9 +10,9 @@ from app.dependencies import get_current_user
 from app.dependencies.database import get_db
 from app.dependencies.user import get_current_user_by_token
 from app.models.signalr import NegotiateResponse, Transport
-from app.router.signalr.packet import SEP
 
 from .hub import Hubs
+from .packet import SEP
 
 from fastapi import APIRouter, Depends, Header, Query, WebSocket
 from sqlmodel.ext.asyncio.session import AsyncSession

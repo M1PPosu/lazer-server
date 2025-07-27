@@ -5,15 +5,15 @@ import time
 from typing import Any
 
 from app.config import settings
-from app.router.signalr.exception import InvokeException
-from app.router.signalr.packet import (
+from app.signalr.exception import InvokeException
+from app.signalr.packet import (
     PacketType,
     ResultKind,
     encode_varint,
     parse_packet,
 )
-from app.router.signalr.store import ResultStore
-from app.router.signalr.utils import get_signature
+from app.signalr.store import ResultStore
+from app.signalr.utils import get_signature
 
 from fastapi import WebSocket
 import msgpack
