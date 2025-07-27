@@ -14,7 +14,9 @@ class User(SQLModel, table=True):
     __tablename__ = "users"  # pyright: ignore[reportAssignmentType]
 
     # 主键
-    id: int = Field(default=None, primary_key=True, index=True, nullable=False)
+    id: int = Field(
+        default=None, sa_column=Column(BigInteger, primary_key=True, index=True)
+    )
 
     # 基本信息（匹配 migrations 中的结构）
     name: str = Field(max_length=32, unique=True, index=True)  # 用户名
@@ -65,6 +67,10 @@ class User(SQLModel, table=True):
         latest_activity = getattr(self, "latest_activity", 0)
         return datetime.fromtimestamp(latest_activity) if latest_activity > 0 else None
 
+    @property
+    def is_supporter(self):
+        return self.lazer_profile.is_supporter if self.lazer_profile else False
+
     # 关联关系
     lazer_profile: Optional["LazerUserProfile"] = Relationship(back_populates="user")
     lazer_statistics: list["LazerUserStatistics"] = Relationship(back_populates="user")
@@ -76,7 +82,7 @@ class User(SQLModel, table=True):
         back_populates="user"
     )
     statistics: list["LegacyUserStatistics"] = Relationship(back_populates="user")
-    team_membership: list["TeamMember"] = Relationship(back_populates="user")
+    team_membership: Optional["TeamMember"] = Relationship(back_populates="user")
     daily_challenge_stats: Optional["DailyChallengeStats"] = Relationship(
         back_populates="user"
     )

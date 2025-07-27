@@ -65,6 +65,10 @@ class Beatmap(BeatmapBase, table=True):
     # optional
     beatmapset: Beatmapset = Relationship(back_populates="beatmaps")
 
+    @property
+    def can_ranked(self) -> bool:
+        return self.beatmap_status > BeatmapRankStatus.PENDING
+
     @classmethod
     async def from_resp(cls, session: AsyncSession, resp: "BeatmapResp") -> "Beatmap":
         d = resp.model_dump()

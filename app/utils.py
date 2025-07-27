@@ -28,6 +28,11 @@ from app.models.user import (
 import rosu_pp_py as rosu
 
 
+def unix_timestamp_to_windows(timestamp: int) -> int:
+    """Convert a Unix timestamp to a Windows timestamp."""
+    return timestamp * 10_000 + 11_644_473_600_000_000
+
+
 async def convert_db_user_to_api_user(db_user: DBUser, ruleset: str = "osu") -> User:
     """将数据库用户模型转换为API用户模型（使用 Lazer 表）"""
 
@@ -205,7 +210,7 @@ async def convert_db_user_to_api_user(db_user: DBUser, ruleset: str = "osu") -> 
     # 转换团队信息
     team = None
     if db_user.team_membership:
-        team_member = db_user.team_membership[0]  # 假设用户只属于一个团队
+        team_member = db_user.team_membership  # 假设用户只属于一个团队
         team = team_member.team
 
     # 创建用户对象

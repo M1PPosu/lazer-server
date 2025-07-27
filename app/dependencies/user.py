@@ -45,7 +45,7 @@ async def get_current_user_by_token(token: str, db: AsyncSession) -> DBUser | No
                 selectinload(DBUser.lazer_achievements),  # pyright: ignore[reportArgumentType]
                 selectinload(DBUser.lazer_profile_sections),  # pyright: ignore[reportArgumentType]
                 selectinload(DBUser.statistics),  # pyright: ignore[reportArgumentType]
-                selectinload(DBUser.team_membership),  # pyright: ignore[reportArgumentType]
+                joinedload(DBUser.team_membership),  # pyright: ignore[reportArgumentType]
                 selectinload(DBUser.rank_history),  # pyright: ignore[reportArgumentType]
                 selectinload(DBUser.active_banners),  # pyright: ignore[reportArgumentType]
                 selectinload(DBUser.lazer_badges),  # pyright: ignore[reportArgumentType]

@@ -9,6 +9,13 @@ from .beatmapset import (
 )
 from .legacy import LegacyOAuthToken, LegacyUserStatistics
 from .relationship import Relationship, RelationshipResp, RelationshipType
+from .score import (
+    Score,
+    ScoreBase,
+    ScoreResp,
+    ScoreStatistics,
+)
+from .score_token import ScoreToken, ScoreTokenResp
 from .team import Team, TeamMember
 from .user import (
     DailyChallengeStats,
@@ -57,6 +64,12 @@ __all__ = [
     "Relationship",
     "RelationshipResp",
     "RelationshipType",
+    "Score",
+    "ScoreBase",
+    "ScoreResp",
+    "ScoreStatistics",
+    "ScoreToken",
+    "ScoreTokenResp",
     "Team",
     "TeamMember",
     "User",

@@ -16,7 +16,10 @@ from app.dependencies.user import get_current_user
 from app.fetcher import Fetcher
 from app.models.beatmap import BeatmapAttributes
 from app.models.mods import APIMod, int_to_mods
-from app.models.score import INT_TO_MODE, GameMode
+from app.models.score import (
+    INT_TO_MODE,
+    GameMode,
+)
 from app.utils import calculate_beatmap_attribute
 
 from .api_router import router
