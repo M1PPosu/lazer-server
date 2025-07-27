@@ -209,3 +209,7 @@ class User(BaseModel):
     replays_watched_counts: list[dict] = []
     team: Team | None = None
     user_achievements: list[UserAchievement] = []
+
+
+class APIUser(BaseModel):
+    id: int

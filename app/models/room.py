@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
+from typing import Any
 
 from app.database.beatmap import Beatmap
-from app.database.user import User
 from app.models.mods import APIMod
+from app.models.user import APIUser
 
 from pydantic import BaseModel
 
@@ -38,6 +39,75 @@ class RoomAvailability(str, Enum):
 class RoomStatus(str, Enum):
     IDLE = "idle"
     PLAYING = "playing"
+
+
+class MultiplayerRoomState(str, Enum):
+    OPEN = "open"
+    WAITING_FOR_LOAD = "waiting_for_load"
+    PLAYING = "playing"
+    CLOSED = "closed"
+
+
+class MultiplayerUserState(str, Enum):
+    IDLE = "idle"
+    READY = "ready"
+    WAITING_FOR_LOAD = "waiting_for_load"
+    LOADED = "loaded"
+    READY_FOR_GAMEPLAY = "ready_for_gameplay"
+    PLAYING = "playing"
+    FINISHED_PLAY = "finished_play"
+    RESULTS = "results"
+    SPECTATING = "spectating"
+
+
+class DownloadState(str, Enum):
+    UNKONWN = "unkown"
+    NOT_DOWNLOADED = "not_downloaded"
+    DOWNLOADING = "downloading"
+    IMPORTING = "importing"
+    LOCALLY_AVAILABLE = "locally_available"
+
+
+class BeatmapAvailability(BaseModel):
+    state: DownloadState
+    downloadProgress: float | None
+
+
+class MultiplayerPlaylistItem(BaseModel):
+    id: int = 0
+    ownerId: int = 0
+    beatmapId: int = 0
+    beatmapChecksum: str = ""
+    rulesetId: int = 0
+    requiredMods: list[APIMod] = []
+    allowedMods: list[APIMod] = []
+    expired: bool = False
+    playlistOrder: int = 0
+    playedAt: datetime | None
+    starRating: float = 0.0
+    freestyle: bool = False
+
+
+class MultiplayerRoomSettings(BaseModel):
+    name: str = "Unnamed room"
+    playlistItemId: int = 0
+    password: str = ""
+    matchType: MatchType = MatchType.HEAD_TO_HEAD
+    queueMode: QueueMode = QueueMode.HOST_ONLY
+    autoStartDuration: timedelta = timedelta(0)
+    autoSkip: bool = False
+
+
+class MultiplayerRoomUser(BaseModel):
+    id: int
+    state: MultiplayerUserState = MultiplayerUserState.IDLE
+    beatmapAvailability: BeatmapAvailability = BeatmapAvailability(
+        state=DownloadState.UNKONWN, downloadProgress=None
+    )
+    mods: list[APIMod] = []
+    matchState: dict[str, Any] | None
+    rulesetId: int | None
+    beatmapId: int | None
 
 
 class PlaylistItem(BaseModel):
@@ -75,18 +145,23 @@ class PlaylistAggregateScore(BaseModel):
     playlist_item_attempts: list[ItemAttemptsCount]
 
 
+class MultiplayerCountdown(BaseModel):
+    id: int
+    timeRemaining: timedelta
+
+
 class Room(BaseModel):
     id: int | None
     name: str = ""
     password: str | None
     has_password: bool = False
-    host: User | None
+    host: APIUser
     category: RoomCategory = RoomCategory.NORMAL
     duration: int | None
     starts_at: datetime | None
     ends_at: datetime | None
     participant_count: int = 0
-    recent_participants: list[User] = []
+    recent_participants: list[APIUser] = []
     max_attempts: int | None
     playlist: list[PlaylistItem] = []
     playlist_item_stats: RoomPlaylistItemStats | None
@@ -101,3 +176,60 @@ class Room(BaseModel):
     status: RoomStatus = RoomStatus.IDLE
     # availability 字段在当前序列化中未包含，但可能在某些场景下需要
     availability: RoomAvailability | None
+
+    @classmethod
+    def from_MultiplayerRoom(cls, room: MultiplayerRoom):
+        r = cls.model_validate(room.model_dump())
+        r.id = room.roomId
+        r.name = room.settings.name
+        r.password = room.settings.password
+        r.has_password = bool(room.settings.password)
+        if room.host:
+            r.host.id = room.host.id
+        r.type = room.settings.matchType
+        r.queue_mode = room.settings.queueMode
+        r.auto_start_duration = room.settings.autoStartDuration.seconds
+        r.auto_skip = room.settings.autoSkip
+        r.channel_id = room.channelId
+        if room.state == MultiplayerRoomState.OPEN:
+            r.status = RoomStatus.IDLE
+        elif (
+            room.state == MultiplayerRoomState.WAITING_FOR_LOAD
+            or room.state == MultiplayerRoomState.PLAYING
+        ):
+            r.status = RoomStatus.PLAYING
+        elif room.state == MultiplayerRoomState.CLOSED:
+            r.status = RoomStatus.IDLE
+            r.ends_at = datetime.utcnow()
+        playlist_items = []
+        for multiplayer_item in room.playlist:
+            playlist_item = PlaylistItem(
+                id=multiplayer_item.id,
+                owner_id=multiplayer_item.ownerId,
+                ruleset_id=multiplayer_item.rulesetId,
+                expired=multiplayer_item.expired,
+                playlist_order=multiplayer_item.playlistOrder,
+                played_at=multiplayer_item.playedAt,
+                freestyle=multiplayer_item.freestyle,
+                beatmap_id=multiplayer_item.beatmapId,
+                beatmap=None,
+            )
+            playlist_items.append(playlist_item)
+        r.playlist = playlist_items
+        r.participant_count = len(playlist_items)
+        return r
+
+
+class MultiplayerRoom(BaseModel):
+    roomId: int
+    state: MultiplayerRoomState = MultiplayerRoomState.OPEN
+    settings: MultiplayerRoomSettings = MultiplayerRoomSettings()
+    users: list[MultiplayerRoomUser] = []
+    host: MultiplayerRoomUser | None
+    matchState: dict[str, Any] | None
+    playlist: list[MultiplayerPlaylistItem] = []
+    activeCountdowns: list[MultiplayerCountdown] = []
+    channelId: int = 0
+
+    def __init__(self, roomId: int, **data):
+        super().__init__(roomId=roomId, **data)
