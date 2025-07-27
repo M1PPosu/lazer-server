@@ -1,124 +1,101 @@
-# mp 房间相关模型
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 
+from app.database.user import User
 from app.models.mods import APIMod
 
 from pydantic import BaseModel
-from sqlmodel import Double
-
-# 数据结构定义来自osu/osu.Game/Online/Multiplayer*.cs
 
 
-class MultiplayerRoomState(int, Enum):
-    Open = 0
-    WaitingForLoad = 1
-    Playing = 2
-    Closed = 3
+class RoomCategory(str, Enum):
+    NORMAL = "normal"
+    SPOTLIGHT = "spotlight"
+    FEATURED_ARTIST = "featured_artist"
+    DAILY_CHALLENGE = "daily_challenge"
 
 
-class MatchType(int, Enum):
-    Playlists = 0
-    HeadToHead = 1
-    TeamVersus = 2
+class MatchType(str, Enum):
+    PLAYLISTS = "playlists"
+    HEAD_TO_HEAD = "head_to_head"
+    TEAM_VERSUS = "team_versus"
 
 
-class QueueMode(int, Enum):
-    HostOnly = 0
-    Allplayers = 1
-    AllplayersRoundRobin = 2
+class QueueMode(str, Enum):
+    HOST_ONLY = "host_only"
+    ALL_PLAYERS = "all_players"
+    ALL_PLAYERS_ROUND_ROBIN = "all_players_round_robin"
 
 
-class MultiPlayerRoomSettings(BaseModel):
-    name: str = "Unnamed room"  # 来自osu/osu.Game/Online/MultiplayerRoomSettings.cs:15
-    playlist_item_id: int
-    password: str
-    match_type: MatchType
-    queue_mode: QueueMode
-    auto_start_duration: timedelta
-    auto_skip: bool
+class RoomAvailability(str, Enum):
+    PUBLIC = "public"
+    FRIENDS_ONLY = "friends_only"
+    INVITE_ONLY = "invite_only"
 
 
-class MultiPlayerUserState(int, Enum):
-    Idle = 0
-    Ready = 1
-    WaitingForLoad = 2
-    Loaded = 3
-    ReadyForGameplay = 4
-    Playing = 5
-    FinishedPlay = 6
-    Results = 7
-    Spectating = 8
+class RoomStatus(str, Enum):
+    IDLE = "idle"
+    PLAYING = "playing"
 
 
-class DownloadeState(int, Enum):
-    Unkown = 0
-    NotDownloaded = 1
-    Downloading = 2
-    Importing = 3
-    LocallyAvailable = 4
-
-
-class BeatmapAvailability(BaseModel):
-    state: DownloadeState
-    download_progress: float
-
-
-class MatchUserState(BaseModel):
-    pass
-
-
-class MatchRoomState(BaseModel):
-    pass
-
-
-class MultiPlayerRoomUser(BaseModel):
-    user_id: int
-    state: MultiPlayerUserState = MultiPlayerUserState.Idle
-    mods: APIMod = APIMod(acronym="", settings={})
-    match_state: MatchUserState | None
-    rule_set_id: int | None  # 非空则用户本地有自定义模式
-    beatmap_id: int | None  # 非空则用户本地自定义谱面
-
-
-class MultiplayerPlaylistItem(BaseModel):
-    id: int
+class PlaylistItem(BaseModel):
+    id: int | None
     owner_id: int
-    beatmap_id: int
-    beatmap_checksum: str = ""
     ruleset_id: int
-    requierd_mods: list[APIMod] = []
-    allowed_mods: list[APIMod] = []
-    play_list_order: int
+    expired: bool
+    playlist_order: int | None
     played_at: datetime | None
-    star_rating: Double
-    free_style: bool
-    OwnerID: int
-    BeatmapID: int
-    BeatmapChecksum: str = ""
-    RulesetID: int
-    RequierdMods: list[APIMod] = []
-    AllowedMods: list[APIMod] = []
-    PlayListOrder: int
-    PlayedAt: datetime | None
-    StarRating: Double
-    FreeStyle: bool
+    allowed_mods: list[APIMod] = []
+    required_mods: list[APIMod] = []
+    beatmap_id: int
+    freestyle: bool
 
 
-class MultiplayerCountdown(BaseModel):
+class RoomPlaylistItemStats(BaseModel):
+    count_active: int
+    count_total: int
+    ruleset_ids: list[int] = []
+
+
+class RoomDifficultyRange(BaseModel):
+    min: float
+    max: float
+
+
+class ItemAttemptsCount(BaseModel):
     id: int
-    time_raming: timedelta
+    attempts: int
+    passed: bool
 
 
-class MultiplayerRoom(BaseModel):
-    room_id: int
-    state: MultiplayerRoomState
-    settings: MultiPlayerRoomSettings
-    users: list[MultiPlayerRoomUser]
-    host: MultiPlayerRoomUser | None
-    match_state: MatchUserState
-    playlist: list[MultiplayerPlaylistItem]
-    active_conutdowns: list[MultiplayerCountdown]
-    channel_id: int
+class PlaylistAggregateScore(BaseModel):
+    playlist_item_attempts: list[ItemAttemptsCount]
+
+
+class Room(BaseModel):
+    id: int | None
+    name: str = ""
+    password: str | None
+    has_password: bool = False
+    host: User | None
+    category: RoomCategory = RoomCategory.NORMAL
+    duration: int | None
+    starts_at: datetime | None
+    ends_at: datetime | None
+    participant_count: int = 0
+    recent_participants: list[User] = []
+    max_attempts: int | None
+    playlist: list[PlaylistItem] = []
+    playlist_item_stats: RoomPlaylistItemStats | None
+    difficulty_range: RoomDifficultyRange | None
+    type: MatchType = MatchType.PLAYLISTS
+    queue_mode: QueueMode = QueueMode.HOST_ONLY
+    auto_skip: bool = False
+    auto_start_duration: int = 0
+    current_user_score: PlaylistAggregateScore | None
+    current_playlist_item: PlaylistItem | None
+    channel_id: int = 0
+    status: RoomStatus = RoomStatus.IDLE
+    # availability 字段在当前序列化中未包含，但可能在某些场景下需要
+    availability: RoomAvailability | None
