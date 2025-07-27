@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from enum import Enum
-import json
-from typing import Any, Literal, TypedDict
+from typing import Literal, TypedDict
 
-from app.path import STATIC_DIR
+from .mods import API_MOD_TO_LEGACY, API_MODS, APIMod, init_mods
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 import rosu_pp_py as rosu
@@ -44,55 +43,6 @@ class Rank(str, Enum):
     C = "C"
     D = "D"
     F = "F"
-
-
-class APIMod(TypedDict, total=False):
-    acronym: str
-    settings: dict[str, Any]
-
-
-legacy_mod: dict[str, int] = {
-    "NF": 1 << 0,  # No Fail
-    "EZ": 1 << 1,  # Easy
-    "TD": 1 << 2,  # Touch Device
-    "HD": 1 << 3,  # Hidden
-    "HR": 1 << 4,  # Hard Rock
-    "SD": 1 << 5,  # Sudden Death
-    "DT": 1 << 6,  # Double Time
-    "RX": 1 << 7,  # Relax
-    "HT": 1 << 8,  # Half Time
-    "NC": 1 << 9,  # Nightcore
-    "FL": 1 << 10,  # Flashlight
-    "AT": 1 << 11,  # Autoplay
-    "SO": 1 << 12,  # Spun Out
-    "AP": 1 << 13,  # Auto Pilot
-    "PF": 1 << 14,  # Perfect
-    "4K": 1 << 15,  # 4K
-    "5K": 1 << 16,  # 5K
-    "6K": 1 << 17,  # 6K
-    "7K": 1 << 18,  # 7K
-    "8K": 1 << 19,  # 8K
-    "FI": 1 << 20,  # Fade In
-    "RD": 1 << 21,  # Random
-    "CN": 1 << 22,  # Cinema
-    "TP": 1 << 23,  # Target Practice
-    "9K": 1 << 24,  # 9K
-    "CO": 1 << 25,  # Key Co-op
-    "1K": 1 << 26,  # 1K
-    "3K": 1 << 27,  # 3K
-    "2K": 1 << 28,  # 2K
-    "SV2": 1 << 29,  # ScoreV2
-    "MR": 1 << 30,  # Mirror
-}
-legacy_mod["NC"] |= legacy_mod["DT"]
-legacy_mod["PF"] |= legacy_mod["SD"]
-
-
-def api_mod_to_int(mods: list[APIMod]) -> int:
-    sum_ = 0
-    for mod in mods:
-        sum_ |= legacy_mod.get(mod["acronym"], 0)
-    return sum_
 
 
 # https://github.com/ppy/osu/blob/master/osu.Game/Rulesets/Scoring/HitResult.cs
@@ -140,42 +90,7 @@ class LeaderboardType(Enum):
     TEAM = "team"
 
 
-# see static/mods.json
-class Settings(TypedDict):
-    Name: str
-    Type: str
-    Label: str
-    Description: str
-
-
-class Mod(TypedDict):
-    Acronym: str
-    Name: str
-    Description: str
-    Type: str
-    Settings: list[Settings]
-    IncompatibleMods: list[str]
-    RequiresConfiguration: bool
-    UserPlayable: bool
-    ValidForMultiplayer: bool
-    ValidForFreestyleAsRequiredMod: bool
-    ValidForMultiplayerAsFreeMod: bool
-    AlwaysValidForSubmission: bool
-
-
-MODS: dict[int, dict[str, Mod]] = {}
-
 ScoreStatistics = dict[HitResult, int]
-
-
-def _init_mods():
-    mods_file = STATIC_DIR / "mods.json"
-    raw_mods = json.loads(mods_file.read_text())
-    for ruleset in raw_mods:
-        ruleset_mods = {}
-        for mod in ruleset["Mods"]:
-            ruleset_mods[mod["Acronym"]] = mod
-        MODS[ruleset["RulesetID"]] = ruleset_mods
 
 
 class SoloScoreSubmissionInfo(BaseModel):
@@ -194,8 +109,8 @@ class SoloScoreSubmissionInfo(BaseModel):
     @field_validator("mods", mode="after")
     @classmethod
     def validate_mods(cls, mods: list[APIMod], info: ValidationInfo):
-        if not MODS:
-            _init_mods()
+        if not API_MOD_TO_LEGACY:
+            init_mods()
         incompatible_mods = set()
         # check incompatible mods
         for mod in mods:
@@ -203,7 +118,7 @@ class SoloScoreSubmissionInfo(BaseModel):
                 raise ValueError(
                     f"Mod {mod['acronym']} is incompatible with other mods"
                 )
-            setting_mods = MODS[info.data["ruleset_id"]].get(mod["acronym"])
+            setting_mods = API_MODS[info.data["ruleset_id"]].get(mod["acronym"])
             if not setting_mods:
                 raise ValueError(f"Invalid mod: {mod['acronym']}")
             incompatible_mods.update(setting_mods["IncompatibleMods"])
