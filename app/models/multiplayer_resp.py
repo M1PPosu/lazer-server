@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from enum import Enum
 
+from app.database.beatmap import Beatmap
 from app.database.user import User
 from app.models.mods import APIMod
 from app.models.multiplayer import MatchType, QueueMode
@@ -18,36 +19,38 @@ class RoomCategory(int, Enum):
 
 
 class RespPlaylistItem(BaseModel):
-    id: int
-    OwnerID: int
-    RulesetID: int
-    Expired: bool
-    PlaylistOrder: int | None
-    PlayedAt: datetime | None
-    AllowedMods: list[APIMod] = []
-    RequiredMods: list[APIMod] = []
-    Freestyle: bool
+    id: int | None
+    owner_id: int
+    ruleset_id: int
+    expired: bool
+    playlist_order: int | None
+    played_at: datetime | None
+    allowed_mods: list[APIMod] = []
+    required_mods: list[APIMod] = []
+    beatmap_id: int
+    freestyle: bool
+    beatmap: Beatmap | None
 
 
 class RoomPlaylistItemStats(BaseModel):
-    CountActive: int
-    CountTotal: int
-    RulesetIDs: list[int]
+    count_active: int
+    count_total: int
+    ruleset_ids: list[int]
 
 
 class RoomDifficulityRange(BaseModel):
-    Min: float
-    Max: float
+    min: float
+    max: float
 
 
 class ItemAttempsCount(BaseModel):
-    PlaylistItemID: int
-    Attemps: int
-    Passed: bool
+    playlist_item_id: int
+    attemps: int
+    passed: bool
 
 
 class PlaylistAggregateScore(BaseModel):
-    PlaylistItemAttempts: list[ItemAttempsCount]
+    playlist_item_attempts: list[ItemAttempsCount]
 
 
 class RoomStatus(int, Enum):
@@ -62,30 +65,30 @@ class RoomAvilability(int, Enum):
 
 
 class RoomResp(BaseModel):
-    RoomID: int
-    Name: str = ""
-    Password: str | None
-    Has_Password: bool
-    Host: User | None
-    Category: RoomCategory
-    Duration: timedelta | None
-    StartDate: datetime | None
-    EndDate: datetime | None
-    MaxParticipants: int | None
-    ParticipantCount: int
-    RecentParticipants: list[User] = []
-    Type: MatchType
-    MaxAttemps: int | None
-    Playlist: list[RespPlaylistItem]
-    PlaylistItemStatus: RoomPlaylistItemStats
-    DifficulityRange: RoomDifficulityRange
-    QueueMode: QueueMode
-    AutoSkip: bool
-    AutoStartDuration: timedelta
-    UserScore: (
+    room_id: int
+    name: str = ""
+    password: str | None
+    has_password: bool
+    host: User | None
+    category: RoomCategory
+    duration: timedelta | None
+    start_date: datetime | None
+    end_date: datetime | None
+    max_participants: int | None
+    participant_count: int
+    recent_participants: list[User] = []
+    type: MatchType
+    max_attemps: int | None
+    playlist: list[RespPlaylistItem]
+    playlist_item_status: RoomPlaylistItemStats
+    difficulity_range: RoomDifficulityRange
+    queue_mode: QueueMode
+    auto_skip: bool
+    auto_start_duration: timedelta
+    user_score: (
         PlaylistAggregateScore | None
     )  # osu.Game/Online/Rooms/Room.cs:221 原文如此，不知道为什么
-    CurrentPlaylistItem: RespPlaylistItem
-    ChannelID: int
-    Status: RoomStatus
-    Availabiliity: RoomAvilability
+    current_playlist_item: RespPlaylistItem
+    channel_id: int
+    status: RoomStatus
+    availabiliity: RoomAvilability

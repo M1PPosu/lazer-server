@@ -32,13 +32,13 @@ class QueueMode(int, Enum):
 
 
 class MultiPlayerRoomSettings(BaseModel):
-    Name: str = "Unnamed room"  # 来自osu/osu.Game/Online/MultiplayerRoomSettings.cs:15
-    PlaylistItemId: int
-    Password: str
-    MatchType: MatchType
-    QueueMode: QueueMode
-    AutoStartDuration: timedelta
-    AutoSkip: bool
+    name: str = "Unnamed room"  # 来自osu/osu.Game/Online/MultiplayerRoomSettings.cs:15
+    playlist_item_id: int
+    password: str
+    match_type: MatchType
+    queue_mode: QueueMode
+    auto_start_duration: timedelta
+    auto_skip: bool
 
 
 class MultiPlayerUserState(int, Enum):
@@ -62,8 +62,8 @@ class DownloadeState(int, Enum):
 
 
 class BeatmapAvailability(BaseModel):
-    State: DownloadeState
-    DownloadProgress: float
+    state: DownloadeState
+    download_progress: float
 
 
 class MatchUserState(BaseModel):
@@ -75,16 +75,26 @@ class MatchRoomState(BaseModel):
 
 
 class MultiPlayerRoomUser(BaseModel):
-    UserID: int
-    State: MultiPlayerUserState
-    Mods: APIMod
-    MatchState: MatchUserState | None
-    RuleSetId: int | None  # 非空则用户本地有自定义模式
-    BeatmapId: int | None  # 非空则用户本地自定义谱面
+    user_id: int
+    state: MultiPlayerUserState = MultiPlayerUserState.Idle
+    mods: APIMod = APIMod(acronym="", settings={})
+    match_state: MatchUserState | None
+    rule_set_id: int | None  # 非空则用户本地有自定义模式
+    beatmap_id: int | None  # 非空则用户本地自定义谱面
 
 
 class MultiplayerPlaylistItem(BaseModel):
     id: int
+    owner_id: int
+    beatmap_id: int
+    beatmap_checksum: str = ""
+    ruleset_id: int
+    requierd_mods: list[APIMod] = []
+    allowed_mods: list[APIMod] = []
+    play_list_order: int
+    played_at: datetime | None
+    star_rating: Double
+    free_style: bool
     OwnerID: int
     BeatmapID: int
     BeatmapChecksum: str = ""
@@ -99,16 +109,16 @@ class MultiplayerPlaylistItem(BaseModel):
 
 class MultiplayerCountdown(BaseModel):
     id: int
-    TimeRaming: timedelta
+    time_raming: timedelta
 
 
 class MultiplayerRoom(BaseModel):
-    RoomID: int
-    State: MultiplayerRoomState
-    Settings: MultiPlayerRoomSettings
-    Users: list[MultiPlayerRoomUser]
-    Host: MultiPlayerRoomUser | None
-    MatchState: MatchUserState
-    Playlist: list[MultiplayerPlaylistItem]
-    ActiveConutdowns: list[MultiplayerCountdown]
-    ChannelID: int
+    room_id: int
+    state: MultiplayerRoomState
+    settings: MultiPlayerRoomSettings
+    users: list[MultiPlayerRoomUser]
+    host: MultiPlayerRoomUser | None
+    match_state: MatchUserState
+    playlist: list[MultiplayerPlaylistItem]
+    active_conutdowns: list[MultiplayerCountdown]
+    channel_id: int
