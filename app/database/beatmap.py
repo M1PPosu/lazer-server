@@ -114,19 +114,25 @@ class Beatmap(BeatmapBase, table=True):
 
     @classmethod
     async def get_or_fetch(
-        cls, session: AsyncSession, bid: int, fetcher: "Fetcher"
+        cls,
+        session: AsyncSession,
+        fetcher: "Fetcher",
+        bid: int | None = None,
+        md5: str | None = None,
     ) -> "Beatmap":
         beatmap = (
             await session.exec(
                 select(Beatmap)
-                .where(Beatmap.id == bid)
+                .where(
+                    Beatmap.id == bid if bid is not None else Beatmap.checksum == md5
+                )
                 .options(
                     joinedload(Beatmap.beatmapset).selectinload(Beatmapset.beatmaps)  # pyright: ignore[reportArgumentType]
                 )
             )
         ).first()
         if not beatmap:
-            resp = await fetcher.get_beatmap(bid)
+            resp = await fetcher.get_beatmap(bid, md5)
             r = await session.exec(
                 select(Beatmapset.id).where(Beatmapset.id == resp.beatmapset_id)
             )

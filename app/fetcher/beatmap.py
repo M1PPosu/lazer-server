@@ -8,11 +8,20 @@ from httpx import AsyncClient
 
 
 class BeatmapFetcher(BaseFetcher):
-    async def get_beatmap(self, beatmap_id: int) -> BeatmapResp:
+    async def get_beatmap(
+        self, beatmap_id: int | None = None, beatmap_checksum: str | None = None
+    ) -> BeatmapResp:
+        if beatmap_id:
+            params = {"id": beatmap_id}
+        elif beatmap_checksum:
+            params = {"checksum": beatmap_checksum}
+        else:
+            raise ValueError("Either beatmap_id or beatmap_checksum must be provided.")
         async with AsyncClient() as client:
             response = await client.get(
-                f"https://osu.ppy.sh/api/v2/beatmaps/{beatmap_id}",
+                "https://osu.ppy.sh/api/v2/beatmaps/lookup",
                 headers=self.header,
+                params=params,
             )
             response.raise_for_status()
             return BeatmapResp.model_validate(response.json())
