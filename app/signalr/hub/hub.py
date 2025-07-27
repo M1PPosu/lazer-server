@@ -38,6 +38,9 @@ class Client:
         self._ping_task: asyncio.Task | None = None
         self._store = ResultStore()
 
+    def __hash__(self) -> int:
+        return hash(self.connection_id + self.connection_token)
+
     async def send_packet(self, packet: Packet):
         await self.connection.send_bytes(self.procotol.encode(packet))
 
@@ -65,9 +68,16 @@ class Hub:
         self.clients: dict[str, Client] = {}
         self.waited_clients: dict[str, int] = {}
         self.tasks: set[asyncio.Task] = set()
+        self.groups: dict[str, set[Client]] = {}
 
     def add_waited_client(self, connection_token: str, timestamp: int) -> None:
         self.waited_clients[connection_token] = timestamp
+
+    def get_client_by_id(self, id: str, default: Any = None) -> Client:
+        for client in self.clients.values():
+            if client.connection_id == id:
+                return client
+        return default
 
     def add_client(
         self,
@@ -109,6 +119,14 @@ class Hub:
     async def broadcast_call(self, method: str, *args: Any) -> None:
         tasks = []
         for client in self.clients.values():
+            tasks.append(self.call_noblock(client, method, *args))
+        await asyncio.gather(*tasks)
+
+    async def broadcast_group_call(
+        self, group_id: str, method: str, *args: Any
+    ) -> None:
+        tasks = []
+        for client in self.groups.get(group_id, []):
             tasks.append(self.call_noblock(client, method, *args))
         await asyncio.gather(*tasks)
 
