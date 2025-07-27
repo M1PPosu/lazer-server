@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Literal, TypedDict
 
-from .mods import API_MOD_TO_LEGACY, API_MODS, APIMod, init_mods
+from .mods import API_MODS, APIMod, init_mods
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 import rosu_pp_py as rosu
@@ -109,7 +109,7 @@ class SoloScoreSubmissionInfo(BaseModel):
     @field_validator("mods", mode="after")
     @classmethod
     def validate_mods(cls, mods: list[APIMod], info: ValidationInfo):
-        if not API_MOD_TO_LEGACY:
+        if not API_MODS:
             init_mods()
         incompatible_mods = set()
         # check incompatible mods
@@ -122,6 +122,7 @@ class SoloScoreSubmissionInfo(BaseModel):
             if not setting_mods:
                 raise ValueError(f"Invalid mod: {mod['acronym']}")
             incompatible_mods.update(setting_mods["IncompatibleMods"])
+        return mods
 
 
 class LegacyReplaySoloScoreInfo(TypedDict):

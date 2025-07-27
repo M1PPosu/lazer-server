@@ -7,7 +7,7 @@ from .team import TeamMember
 
 from sqlalchemy import DECIMAL, JSON, Column, Date, DateTime, Text
 from sqlalchemy.dialects.mysql import VARCHAR
-from sqlmodel import BigInteger, Field, Relationship, SQLModel
+from sqlmodel import BigInteger, Field, ForeignKey, Relationship, SQLModel
 
 
 class User(SQLModel, table=True):
@@ -109,7 +109,14 @@ class User(SQLModel, table=True):
 class LazerUserProfile(SQLModel, table=True):
     __tablename__ = "lazer_user_profiles"  # pyright: ignore[reportAssignmentType]
 
-    user_id: int = Field(foreign_key="users.id", primary_key=True)
+    user_id: int = Field(
+        default=None,
+        sa_column=Column(
+            BigInteger,
+            ForeignKey("users.id"),
+            primary_key=True,
+        ),
+    )
 
     # 基本状态字段
     is_active: bool = Field(default=True)
@@ -165,7 +172,7 @@ class LazerUserProfileSections(SQLModel, table=True):
     __tablename__ = "lazer_user_profile_sections"  # pyright: ignore[reportAssignmentType]
 
     id: int | None = Field(default=None, primary_key=True)
-    user_id: int = Field(foreign_key="users.id")
+    user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("users.id")))
     section_name: str = Field(sa_column=Column(VARCHAR(50)))
     display_order: int | None = Field(default=None)
 
@@ -182,7 +189,14 @@ class LazerUserProfileSections(SQLModel, table=True):
 class LazerUserCountry(SQLModel, table=True):
     __tablename__ = "lazer_user_countries"  # pyright: ignore[reportAssignmentType]
 
-    user_id: int = Field(foreign_key="users.id", primary_key=True)
+    user_id: int = Field(
+        default=None,
+        sa_column=Column(
+            BigInteger,
+            ForeignKey("users.id"),
+            primary_key=True,
+        ),
+    )
     code: str = Field(max_length=2)
     name: str = Field(max_length=100)
 
@@ -197,7 +211,14 @@ class LazerUserCountry(SQLModel, table=True):
 class LazerUserKudosu(SQLModel, table=True):
     __tablename__ = "lazer_user_kudosu"  # pyright: ignore[reportAssignmentType]
 
-    user_id: int = Field(foreign_key="users.id", primary_key=True)
+    user_id: int = Field(
+        default=None,
+        sa_column=Column(
+            BigInteger,
+            ForeignKey("users.id"),
+            primary_key=True,
+        ),
+    )
     available: int = Field(default=0)
     total: int = Field(default=0)
 
@@ -212,7 +233,14 @@ class LazerUserKudosu(SQLModel, table=True):
 class LazerUserCounts(SQLModel, table=True):
     __tablename__ = "lazer_user_counts"  # pyright: ignore[reportAssignmentType]
 
-    user_id: int = Field(foreign_key="users.id", primary_key=True)
+    user_id: int = Field(
+        default=None,
+        sa_column=Column(
+            BigInteger,
+            ForeignKey("users.id"),
+            primary_key=True,
+        ),
+    )
 
     # 统计计数字段
     beatmap_playcounts_count: int = Field(default=0)
@@ -247,7 +275,14 @@ class LazerUserCounts(SQLModel, table=True):
 class LazerUserStatistics(SQLModel, table=True):
     __tablename__ = "lazer_user_statistics"  # pyright: ignore[reportAssignmentType]
 
-    user_id: int = Field(foreign_key="users.id", primary_key=True)
+    user_id: int = Field(
+        default=None,
+        sa_column=Column(
+            BigInteger,
+            ForeignKey("users.id"),
+            primary_key=True,
+        ),
+    )
     mode: str = Field(default="osu", max_length=10, primary_key=True)
 
     # 基本命中统计
@@ -308,7 +343,7 @@ class LazerUserBanners(SQLModel, table=True):
     __tablename__ = "lazer_user_tournament_banners"  # pyright: ignore[reportAssignmentType]
 
     id: int | None = Field(default=None, primary_key=True)
-    user_id: int = Field(foreign_key="users.id")
+    user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("users.id")))
     tournament_id: int
     image_url: str = Field(sa_column=Column(VARCHAR(500)))
     is_active: bool | None = Field(default=None)
@@ -321,7 +356,7 @@ class LazerUserAchievement(SQLModel, table=True):
     __tablename__ = "lazer_user_achievements"  # pyright: ignore[reportAssignmentType]
 
     id: int | None = Field(default=None, primary_key=True, index=True)
-    user_id: int = Field(foreign_key="users.id")
+    user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("users.id")))
     achievement_id: int
     achieved_at: datetime = Field(
         default_factory=datetime.utcnow, sa_column=Column(DateTime)
@@ -334,7 +369,7 @@ class LazerUserBadge(SQLModel, table=True):
     __tablename__ = "lazer_user_badges"  # pyright: ignore[reportAssignmentType]
 
     id: int | None = Field(default=None, primary_key=True, index=True)
-    user_id: int = Field(foreign_key="users.id")
+    user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("users.id")))
     badge_id: int
     awarded_at: datetime | None = Field(default=None, sa_column=Column(DateTime))
     description: str | None = Field(default=None, sa_column=Column(Text))
@@ -355,7 +390,7 @@ class LazerUserMonthlyPlaycounts(SQLModel, table=True):
     __tablename__ = "lazer_user_monthly_playcounts"  # pyright: ignore[reportAssignmentType]
 
     id: int | None = Field(default=None, primary_key=True, index=True)
-    user_id: int = Field(foreign_key="users.id")
+    user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("users.id")))
     start_date: datetime = Field(sa_column=Column(Date))
     play_count: int = Field(default=0)
 
@@ -373,7 +408,7 @@ class LazerUserPreviousUsername(SQLModel, table=True):
     __tablename__ = "lazer_user_previous_usernames"  # pyright: ignore[reportAssignmentType]
 
     id: int | None = Field(default=None, primary_key=True, index=True)
-    user_id: int = Field(foreign_key="users.id")
+    user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("users.id")))
     username: str = Field(max_length=32)
     changed_at: datetime = Field(sa_column=Column(DateTime))
 
@@ -391,7 +426,7 @@ class LazerUserReplaysWatched(SQLModel, table=True):
     __tablename__ = "lazer_user_replays_watched"  # pyright: ignore[reportAssignmentType]
 
     id: int | None = Field(default=None, primary_key=True, index=True)
-    user_id: int = Field(foreign_key="users.id")
+    user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("users.id")))
     start_date: datetime = Field(sa_column=Column(Date))
     count: int = Field(default=0)
 
@@ -416,7 +451,9 @@ class DailyChallengeStats(SQLModel, table=True):
     __tablename__ = "daily_challenge_stats"  # pyright: ignore[reportAssignmentType]
 
     id: int | None = Field(default=None, primary_key=True, index=True)
-    user_id: int = Field(foreign_key="users.id", unique=True)
+    user_id: int = Field(
+        sa_column=Column(BigInteger, ForeignKey("users.id"), unique=True)
+    )
 
     daily_streak_best: int = Field(default=0)
     daily_streak_current: int = Field(default=0)
@@ -437,7 +474,7 @@ class RankHistory(SQLModel, table=True):
     __tablename__ = "rank_history"  # pyright: ignore[reportAssignmentType]
 
     id: int | None = Field(default=None, primary_key=True, index=True)
-    user_id: int = Field(foreign_key="users.id")
+    user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("users.id")))
     mode: str = Field(max_length=10)
     rank_data: list = Field(sa_column=Column(JSON))  # Array of ranks
     date_recorded: datetime = Field(
@@ -451,7 +488,7 @@ class UserAvatar(SQLModel, table=True):
     __tablename__ = "user_avatars"  # pyright: ignore[reportAssignmentType]
 
     id: int | None = Field(default=None, primary_key=True, index=True)
-    user_id: int = Field(foreign_key="users.id")
+    user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("users.id")))
     filename: str = Field(max_length=255)
     original_filename: str = Field(max_length=255)
     file_size: int

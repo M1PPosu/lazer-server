@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Column, DateTime
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import BigInteger, Field, ForeignKey, Relationship, SQLModel
 
 if TYPE_CHECKING:
     from .user import User
@@ -26,7 +26,7 @@ class TeamMember(SQLModel, table=True):
     __tablename__ = "team_members"  # pyright: ignore[reportAssignmentType]
 
     id: int | None = Field(default=None, primary_key=True, index=True)
-    user_id: int = Field(foreign_key="users.id")
+    user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("users.id")))
     team_id: int = Field(foreign_key="teams.id")
     joined_at: datetime = Field(
         default_factory=datetime.utcnow, sa_column=Column(DateTime)

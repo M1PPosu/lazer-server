@@ -27,12 +27,15 @@ class ScoreToken(ScoreTokenBase, table=True):
 
     id: int | None = Field(
         default=None,
-        primary_key=True,
-        index=True,
-        sa_column_kwargs={"autoincrement": True},
+        sa_column=Column(
+            BigInteger,
+            primary_key=True,
+            index=True,
+            autoincrement=True,
+        ),
     )
     user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("users.id")))
-    beatmap_id: int = Field(sa_column=Column(BigInteger, ForeignKey("beatmaps.id")))
+    beatmap_id: int = Field(foreign_key="beatmaps.id")
     user: "User" = Relationship()
     beatmap: "Beatmap" = Relationship()
 

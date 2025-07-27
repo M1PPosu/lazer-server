@@ -1,6 +1,6 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-from app.fetcher import Fetcher
 from app.models.beatmap import BeatmapRankStatus
 from app.models.score import MODE_TO_INT, GameMode
 
@@ -10,6 +10,9 @@ from sqlalchemy import DECIMAL, Column, DateTime
 from sqlalchemy.orm import joinedload
 from sqlmodel import VARCHAR, Field, Relationship, SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
+
+if TYPE_CHECKING:
+    from app.fetcher import Fetcher
 
 
 class BeatmapOwner(SQLModel):
@@ -111,7 +114,7 @@ class Beatmap(BeatmapBase, table=True):
 
     @classmethod
     async def get_or_fetch(
-        cls, session: AsyncSession, bid: int, fetcher: Fetcher
+        cls, session: AsyncSession, bid: int, fetcher: "Fetcher"
     ) -> "Beatmap":
         beatmap = (
             await session.exec(

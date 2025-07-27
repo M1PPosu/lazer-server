@@ -22,6 +22,7 @@ from sqlmodel import (
     JSON,
     BigInteger,
     Field,
+    ForeignKey,
     Relationship,
     SQLModel,
     col,
@@ -69,7 +70,14 @@ class Score(ScoreBase, table=True):
         default=None, sa_column=Column(BigInteger, autoincrement=True, primary_key=True)
     )
     beatmap_id: int = Field(index=True, foreign_key="beatmaps.id")
-    user_id: int = Field(foreign_key="users.id", index=True)
+    user_id: int = Field(
+        default=None,
+        sa_column=Column(
+            BigInteger,
+            ForeignKey("users.id"),
+            index=True,
+        ),
+    )
     # ScoreStatistics
     n300: int = Field(exclude=True)
     n100: int = Field(exclude=True)
@@ -92,6 +100,7 @@ class Score(ScoreBase, table=True):
 
 class ScoreResp(ScoreBase):
     id: int
+    user_id: int
     is_perfect_combo: bool = False
     legacy_perfect: bool = False
     legacy_total_score: int = 0  # FIXME
