@@ -217,8 +217,7 @@ class JSONProtocol:
                 payload["result"] = packet.result
         elif isinstance(packet, PingPacket):
             pass
-
-        return json.dumps(payload).encode("utf-8")
+        return json.dumps(payload).encode("utf-8") + SEP
 
 
 PROTOCOLS: dict[str, Protocol] = {
