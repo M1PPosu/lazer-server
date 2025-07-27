@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 
+from app.database.beatmap import Beatmap
 from app.database.user import User
 from app.models.mods import APIMod
 
@@ -49,6 +50,7 @@ class PlaylistItem(BaseModel):
     allowed_mods: list[APIMod] = []
     required_mods: list[APIMod] = []
     beatmap_id: int
+    beatmap: Beatmap | None
     freestyle: bool
 
 
