@@ -7,7 +7,6 @@ from typing import Any
 from app.models.beatmap import BeatmapRankStatus
 
 from .score import (
-    GameMode,
     ScoreStatisticsInt,
 )
 from .signalr import MessagePackArrayModel
@@ -139,7 +138,7 @@ class StoreClientState(BaseModel):
     state: SpectatorState | None
     beatmap_status: BeatmapRankStatus
     checksum: str
-    gamemode: GameMode
+    ruleset_id: int
     score_token: int
     watched_user: set[int]
     score: StoreScore

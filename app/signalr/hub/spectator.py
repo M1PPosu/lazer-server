@@ -12,7 +12,7 @@ from app.database.user import User
 from app.dependencies.database import engine
 from app.models.beatmap import BeatmapRankStatus
 from app.models.mods import mods_to_int
-from app.models.score import MODE_TO_INT, LegacyReplaySoloScoreInfo, ScoreStatisticsInt
+from app.models.score import LegacyReplaySoloScoreInfo, ScoreStatisticsInt
 from app.models.spectator_hub import (
     APIUser,
     FrameDataBundle,
@@ -171,7 +171,7 @@ class SpectatorHub(Hub):
                     state=state,
                     beatmap_status=beatmap.beatmap_status,
                     checksum=beatmap.checksum,
-                    gamemode=beatmap.mode,
+                    ruleset_id=state.ruleset_id,
                     score_token=score_token,
                     watched_user=set(),
                     score=StoreScore(
@@ -245,7 +245,7 @@ class SpectatorHub(Hub):
                     await session.commit()
                     await session.refresh(score_record)
                     save_replay(
-                        ruleset_id=MODE_TO_INT[store.gamemode],
+                        ruleset_id=store.ruleset_id,
                         md5=store.checksum,
                         username=store.score.score_info.user.name,
                         score=score_record,
