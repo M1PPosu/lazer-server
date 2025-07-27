@@ -20,7 +20,7 @@ class MessagePackArrayModel(BaseModel):
 class Transport(BaseModel):
     transport: str
     transfer_formats: list[str] = Field(
-        default_factory=lambda: ["Binary"], alias="transferFormats"
+        default_factory=lambda: ["Binary", "Text"], alias="transferFormats"
     )
 
 

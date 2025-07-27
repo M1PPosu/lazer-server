@@ -12,7 +12,7 @@ from app.dependencies.user import get_current_user_by_token
 from app.models.signalr import NegotiateResponse, Transport
 
 from .hub import Hubs
-from .packet import SEP
+from .packet import PROTOCOLS, SEP
 
 from fastapi import APIRouter, Depends, Header, Query, WebSocket
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -62,13 +62,14 @@ async def connect(
     await websocket.accept()
 
     # handshake
-    handshake = await websocket.receive_bytes()
-    handshake_payload = json.loads(handshake[:-1])
+    handshake = await websocket.receive()
+    message = handshake.get("bytes") or handshake.get("text")
+    if not message:
+        await websocket.close(code=1008)
+        return
+    handshake_payload = json.loads(message[:-1])
     error = ""
-    if (protocol := handshake_payload.get("protocol")) != "messagepack" or (
-        handshake_payload.get("version")
-    ) != 1:
-        error = f"Requested protocol '{protocol}' is not available."
+    protocol = handshake_payload.get("protocol", "json")
 
     client = None
     try:
@@ -76,7 +77,10 @@ async def connect(
             connection_id=user_id,
             connection_token=id,
             connection=websocket,
+            protocol=PROTOCOLS[protocol],
         )
+    except KeyError:
+        error = f"Protocol '{protocol}' is not supported."
     except TimeoutError:
         error = f"Connection {id} has waited too long."
     except ValueError as e:

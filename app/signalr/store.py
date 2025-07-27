@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
-from typing import Any, Literal
-
-from .packet import ResultKind
+from typing import Any
 
 
 class ResultStore:
@@ -22,21 +20,17 @@ class ResultStore:
         return str(s)
 
     def add_result(
-        self, invocation_id: str, type: ResultKind, result: dict[str, Any] | None
+        self, invocation_id: str, result: Any, error: str | None = None
     ) -> None:
         if isinstance(invocation_id, str) and invocation_id.isdecimal():
             if future := self._futures.get(invocation_id):
-                future.set_result((type, result))
+                future.set_result((result, error))
 
     async def fetch(
         self,
         invocation_id: str,
         timeout: float | None,  # noqa: ASYNC109
-    ) -> (
-        tuple[Literal[ResultKind.ERROR], str]
-        | tuple[Literal[ResultKind.VOID], None]
-        | tuple[Literal[ResultKind.HAS_VALUE], Any]
-    ):
+    ) -> tuple[Any, str | None]:
         future = asyncio.get_event_loop().create_future()
         self._futures[invocation_id] = future
         try:
