@@ -48,7 +48,7 @@ class Client:
         message = await self.connection.receive()
         d = message.get("bytes") or message.get("text", "").encode()
         if not d:
-            raise WebSocketDisconnect(code=1008, reason="Empty message received.")
+            return PingPacket()  # FIXME: Graceful empty message handling
         return self.procotol.decode(d)
 
     async def _ping(self):
@@ -104,6 +104,10 @@ class Hub:
         client._ping_task = task
         return client
 
+    async def on_connect(self, client: Client) -> None:
+        if method := getattr(self, "on_client_connect", None):
+            await method(client)
+
     async def remove_client(self, connection_id: str) -> None:
         if client := self.clients.get(connection_id):
             del self.clients[connection_id]
@@ -138,6 +142,8 @@ class Hub:
                 task = asyncio.create_task(self._handle_packet(client, packet))
                 self.tasks.add(task)
                 task.add_done_callback(self.tasks.discard)
+            except StopIteration:
+                pass
             except WebSocketDisconnect as e:
                 print(
                     f"Client {client.connection_id} disconnected: {e.code}, {e.reason}"

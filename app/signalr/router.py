@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from typing import Literal
@@ -92,4 +93,7 @@ async def connect(
     if error or not client:
         await websocket.close(code=1008)
         return
+    task = asyncio.create_task(hub_.on_connect(client))
+    hub_.tasks.add(task)
+    task.add_done_callback(hub_.tasks.discard)
     await hub_._listen_client(client)
