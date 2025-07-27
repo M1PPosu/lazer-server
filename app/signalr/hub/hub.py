@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+import traceback
 from typing import Any
 
 from app.config import settings
@@ -92,6 +93,12 @@ class Hub:
     async def send_packet(self, client: Client, type: PacketType, packet: list[Any]):
         await client.send_packet(type, packet)
 
+    async def broadcast_call(self, method: str, *args: Any) -> None:
+        tasks = []
+        for client in self.clients.values():
+            tasks.append(self.call_noblock(client, method, *args))
+        await asyncio.gather(*tasks)
+
     async def _listen_client(self, client: Client) -> None:
         jump = False
         while not jump:
@@ -104,13 +111,12 @@ class Hub:
                 self.tasks.add(task)
                 task.add_done_callback(self.tasks.discard)
             except WebSocketDisconnect as e:
-                if e.code == 1005:
-                    continue
                 print(
                     f"Client {client.connection_id} disconnected: {e.code}, {e.reason}"
                 )
                 jump = True
             except Exception as e:
+                traceback.print_exc()
                 print(f"Error in client {client.connection_id}: {e}")
                 jump = True
         await self.remove_client(client.connection_id)
@@ -139,6 +145,7 @@ class Hub:
                     result = e.message
 
                 except Exception as e:
+                    traceback.print_exc()
                     code = ResultKind.ERROR
                     result = str(e)
 

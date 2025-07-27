@@ -1,15 +1,278 @@
 from __future__ import annotations
 
-from app.models.spectator_hub import FrameDataBundle, SpectatorState
+import json
+import lzma
+import struct
+import time
+
+from app.database import Beatmap
+from app.database.score import Score
+from app.database.score_token import ScoreToken
+from app.database.user import User
+from app.dependencies.database import engine
+from app.models.beatmap import BeatmapRankStatus
+from app.models.mods import mods_to_int
+from app.models.score import MODE_TO_INT, LegacyReplaySoloScoreInfo, ScoreStatisticsInt
+from app.models.spectator_hub import (
+    APIUser,
+    FrameDataBundle,
+    LegacyReplayFrame,
+    ScoreInfo,
+    SpectatedUserState,
+    SpectatorState,
+    StoreClientState,
+    StoreScore,
+)
+from app.path import REPLAY_DIR
+from app.utils import unix_timestamp_to_windows
 
 from .hub import Client, Hub
 
+from sqlalchemy.orm import joinedload
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+READ_SCORE_TIMEOUT = 30
+REPLAY_LATEST_VER = 30000016
+
+
+def encode_uleb128(num: int) -> bytes | bytearray:
+    if num == 0:
+        return b"\x00"
+
+    ret = bytearray()
+
+    while num != 0:
+        ret.append(num & 0x7F)
+        num >>= 7
+        if num != 0:
+            ret[-1] |= 0x80
+
+    return ret
+
+
+def encode_string(s: str) -> bytes:
+    """Write `s` into bytes (ULEB128 & string)."""
+    if s:
+        encoded = s.encode()
+        ret = b"\x0b" + encode_uleb128(len(encoded)) + encoded
+    else:
+        ret = b"\x00"
+
+    return ret
+
+
+def save_replay(
+    ruleset_id: int,
+    md5: str,
+    username: str,
+    score: Score,
+    statistics: ScoreStatisticsInt,
+    maximum_statistics: ScoreStatisticsInt,
+    frames: list[LegacyReplayFrame],
+) -> None:
+    data = bytearray()
+    data.extend(struct.pack("<bi", ruleset_id, REPLAY_LATEST_VER))
+    data.extend(encode_string(md5))
+    data.extend(encode_string(username))
+    data.extend(encode_string(f"lazer-{username}-{score.started_at.isoformat()}"))
+    data.extend(
+        struct.pack(
+            "<hhhhhhihbi",
+            score.n300,
+            score.n100,
+            score.n50,
+            score.ngeki,
+            score.nkatu,
+            score.nmiss,
+            score.total_score,
+            score.max_combo,
+            score.is_perfect_combo,
+            mods_to_int(score.mods),
+        )
+    )
+    data.extend(encode_string(""))  # hp graph
+    data.extend(
+        struct.pack(
+            "<q",
+            unix_timestamp_to_windows(round(score.started_at.timestamp())),
+        )
+    )
+
+    # write frames
+    # FIXME: cannot play in stable
+    frame_strs = []
+    last_time = 0
+    for frame in frames:
+        frame_strs.append(
+            f"{frame.time - last_time}|{frame.x or 0.0}"
+            f"|{frame.y or 0.0}|{frame.button_state.value}"
+        )
+        last_time = frame.time
+    frame_strs.append("-12345|0|0|0")
+
+    compressed = lzma.compress(
+        ",".join(frame_strs).encode("ascii"), format=lzma.FORMAT_ALONE
+    )
+    data.extend(struct.pack("<i", len(compressed)))
+    data.extend(compressed)
+    data.extend(struct.pack("<q", score.id))
+    assert score.id
+    score_info = LegacyReplaySoloScoreInfo(
+        online_id=score.id,
+        mods=score.mods,
+        statistics=statistics,
+        maximum_statistics=maximum_statistics,
+        client_version="",
+        rank=score.rank,
+        user_id=score.user_id,
+        total_score_without_mods=score.total_score_without_mods,
+    )
+    compressed = lzma.compress(
+        json.dumps(score_info).encode(), format=lzma.FORMAT_ALONE
+    )
+    data.extend(struct.pack("<i", len(compressed)))
+    data.extend(compressed)
+
+    replay_path = REPLAY_DIR / f"lazer-{score.type}-{username}-{score.id}.osr"
+    replay_path.write_bytes(data)
+
 
 class SpectatorHub(Hub):
+    def __init__(self) -> None:
+        super().__init__()
+        self.state: dict[int, StoreClientState] = {}
+
     async def BeginPlaySession(
         self, client: Client, score_token: int, state: SpectatorState
-    ) -> None: ...
+    ) -> None:
+        user_id = int(client.connection_id)
+        previous_state = self.state.get(user_id)
+        if previous_state is not None:
+            return
+        if state.beatmap_id is None or state.ruleset_id is None:
+            return
+        async with AsyncSession(engine) as session:
+            async with session.begin():
+                beatmap = (
+                    await session.exec(
+                        select(Beatmap).where(Beatmap.id == state.beatmap_id)
+                    )
+                ).first()
+                if not beatmap:
+                    return
+                user = (
+                    await session.exec(select(User).where(User.id == user_id))
+                ).first()
+                if not user:
+                    return
+                name = user.name
+                store = StoreClientState(
+                    state=state,
+                    beatmap_status=beatmap.beatmap_status,
+                    checksum=beatmap.checksum,
+                    gamemode=beatmap.mode,
+                    score_token=score_token,
+                    watched_user=set(),
+                    score=StoreScore(
+                        score_info=ScoreInfo(
+                            mods=state.mods,
+                            user=APIUser(id=user_id, name=name),
+                            ruleset=state.ruleset_id,
+                            maximum_statistics=state.maximum_statistics,
+                        )
+                    ),
+                )
+                self.state[user_id] = store
+        await self.broadcast_call("UserBeganPlaying", user_id, state.model_dump())
 
-    async def SendFrameData(
-        self, client: Client, frame_data: FrameDataBundle
-    ) -> None: ...
+    async def SendFrameData(self, client: Client, frame_data: FrameDataBundle) -> None:
+        user_id = int(client.connection_id)
+        state = self.state.get(user_id)
+        if not state:
+            return
+        score = state.score
+        if not score:
+            return
+        score.score_info.acc = frame_data.header.acc
+        score.score_info.combo = frame_data.header.combo
+        score.score_info.max_combo = frame_data.header.max_combo
+        score.score_info.statistics = frame_data.header.statistics
+        score.score_info.total_score = frame_data.header.total_score
+        score.score_info.mods = frame_data.header.mods
+        score.replay_frames.extend(frame_data.frames)
+        await self.broadcast_call(
+            "UserSentFrames",
+            user_id,
+            frame_data.model_dump(),
+        )
+
+    async def EndPlaySession(self, client: Client, state: SpectatorState) -> None:
+        print(f"EndPlaySession -> {client.connection_id} {state.model_dump()!r}")
+        user_id = int(client.connection_id)
+        store = self.state.get(user_id)
+        if not store:
+            return
+        score = store.score
+        if not score or not store.score_token:
+            return
+
+        async def _save_replay():
+            async with AsyncSession(engine) as session:
+                async with session:
+                    start_time = time.time()
+                    score_record = None
+                    while time.time() - start_time < READ_SCORE_TIMEOUT:
+                        sub_query = select(ScoreToken.score_id).where(
+                            ScoreToken.id == store.score_token,
+                        )
+                        result = await session.exec(
+                            select(Score)
+                            .options(joinedload(Score.beatmap))  # pyright: ignore[reportArgumentType]
+                            .where(
+                                Score.id == sub_query,
+                                Score.user_id == user_id,
+                            )
+                        )
+                        score_record = result.first()
+                        if score_record:
+                            break
+                    if not score_record:
+                        return
+                    if not score_record.passed:
+                        return
+                    score_record.has_replay = True
+                    await session.commit()
+                    await session.refresh(score_record)
+                    save_replay(
+                        ruleset_id=MODE_TO_INT[store.gamemode],
+                        md5=store.checksum,
+                        username=store.score.score_info.user.name,
+                        score=score_record,
+                        statistics=score.score_info.statistics,
+                        maximum_statistics=score.score_info.maximum_statistics,
+                        frames=score.replay_frames,
+                    )
+
+        if (
+            (
+                BeatmapRankStatus.PENDING
+                < store.beatmap_status
+                <= BeatmapRankStatus.LOVED
+            )
+            and any(
+                k.is_hit() and v > 0 for k, v in score.score_info.statistics.items()
+            )
+            and state.state != SpectatedUserState.Failed
+        ):
+            # save replay
+            await _save_replay()
+
+        del self.state[user_id]
+        if state.state == SpectatedUserState.Playing:
+            state.state = SpectatedUserState.Quit
+        await self.broadcast_call(
+            "UserEndedPlaying",
+            user_id,
+            state.model_dump(),
+        )

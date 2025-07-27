@@ -4,18 +4,23 @@ import datetime
 from enum import IntEnum
 from typing import Any
 
+from app.models.beatmap import BeatmapRankStatus
+
 from .score import (
-    HitResult,
+    GameMode,
+    ScoreStatisticsInt,
 )
 from .signalr import MessagePackArrayModel
 
 import msgpack
-from pydantic import Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
 
 class APIMod(MessagePackArrayModel):
     acronym: str
-    settings: dict[str, Any] = Field(default_factory=dict)
+    settings: dict[str, Any] | list = Field(
+        default_factory=dict
+    )  # FIXME: with settings
 
 
 class SpectatedUserState(IntEnum):
@@ -32,7 +37,7 @@ class SpectatorState(MessagePackArrayModel):
     ruleset_id: int | None = None  # 0,1,2,3
     mods: list[APIMod] = Field(default_factory=list)
     state: SpectatedUserState
-    maximum_statistics: dict[HitResult, int] = Field(default_factory=dict)
+    maximum_statistics: ScoreStatisticsInt = Field(default_factory=dict)
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, SpectatorState):
@@ -54,11 +59,13 @@ class ScoreProcessorStatistics(MessagePackArrayModel):
 
 
 class FrameHeader(MessagePackArrayModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     total_score: int
     acc: float
     combo: int
     max_combo: int
-    statistics: dict[HitResult, int] = Field(default_factory=dict)
+    statistics: ScoreStatisticsInt = Field(default_factory=dict)
     score_processor_statistics: ScoreProcessorStatistics
     received_time: datetime.datetime
     mods: list[APIMod] = Field(default_factory=list)
@@ -78,6 +85,10 @@ class FrameHeader(MessagePackArrayModel):
             return datetime.datetime.fromisoformat(v)
         raise ValueError(f"Cannot convert {type(v)} to datetime")
 
+    @field_serializer("received_time")
+    def serialize_received_time(self, v: datetime.datetime) -> msgpack.ext.Timestamp:
+        return msgpack.ext.Timestamp.from_datetime(v)
+
 
 class ReplayButtonState(IntEnum):
     NONE = 0
@@ -89,7 +100,7 @@ class ReplayButtonState(IntEnum):
 
 
 class LegacyReplayFrame(MessagePackArrayModel):
-    time: int  # from ReplayFrame,the parent of LegacyReplayFrame
+    time: float  # from ReplayFrame,the parent of LegacyReplayFrame
     x: float | None = None
     y: float | None = None
     button_state: ReplayButtonState
@@ -98,3 +109,37 @@ class LegacyReplayFrame(MessagePackArrayModel):
 class FrameDataBundle(MessagePackArrayModel):
     header: FrameHeader
     frames: list[LegacyReplayFrame]
+
+
+# Use for server
+class APIUser(BaseModel):
+    id: int
+    name: str
+
+
+class ScoreInfo(BaseModel):
+    mods: list[APIMod]
+    user: APIUser
+    ruleset: int
+    maximum_statistics: ScoreStatisticsInt
+    id: int | None = None
+    total_score: int | None = None
+    acc: float | None = None
+    max_combo: int | None = None
+    combo: int | None = None
+    statistics: ScoreStatisticsInt = Field(default_factory=dict)
+
+
+class StoreScore(BaseModel):
+    score_info: ScoreInfo
+    replay_frames: list[LegacyReplayFrame] = Field(default_factory=list)
+
+
+class StoreClientState(BaseModel):
+    state: SpectatorState | None
+    beatmap_status: BeatmapRankStatus
+    checksum: str
+    gamemode: GameMode
+    score_token: int
+    watched_user: set[int]
+    score: StoreScore

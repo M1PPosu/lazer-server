@@ -27,7 +27,11 @@ class ResultKind(IntEnum):
 def parse_packet(data: bytes) -> tuple[PacketType, list[Any]]:
     length, offset = decode_varint(data)
     message_data = data[offset : offset + length]
-    unpacked = msgpack.unpackb(message_data, raw=False)
+    # FIXME: custom deserializer for APIMod
+    # https://github.com/ppy/osu/blob/master/osu.Game/Online/API/ModSettingsDictionaryFormatter.cs
+    unpacked = msgpack.unpackb(
+        message_data, raw=False, strict_map_key=False, use_list=True
+    )
     return PacketType(unpacked[0]), unpacked[1:]
 
 

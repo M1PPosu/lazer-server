@@ -30,7 +30,7 @@ import rosu_pp_py as rosu
 
 def unix_timestamp_to_windows(timestamp: int) -> int:
     """Convert a Unix timestamp to a Windows timestamp."""
-    return timestamp * 10_000 + 11_644_473_600_000_000
+    return (timestamp + 62135596800) * 10_000_000
 
 
 async def convert_db_user_to_api_user(db_user: DBUser, ruleset: str = "osu") -> User:

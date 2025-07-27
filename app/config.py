@@ -34,7 +34,7 @@ class Settings:
 
     # SignalR 设置
     SIGNALR_NEGOTIATE_TIMEOUT: int = int(os.getenv("SIGNALR_NEGOTIATE_TIMEOUT", "30"))
-    SIGNALR_PING_INTERVAL: int = int(os.getenv("SIGNALR_PING_INTERVAL", "120"))
+    SIGNALR_PING_INTERVAL: int = int(os.getenv("SIGNALR_PING_INTERVAL", "15"))
 
     # Fetcher 设置
     FETCHER_CLIENT_ID: str = os.getenv("FETCHER_CLIENT_ID", "")

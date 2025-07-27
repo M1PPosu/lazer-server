@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from enum import Enum
+from enum import Enum, IntEnum
 from typing import Literal, TypedDict
 
 from .mods import API_MODS, APIMod, init_mods
@@ -83,6 +83,43 @@ class HitResult(str, Enum):
         )
 
 
+class HitResultInt(IntEnum):
+    PERFECT = 0
+    GREAT = 1
+    GOOD = 2
+    OK = 3
+    MEH = 4
+    MISS = 5
+
+    LARGE_TICK_HIT = 6
+    SMALL_TICK_HIT = 7
+    SLIDER_TAIL_HIT = 8
+
+    LARGE_BONUS = 9
+    SMALL_BONUS = 10
+
+    LARGE_TICK_MISS = 11
+    SMALL_TICK_MISS = 12
+
+    IGNORE_HIT = 13
+    IGNORE_MISS = 14
+
+    NONE = 15
+    COMBO_BREAK = 16
+
+    LEGACY_COMBO_INCREASE = 99
+
+    def is_hit(self) -> bool:
+        return self not in (
+            HitResultInt.NONE,
+            HitResultInt.IGNORE_MISS,
+            HitResultInt.COMBO_BREAK,
+            HitResultInt.LARGE_TICK_MISS,
+            HitResultInt.SMALL_TICK_MISS,
+            HitResultInt.MISS,
+        )
+
+
 class LeaderboardType(Enum):
     GLOBAL = "global"
     FRIENDS = "friends"
@@ -91,6 +128,7 @@ class LeaderboardType(Enum):
 
 
 ScoreStatistics = dict[HitResult, int]
+ScoreStatisticsInt = dict[HitResultInt, int]
 
 
 class SoloScoreSubmissionInfo(BaseModel):
@@ -128,8 +166,8 @@ class SoloScoreSubmissionInfo(BaseModel):
 class LegacyReplaySoloScoreInfo(TypedDict):
     online_id: int
     mods: list[APIMod]
-    statistics: ScoreStatistics
-    maximum_statistics: ScoreStatistics
+    statistics: ScoreStatisticsInt
+    maximum_statistics: ScoreStatisticsInt
     client_version: str
     rank: Rank
     user_id: int
