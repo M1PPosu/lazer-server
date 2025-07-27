@@ -3,7 +3,7 @@ name = "osu-lazer-api"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "aiomysql>=0.2.0",
     "alembic>=1.12.1",
@@ -26,7 +26,7 @@ dependencies = [
 
 [tool.ruff]
 line-length = 88
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.format]
 line-ending = "lf"
