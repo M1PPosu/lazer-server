@@ -3,6 +3,8 @@ from __future__ import annotations
 from enum import IntEnum
 from typing import Any, Literal
 
+from app.models.signalr import UserState
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -126,7 +128,7 @@ UserActivity = (
 )
 
 
-class MetadataClientState(BaseModel):
+class MetadataClientState(UserState):
     user_activity: UserActivity | None = None
     status: OnlineStatus | None = None
 

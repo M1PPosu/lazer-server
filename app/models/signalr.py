@@ -64,3 +64,8 @@ class NegotiateResponse(BaseModel):
     connectionToken: str
     negotiateVersion: int = 1
     availableTransports: list[Transport]
+
+
+class UserState(BaseModel):
+    connection_id: str
+    connection_token: str

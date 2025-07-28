@@ -51,10 +51,18 @@ class PingPacket(Packet):
     type: PacketType = PacketType.PING
 
 
+@dataclass(kw_only=True)
+class ClosePacket(Packet):
+    type: PacketType = PacketType.CLOSE
+    error: str | None = None
+    allow_reconnect: bool = False
+
+
 PACKETS = {
     PacketType.INVOCATION: InvocationPacket,
     PacketType.COMPLETION: CompletionPacket,
     PacketType.PING: PingPacket,
+    PacketType.CLOSE: ClosePacket,
 }
 
 
@@ -127,6 +135,13 @@ class MsgpackProtocol:
                 ]
             case PacketType.PING:
                 return [PingPacket()]
+            case PacketType.CLOSE:
+                return [
+                    ClosePacket(
+                        error=unpacked[1],
+                        allow_reconnect=unpacked[2] if len(unpacked) > 2 else False,
+                    )
+                ]
         raise ValueError(f"Unsupported packet type: {packet_type}")
 
     @staticmethod
@@ -154,6 +169,13 @@ class MsgpackProtocol:
                     packet.invocation_id,
                     result_kind,
                     packet.error or packet.result or None,
+                ]
+            )
+        elif isinstance(packet, ClosePacket):
+            payload.extend(
+                [
+                    packet.error or "",
+                    packet.allow_reconnect,
                 ]
             )
         elif isinstance(packet, PingPacket):
@@ -198,6 +220,13 @@ class JSONProtocol:
                     ]
                 case PacketType.PING:
                     return [PingPacket()]
+                case PacketType.CLOSE:
+                    return [
+                        ClosePacket(
+                            error=data.get("error"),
+                            allow_reconnect=data.get("allowReconnect", False),
+                        )
+                    ]
             raise ValueError(f"Unsupported packet type: {packet_type}")
 
     @staticmethod
@@ -231,6 +260,14 @@ class JSONProtocol:
                 payload["result"] = packet.result
         elif isinstance(packet, PingPacket):
             pass
+        elif isinstance(packet, ClosePacket):
+            payload.update(
+                {
+                    "allowReconnect": packet.allow_reconnect,
+                }
+            )
+            if packet.error is not None:
+                payload["error"] = packet.error
         return json.dumps(payload).encode("utf-8") + SEP
 
 

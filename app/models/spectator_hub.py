@@ -9,7 +9,7 @@ from app.models.beatmap import BeatmapRankStatus
 from .score import (
     ScoreStatisticsInt,
 )
-from .signalr import MessagePackArrayModel
+from .signalr import MessagePackArrayModel, UserState
 
 import msgpack
 from pydantic import BaseModel, Field, field_validator
@@ -128,7 +128,7 @@ class StoreScore(BaseModel):
     replay_frames: list[LegacyReplayFrame] = Field(default_factory=list)
 
 
-class StoreClientState(BaseModel):
+class StoreClientState(UserState):
     state: SpectatorState | None = None
     beatmap_status: BeatmapRankStatus | None = None
     checksum: str | None = None

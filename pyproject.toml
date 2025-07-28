@@ -77,7 +77,7 @@ mark-parentheses = false
 keep-runtime-typing = true
 
 [tool.pyright]
-pythonVersion = "3.11"
+pythonVersion = "3.12"
 pythonPlatform = "All"
 
 typeCheckingMode = "standard"

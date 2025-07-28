@@ -5,6 +5,7 @@ import json
 import lzma
 import struct
 import time
+from typing import override
 
 from app.database import Beatmap
 from app.database.score import Score
@@ -140,14 +141,28 @@ def save_replay(
     replay_path.write_bytes(data)
 
 
-class SpectatorHub(Hub):
-    def __init__(self) -> None:
-        super().__init__()
-        self.state: dict[int, StoreClientState] = {}
-
+class SpectatorHub(Hub[StoreClientState]):
     @staticmethod
     def group_id(user_id: int) -> str:
         return f"watch:{user_id}"
+
+    @override
+    def create_state(self, client: Client) -> StoreClientState:
+        return StoreClientState(
+            connection_id=client.connection_id,
+            connection_token=client.connection_token,
+        )
+
+    @override
+    async def _clean_state(self, state: StoreClientState) -> None:
+        if state.state:
+            await self._end_session(int(state.connection_id), state.state)
+        for target in self.waited_clients:
+            target_client = self.get_client_by_id(target)
+            if target_client:
+                await self.call_noblock(
+                    target_client, "UserEndedWatching", int(state.connection_id)
+                )
 
     async def on_client_connect(self, client: Client) -> None:
         tasks = [
@@ -163,8 +178,8 @@ class SpectatorHub(Hub):
         self, client: Client, score_token: int, state: SpectatorState
     ) -> None:
         user_id = int(client.connection_id)
-        previous_state = self.state.get(user_id)
-        if previous_state is not None:
+        store = self.get_or_create_state(client)
+        if store.state is not None:
             return
         if state.beatmap_id is None or state.ruleset_id is None:
             return
@@ -183,23 +198,19 @@ class SpectatorHub(Hub):
                 if not user:
                     return
                 name = user.name
-                store = StoreClientState(
-                    state=state,
-                    beatmap_status=beatmap.beatmap_status,
-                    checksum=beatmap.checksum,
-                    ruleset_id=state.ruleset_id,
-                    score_token=score_token,
-                    watched_user=set(),
-                    score=StoreScore(
-                        score_info=ScoreInfo(
-                            mods=state.mods,
-                            user=APIUser(id=user_id, name=name),
-                            ruleset=state.ruleset_id,
-                            maximum_statistics=state.maximum_statistics,
-                        )
-                    ),
+                store.state = state
+                store.beatmap_status = beatmap.beatmap_status
+                store.checksum = beatmap.checksum
+                store.ruleset_id = state.ruleset_id
+                store.score_token = score_token
+                store.score = StoreScore(
+                    score_info=ScoreInfo(
+                        mods=state.mods,
+                        user=APIUser(id=user_id, name=name),
+                        ruleset=state.ruleset_id,
+                        maximum_statistics=state.maximum_statistics,
+                    )
                 )
-                self.state[user_id] = store
         await self.broadcast_group_call(
             self.group_id(user_id),
             "UserBeganPlaying",
@@ -209,19 +220,16 @@ class SpectatorHub(Hub):
 
     async def SendFrameData(self, client: Client, frame_data: FrameDataBundle) -> None:
         user_id = int(client.connection_id)
-        state = self.state.get(user_id)
-        if not state:
+        state = self.get_or_create_state(client)
+        if not state.score:
             return
-        score = state.score
-        if not score:
-            return
-        score.score_info.acc = frame_data.header.acc
-        score.score_info.combo = frame_data.header.combo
-        score.score_info.max_combo = frame_data.header.max_combo
-        score.score_info.statistics = frame_data.header.statistics
-        score.score_info.total_score = frame_data.header.total_score
-        score.score_info.mods = frame_data.header.mods
-        score.replay_frames.extend(frame_data.frames)
+        state.score.score_info.acc = frame_data.header.acc
+        state.score.score_info.combo = frame_data.header.combo
+        state.score.score_info.max_combo = frame_data.header.max_combo
+        state.score.score_info.statistics = frame_data.header.statistics
+        state.score.score_info.total_score = frame_data.header.total_score
+        state.score.score_info.mods = frame_data.header.mods
+        state.score.replay_frames.extend(frame_data.frames)
         await self.broadcast_group_call(
             self.group_id(user_id),
             "UserSentFrames",
@@ -231,9 +239,7 @@ class SpectatorHub(Hub):
 
     async def EndPlaySession(self, client: Client, state: SpectatorState) -> None:
         user_id = int(client.connection_id)
-        store = self.state.get(user_id)
-        if not store:
-            return
+        store = self.get_or_create_state(client)
         score = store.score
         if not score or not store.score_token:
             return
@@ -294,8 +300,15 @@ class SpectatorHub(Hub):
         ):
             # save replay
             await _save_replay()
+        store.state = None
+        store.beatmap_status = None
+        store.checksum = None
+        store.ruleset_id = None
+        store.score_token = None
+        store.score = None
+        await self._end_session(user_id, state)
 
-        del self.state[user_id]
+    async def _end_session(self, user_id: int, state: SpectatorState) -> None:
         if state.state == SpectatedUserState.Playing:
             state.state = SpectatedUserState.Quit
         await self.broadcast_group_call(
@@ -308,22 +321,18 @@ class SpectatorHub(Hub):
     async def StartWatchingUser(self, client: Client, target_id: int) -> None:
         print(f"StartWatchingUser -> {client.connection_id} {target_id}")
         user_id = int(client.connection_id)
-        target_store = self.state.get(target_id)
-        if target_store and target_store.state:
+        target_store = self.get_or_create_state(client)
+        if target_store.state:
             await self.call_noblock(
                 client,
                 "UserBeganPlaying",
                 target_id,
                 serialize_to_list(target_store.state),
             )
-        store = self.state.get(user_id)
-        if store is None:
-            store = StoreClientState(
-                watched_user=set(),
-            )
+        store = self.get_or_create_state(client)
         store.watched_user.add(target_id)
-        self.state[user_id] = store
-        self.groups.setdefault(self.group_id(target_id), set()).add(client)
+
+        self.add_to_group(client, self.group_id(target_id))
 
         async with AsyncSession(engine) as session:
             async with session.begin():
@@ -340,7 +349,7 @@ class SpectatorHub(Hub):
     async def EndWatchingUser(self, client: Client, target_id: int) -> None:
         print(f"EndWatchingUser -> {client.connection_id} {target_id}")
         user_id = int(client.connection_id)
-        self.groups[self.group_id(target_id)].discard(client)
+        self.remove_from_group(client, self.group_id(target_id))
         store = self.state.get(user_id)
         if store:
             store.watched_user.discard(target_id)

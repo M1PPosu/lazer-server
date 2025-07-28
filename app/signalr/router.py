@@ -74,7 +74,7 @@ async def connect(
 
     client = None
     try:
-        client = hub_.add_client(
+        client = await hub_.add_client(
             connection_id=user_id,
             connection_token=id,
             connection=websocket,
@@ -87,13 +87,17 @@ async def connect(
     except ValueError as e:
         error = str(e)
     payload = {"error": error} if error else {}
-
     # finish handshake
     await websocket.send_bytes(json.dumps(payload).encode() + SEP)
     if error or not client:
         await websocket.close(code=1008)
         return
+    await hub_.clean_state(client, False)
     task = asyncio.create_task(hub_.on_connect(client))
     hub_.tasks.add(task)
     task.add_done_callback(hub_.tasks.discard)
     await hub_._listen_client(client)
+    try:
+        await websocket.close()
+    except Exception:
+        ...

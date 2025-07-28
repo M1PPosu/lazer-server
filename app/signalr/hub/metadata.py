@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Coroutine
+from typing import override
 
 from app.database.relationship import Relationship, RelationshipType
 from app.dependencies.database import engine
@@ -16,32 +17,32 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 ONLINE_PRESENCE_WATCHERS_GROUP = "metadata:online-presence-watchers"
 
 
-class MetadataHub(Hub):
+class MetadataHub(Hub[MetadataClientState]):
     def __init__(self) -> None:
         super().__init__()
-        self.state: dict[int, MetadataClientState] = {}
 
     @staticmethod
     def online_presence_watchers_group() -> str:
         return ONLINE_PRESENCE_WATCHERS_GROUP
 
     def broadcast_tasks(
-        self, user_id: int, store: MetadataClientState
+        self, user_id: int, store: MetadataClientState | None
     ) -> set[Coroutine]:
-        if not store.pushable:
+        if store is not None and not store.pushable:
             return set()
+        data = store.to_dict() if store else None
         return {
             self.broadcast_group_call(
                 self.online_presence_watchers_group(),
                 "UserPresenceUpdated",
                 user_id,
-                store.to_dict(),
+                data,
             ),
             self.broadcast_group_call(
                 self.friend_presence_watchers_group(user_id),
                 "FriendPresenceUpdated",
                 user_id,
-                store.to_dict(),
+                data,
             ),
         }
 
@@ -49,11 +50,21 @@ class MetadataHub(Hub):
     def friend_presence_watchers_group(user_id: int):
         return f"metadata:friend-presence-watchers:{user_id}"
 
+    @override
+    async def _clean_state(self, state: MetadataClientState) -> None:
+        if state.pushable:
+            await asyncio.gather(*self.broadcast_tasks(int(state.connection_id), None))
+
+    @override
+    def create_state(self, client: Client) -> MetadataClientState:
+        return MetadataClientState(
+            connection_id=client.connection_id,
+            connection_token=client.connection_token,
+        )
+
     async def on_client_connect(self, client: Client) -> None:
         user_id = int(client.connection_id)
-        if store := self.state.get(user_id):
-            store = MetadataClientState()
-            self.state[user_id] = store
+        self.get_or_create_state(client)
 
         async with AsyncSession(engine) as session:
             async with session.begin():
@@ -73,6 +84,7 @@ class MetadataHub(Hub):
                     if (
                         friend_state := self.state.get(friend_id)
                     ) and friend_state.pushable:
+                        print("Pushed")
                         tasks.append(
                             self.broadcast_group_call(
                                 self.friend_presence_watchers_group(friend_id),
@@ -86,14 +98,10 @@ class MetadataHub(Hub):
     async def UpdateStatus(self, client: Client, status: int) -> None:
         status_ = OnlineStatus(status)
         user_id = int(client.connection_id)
-        store = self.state.get(user_id)
-        if store:
-            if store.status is not None and store.status == status_:
-                return
-            store.status = OnlineStatus(status_)
-        else:
-            store = MetadataClientState(status=OnlineStatus(status_))
-            self.state[user_id] = store
+        store = self.get_or_create_state(client)
+        if store.status is not None and store.status == status_:
+            return
+        store.status = OnlineStatus(status_)
         tasks = self.broadcast_tasks(user_id, store)
         tasks.add(
             self.call_noblock(
@@ -112,14 +120,8 @@ class MetadataHub(Hub):
             if activity_dict
             else None
         )
-        store = self.state.get(user_id)
-        if store:
-            store.user_activity = activity
-        else:
-            store = MetadataClientState(
-                user_activity=activity,
-            )
-            self.state[user_id] = store
+        store = self.get_or_create_state(client)
+        store.user_activity = activity
         tasks = self.broadcast_tasks(user_id, store)
         tasks.add(
             self.call_noblock(
@@ -144,9 +146,7 @@ class MetadataHub(Hub):
                 if store.pushable
             ]
         )
-        self.groups.setdefault(self.online_presence_watchers_group(), set()).add(client)
+        self.add_to_group(client, self.online_presence_watchers_group())
 
     async def EndWatchingUserPresence(self, client: Client) -> None:
-        self.groups.setdefault(self.online_presence_watchers_group(), set()).discard(
-            client
-        )
+        self.remove_from_group(client, self.online_presence_watchers_group())
