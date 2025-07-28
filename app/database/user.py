@@ -7,7 +7,8 @@ from .team import TeamMember
 
 from sqlalchemy import DECIMAL, JSON, Column, Date, DateTime, Text
 from sqlalchemy.dialects.mysql import VARCHAR
-from sqlmodel import BigInteger, Field, ForeignKey, Relationship, SQLModel
+from sqlalchemy.orm import joinedload, selectinload
+from sqlmodel import BigInteger, Field, ForeignKey, Relationship, SQLModel, select
 
 
 class User(SQLModel, table=True):
@@ -99,6 +100,26 @@ class User(SQLModel, table=True):
     lazer_replays_watched: list["LazerUserReplaysWatched"] = Relationship(
         back_populates="user"
     )
+
+    @classmethod
+    def all_select_clause(cls):
+        return select(cls).options(
+            joinedload(cls.lazer_profile),  # pyright: ignore[reportArgumentType]
+            joinedload(cls.lazer_counts),  # pyright: ignore[reportArgumentType]
+            joinedload(cls.daily_challenge_stats),  # pyright: ignore[reportArgumentType]
+            joinedload(cls.avatar),  # pyright: ignore[reportArgumentType]
+            selectinload(cls.lazer_statistics),  # pyright: ignore[reportArgumentType]
+            selectinload(cls.lazer_achievements),  # pyright: ignore[reportArgumentType]
+            selectinload(cls.lazer_profile_sections),  # pyright: ignore[reportArgumentType]
+            selectinload(cls.statistics),  # pyright: ignore[reportArgumentType]
+            joinedload(cls.team_membership),  # pyright: ignore[reportArgumentType]
+            selectinload(cls.rank_history),  # pyright: ignore[reportArgumentType]
+            selectinload(cls.active_banners),  # pyright: ignore[reportArgumentType]
+            selectinload(cls.lazer_badges),  # pyright: ignore[reportArgumentType]
+            selectinload(cls.lazer_monthly_playcounts),  # pyright: ignore[reportArgumentType]
+            selectinload(cls.lazer_previous_usernames),  # pyright: ignore[reportArgumentType]
+            selectinload(cls.lazer_replays_watched),  # pyright: ignore[reportArgumentType]
+        )
 
 
 # ============================================

@@ -8,6 +8,7 @@ from . import (  # pyright: ignore[reportUnusedImport]  # noqa: F401
     me,
     relationship,
     score,
+    user,
 )
 from .api_router import router as api_router
 from .auth import router as auth_router
