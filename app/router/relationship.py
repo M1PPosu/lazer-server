@@ -70,7 +70,8 @@ async def add_relationship(
             type=relationship_type,
         )
         db.add(relationship)
-    if relationship.type == RelationshipType.BLOCK:
+    origin_type = relationship.type
+    if origin_type == RelationshipType.BLOCK:
         target_relationship = (
             await db.exec(
                 select(Relationship).where(
@@ -81,13 +82,14 @@ async def add_relationship(
         ).first()
         if target_relationship and target_relationship.type == RelationshipType.FOLLOW:
             await db.delete(target_relationship)
+    current_user_id = current_user.id
     await db.commit()
-    if relationship.type == RelationshipType.FOLLOW:
+    if origin_type == RelationshipType.FOLLOW:
         relationship = (
             await db.exec(
                 select(Relationship)
                 .where(
-                    Relationship.user_id == current_user.id,
+                    Relationship.user_id == current_user_id,
                     Relationship.target_id == target,
                 )
                 .options(
