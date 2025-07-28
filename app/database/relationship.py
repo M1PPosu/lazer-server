@@ -1,6 +1,8 @@
 from enum import Enum
 
-from .user import User
+from app.models.user import User as APIUser
+
+from .user import User as DBUser
 
 from pydantic import BaseModel
 from sqlmodel import (
@@ -41,14 +43,14 @@ class Relationship(SQLModel, table=True):
         ),
     )
     type: RelationshipType = Field(default=RelationshipType.FOLLOW, nullable=False)
-    target: "User" = SQLRelationship(
+    target: DBUser = SQLRelationship(
         sa_relationship_kwargs={"foreign_keys": "[Relationship.target_id]"}
     )
 
 
 class RelationshipResp(BaseModel):
     target_id: int
-    # FIXME: target: User
+    target: APIUser
     mutual: bool = False
     type: RelationshipType
 
@@ -56,6 +58,8 @@ class RelationshipResp(BaseModel):
     async def from_db(
         cls, session: AsyncSession, relationship: Relationship
     ) -> "RelationshipResp":
+        from app.utils import convert_db_user_to_api_user
+
         target_relationship = (
             await session.exec(
                 select(Relationship).where(
@@ -71,7 +75,7 @@ class RelationshipResp(BaseModel):
         )
         return cls(
             target_id=relationship.target_id,
-            # target=relationship.target,
+            target=await convert_db_user_to_api_user(relationship.target),
             mutual=mutual,
             type=relationship.type,
         )

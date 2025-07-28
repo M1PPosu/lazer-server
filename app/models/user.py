@@ -2,15 +2,14 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-
-from app.database import (
-    LazerUserAchievement,
-    Team as Team,
-)
+from typing import TYPE_CHECKING
 
 from .score import GameMode
 
 from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from app.database import LazerUserAchievement, Team
 
 
 class PlayStyle(str, Enum):
@@ -83,7 +82,11 @@ class UserAchievement(BaseModel):
     achievement_id: int
 
     # 添加数据库模型转换方法
-    def to_db_model(self, user_id: int) -> LazerUserAchievement:
+    def to_db_model(self, user_id: int) -> "LazerUserAchievement":
+        from app.database import (
+            LazerUserAchievement,
+        )
+
         return LazerUserAchievement(
             user_id=user_id,
             achievement_id=self.achievement_id,
@@ -207,5 +210,5 @@ class User(BaseModel):
     rank_history: RankHistory | None = None
     rankHistory: RankHistory | None = None  # 兼容性别名
     replays_watched_counts: list[dict] = []
-    team: Team | None = None
+    team: "Team | None" = None
     user_achievements: list[UserAchievement] = []

@@ -8,6 +8,7 @@ from app.dependencies.user import get_current_user
 from .api_router import router
 
 from fastapi import Depends, HTTPException, Query, Request
+from sqlalchemy.orm import joinedload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -25,7 +26,9 @@ async def get_relationship(
         else RelationshipType.BLOCK
     )
     relationships = await db.exec(
-        select(Relationship).where(
+        select(Relationship)
+        .options(joinedload(Relationship.target).options(*DBUser.all_select_option()))  # pyright: ignore[reportArgumentType]
+        .where(
             Relationship.user_id == current_user.id,
             Relationship.type == relationship_type,
         )
@@ -79,8 +82,20 @@ async def add_relationship(
         if target_relationship and target_relationship.type == RelationshipType.FOLLOW:
             await db.delete(target_relationship)
     await db.commit()
-    await db.refresh(relationship)
     if relationship.type == RelationshipType.FOLLOW:
+        relationship = (
+            await db.exec(
+                select(Relationship)
+                .where(
+                    Relationship.user_id == current_user.id,
+                    Relationship.target_id == target,
+                )
+                .options(
+                    joinedload(Relationship.target).options(*DBUser.all_select_option())  # pyright: ignore[reportArgumentType]
+                )
+            )
+        ).first()
+        assert relationship, "Relationship should exist after commit"
         return await RelationshipResp.from_db(db, relationship)
 
 
