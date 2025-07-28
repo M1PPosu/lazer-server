@@ -10,9 +10,6 @@ from app.router import api_router, auth_router, fetcher_router, signalr_router
 
 from fastapi import FastAPI
 
-# 注意: 表结构现在通过 migrations 管理，不再自动创建
-# 如需创建表，请运行: python quick_sync.py
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -142,8 +139,15 @@ async def health_check():
 
 
 if __name__ == "__main__":
+    from app.log import logger  # noqa: F401
+
     import uvicorn
 
     uvicorn.run(
-        "main:app", host=settings.HOST, port=settings.PORT, reload=settings.DEBUG
+        "main:app",
+        host=settings.HOST,
+        port=settings.PORT,
+        reload=settings.DEBUG,
+        log_config=None,  # 禁用uvicorn默认日志配置
+        access_log=True,  # 启用访问日志
     )

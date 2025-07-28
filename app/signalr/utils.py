@@ -2,24 +2,20 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import inspect
+import sys
 from typing import Any, ForwardRef, cast
 
+# https://github.com/pydantic/pydantic/blob/main/pydantic/v1/typing.py#L61-L75
+if sys.version_info < (3, 12, 4):
 
-# https://github.com/pydantic/pydantic/blob/main/pydantic/v1/typing.py#L56-L66
-def evaluate_forwardref(
-    type_: ForwardRef,
-    globalns: Any,
-    localns: Any,
-) -> Any:
-    # Even though it is the right signature for python 3.9,
-    # mypy complains with
-    # `error: Too many arguments for "_evaluate" of
-    # "ForwardRef"` hence the cast...
-    return cast(Any, type_)._evaluate(
-        globalns,
-        localns,
-        set(),
-    )
+    def evaluate_forwardref(type_: ForwardRef, globalns: Any, localns: Any) -> Any:
+        return cast(Any, type_)._evaluate(globalns, localns, recursive_guard=set())
+else:
+
+    def evaluate_forwardref(type_: ForwardRef, globalns: Any, localns: Any) -> Any:
+        return cast(Any, type_)._evaluate(
+            globalns, localns, type_params=(), recursive_guard=set()
+        )
 
 
 def get_annotation(param: inspect.Parameter, globalns: dict[str, Any]) -> Any:

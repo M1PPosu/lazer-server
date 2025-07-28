@@ -183,7 +183,7 @@ def main():
             return
 
         # 执行表结构创建
-        migrations_dir = os.path.join(os.path.dirname(__file__), "migrations")
+        migrations_dir = os.path.join(os.path.dirname(__file__), "migrations_old")
 
         print("\n步骤 1: 创建表结构...")
         add_fields_sql = os.path.join(migrations_dir, "add_missing_fields.sql")

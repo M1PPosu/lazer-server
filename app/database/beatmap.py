@@ -1,6 +1,6 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-from app.fetcher import Fetcher
 from app.models.beatmap import BeatmapRankStatus
 from app.models.score import MODE_TO_INT, GameMode
 
@@ -10,6 +10,9 @@ from sqlalchemy import DECIMAL, Column, DateTime
 from sqlalchemy.orm import joinedload
 from sqlmodel import VARCHAR, Field, Relationship, SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
+
+if TYPE_CHECKING:
+    from app.fetcher import Fetcher
 
 
 class BeatmapOwner(SQLModel):
@@ -65,6 +68,10 @@ class Beatmap(BeatmapBase, table=True):
     # optional
     beatmapset: Beatmapset = Relationship(back_populates="beatmaps")
 
+    @property
+    def can_ranked(self) -> bool:
+        return self.beatmap_status > BeatmapRankStatus.PENDING
+
     @classmethod
     async def from_resp(cls, session: AsyncSession, resp: "BeatmapResp") -> "Beatmap":
         d = resp.model_dump()
@@ -79,7 +86,16 @@ class Beatmap(BeatmapBase, table=True):
         )
         session.add(beatmap)
         await session.commit()
-        await session.refresh(beatmap)
+        beatmap = (
+            await session.exec(
+                select(Beatmap)
+                .options(
+                    joinedload(Beatmap.beatmapset).selectinload(Beatmapset.beatmaps)  # pyright: ignore[reportArgumentType]
+                )
+                .where(Beatmap.id == resp.id)
+            )
+        ).first()
+        assert beatmap is not None, "Beatmap should not be None after commit"
         return beatmap
 
     @classmethod
@@ -107,19 +123,25 @@ class Beatmap(BeatmapBase, table=True):
 
     @classmethod
     async def get_or_fetch(
-        cls, session: AsyncSession, bid: int, fetcher: Fetcher
+        cls,
+        session: AsyncSession,
+        fetcher: "Fetcher",
+        bid: int | None = None,
+        md5: str | None = None,
     ) -> "Beatmap":
         beatmap = (
             await session.exec(
                 select(Beatmap)
-                .where(Beatmap.id == bid)
+                .where(
+                    Beatmap.id == bid if bid is not None else Beatmap.checksum == md5
+                )
                 .options(
                     joinedload(Beatmap.beatmapset).selectinload(Beatmapset.beatmaps)  # pyright: ignore[reportArgumentType]
                 )
             )
         ).first()
         if not beatmap:
-            resp = await fetcher.get_beatmap(bid)
+            resp = await fetcher.get_beatmap(bid, md5)
             r = await session.exec(
                 select(Beatmapset.id).where(Beatmapset.id == resp.beatmapset_id)
             )

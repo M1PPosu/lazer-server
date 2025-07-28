@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from typing import Literal
@@ -10,9 +11,9 @@ from app.dependencies import get_current_user
 from app.dependencies.database import get_db
 from app.dependencies.user import get_current_user_by_token
 from app.models.signalr import NegotiateResponse, Transport
-from app.router.signalr.packet import SEP
 
 from .hub import Hubs
+from .packet import PROTOCOLS, SEP
 
 from fastapi import APIRouter, Depends, Header, Query, WebSocket
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -62,30 +63,41 @@ async def connect(
     await websocket.accept()
 
     # handshake
-    handshake = await websocket.receive_bytes()
-    handshake_payload = json.loads(handshake[:-1])
+    handshake = await websocket.receive()
+    message = handshake.get("bytes") or handshake.get("text")
+    if not message:
+        await websocket.close(code=1008)
+        return
+    handshake_payload = json.loads(message[:-1])
     error = ""
-    if (protocol := handshake_payload.get("protocol")) != "messagepack" or (
-        handshake_payload.get("version")
-    ) != 1:
-        error = f"Requested protocol '{protocol}' is not available."
+    protocol = handshake_payload.get("protocol", "json")
 
     client = None
     try:
-        client = hub_.add_client(
+        client = await hub_.add_client(
             connection_id=user_id,
             connection_token=id,
             connection=websocket,
+            protocol=PROTOCOLS[protocol],
         )
+    except KeyError:
+        error = f"Protocol '{protocol}' is not supported."
     except TimeoutError:
         error = f"Connection {id} has waited too long."
     except ValueError as e:
         error = str(e)
     payload = {"error": error} if error else {}
-
     # finish handshake
     await websocket.send_bytes(json.dumps(payload).encode() + SEP)
     if error or not client:
         await websocket.close(code=1008)
         return
+    await hub_.clean_state(client, False)
+    task = asyncio.create_task(hub_.on_connect(client))
+    hub_.tasks.add(task)
+    task.add_done_callback(hub_.tasks.discard)
     await hub_._listen_client(client)
+    try:
+        await websocket.close()
+    except Exception:
+        ...
