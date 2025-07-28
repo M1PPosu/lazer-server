@@ -18,7 +18,7 @@ class User(SQLModel, table=True):
         default=None, sa_column=Column(BigInteger, primary_key=True, index=True)
     )
 
-    # 基本信息（匹配 migrations 中的结构）
+    # 基本信息（匹配 migrations_old 中的结构）
     name: str = Field(max_length=32, unique=True, index=True)  # 用户名
     safe_name: str = Field(max_length=32, unique=True, index=True)  # 安全用户名
     email: str = Field(max_length=254, unique=True, index=True)
