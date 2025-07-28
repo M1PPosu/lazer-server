@@ -142,8 +142,15 @@ async def health_check():
 
 
 if __name__ == "__main__":
+    from app.log import logger  # noqa: F401
+
     import uvicorn
 
     uvicorn.run(
-        "main:app", host=settings.HOST, port=settings.PORT, reload=settings.DEBUG
+        "main:app",
+        host=settings.HOST,
+        port=settings.PORT,
+        reload=settings.DEBUG,
+        log_config=None,  # 禁用uvicorn默认日志配置
+        access_log=True,  # 启用访问日志
     )

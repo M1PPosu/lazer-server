@@ -3,10 +3,10 @@ from __future__ import annotations
 from abc import abstractmethod
 import asyncio
 import time
-import traceback
 from typing import Any
 
 from app.config import settings
+from app.log import logger
 from app.models.signalr import UserState
 from app.signalr.exception import InvokeException
 from app.signalr.packet import (
@@ -79,7 +79,7 @@ class Client:
             except WebSocketDisconnect:
                 break
             except Exception as e:
-                print(f"Error in ping task for {self.connection_id}: {e}")
+                logger.error(f"Error in ping task for {self.connection_id}: {e}")
                 break
 
 
@@ -205,22 +205,24 @@ class Hub[TState: UserState]:
                     self.tasks.add(task)
                     task.add_done_callback(self.tasks.discard)
         except WebSocketDisconnect as e:
-            print(f"Client {client.connection_id} disconnected: {e.code}, {e.reason}")
+            logger.info(
+                f"Client {client.connection_id} disconnected: {e.code}, {e.reason}"
+            )
         except RuntimeError as e:
             if "disconnect message" in str(e):
-                print(f"Client {client.connection_id} closed the connection.")
+                logger.info(f"Client {client.connection_id} closed the connection.")
             else:
-                traceback.print_exc()
-                print(f"RuntimeError in client {client.connection_id}: {e}")
+                logger.exception(f"RuntimeError in client {client.connection_id}: {e}")
         except CloseConnection as e:
             if not e.from_client:
                 await client.send_packet(
                     ClosePacket(error=e.message, allow_reconnect=e.allow_reconnect)
                 )
-            print(f"Client {client.connection_id} closed the connection: {e.message}")
-        except Exception as e:
-            traceback.print_exc()
-            print(f"Error in client {client.connection_id}: {e}")
+            logger.info(
+                f"Client {client.connection_id} closed the connection: {e.message}"
+            )
+        except Exception:
+            logger.exception(f"Error in client {client.connection_id}")
 
         await self.remove_client(client)
 
@@ -236,7 +238,10 @@ class Hub[TState: UserState]:
             except InvokeException as e:
                 error = e.message
             except Exception as e:
-                traceback.print_exc()
+                logger.exception(
+                    f"Error invoking method {packet.target} for "
+                    f"client {client.connection_id}"
+                )
                 error = str(e)
             if packet.invocation_id is not None:
                 await client.send_packet(

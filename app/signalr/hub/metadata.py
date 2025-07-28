@@ -84,7 +84,6 @@ class MetadataHub(Hub[MetadataClientState]):
                     if (
                         friend_state := self.state.get(friend_id)
                     ) and friend_state.pushable:
-                        print("Pushed")
                         tasks.append(
                             self.broadcast_group_call(
                                 self.friend_presence_watchers_group(friend_id),

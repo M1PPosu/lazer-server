@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.database.beatmap import BeatmapResp
+from app.log import logger
 
 from ._base import BaseFetcher
 
@@ -17,6 +18,9 @@ class BeatmapFetcher(BaseFetcher):
             params = {"checksum": beatmap_checksum}
         else:
             raise ValueError("Either beatmap_id or beatmap_checksum must be provided.")
+        logger.opt(colors=True).debug(
+            f"<blue>[BeatmapFetcher]</blue> get_beatmap: <y>{params}</y>"
+        )
         async with AsyncClient() as client:
             response = await client.get(
                 "https://osu.ppy.sh/api/v2/beatmaps/lookup",

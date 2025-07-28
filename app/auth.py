@@ -10,6 +10,7 @@ from app.database import (
     OAuthToken,
     User as DBUser,
 )
+from app.log import logger
 
 import bcrypt
 from jose import JWTError, jwt
@@ -47,8 +48,8 @@ def verify_password_legacy(plain_password: str, bcrypt_hash: str) -> bool:
             bcrypt_cache[bcrypt_hash] = pw_md5
 
         return is_valid
-    except Exception as e:
-        print(f"Password verification error: {e}")
+    except Exception:
+        logger.exception("Password verification error")
         return False
 
 
@@ -104,8 +105,8 @@ async def authenticate_user_legacy(
             # 缓存验证结果
             bcrypt_cache[user.pw_bcrypt] = pw_md5.encode()
             return user
-    except Exception as e:
-        print(f"Authentication error for user {name}: {e}")
+    except Exception:
+        logger.exception(f"Authentication error for user {name}")
 
     return None
 

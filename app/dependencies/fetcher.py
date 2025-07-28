@@ -3,6 +3,7 @@ from __future__ import annotations
 from app.config import settings
 from app.dependencies.database import get_redis
 from app.fetcher import Fetcher
+from app.log import logger
 
 fetcher: Fetcher | None = None
 
@@ -25,5 +26,7 @@ def get_fetcher() -> Fetcher:
             if refresh_token:
                 fetcher.refresh_token = str(refresh_token)
             if not fetcher.access_token or not fetcher.refresh_token:
-                print("Login to initialize fetcher:", fetcher.authorize_url)
+                logger.opt(colors=True).info(
+                    f"Login to initialize fetcher: <y>{fetcher.authorize_url}</y>"
+                )
     return fetcher

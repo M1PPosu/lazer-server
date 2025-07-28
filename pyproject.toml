@@ -11,6 +11,7 @@ dependencies = [
     "cryptography>=41.0.7",
     "fastapi>=0.104.1",
     "httpx>=0.28.1",
+    "loguru>=0.7.3",
     "msgpack>=1.1.1",
     "passlib[bcrypt]>=1.7.4",
     "pydantic[email]>=2.5.0",

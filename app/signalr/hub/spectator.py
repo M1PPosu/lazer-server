@@ -319,7 +319,6 @@ class SpectatorHub(Hub[StoreClientState]):
         )
 
     async def StartWatchingUser(self, client: Client, target_id: int) -> None:
-        print(f"StartWatchingUser -> {client.connection_id} {target_id}")
         user_id = int(client.connection_id)
         target_store = self.get_or_create_state(client)
         if target_store.state:
@@ -347,7 +346,6 @@ class SpectatorHub(Hub[StoreClientState]):
                 )
 
     async def EndWatchingUser(self, client: Client, target_id: int) -> None:
-        print(f"EndWatchingUser -> {client.connection_id} {target_id}")
         user_id = int(client.connection_id)
         self.remove_from_group(client, self.group_id(target_id))
         store = self.state.get(user_id)

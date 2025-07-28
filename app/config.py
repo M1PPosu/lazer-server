@@ -44,5 +44,8 @@ class Settings:
         "FETCHER_CALLBACK_URL", "http://localhost:8000/fetcher/callback"
     )
 
+    # 日志设置
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").upper()
+
 
 settings = Settings()
