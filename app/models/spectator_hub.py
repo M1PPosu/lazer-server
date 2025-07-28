@@ -12,7 +12,7 @@ from .score import (
 from .signalr import MessagePackArrayModel
 
 import msgpack
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class APIMod(MessagePackArrayModel):
@@ -58,8 +58,6 @@ class ScoreProcessorStatistics(MessagePackArrayModel):
 
 
 class FrameHeader(MessagePackArrayModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
     total_score: int
     acc: float
     combo: int
@@ -84,25 +82,21 @@ class FrameHeader(MessagePackArrayModel):
             return datetime.datetime.fromisoformat(v)
         raise ValueError(f"Cannot convert {type(v)} to datetime")
 
-    @field_serializer("received_time")
-    def serialize_received_time(self, v: datetime.datetime) -> msgpack.ext.Timestamp:
-        return msgpack.ext.Timestamp.from_datetime(v)
 
-
-class ReplayButtonState(IntEnum):
-    NONE = 0
-    LEFT1 = 1
-    RIGHT1 = 2
-    LEFT2 = 4
-    RIGHT2 = 8
-    SMOKE = 16
+# class ReplayButtonState(IntEnum):
+#     NONE = 0
+#     LEFT1 = 1
+#     RIGHT1 = 2
+#     LEFT2 = 4
+#     RIGHT2 = 8
+#     SMOKE = 16
 
 
 class LegacyReplayFrame(MessagePackArrayModel):
     time: float  # from ReplayFrame,the parent of LegacyReplayFrame
     x: float | None = None
     y: float | None = None
-    button_state: ReplayButtonState
+    button_state: int
 
 
 class FrameDataBundle(MessagePackArrayModel):
@@ -135,10 +129,10 @@ class StoreScore(BaseModel):
 
 
 class StoreClientState(BaseModel):
-    state: SpectatorState | None
-    beatmap_status: BeatmapRankStatus
-    checksum: str
-    ruleset_id: int
-    score_token: int
-    watched_user: set[int]
-    score: StoreScore
+    state: SpectatorState | None = None
+    beatmap_status: BeatmapRankStatus | None = None
+    checksum: str | None = None
+    ruleset_id: int | None = None
+    score_token: int | None = None
+    watched_user: set[int] = Field(default_factory=set)
+    score: StoreScore | None = None

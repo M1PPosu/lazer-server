@@ -44,11 +44,11 @@ class Client:
     async def send_packet(self, packet: Packet):
         await self.connection.send_bytes(self.procotol.encode(packet))
 
-    async def receive_packet(self) -> Packet:
+    async def receive_packets(self) -> list[Packet]:
         message = await self.connection.receive()
         d = message.get("bytes") or message.get("text", "").encode()
         if not d:
-            return PingPacket()  # FIXME: Graceful empty message handling
+            return [PingPacket()]  # FIXME: Graceful empty message handling
         return self.procotol.decode(d)
 
     async def _ping(self):
@@ -138,12 +138,13 @@ class Hub:
         jump = False
         while not jump:
             try:
-                packet = await client.receive_packet()
-                task = asyncio.create_task(self._handle_packet(client, packet))
-                self.tasks.add(task)
-                task.add_done_callback(self.tasks.discard)
-            except StopIteration:
-                pass
+                packets = await client.receive_packets()
+                for packet in packets:
+                    if isinstance(packet, PingPacket):
+                        continue
+                    task = asyncio.create_task(self._handle_packet(client, packet))
+                    self.tasks.add(task)
+                    task.add_done_callback(self.tasks.discard)
             except WebSocketDisconnect as e:
                 print(
                     f"Client {client.connection_id} disconnected: {e.code}, {e.reason}"

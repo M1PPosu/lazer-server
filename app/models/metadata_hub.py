@@ -28,8 +28,7 @@ class _UserActivity(BaseModel):
 
 
 class ChoosingBeatmap(_UserActivity):
-    type: Literal["ChoosingBeatmap"] = "ChoosingBeatmap"
-    value: Literal[None] = None
+    type: Literal["ChoosingBeatmap"] = Field(alias="$dtype")
 
 
 class InGameValue(BaseModel):
@@ -44,19 +43,19 @@ class _InGame(_UserActivity):
 
 
 class InSoloGame(_InGame):
-    type: Literal["InSoloGame"] = "InSoloGame"
+    type: Literal["InSoloGame"] = Field(alias="$dtype")
 
 
 class InMultiplayerGame(_InGame):
-    type: Literal["InMultiplayerGame"] = "InMultiplayerGame"
+    type: Literal["InMultiplayerGame"] = Field(alias="$dtype")
 
 
 class SpectatingMultiplayerGame(_InGame):
-    type: Literal["SpectatingMultiplayerGame"] = "SpectatingMultiplayerGame"
+    type: Literal["SpectatingMultiplayerGame"] = Field(alias="$dtype")
 
 
 class InPlaylistGame(_InGame):
-    type: Literal["InPlaylistGame"] = "InPlaylistGame"
+    type: Literal["InPlaylistGame"] = Field(alias="$dtype")
 
 
 class EditingBeatmapValue(BaseModel):
@@ -65,16 +64,16 @@ class EditingBeatmapValue(BaseModel):
 
 
 class EditingBeatmap(_UserActivity):
-    type: Literal["EditingBeatmap"] = "EditingBeatmap"
+    type: Literal["EditingBeatmap"] = Field(alias="$dtype")
     value: EditingBeatmapValue = Field(alias="$value")
 
 
 class TestingBeatmap(_UserActivity):
-    type: Literal["TestingBeatmap"] = "TestingBeatmap"
+    type: Literal["TestingBeatmap"] = Field(alias="$dtype")
 
 
 class ModdingBeatmap(_UserActivity):
-    type: Literal["ModdingBeatmap"] = "ModdingBeatmap"
+    type: Literal["ModdingBeatmap"] = Field(alias="$dtype")
 
 
 class WatchingReplayValue(BaseModel):
@@ -85,17 +84,16 @@ class WatchingReplayValue(BaseModel):
 
 
 class WatchingReplay(_UserActivity):
-    type: Literal["WatchingReplay"] = "WatchingReplay"
+    type: Literal["WatchingReplay"] = Field(alias="$dtype")
     value: int | None = Field(alias="$value")  # Replay ID
 
 
 class SpectatingUser(WatchingReplay):
-    type: Literal["SpectatingUser"] = "SpectatingUser"
+    type: Literal["SpectatingUser"] = Field(alias="$dtype")
 
 
 class SearchingForLobby(_UserActivity):
-    type: Literal["SearchingForLobby"] = "SearchingForLobby"
-    value: None = Field(alias="$value")
+    type: Literal["SearchingForLobby"] = Field(alias="$dtype")
 
 
 class InLobbyValue(BaseModel):
@@ -105,12 +103,10 @@ class InLobbyValue(BaseModel):
 
 class InLobby(_UserActivity):
     type: Literal["InLobby"] = "InLobby"
-    value: None = Field(alias="$value")
 
 
 class InDailyChallengeLobby(_UserActivity):
-    type: Literal["InDailyChallengeLobby"] = "InDailyChallengeLobby"
-    value: None = Field(alias="$value")
+    type: Literal["InDailyChallengeLobby"] = Field(alias="$dtype")
 
 
 UserActivity = (

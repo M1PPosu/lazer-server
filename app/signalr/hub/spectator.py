@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import lzma
 import struct
@@ -13,6 +14,7 @@ from app.dependencies.database import engine
 from app.models.beatmap import BeatmapRankStatus
 from app.models.mods import mods_to_int
 from app.models.score import LegacyReplaySoloScoreInfo, ScoreStatisticsInt
+from app.models.signalr import serialize_to_list
 from app.models.spectator_hub import (
     APIUser,
     FrameDataBundle,
@@ -106,7 +108,7 @@ def save_replay(
     for frame in frames:
         frame_strs.append(
             f"{frame.time - last_time}|{frame.x or 0.0}"
-            f"|{frame.y or 0.0}|{frame.button_state.value}"
+            f"|{frame.y or 0.0}|{frame.button_state}"
         )
         last_time = frame.time
     frame_strs.append("-12345|0|0|0")
@@ -142,6 +144,20 @@ class SpectatorHub(Hub):
     def __init__(self) -> None:
         super().__init__()
         self.state: dict[int, StoreClientState] = {}
+
+    @staticmethod
+    def group_id(user_id: int) -> str:
+        return f"watch:{user_id}"
+
+    async def on_client_connect(self, client: Client) -> None:
+        tasks = [
+            self.call_noblock(
+                client, "UserBeganPlaying", user_id, serialize_to_list(store.state)
+            )
+            for user_id, store in self.state.items()
+            if store.state is not None
+        ]
+        await asyncio.gather(*tasks)
 
     async def BeginPlaySession(
         self, client: Client, score_token: int, state: SpectatorState
@@ -184,7 +200,12 @@ class SpectatorHub(Hub):
                     ),
                 )
                 self.state[user_id] = store
-        await self.broadcast_call("UserBeganPlaying", user_id, state.model_dump())
+        await self.broadcast_group_call(
+            self.group_id(user_id),
+            "UserBeganPlaying",
+            user_id,
+            serialize_to_list(state),
+        )
 
     async def SendFrameData(self, client: Client, frame_data: FrameDataBundle) -> None:
         user_id = int(client.connection_id)
@@ -201,14 +222,14 @@ class SpectatorHub(Hub):
         score.score_info.total_score = frame_data.header.total_score
         score.score_info.mods = frame_data.header.mods
         score.replay_frames.extend(frame_data.frames)
-        await self.broadcast_call(
+        await self.broadcast_group_call(
+            self.group_id(user_id),
             "UserSentFrames",
             user_id,
             frame_data.model_dump(),
         )
 
     async def EndPlaySession(self, client: Client, state: SpectatorState) -> None:
-        print(f"EndPlaySession -> {client.connection_id} {state.model_dump()!r}")
         user_id = int(client.connection_id)
         store = self.state.get(user_id)
         if not store:
@@ -217,7 +238,13 @@ class SpectatorHub(Hub):
         if not score or not store.score_token:
             return
 
+        assert store.beatmap_status is not None
+
         async def _save_replay():
+            assert store.checksum is not None
+            assert store.ruleset_id is not None
+            assert store.state is not None
+            assert store.score is not None
             async with AsyncSession(engine) as session:
                 async with session:
                     start_time = time.time()
@@ -271,8 +298,51 @@ class SpectatorHub(Hub):
         del self.state[user_id]
         if state.state == SpectatedUserState.Playing:
             state.state = SpectatedUserState.Quit
-        await self.broadcast_call(
-            "UserEndedPlaying",
+        await self.broadcast_group_call(
+            self.group_id(user_id),
+            "UserFinishedPlaying",
             user_id,
-            state.model_dump(),
+            serialize_to_list(state) if state else None,
         )
+
+    async def StartWatchingUser(self, client: Client, target_id: int) -> None:
+        print(f"StartWatchingUser -> {client.connection_id} {target_id}")
+        user_id = int(client.connection_id)
+        target_store = self.state.get(target_id)
+        if target_store and target_store.state:
+            await self.call_noblock(
+                client,
+                "UserBeganPlaying",
+                target_id,
+                serialize_to_list(target_store.state),
+            )
+        store = self.state.get(user_id)
+        if store is None:
+            store = StoreClientState(
+                watched_user=set(),
+            )
+        store.watched_user.add(target_id)
+        self.state[user_id] = store
+        self.groups.setdefault(self.group_id(target_id), set()).add(client)
+
+        async with AsyncSession(engine) as session:
+            async with session.begin():
+                username = (
+                    await session.exec(select(User.name).where(User.id == user_id))
+                ).first()
+                if not username:
+                    return
+            if (target_client := self.get_client_by_id(str(target_id))) is not None:
+                await self.call_noblock(
+                    target_client, "UserStartedWatching", [[user_id, username]]
+                )
+
+    async def EndWatchingUser(self, client: Client, target_id: int) -> None:
+        print(f"EndWatchingUser -> {client.connection_id} {target_id}")
+        user_id = int(client.connection_id)
+        self.groups[self.group_id(target_id)].discard(client)
+        store = self.state.get(user_id)
+        if store:
+            store.watched_user.discard(target_id)
+        if (target_client := self.get_client_by_id(str(target_id))) is not None:
+            await self.call_noblock(target_client, "UserEndedWatching", user_id)

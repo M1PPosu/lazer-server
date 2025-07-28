@@ -106,11 +106,12 @@ class MetadataHub(Hub):
         await asyncio.gather(*tasks)
 
     async def UpdateActivity(self, client: Client, activity_dict: dict | None) -> None:
-        if activity_dict is None:
-            # idle
-            return
         user_id = int(client.connection_id)
-        activity = TypeAdapter(UserActivity).validate_python(activity_dict)
+        activity = (
+            TypeAdapter(UserActivity).validate_python(activity_dict)
+            if activity_dict
+            else None
+        )
         store = self.state.get(user_id)
         if store:
             store.user_activity = activity
@@ -119,7 +120,6 @@ class MetadataHub(Hub):
                 user_activity=activity,
             )
             self.state[user_id] = store
-
         tasks = self.broadcast_tasks(user_id, store)
         tasks.add(
             self.call_noblock(

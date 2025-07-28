@@ -60,7 +60,7 @@ PACKETS = {
 
 class Protocol(TypingProtocol):
     @staticmethod
-    def decode(input: bytes) -> Packet: ...
+    def decode(input: bytes) -> list[Packet]: ...
 
     @staticmethod
     def encode(packet: Packet) -> bytes: ...
@@ -93,7 +93,7 @@ class MsgpackProtocol:
         return result, pos
 
     @staticmethod
-    def decode(input: bytes) -> Packet:
+    def decode(input: bytes) -> list[Packet]:
         length, offset = MsgpackProtocol._decode_varint(input)
         message_data = input[offset : offset + length]
         # FIXME: custom deserializer for APIMod
@@ -106,23 +106,27 @@ class MsgpackProtocol:
             raise ValueError(f"Unknown packet type: {packet_type}")
         match packet_type:
             case PacketType.INVOCATION:
-                return InvocationPacket(
-                    header=unpacked[1],
-                    invocation_id=unpacked[2],
-                    target=unpacked[3],
-                    arguments=unpacked[4] if len(unpacked) > 4 else None,
-                    stream_ids=unpacked[5] if len(unpacked) > 5 else None,
-                )
+                return [
+                    InvocationPacket(
+                        header=unpacked[1],
+                        invocation_id=unpacked[2],
+                        target=unpacked[3],
+                        arguments=unpacked[4] if len(unpacked) > 4 else None,
+                        stream_ids=unpacked[5] if len(unpacked) > 5 else None,
+                    )
+                ]
             case PacketType.COMPLETION:
                 result_kind = unpacked[3]
-                return CompletionPacket(
-                    header=unpacked[1],
-                    invocation_id=unpacked[2],
-                    error=unpacked[4] if result_kind == 1 else None,
-                    result=unpacked[5] if result_kind == 3 else None,
-                )
+                return [
+                    CompletionPacket(
+                        header=unpacked[1],
+                        invocation_id=unpacked[2],
+                        error=unpacked[4] if result_kind == 1 else None,
+                        result=unpacked[5] if result_kind == 3 else None,
+                    )
+                ]
             case PacketType.PING:
-                return PingPacket()
+                return [PingPacket()]
         raise ValueError(f"Unsupported packet type: {packet_type}")
 
     @staticmethod
@@ -153,38 +157,48 @@ class MsgpackProtocol:
                 ]
             )
         elif isinstance(packet, PingPacket):
-            pass
-
-        data = msgpack.packb(payload, use_bin_type=True)
+            payload.pop(-1)
+        data = msgpack.packb(payload, use_bin_type=True, datetime=True)
         return MsgpackProtocol._encode_varint(len(data)) + data
 
 
 class JSONProtocol:
     @staticmethod
-    def decode(input: bytes) -> Packet:
-        data = json.loads(input[:-1].decode("utf-8"))
-        packet_type = PacketType(data["type"])
-        if packet_type not in PACKETS:
-            raise ValueError(f"Unknown packet type: {packet_type}")
-        match packet_type:
-            case PacketType.INVOCATION:
-                return InvocationPacket(
-                    header=data.get("header"),
-                    invocation_id=data.get("invocationId"),
-                    target=data["target"],
-                    arguments=data.get("arguments"),
-                    stream_ids=data.get("streamIds"),
-                )
-            case PacketType.COMPLETION:
-                return CompletionPacket(
-                    header=data.get("header"),
-                    invocation_id=data["invocationId"],
-                    error=data.get("error"),
-                    result=data.get("result"),
-                )
-            case PacketType.PING:
-                return PingPacket()
-        raise ValueError(f"Unsupported packet type: {packet_type}")
+    def decode(input: bytes) -> list[Packet]:
+        packets_raw = input.removesuffix(SEP).split(SEP)
+        packets = []
+        if len(packets_raw) > 1:
+            for packet_raw in packets_raw:
+                packets.extend(JSONProtocol.decode(packet_raw))
+            return packets
+        else:
+            data = json.loads(packets_raw[0])
+            packet_type = PacketType(data["type"])
+            if packet_type not in PACKETS:
+                raise ValueError(f"Unknown packet type: {packet_type}")
+            match packet_type:
+                case PacketType.INVOCATION:
+                    return [
+                        InvocationPacket(
+                            header=data.get("header"),
+                            invocation_id=data.get("invocationId"),
+                            target=data["target"],
+                            arguments=data.get("arguments"),
+                            stream_ids=data.get("streamIds"),
+                        )
+                    ]
+                case PacketType.COMPLETION:
+                    return [
+                        CompletionPacket(
+                            header=data.get("header"),
+                            invocation_id=data["invocationId"],
+                            error=data.get("error"),
+                            result=data.get("result"),
+                        )
+                    ]
+                case PacketType.PING:
+                    return [PingPacket()]
+            raise ValueError(f"Unsupported packet type: {packet_type}")
 
     @staticmethod
     def encode(packet: Packet) -> bytes:
