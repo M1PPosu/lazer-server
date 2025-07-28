@@ -86,7 +86,16 @@ class Beatmap(BeatmapBase, table=True):
         )
         session.add(beatmap)
         await session.commit()
-        await session.refresh(beatmap)
+        beatmap = (
+            await session.exec(
+                select(Beatmap)
+                .options(
+                    joinedload(Beatmap.beatmapset).selectinload(Beatmapset.beatmaps)  # pyright: ignore[reportArgumentType]
+                )
+                .where(Beatmap.id == resp.id)
+            )
+        ).first()
+        assert beatmap is not None, "Beatmap should not be None after commit"
         return beatmap
 
     @classmethod
