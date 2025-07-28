@@ -4,8 +4,8 @@
 
 ## 文件说明
 
-1. **`migrations/add_missing_fields.sql`** - 创建 Lazer API 专用表结构
-2. **`migrations/sync_legacy_data.sql`** - 数据同步脚本
+1. **`migrations_old/add_missing_fields.sql`** - 创建 Lazer API 专用表结构
+2. **`migrations_old/sync_legacy_data.sql`** - 数据同步脚本
 3. **`sync_data.py`** - 交互式数据同步工具
 4. **`quick_sync.py`** - 快速同步脚本（使用项目配置）
 
@@ -43,10 +43,10 @@ python sync_data.py
 
 ```bash
 # 1. 创建表结构
-mysql -u username -p database_name < migrations/add_missing_fields.sql
+mysql -u username -p database_name < migrations_old/add_missing_fields.sql
 
 # 2. 同步数据
-mysql -u username -p database_name < migrations/sync_legacy_data.sql
+mysql -u username -p database_name < migrations_old/sync_legacy_data.sql
 ```
 
 ## 同步内容

@@ -205,6 +205,10 @@ curl -X POST http://localhost:8000/oauth/token \
 - 添加管理面板
 - 实现数据导入/导出功能
 
+### 迁移数据库
+
+参考[数据库迁移指南](./MIGRATE_GUIDE.md)
+
 ## 许可证
 
 MIT License

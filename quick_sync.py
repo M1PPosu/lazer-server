@@ -94,7 +94,7 @@ def main():
 
     # 获取脚本路径
     script_dir = os.path.dirname(__file__)
-    migrations_dir = os.path.join(script_dir, "migrations")
+    migrations_dir = os.path.join(script_dir, "migrations_old")
 
     # 第一步: 创建表结构
     print("\n步骤 1: 创建 lazer 专用表结构...")
