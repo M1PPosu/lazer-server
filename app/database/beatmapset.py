@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, TypedDict, cast
 
 from app.models.beatmap import BeatmapRankStatus, Genre, Language
+from app.models.score import GameMode
 
 from pydantic import BaseModel, model_serializer
 from sqlalchemy import DECIMAL, JSON, Column, DateTime, Text
@@ -68,7 +69,7 @@ class BeatmapNomination(TypedDict):
     beatmapset_id: int
     reset: bool
     user_id: int
-    rulesets: list[str] | None
+    rulesets: list[GameMode] | None
 
 
 class BeatmapDescription(SQLModel):

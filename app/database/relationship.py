@@ -4,7 +4,10 @@ from .user import User
 
 from pydantic import BaseModel
 from sqlmodel import (
+    BigInteger,
+    Column,
     Field,
+    ForeignKey,
     Relationship as SQLRelationship,
     SQLModel,
     select,
@@ -20,10 +23,22 @@ class RelationshipType(str, Enum):
 class Relationship(SQLModel, table=True):
     __tablename__ = "relationship"  # pyright: ignore[reportAssignmentType]
     user_id: int = Field(
-        default=None, foreign_key="users.id", primary_key=True, index=True
+        default=None,
+        sa_column=Column(
+            BigInteger,
+            ForeignKey("users.id"),
+            primary_key=True,
+            index=True,
+        ),
     )
     target_id: int = Field(
-        default=None, foreign_key="users.id", primary_key=True, index=True
+        default=None,
+        sa_column=Column(
+            BigInteger,
+            ForeignKey("users.id"),
+            primary_key=True,
+            index=True,
+        ),
     )
     type: RelationshipType = Field(default=RelationshipType.FOLLOW, nullable=False)
     target: "User" = SQLRelationship(

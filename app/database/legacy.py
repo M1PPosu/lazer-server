@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import JSON, Column, DateTime
 from sqlalchemy.orm import Mapped
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import BigInteger, Field, ForeignKey, Relationship, SQLModel
 
 if TYPE_CHECKING:
     from .user import User
@@ -16,7 +16,7 @@ class LegacyUserStatistics(SQLModel, table=True):
     __tablename__ = "user_statistics"  # pyright: ignore[reportAssignmentType]
 
     id: int | None = Field(default=None, primary_key=True, index=True)
-    user_id: int = Field(foreign_key="users.id")
+    user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("users.id")))
     mode: str = Field(max_length=10)  # osu, taiko, fruits, mania
 
     # 基本统计
@@ -77,7 +77,7 @@ class LegacyOAuthToken(SQLModel, table=True):
     __tablename__ = "legacy_oauth_tokens"  # pyright: ignore[reportAssignmentType]
 
     id: int | None = Field(default=None, primary_key=True)
-    user_id: int = Field(foreign_key="users.id")
+    user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("users.id")))
     access_token: str = Field(max_length=255, index=True)
     refresh_token: str = Field(max_length=255, index=True)
     expires_at: datetime = Field(sa_column=Column(DateTime))

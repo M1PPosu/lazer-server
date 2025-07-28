@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Literal
-
 from app.database import User as DBUser
 from app.database.relationship import Relationship, RelationshipResp, RelationshipType
 from app.dependencies.database import get_db
@@ -9,21 +7,23 @@ from app.dependencies.user import get_current_user
 
 from .api_router import router
 
-from fastapi import Depends, HTTPException, Query
+from fastapi import Depends, HTTPException, Query, Request
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
-@router.get("/{type}", tags=["relationship"], response_model=list[RelationshipResp])
+@router.get("/friends", tags=["relationship"], response_model=list[RelationshipResp])
+@router.get("/blocks", tags=["relationship"], response_model=list[RelationshipResp])
 async def get_relationship(
-    type: Literal["friends", "blocks"],
+    request: Request,
     current_user: DBUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if type == "friends":
-        relationship_type = RelationshipType.FOLLOW
-    else:
-        relationship_type = RelationshipType.BLOCK
+    relationship_type = (
+        RelationshipType.FOLLOW
+        if request.url.path.endswith("/friends")
+        else RelationshipType.BLOCK
+    )
     relationships = await db.exec(
         select(Relationship).where(
             Relationship.user_id == current_user.id,
@@ -33,17 +33,19 @@ async def get_relationship(
     return [await RelationshipResp.from_db(db, rel) for rel in relationships]
 
 
-@router.post("/{type}", tags=["relationship"], response_model=RelationshipResp)
+@router.post("/friends", tags=["relationship"], response_model=RelationshipResp)
+@router.post("/blocks", tags=["relationship"])
 async def add_relationship(
-    type: Literal["friends", "blocks"],
+    request: Request,
     target: int = Query(),
     current_user: DBUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if type == "blocks":
-        relationship_type = RelationshipType.BLOCK
-    else:
-        relationship_type = RelationshipType.FOLLOW
+    relationship_type = (
+        RelationshipType.FOLLOW
+        if request.url.path.endswith("/friends")
+        else RelationshipType.BLOCK
+    )
     if target == current_user.id:
         raise HTTPException(422, "Cannot add relationship to yourself")
     relationship = (
@@ -78,18 +80,22 @@ async def add_relationship(
             await db.delete(target_relationship)
     await db.commit()
     await db.refresh(relationship)
-    return await RelationshipResp.from_db(db, relationship)
+    if relationship.type == RelationshipType.FOLLOW:
+        return await RelationshipResp.from_db(db, relationship)
 
 
-@router.delete("/{type}/{target}", tags=["relationship"])
+@router.delete("/friends/{target}", tags=["relationship"])
+@router.delete("/blocks/{target}", tags=["relationship"])
 async def delete_relationship(
-    type: Literal["friends", "blocks"],
+    request: Request,
     target: int,
     current_user: DBUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     relationship_type = (
-        RelationshipType.BLOCK if type == "blocks" else RelationshipType.FOLLOW
+        RelationshipType.BLOCK
+        if "/blocks/" in request.url.path
+        else RelationshipType.FOLLOW
     )
     relationship = (
         await db.exec(

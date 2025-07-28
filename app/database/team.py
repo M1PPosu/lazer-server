@@ -2,8 +2,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Column, DateTime
-from sqlalchemy.orm import Mapped
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import BigInteger, Field, ForeignKey, Relationship, SQLModel
 
 if TYPE_CHECKING:
     from .user import User
@@ -20,18 +19,18 @@ class Team(SQLModel, table=True):
         default_factory=datetime.utcnow, sa_column=Column(DateTime)
     )
 
-    members: Mapped[list["TeamMember"]] = Relationship(back_populates="team")
+    members: list["TeamMember"] = Relationship(back_populates="team")
 
 
 class TeamMember(SQLModel, table=True):
     __tablename__ = "team_members"  # pyright: ignore[reportAssignmentType]
 
     id: int | None = Field(default=None, primary_key=True, index=True)
-    user_id: int = Field(foreign_key="users.id")
+    user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("users.id")))
     team_id: int = Field(foreign_key="teams.id")
     joined_at: datetime = Field(
         default_factory=datetime.utcnow, sa_column=Column(DateTime)
     )
 
-    user: Mapped["User"] = Relationship(back_populates="team_membership")
-    team: Mapped["Team"] = Relationship(back_populates="members")
+    user: "User" = Relationship(back_populates="team_membership")
+    team: "Team" = Relationship(back_populates="members")

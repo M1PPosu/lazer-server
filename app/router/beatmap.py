@@ -16,7 +16,10 @@ from app.dependencies.user import get_current_user
 from app.fetcher import Fetcher
 from app.models.beatmap import BeatmapAttributes
 from app.models.mods import APIMod, int_to_mods
-from app.models.score import INT_TO_MODE, GameMode
+from app.models.score import (
+    INT_TO_MODE,
+    GameMode,
+)
 from app.utils import calculate_beatmap_attribute
 
 from .api_router import router
@@ -31,6 +34,31 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
+@router.get("/beatmaps/lookup", tags=["beatmap"], response_model=BeatmapResp)
+async def lookup_beatmap(
+    id: int | None = Query(default=None, alias="id"),
+    md5: str | None = Query(default=None, alias="checksum"),
+    filename: str | None = Query(default=None, alias="filename"),
+    current_user: DBUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    fetcher: Fetcher = Depends(get_fetcher),
+):
+    if id is None and md5 is None and filename is None:
+        raise HTTPException(
+            status_code=400,
+            detail="At least one of 'id', 'checksum', or 'filename' must be provided.",
+        )
+    try:
+        beatmap = await Beatmap.get_or_fetch(db, fetcher, bid=id, md5=md5)
+    except HTTPError:
+        raise HTTPException(status_code=404, detail="Beatmap not found")
+
+    if beatmap is None:
+        raise HTTPException(status_code=404, detail="Beatmap not found")
+
+    return BeatmapResp.from_db(beatmap)
+
+
 @router.get("/beatmaps/{bid}", tags=["beatmap"], response_model=BeatmapResp)
 async def get_beatmap(
     bid: int,
@@ -39,7 +67,7 @@ async def get_beatmap(
     fetcher: Fetcher = Depends(get_fetcher),
 ):
     try:
-        beatmap = await Beatmap.get_or_fetch(db, bid, fetcher)
+        beatmap = await Beatmap.get_or_fetch(db, fetcher, bid)
         return BeatmapResp.from_db(beatmap)
     except HTTPError:
         raise HTTPException(status_code=404, detail="Beatmap not found")
@@ -119,7 +147,7 @@ async def get_beatmap_attributes(
     if ruleset_id is not None and ruleset is None:
         ruleset = INT_TO_MODE[ruleset_id]
     if ruleset is None:
-        beatmap_db = await Beatmap.get_or_fetch(db, beatmap, fetcher)
+        beatmap_db = await Beatmap.get_or_fetch(db, fetcher, beatmap)
         ruleset = beatmap_db.mode
     key = (
         f"beatmap:{beatmap}:{ruleset}:"
