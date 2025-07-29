@@ -14,9 +14,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 @router.get("/rooms", tags=["rooms"], response_model=list[Room])
 async def get_all_rooms(
-    mode: str = Query(None),  # TODO: 对房间根据状态进行筛选
-    status: str = Query(None),
-    category: str = Query(None),  # TODO: 对房间根据分类进行筛选（真的有人用这功能吗）
+    mode: str | None = Query(None),  # TODO: 对房间根据状态进行筛选
+    status: str | None = Query(None),
+    category: str | None = Query(
+        None
+    ),  # TODO: 对房间根据分类进行筛选（真的有人用这功能吗）
     db: AsyncSession = Depends(get_db),
     fetcher: Fetcher = Depends(get_fetcher),
 ):
@@ -28,18 +30,22 @@ async def get_all_rooms(
             dumped_room = redis.get(str(id))
             validated_room = MultiplayerRoom.model_validate_json(str(dumped_room))
             flag: bool = False
-            if validated_room.State == MultiplayerRoomState.OPEN and status == "idle":
-                flag = True
-            elif validated_room != MultiplayerRoomState.CLOSED:
-                flag = True
-            if flag:
-                resp.append(
-                    await Room.from_mpRoom(
-                        MultiplayerRoom.model_validate_json(str(dumped_room)),
-                        db,
-                        fetcher,
+            if status is not None:
+                if (
+                    validated_room.State == MultiplayerRoomState.OPEN
+                    and status == "idle"
+                ):
+                    flag = True
+                elif validated_room != MultiplayerRoomState.CLOSED:
+                    flag = True
+                if flag:
+                    resp.append(
+                        await Room.from_mpRoom(
+                            MultiplayerRoom.model_validate_json(str(dumped_room)),
+                            db,
+                            fetcher,
+                        )
                     )
-                )
         return resp
     else:
         raise HTTPException(status_code=500, detail="Redis Error")
@@ -63,3 +69,27 @@ async def get_room(
             raise HTTPException(status_code=404, detail="Room Not Found")
     else:
         raise HTTPException(status_code=500, detail="Redis error")
+
+
+class APICreatedRoom(Room):
+    error: str | None
+
+
+@router.post("/rooms", tags=["beatmap"], response_model=APICreatedRoom)
+async def create_room(
+    room: Room,
+    db: AsyncSession = Depends(get_db),
+    fetcher: Fetcher = Depends(get_fetcher),
+):
+    redis = get_redis()
+    if redis:
+        room_index = RoomIndex()
+        db.add(room_index)
+        await db.commit()
+        await db.refresh(room_index)
+        server_room = await MultiplayerRoom.from_apiRoom(room, db, fetcher)
+        redis.set(str(room_index.id), server_room.model_dump_json())
+        room.room_id = room_index.id
+        return APICreatedRoom(**room.model_dump(), error=None)
+    else:
+        raise HTTPException(status_code=500, detail="redis error")

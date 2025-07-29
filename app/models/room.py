@@ -139,6 +139,17 @@ class MultiplayerRoomSettings(BaseModel):
     AutoStartDuration: timedelta
     AutoSkip: bool
 
+    @classmethod
+    def from_apiRoom(cls, room: Room):
+        s = cls.model_validate(room.model_dump())
+        s.Name = room.name
+        s.Password = room.password if room.password is not None else ""
+        s.MatchType = room.type
+        s.QueueMode = room.queue_mode
+        s.AutoStartDuration = timedelta(seconds=room.auto_start_duration)
+        s.AutoSkip = room.auto_skip
+        return s
+
 
 class BeatmapAvailability(BaseModel):
     State: DownloadState
@@ -313,6 +324,19 @@ class MultiplayerRoom(BaseModel):
     @classmethod
     def CanAddPlayistItem(cls, user: MultiplayerRoomUser) -> bool:
         return user == cls.Host or cls.Settings.QueueMode != QueueMode.HOST_ONLY
+
+    @classmethod
+    async def from_apiRoom(cls, room: Room, db: AsyncSession, fetcher: Fetcher):
+        s = cls.model_validate(room.model_dump())
+        s.RoomId = room.room_id if room.room_id is not None else 0
+        s.ChannelID = room.channel_id
+        s.Settings = MultiplayerRoomSettings.from_apiRoom(room)
+        s.Host = await MultiplayerRoomUser.from_id(room.host.id if room.host else 0, db)
+        s.Playlist = [
+            await MultiPlayerListItem.from_apiItem(item, db, fetcher)
+            for item in room.playlist
+        ]
+        return s
 
 
 class Room(BaseModel):
