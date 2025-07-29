@@ -8,9 +8,6 @@ from app.database import (
     LazerUserStatistics,
     User as DBUser,
 )
-from app.models.beatmap import BeatmapAttributes
-from app.models.mods import APIMod
-from app.models.score import GameMode
 from app.models.user import (
     Country,
     Cover,
@@ -25,8 +22,6 @@ from app.models.user import (
     User,
     UserAchievement,
 )
-
-import rosu_pp_py as rosu
 
 
 def unix_timestamp_to_windows(timestamp: int) -> int:
@@ -407,15 +402,33 @@ async def convert_db_user_to_api_user(db_user: DBUser, ruleset: str = "osu") -> 
         current_season_stats=None,
         daily_challenge_user_stats=DailyChallengeStats(
             user_id=user_id,
-            daily_streak_best=db_user.daily_challenge_stats.daily_streak_best if db_user.daily_challenge_stats else 0,
-            daily_streak_current=db_user.daily_challenge_stats.daily_streak_current if db_user.daily_challenge_stats else 0,
-            last_update=db_user.daily_challenge_stats.last_update if db_user.daily_challenge_stats else None,
-            last_weekly_streak=db_user.daily_challenge_stats.last_weekly_streak if db_user.daily_challenge_stats else None,
-            playcount=db_user.daily_challenge_stats.playcount if db_user.daily_challenge_stats else 0,
-            top_10p_placements=db_user.daily_challenge_stats.top_10p_placements if db_user.daily_challenge_stats else 0,
-            top_50p_placements=db_user.daily_challenge_stats.top_50p_placements if db_user.daily_challenge_stats else 0,
-            weekly_streak_best=db_user.daily_challenge_stats.weekly_streak_best if db_user.daily_challenge_stats else 0,
-            weekly_streak_current=db_user.daily_challenge_stats.weekly_streak_current if db_user.daily_challenge_stats else 0,
+            daily_streak_best=db_user.daily_challenge_stats.daily_streak_best
+            if db_user.daily_challenge_stats
+            else 0,
+            daily_streak_current=db_user.daily_challenge_stats.daily_streak_current
+            if db_user.daily_challenge_stats
+            else 0,
+            last_update=db_user.daily_challenge_stats.last_update
+            if db_user.daily_challenge_stats
+            else None,
+            last_weekly_streak=db_user.daily_challenge_stats.last_weekly_streak
+            if db_user.daily_challenge_stats
+            else None,
+            playcount=db_user.daily_challenge_stats.playcount
+            if db_user.daily_challenge_stats
+            else 0,
+            top_10p_placements=db_user.daily_challenge_stats.top_10p_placements
+            if db_user.daily_challenge_stats
+            else 0,
+            top_50p_placements=db_user.daily_challenge_stats.top_50p_placements
+            if db_user.daily_challenge_stats
+            else 0,
+            weekly_streak_best=db_user.daily_challenge_stats.weekly_streak_best
+            if db_user.daily_challenge_stats
+            else 0,
+            weekly_streak_current=db_user.daily_challenge_stats.weekly_streak_current
+            if db_user.daily_challenge_stats
+            else 0,
         ),
         groups=[],
         monthly_playcounts=monthly_playcounts,
@@ -450,26 +463,3 @@ def get_country_name(country_code: str) -> str:
         # 可以添加更多国家
     }
     return country_names.get(country_code, "Unknown")
-
-
-def calculate_beatmap_attribute(
-    beatmap: str,
-    gamemode: GameMode | None = None,
-    mods: int | list[APIMod] | list[str] = 0,
-) -> BeatmapAttributes:
-    map = rosu.Beatmap(content=beatmap)
-    if gamemode is not None:
-        map.convert(gamemode.to_rosu(), mods)
-    diff = rosu.Difficulty(mods=mods).calculate(map)
-    return BeatmapAttributes(
-        star_rating=diff.stars,
-        max_combo=diff.max_combo,
-        aim_difficulty=diff.aim,
-        aim_difficult_slider_count=diff.aim_difficult_slider_count,
-        speed_difficulty=diff.speed,
-        speed_note_count=diff.speed_note_count,
-        slider_factor=diff.slider_factor,
-        aim_difficult_strain_count=diff.aim_difficult_strain_count,
-        speed_difficult_strain_count=diff.speed_difficult_strain_count,
-        mono_stamina_factor=diff.stamina,
-    )

@@ -49,7 +49,7 @@ class ScoreBase(SQLModel):
     mods: list[APIMod] = Field(sa_column=Column(JSON))
     passed: bool
     playlist_item_id: int | None = Field(default=None)  # multiplayer
-    pp: float
+    pp: float = Field(default=0.0)
     preserve: bool = Field(default=True)
     rank: Rank
     room_id: int | None = Field(default=None)  # multiplayer
@@ -87,7 +87,9 @@ class Score(ScoreBase, table=True):
     ngeki: int = Field(exclude=True)
     nkatu: int = Field(exclude=True)
     nlarge_tick_miss: int | None = Field(default=None, exclude=True)
+    nlarge_tick_hit: int | None = Field(default=None, exclude=True)
     nslider_tail_hit: int | None = Field(default=None, exclude=True)
+    nsmall_tick_hit: int | None = Field(default=None, exclude=True)
     gamemode: GameMode = Field(index=True)
 
     # optional
@@ -176,6 +178,10 @@ class ScoreResp(ScoreBase):
             s.statistics[HitResult.LARGE_TICK_MISS] = score.nlarge_tick_miss
         if score.nslider_tail_hit is not None:
             s.statistics[HitResult.SLIDER_TAIL_HIT] = score.nslider_tail_hit
+        if score.nsmall_tick_hit is not None:
+            s.statistics[HitResult.SMALL_TICK_HIT] = score.nsmall_tick_hit
+        if score.nlarge_tick_hit is not None:
+            s.statistics[HitResult.LARGE_TICK_HIT] = score.nlarge_tick_hit
         # s.user = await convert_db_user_to_api_user(score.user)
         s.rank_global = (
             await get_score_position_by_id(

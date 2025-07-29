@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 
+from app.calculator import calculate_beatmap_attribute
 from app.database import (
     Beatmap,
     BeatmapResp,
@@ -20,7 +21,6 @@ from app.models.score import (
     INT_TO_MODE,
     GameMode,
 )
-from app.utils import calculate_beatmap_attribute
 
 from .api_router import router
 
@@ -157,7 +157,7 @@ async def get_beatmap_attributes(
         return BeatmapAttributes.model_validate_json(redis.get(key))  # pyright: ignore[reportArgumentType]
 
     try:
-        resp = await fetcher.get_beatmap_raw(beatmap)
+        resp = await fetcher.get_or_fetch_beatmap_raw(redis, beatmap)
         try:
             attr = await asyncio.get_event_loop().run_in_executor(
                 None, calculate_beatmap_attribute, resp, ruleset, mods_

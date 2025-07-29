@@ -1,14 +1,20 @@
 from __future__ import annotations
 
+import asyncio
 import datetime
 
+from app.calculator import calculate_pp
 from app.database import (
     User as DBUser,
 )
+from app.database.beatmap import Beatmap
 from app.database.score import Score, ScoreResp
 from app.database.score_token import ScoreToken, ScoreTokenResp
-from app.dependencies.database import get_db
+from app.dependencies.database import get_db, get_redis
+from app.dependencies.fetcher import get_fetcher
 from app.dependencies.user import get_current_user
+from app.models.beatmap import BeatmapRankStatus
+from app.models.mods import mods_can_get_pp
 from app.models.score import (
     INT_TO_MODE,
     GameMode,
@@ -21,6 +27,7 @@ from .api_router import router
 
 from fastapi import Depends, Form, HTTPException, Query
 from pydantic import BaseModel
+from redis import Redis
 from sqlalchemy.orm import joinedload
 from sqlmodel import col, select, true
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -187,6 +194,8 @@ async def submit_solo_score(
     info: SoloScoreSubmissionInfo,
     current_user: DBUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+    fetcher=Depends(get_fetcher),
 ):
     if not info.passed:
         info.rank = Rank.F
@@ -214,6 +223,13 @@ async def submit_solo_score(
             if not score:
                 raise HTTPException(status_code=404, detail="Score not found")
         else:
+            beatmap_status = (
+                await db.exec(
+                    select(Beatmap.beatmap_status).where(Beatmap.id == beatmap)
+                )
+            ).first()
+            if beatmap_status is None:
+                raise HTTPException(status_code=404, detail="Beatmap not found")
             score = Score(
                 accuracy=info.accuracy,
                 max_combo=info.max_combo,
@@ -231,7 +247,6 @@ async def submit_solo_score(
                 preserve=info.passed,
                 map_md5=score_token.beatmap.checksum,
                 has_replay=False,
-                pp=info.pp,
                 type="solo",
                 n300=info.statistics.get(HitResult.GREAT, 0),
                 n100=info.statistics.get(HitResult.OK, 0),
@@ -239,7 +254,25 @@ async def submit_solo_score(
                 nmiss=info.statistics.get(HitResult.MISS, 0),
                 ngeki=info.statistics.get(HitResult.PERFECT, 0),
                 nkatu=info.statistics.get(HitResult.GOOD, 0),
+                nlarge_tick_miss=info.statistics.get(HitResult.LARGE_TICK_MISS, 0),
+                nsmall_tick_hit=info.statistics.get(HitResult.SMALL_TICK_HIT, 0),
+                nlarge_tick_hit=info.statistics.get(HitResult.LARGE_TICK_HIT, 0),
+                nslider_tail_hit=info.statistics.get(HitResult.SLIDER_TAIL_HIT, 0),
             )
+            if (
+                info.passed
+                and beatmap_status
+                in {
+                    BeatmapRankStatus.RANKED,
+                    BeatmapRankStatus.APPROVED,
+                }
+                and mods_can_get_pp(info.ruleset_id, info.mods)
+            ):
+                beatmap_raw = await fetcher.get_or_fetch_beatmap_raw(redis, beatmap)
+                pp = await asyncio.get_event_loop().run_in_executor(
+                    None, calculate_pp, score, beatmap_raw
+                )
+                score.pp = pp
             db.add(score)
             await db.commit()
             await db.refresh(score)
