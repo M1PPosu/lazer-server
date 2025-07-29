@@ -93,3 +93,14 @@ async def create_room(
         return APICreatedRoom(**room.model_dump(), error=None)
     else:
         raise HTTPException(status_code=500, detail="redis error")
+
+
+@router.delete("/rooms/{room}", tags=["room"])
+async def remove_room(room: int, db: AsyncSession = Depends(get_db)):
+    redis = get_redis()
+    if redis:
+        redis.delete(str(room))
+    room_index = await db.get(RoomIndex, room)
+    if room_index:
+        await db.delete(room_index)
+        await db.commit()
