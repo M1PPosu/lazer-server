@@ -62,7 +62,7 @@ class BeatmapBase(SQLModel):
 
 class Beatmap(BeatmapBase, table=True):
     __tablename__ = "beatmaps"  # pyright: ignore[reportAssignmentType]
-    id: int | None = Field(default=None, primary_key=True, index=True)
+    id: int = Field(primary_key=True, index=True)
     beatmapset_id: int = Field(foreign_key="beatmapsets.id", index=True)
     beatmap_status: BeatmapRankStatus
     # optional

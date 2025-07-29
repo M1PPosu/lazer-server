@@ -10,7 +10,7 @@ from app.models.mods import APIMod
 from app.models.user import User
 from app.utils import convert_db_user_to_api_user
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
@@ -86,6 +86,27 @@ class PlaylistItem(BaseModel):
 
     class Config:
         exclude_none = True
+
+    @classmethod
+    async def from_mpListItem(
+        cls, item: MultiPlayerListItem, db: AsyncSession, fetcher: Fetcher
+    ):
+        s = cls.model_validate(item.model_dump())
+        s.id = item.id
+        s.owner_id = item.OwnerID
+        s.ruleset_id = item.RulesetID
+        s.expired = item.Expired
+        s.playlist_order = item.PlaylistOrder
+        s.played_at = item.PlayedAt
+        s.required_mods = item.RequierdMods
+        s.allowed_mods = item.AllowedMods
+        s.freestyle = item.Freestyle
+        cur_beatmap = await Beatmap.get_or_fetch(
+            db, fetcher=fetcher, bid=item.BeatmapID
+        )
+        s.beatmap = BeatmapResp.from_db(cur_beatmap)
+        s.beatmap_id = item.BeatmapID
+        return s
 
 
 class RoomPlaylistItemStats(BaseModel):
@@ -234,6 +255,7 @@ class MultiPlayerListItem(BaseModel):
         s.PlaylistOrder = item.playlist_order if item.playlist_order is not None else 0
         s.PlayedAt = item.played_at
         s.Freestyle = item.freestyle
+        return s
 
 
 class MultiplayerCountdown(BaseModel):
@@ -265,12 +287,78 @@ MultiplayerCountdownType = (
 )
 
 
+class PlaylistStatus(BaseModel):
+    count_active: int
+    count_total: int
+    ruleset_ids: list[int]
+
+
 class MultiplayerRoom(BaseModel):
     RoomId: int
     State: MultiplayerRoomState
+    Settings: MultiplayerRoomSettings = MultiplayerRoomSettings(
+        PlaylistItemId=0,
+        MatchType=MatchType.HEAD_TO_HEAD,
+        QueueMode=QueueMode.HOST_ONLY,
+        AutoStartDuration=timedelta(0),
+        AutoSkip=False,
+    )
     Users: list[MultiplayerRoomUser]
     Host: MultiplayerRoomUser
     MatchState: MatchRoomState | None
     Playlist: list[MultiPlayerListItem]
     ActivecCountDowns: list[MultiplayerCountdownType]
     ChannelID: int
+
+    @classmethod
+    def CanAddPlayistItem(cls, user: MultiplayerRoomUser) -> bool:
+        return user == cls.Host or cls.Settings.QueueMode != QueueMode.HOST_ONLY
+
+
+class Room(BaseModel):
+    room_id: int
+    name: str
+    password: str | None
+    has_password: bool = Field(exclude=True)
+    host: User | None
+    category: RoomCategory
+    duration: int | None
+    starts_at: datetime | None
+    ends_at: datetime | None
+    max_particapants: int | None = Field(exclude=True)
+    particapant_count: int
+    recent_particapants: list[User]
+    type: MatchType
+    max_attempts: int | None
+    playlist: list[PlaylistItem]
+    playlist_item_status: list[RoomPlaylistItemStats]
+    difficulity_range: RoomDifficultyRange
+    queue_mode: QueueMode
+    auto_skip: bool
+    auto_start_duration: int
+    current_user_score: PlaylistAggregateScore | None
+    current_playlist_item: PlaylistItem | None
+    channel_id: int
+    status: RoomStatus
+    availability: RoomAvailability = Field(exclude=True)
+
+    class Config:
+        exclude_none = True
+
+    @classmethod
+    async def from_mpRoom(
+        cls, room: MultiplayerRoom, db: AsyncSession, fetcher: Fetcher
+    ):
+        s = cls.model_validate(room.model_dump())
+        s.room_id = room.RoomId
+        s.name = room.Settings.Name
+        s.password = room.Settings.Password
+        s.type = room.Settings.MatchType
+        s.queue_mode = room.Settings.QueueMode
+        s.auto_skip = room.Settings.AutoSkip
+        s.host = room.Host.User
+        s.playlist = [
+            await PlaylistItem.from_mpListItem(item, db, fetcher)
+            for item in room.Playlist
+        ]
+        return s
