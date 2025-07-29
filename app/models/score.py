@@ -44,6 +44,16 @@ class Rank(str, Enum):
     D = "D"
     F = "F"
 
+    @property
+    def in_statisctics(self):
+        return self in {
+            Rank.X,
+            Rank.XH,
+            Rank.S,
+            Rank.SH,
+            Rank.A,
+        }
+
 
 # https://github.com/ppy/osu/blob/master/osu.Game/Rulesets/Scoring/HitResult.cs
 class HitResult(str, Enum):

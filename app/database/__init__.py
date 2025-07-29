@@ -7,6 +7,7 @@ from .beatmapset import (
     Beatmapset as Beatmapset,
     BeatmapsetResp as BeatmapsetResp,
 )
+from .best_score import BestScore
 from .legacy import LegacyOAuthToken, LegacyUserStatistics
 from .relationship import Relationship, RelationshipResp, RelationshipType
 from .score import (
@@ -44,6 +45,7 @@ __all__ = [
     "BeatmapResp",
     "Beatmapset",
     "BeatmapsetResp",
+    "BestScore",
     "DailyChallengeStats",
     "LazerUserAchievement",
     "LazerUserBadge",

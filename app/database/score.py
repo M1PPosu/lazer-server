@@ -1,21 +1,38 @@
-from datetime import datetime
+import asyncio
+from collections.abc import Sequence
+from datetime import UTC, datetime
 import math
+from typing import TYPE_CHECKING
 
-from app.database.user import User
+from app.calculator import (
+    calculate_pp,
+    calculate_pp_weight,
+    calculate_score_to_level,
+    calculate_weighted_acc,
+    calculate_weighted_pp,
+    clamp,
+)
+from app.database.score_token import ScoreToken
+from app.database.user import LazerUserStatistics, User
 from app.models.beatmap import BeatmapRankStatus
-from app.models.mods import APIMod
+from app.models.mods import APIMod, mods_can_get_pp
 from app.models.score import (
+    INT_TO_MODE,
     MODE_TO_INT,
     GameMode,
     HitResult,
     LeaderboardType,
     Rank,
     ScoreStatistics,
+    SoloScoreSubmissionInfo,
 )
+from app.models.user import User as APIUser
 
 from .beatmap import Beatmap, BeatmapResp
 from .beatmapset import Beatmapset, BeatmapsetResp
+from .best_score import BestScore
 
+from redis import Redis
 from sqlalchemy import Column, ColumnExpressionArgument, DateTime
 from sqlalchemy.orm import aliased, joinedload
 from sqlmodel import (
@@ -32,6 +49,9 @@ from sqlmodel import (
 )
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel.sql._expression_select_cls import SelectOfScalar
+
+if TYPE_CHECKING:
+    from app.fetcher import Fetcher
 
 
 class ScoreBase(SQLModel):
@@ -101,15 +121,17 @@ class Score(ScoreBase, table=True):
         return self.max_combo == self.beatmap.max_combo
 
     @staticmethod
-    def select_clause() -> SelectOfScalar["Score"]:
-        return select(Score).options(
+    def select_clause(with_user: bool = True) -> SelectOfScalar["Score"]:
+        clause = select(Score).options(
             joinedload(Score.beatmap)  # pyright: ignore[reportArgumentType]
             .joinedload(Beatmap.beatmapset)  # pyright: ignore[reportArgumentType]
             .selectinload(
                 Beatmapset.beatmaps  # pyright: ignore[reportArgumentType]
             ),
-            joinedload(Score.user).joinedload(User.lazer_profile),  # pyright: ignore[reportArgumentType]
         )
+        if with_user:
+            clause.options(joinedload(Score.user).options(*User.all_select_option()))  # pyright: ignore[reportArgumentType]
+        return clause
 
     @staticmethod
     def select_clause_unique(
@@ -133,7 +155,7 @@ class Score(ScoreBase, table=True):
                 .selectinload(
                     Beatmapset.beatmaps  # pyright: ignore[reportArgumentType]
                 ),
-                joinedload(best.user).joinedload(User.lazer_profile),  # pyright: ignore[reportArgumentType]
+                joinedload(best.user).options(*User.all_select_option()),  # pyright: ignore[reportArgumentType]
             )
         )
 
@@ -149,13 +171,18 @@ class ScoreResp(ScoreBase):
     ruleset_id: int | None = None
     beatmap: BeatmapResp | None = None
     beatmapset: BeatmapsetResp | None = None
-    # FIXME: user: APIUser | None = None
+    user: APIUser | None = None
     statistics: ScoreStatistics | None = None
+    maximum_statistics: ScoreStatistics | None = None
     rank_global: int | None = None
     rank_country: int | None = None
 
     @classmethod
-    async def from_db(cls, session: AsyncSession, score: Score) -> "ScoreResp":
+    async def from_db(
+        cls, session: AsyncSession, score: Score, user: User | None = None
+    ) -> "ScoreResp":
+        from app.utils import convert_db_user_to_api_user
+
         s = cls.model_validate(score.model_dump())
         assert score.id
         s.beatmap = BeatmapResp.from_db(score.beatmap)
@@ -164,8 +191,7 @@ class ScoreResp(ScoreBase):
         s.legacy_perfect = s.max_combo == s.beatmap.max_combo
         s.ruleset_id = MODE_TO_INT[score.gamemode]
         if score.best_id:
-            # https://osu.ppy.sh/wiki/Performance_points/Weighting_system
-            s.weight = math.pow(0.95, score.best_id)
+            s.weight = calculate_pp_weight(score.best_id)
         s.statistics = {
             HitResult.MISS: score.nmiss,
             HitResult.MEH: score.n50,
@@ -182,7 +208,16 @@ class ScoreResp(ScoreBase):
             s.statistics[HitResult.SMALL_TICK_HIT] = score.nsmall_tick_hit
         if score.nlarge_tick_hit is not None:
             s.statistics[HitResult.LARGE_TICK_HIT] = score.nlarge_tick_hit
-        # s.user = await convert_db_user_to_api_user(score.user)
+        if score.gamemode == GameMode.MANIA:
+            s.maximum_statistics = {
+                HitResult.PERFECT: score.beatmap.max_combo,
+            }
+        else:
+            s.maximum_statistics = {
+                HitResult.GREAT: score.beatmap.max_combo,
+            }
+        if user:
+            s.user = await convert_db_user_to_api_user(user)
         s.rank_global = (
             await get_score_position_by_id(
                 session,
@@ -387,3 +422,207 @@ async def get_score_position_by_id(
     result = await session.exec(stmt)
     s = result.one_or_none()
     return s if s else 0
+
+
+async def get_user_best_score_in_beatmap(
+    session: AsyncSession,
+    beatmap: int,
+    user: int,
+    mode: GameMode | None = None,
+) -> Score | None:
+    return (
+        await session.exec(
+            Score.select_clause(False)
+            .where(
+                Score.gamemode == mode if mode is not None else True,
+                Score.beatmap_id == beatmap,
+                Score.user_id == user,
+            )
+            .order_by(col(Score.total_score).desc())
+        )
+    ).first()
+
+
+async def get_user_best_pp_in_beatmap(
+    session: AsyncSession,
+    beatmap: int,
+    user: int,
+    mode: GameMode,
+) -> BestScore | None:
+    return (
+        await session.exec(
+            select(BestScore).where(
+                BestScore.beatmap_id == beatmap,
+                BestScore.user_id == user,
+                BestScore.gamemode == mode,
+            )
+        )
+    ).first()
+
+
+async def get_user_best_pp(
+    session: AsyncSession,
+    user: int,
+    limit: int = 200,
+) -> Sequence[BestScore]:
+    return (
+        await session.exec(
+            select(BestScore)
+            .where(BestScore.user_id == user)
+            .order_by(col(BestScore.pp).desc())
+            .limit(limit)
+        )
+    ).all()
+
+
+async def process_user(
+    session: AsyncSession, user: User, score: Score, ranked: bool = False
+):
+    previous_score_best = await get_user_best_score_in_beatmap(
+        session, score.beatmap_id, user.id, score.gamemode
+    )
+    statistics = None
+    add_to_db = False
+    for i in user.lazer_statistics:
+        if i.mode == score.gamemode.value:
+            statistics = i
+            break
+    if statistics is None:
+        statistics = LazerUserStatistics(
+            mode=score.gamemode.value,
+            user_id=user.id,
+        )
+        add_to_db = True
+
+    # pc, pt, tth, tts
+    statistics.total_score += score.total_score
+    difference = (
+        score.total_score - previous_score_best.total_score
+        if previous_score_best and previous_score_best.id != score.id
+        else score.total_score
+    )
+    if difference > 0 and score.passed and ranked:
+        match score.rank:
+            case Rank.X:
+                statistics.grade_ss += 1
+            case Rank.XH:
+                statistics.grade_ssh += 1
+            case Rank.S:
+                statistics.grade_s += 1
+            case Rank.SH:
+                statistics.grade_sh += 1
+            case Rank.A:
+                statistics.grade_a += 1
+        if previous_score_best is not None:
+            match previous_score_best.rank:
+                case Rank.X:
+                    statistics.grade_ss -= 1
+                case Rank.XH:
+                    statistics.grade_ssh -= 1
+                case Rank.S:
+                    statistics.grade_s -= 1
+                case Rank.SH:
+                    statistics.grade_sh -= 1
+                case Rank.A:
+                    statistics.grade_a -= 1
+        statistics.ranked_score += difference
+        statistics.level_current = calculate_score_to_level(statistics.ranked_score)
+        statistics.maximum_combo = max(statistics.maximum_combo, score.max_combo)
+    statistics.play_count += 1
+    statistics.play_time += int((score.ended_at - score.started_at).total_seconds())
+    statistics.total_hits += (
+        score.n300 + score.n100 + score.n50 + score.ngeki + score.nkatu
+    )
+
+    if score.passed and ranked:
+        best_pp_scores = await get_user_best_pp(session, user.id)
+        pp_sum = 0.0
+        acc_sum = 0.0
+        for i, bp in enumerate(best_pp_scores):
+            pp_sum += calculate_weighted_pp(bp.pp, i)
+            acc_sum += calculate_weighted_acc(bp.acc, i)
+        if len(best_pp_scores):
+            # https://github.com/ppy/osu-queue-score-statistics/blob/c538ae/osu.Server.Queues.ScoreStatisticsProcessor/Helpers/UserTotalPerformanceAggregateHelper.cs#L41-L45
+            acc_sum *= 100 / (20 * (1 - math.pow(0.95, len(best_pp_scores))))
+        acc_sum = clamp(acc_sum, 0.0, 100.0)
+        statistics.pp = pp_sum
+        statistics.hit_accuracy = acc_sum
+
+    statistics.updated_at = datetime.now(UTC)
+
+    if add_to_db:
+        session.add(statistics)
+    await session.commit()
+    await session.refresh(user)
+
+
+async def process_score(
+    user: User,
+    beatmap_id: int,
+    ranked: bool,
+    score_token: ScoreToken,
+    info: SoloScoreSubmissionInfo,
+    fetcher: "Fetcher",
+    session: AsyncSession,
+    redis: Redis,
+) -> Score:
+    score = Score(
+        accuracy=info.accuracy,
+        max_combo=info.max_combo,
+        # maximum_statistics=info.maximum_statistics,
+        mods=info.mods,
+        passed=info.passed,
+        rank=info.rank,
+        total_score=info.total_score,
+        total_score_without_mods=info.total_score_without_mods,
+        beatmap_id=beatmap_id,
+        ended_at=datetime.now(UTC),
+        gamemode=INT_TO_MODE[info.ruleset_id],
+        started_at=score_token.created_at,
+        user_id=user.id,
+        preserve=info.passed,
+        map_md5=score_token.beatmap.checksum,
+        has_replay=False,
+        type="solo",
+        n300=info.statistics.get(HitResult.GREAT, 0),
+        n100=info.statistics.get(HitResult.OK, 0),
+        n50=info.statistics.get(HitResult.MEH, 0),
+        nmiss=info.statistics.get(HitResult.MISS, 0),
+        ngeki=info.statistics.get(HitResult.PERFECT, 0),
+        nkatu=info.statistics.get(HitResult.GOOD, 0),
+        nlarge_tick_miss=info.statistics.get(HitResult.LARGE_TICK_MISS, 0),
+        nsmall_tick_hit=info.statistics.get(HitResult.SMALL_TICK_HIT, 0),
+        nlarge_tick_hit=info.statistics.get(HitResult.LARGE_TICK_HIT, 0),
+        nslider_tail_hit=info.statistics.get(HitResult.SLIDER_TAIL_HIT, 0),
+    )
+    if info.passed and ranked and mods_can_get_pp(info.ruleset_id, info.mods):
+        beatmap_raw = await fetcher.get_or_fetch_beatmap_raw(redis, beatmap_id)
+        pp = await asyncio.get_event_loop().run_in_executor(
+            None, calculate_pp, score, beatmap_raw
+        )
+        score.pp = pp
+    session.add(score)
+    user_id = user.id
+    await session.commit()
+    await session.refresh(score)
+    if score.passed and ranked:
+        previous_pp_best = await get_user_best_pp_in_beatmap(
+            session, beatmap_id, user_id, score.gamemode
+        )
+        if previous_pp_best is None or score.pp > previous_pp_best.pp:
+            assert score.id
+            best_score = BestScore(
+                user_id=user_id,
+                score_id=score.id,
+                beatmap_id=beatmap_id,
+                gamemode=score.gamemode,
+                pp=score.pp,
+                acc=score.accuracy,
+            )
+            session.add(best_score)
+            session.delete(previous_pp_best) if previous_pp_best else None
+            await session.commit()
+            await session.refresh(score)
+    await session.refresh(score_token)
+    await session.refresh(user)
+    return score
