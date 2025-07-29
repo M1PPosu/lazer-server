@@ -58,7 +58,6 @@ class ScoreBase(SQLModel):
     # 基本字段
     accuracy: float
     map_md5: str = Field(max_length=32, index=True)
-    best_id: int | None = Field(default=None)
     build_id: int | None = Field(default=None)
     classic_total_score: int | None = Field(
         default=0, sa_column=Column(BigInteger)
@@ -130,7 +129,9 @@ class Score(ScoreBase, table=True):
             ),
         )
         if with_user:
-            clause.options(joinedload(Score.user).options(*User.all_select_option()))  # pyright: ignore[reportArgumentType]
+            return clause.options(
+                joinedload(Score.user).options(*User.all_select_option())  # pyright: ignore[reportArgumentType]
+            )
         return clause
 
     @staticmethod
@@ -168,6 +169,7 @@ class ScoreResp(ScoreBase):
     legacy_total_score: int = 0  # FIXME
     processed: bool = False  # solo_score
     weight: float = 0.0
+    best_id: int | None = None
     ruleset_id: int | None = None
     beatmap: BeatmapResp | None = None
     beatmapset: BeatmapsetResp | None = None
@@ -190,8 +192,10 @@ class ScoreResp(ScoreBase):
         s.is_perfect_combo = s.max_combo == s.beatmap.max_combo
         s.legacy_perfect = s.max_combo == s.beatmap.max_combo
         s.ruleset_id = MODE_TO_INT[score.gamemode]
-        if score.best_id:
-            s.weight = calculate_pp_weight(score.best_id)
+        best_id = await get_best_id(session, score.id)
+        if best_id:
+            s.best_id = best_id
+            s.weight = calculate_pp_weight(best_id - 1)
         s.statistics = {
             HitResult.MISS: score.nmiss,
             HitResult.MEH: score.n50,
@@ -224,7 +228,7 @@ class ScoreResp(ScoreBase):
                 score.map_md5,
                 score.id,
                 mode=score.gamemode,
-                user=score.user,
+                user=user or score.user,
             )
             or None
         )
@@ -234,11 +238,23 @@ class ScoreResp(ScoreBase):
                 score.map_md5,
                 score.id,
                 score.gamemode,
-                score.user,
+                user or score.user,
             )
             or None
         )
         return s
+
+
+async def get_best_id(session: AsyncSession, score_id: int) -> None:
+    rownum = (
+        func.row_number()
+        .over(partition_by=col(BestScore.user_id), order_by=col(BestScore.pp).desc())
+        .label("rn")
+    )
+    subq = select(BestScore, rownum).subquery()
+    stmt = select(subq.c.rn).where(subq.c.score_id == score_id)
+    result = await session.exec(stmt)
+    return result.one_or_none()
 
 
 async def get_leaderboard(
