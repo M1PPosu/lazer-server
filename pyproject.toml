@@ -12,7 +12,7 @@ dependencies = [
     "fastapi>=0.104.1",
     "httpx>=0.28.1",
     "loguru>=0.7.3",
-    "msgpack>=1.1.1",
+    "msgpack-lazer-api",
     "passlib[bcrypt]>=1.7.4",
     "pydantic[email]>=2.5.0",
     "python-dotenv>=1.0.0",
@@ -87,9 +87,20 @@ disableBytesTypePromotions = true
 reportIncompatibleMethodOverride = false
 reportIncompatibleVariableOverride = false
 
+[tool.uv.workspace]
+members = [
+    "packages/msgpack_lazer_api",
+]
+
+[tool.uv.sources]
+msgpack-lazer-api = { workspace = true }
+
+[tool.uv]
+cache-keys = [{file = "pyproject.toml"}, {file = "packages/msgpack_lazer_api/Cargo.toml"}, {file = "**/*.rs"}]
+
 [dependency-groups]
 dev = [
-    "msgpack-types>=0.5.0",
+    "maturin>=1.9.2",
     "pre-commit>=4.2.0",
     "ruff>=0.12.4",
 ]

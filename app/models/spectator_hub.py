@@ -11,15 +11,8 @@ from .score import (
 )
 from .signalr import MessagePackArrayModel, UserState
 
-import msgpack
-from pydantic import BaseModel, Field, field_validator
-
-
-class APIMod(MessagePackArrayModel):
-    acronym: str
-    settings: dict[str, Any] | list = Field(
-        default_factory=dict
-    )  # FIXME: with settings
+from msgpack_lazer_api import APIMod
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class SpectatedUserState(IntEnum):
@@ -32,6 +25,8 @@ class SpectatedUserState(IntEnum):
 
 
 class SpectatorState(MessagePackArrayModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     beatmap_id: int | None = None
     ruleset_id: int | None = None  # 0,1,2,3
     mods: list[APIMod] = Field(default_factory=list)
@@ -58,6 +53,8 @@ class ScoreProcessorStatistics(MessagePackArrayModel):
 
 
 class FrameHeader(MessagePackArrayModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     total_score: int
     acc: float
     combo: int
@@ -70,10 +67,8 @@ class FrameHeader(MessagePackArrayModel):
     @field_validator("received_time", mode="before")
     @classmethod
     def validate_timestamp(cls, v: Any) -> datetime.datetime:
-        if isinstance(v, msgpack.ext.Timestamp):
-            return v.to_datetime()
         if isinstance(v, list):
-            return v[0].to_datetime()
+            return v[0]
         if isinstance(v, datetime.datetime):
             return v
         if isinstance(v, int | float):
@@ -111,6 +106,8 @@ class APIUser(BaseModel):
 
 
 class ScoreInfo(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     mods: list[APIMod]
     user: APIUser
     ruleset: int

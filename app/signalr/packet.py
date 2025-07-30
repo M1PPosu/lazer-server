@@ -8,7 +8,7 @@ from typing import (
     Protocol as TypingProtocol,
 )
 
-import msgpack
+import msgpack_lazer_api as m
 
 SEP = b"\x1e"
 
@@ -104,11 +104,7 @@ class MsgpackProtocol:
     def decode(input: bytes) -> list[Packet]:
         length, offset = MsgpackProtocol._decode_varint(input)
         message_data = input[offset : offset + length]
-        # FIXME: custom deserializer for APIMod
-        # https://github.com/ppy/osu/blob/master/osu.Game/Online/API/ModSettingsDictionaryFormatter.cs
-        unpacked = msgpack.unpackb(
-            message_data, raw=False, strict_map_key=False, use_list=True
-        )
+        unpacked = m.decode(message_data)
         packet_type = PacketType(unpacked[0])
         if packet_type not in PACKETS:
             raise ValueError(f"Unknown packet type: {packet_type}")
@@ -180,7 +176,7 @@ class MsgpackProtocol:
             )
         elif isinstance(packet, PingPacket):
             payload.pop(-1)
-        data = msgpack.packb(payload, use_bin_type=True, datetime=True)
+        data = m.encode(payload)
         return MsgpackProtocol._encode_varint(len(data)) + data
 
 
