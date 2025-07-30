@@ -102,8 +102,8 @@ class User(SQLModel, table=True):
     )
 
     @classmethod
-    def all_select_clause(cls):
-        return select(cls).options(
+    def all_select_option(cls):
+        return (
             joinedload(cls.lazer_profile),  # pyright: ignore[reportArgumentType]
             joinedload(cls.lazer_counts),  # pyright: ignore[reportArgumentType]
             joinedload(cls.daily_challenge_stats),  # pyright: ignore[reportArgumentType]
@@ -120,6 +120,10 @@ class User(SQLModel, table=True):
             selectinload(cls.lazer_previous_usernames),  # pyright: ignore[reportArgumentType]
             selectinload(cls.lazer_replays_watched),  # pyright: ignore[reportArgumentType]
         )
+
+    @classmethod
+    def all_select_clause(cls):
+        return select(cls).options(*cls.all_select_option())
 
 
 # ============================================

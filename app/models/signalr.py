@@ -3,7 +3,6 @@ from __future__ import annotations
 import datetime
 from typing import Any, get_origin
 
-import msgpack
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -24,11 +23,11 @@ def serialize_to_list(value: BaseModel) -> list[Any]:
         elif anno and issubclass(anno, list):
             data.append(
                 TypeAdapter(
-                    info.annotation,
+                    info.annotation, config=ConfigDict(arbitrary_types_allowed=True)
                 ).dump_python(v)
             )
         elif isinstance(v, datetime.datetime):
-            data.append([msgpack.ext.Timestamp.from_datetime(v), 0])
+            data.append([v, 0])
         else:
             data.append(v)
     return data

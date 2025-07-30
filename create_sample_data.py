@@ -38,6 +38,7 @@ async def create_sample_user():
             existing_user2 = result2.first()
             if existing_user is not None and existing_user2 is not None:
                 print("示例用户已存在，跳过创建")
+                return
 
             # 当前时间戳
             # current_timestamp = int(time.time())

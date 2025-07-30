@@ -1,18 +1,18 @@
 from __future__ import annotations
 
-import datetime
-
 from app.database import (
     User as DBUser,
 )
-from app.database.score import Score, ScoreResp
+from app.database.beatmap import Beatmap
+from app.database.score import Score, ScoreResp, process_score, process_user
 from app.database.score_token import ScoreToken, ScoreTokenResp
-from app.dependencies.database import get_db
+from app.dependencies.database import get_db, get_redis
+from app.dependencies.fetcher import get_fetcher
 from app.dependencies.user import get_current_user
+from app.models.beatmap import BeatmapRankStatus
 from app.models.score import (
     INT_TO_MODE,
     GameMode,
-    HitResult,
     Rank,
     SoloScoreSubmissionInfo,
 )
@@ -21,6 +21,7 @@ from .api_router import router
 
 from fastapi import Depends, Form, HTTPException, Query
 from pydantic import BaseModel
+from redis import Redis
 from sqlalchemy.orm import joinedload
 from sqlmodel import col, select, true
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -70,8 +71,10 @@ async def get_beatmap_scores(
     ).first()
 
     return BeatmapScores(
-        scores=[await ScoreResp.from_db(db, score) for score in all_scores],
-        userScore=await ScoreResp.from_db(db, user_score) if user_score else None,
+        scores=[await ScoreResp.from_db(db, score, score.user) for score in all_scores],
+        userScore=await ScoreResp.from_db(db, user_score, user_score.user)
+        if user_score
+        else None,
     )
 
 
@@ -100,7 +103,7 @@ async def get_user_beatmap_score(
         )
     user_score = (
         await db.exec(
-            Score.select_clause()
+            Score.select_clause(True)
             .where(
                 Score.gamemode == mode if mode is not None else True,
                 Score.beatmap_id == beatmap,
@@ -117,7 +120,7 @@ async def get_user_beatmap_score(
     else:
         return BeatmapUserScore(
             position=user_score.position if user_score.position is not None else 0,
-            score=await ScoreResp.from_db(db, user_score),
+            score=await ScoreResp.from_db(db, user_score, user_score.user),
         )
 
 
@@ -150,7 +153,9 @@ async def get_user_all_beatmap_scores(
         )
     ).all()
 
-    return [await ScoreResp.from_db(db, score) for score in all_user_scores]
+    return [
+        await ScoreResp.from_db(db, score, current_user) for score in all_user_scores
+    ]
 
 
 @router.post(
@@ -187,6 +192,8 @@ async def submit_solo_score(
     info: SoloScoreSubmissionInfo,
     current_user: DBUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+    fetcher=Depends(get_fetcher),
 ):
     if not info.passed:
         info.rank = Rank.F
@@ -214,40 +221,33 @@ async def submit_solo_score(
             if not score:
                 raise HTTPException(status_code=404, detail="Score not found")
         else:
-            score = Score(
-                accuracy=info.accuracy,
-                max_combo=info.max_combo,
-                # maximum_statistics=info.maximum_statistics,
-                mods=info.mods,
-                passed=info.passed,
-                rank=info.rank,
-                total_score=info.total_score,
-                total_score_without_mods=info.total_score_without_mods,
-                beatmap_id=beatmap,
-                ended_at=datetime.datetime.now(datetime.UTC),
-                gamemode=INT_TO_MODE[info.ruleset_id],
-                started_at=score_token.created_at,
-                user_id=current_user.id,
-                preserve=info.passed,
-                map_md5=score_token.beatmap.checksum,
-                has_replay=False,
-                pp=info.pp,
-                type="solo",
-                n300=info.statistics.get(HitResult.GREAT, 0),
-                n100=info.statistics.get(HitResult.OK, 0),
-                n50=info.statistics.get(HitResult.MEH, 0),
-                nmiss=info.statistics.get(HitResult.MISS, 0),
-                ngeki=info.statistics.get(HitResult.PERFECT, 0),
-                nkatu=info.statistics.get(HitResult.GOOD, 0),
+            beatmap_status = (
+                await db.exec(
+                    select(Beatmap.beatmap_status).where(Beatmap.id == beatmap)
+                )
+            ).first()
+            if beatmap_status is None:
+                raise HTTPException(status_code=404, detail="Beatmap not found")
+            ranked = beatmap_status in {
+                BeatmapRankStatus.RANKED,
+                BeatmapRankStatus.APPROVED,
+            }
+            score = await process_score(
+                current_user,
+                beatmap,
+                ranked,
+                score_token,
+                info,
+                fetcher,
+                db,
+                redis,
             )
-            db.add(score)
-            await db.commit()
-            await db.refresh(score)
+            await db.refresh(current_user)
             score_id = score.id
             score_token.score_id = score_id
-            await db.commit()
+            await process_user(db, current_user, score, ranked)
             score = (
                 await db.exec(Score.select_clause().where(Score.id == score_id))
             ).first()
             assert score is not None
-        return await ScoreResp.from_db(db, score)
+        return await ScoreResp.from_db(db, score, current_user)
