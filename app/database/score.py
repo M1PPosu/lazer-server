@@ -582,6 +582,7 @@ async def process_score(
     session: AsyncSession,
     redis: Redis,
 ) -> Score:
+    can_get_pp = info.passed and ranked and mods_can_get_pp(info.ruleset_id, info.mods)
     score = Score(
         accuracy=info.accuracy,
         max_combo=info.max_combo,
@@ -611,7 +612,7 @@ async def process_score(
         nlarge_tick_hit=info.statistics.get(HitResult.LARGE_TICK_HIT, 0),
         nslider_tail_hit=info.statistics.get(HitResult.SLIDER_TAIL_HIT, 0),
     )
-    if info.passed and ranked and mods_can_get_pp(info.ruleset_id, info.mods):
+    if can_get_pp:
         beatmap_raw = await fetcher.get_or_fetch_beatmap_raw(redis, beatmap_id)
         pp = await asyncio.get_event_loop().run_in_executor(
             None, calculate_pp, score, beatmap_raw
@@ -621,7 +622,7 @@ async def process_score(
     user_id = user.id
     await session.commit()
     await session.refresh(score)
-    if score.passed and ranked:
+    if can_get_pp:
         previous_pp_best = await get_user_best_pp_in_beatmap(
             session, beatmap_id, user_id, score.gamemode
         )
