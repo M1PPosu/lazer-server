@@ -8,7 +8,7 @@ import string
 from app.config import settings
 from app.database import (
     OAuthToken,
-    User as DBUser,
+    User,
 )
 from app.log import logger
 
@@ -74,7 +74,7 @@ def get_password_hash(password: str) -> str:
 
 async def authenticate_user_legacy(
     db: AsyncSession, name: str, password: str
-) -> DBUser | None:
+) -> User | None:
     """
     验证用户身份 - 使用类似 from_login 的逻辑
     """
@@ -82,7 +82,7 @@ async def authenticate_user_legacy(
     pw_md5 = hashlib.md5(password.encode()).hexdigest()
 
     # 2. 根据用户名查找用户
-    statement = select(DBUser).where(DBUser.name == name)
+    statement = select(User).where(User.username == name)
     user = (await db.exec(statement)).first()
     if not user:
         return None
@@ -113,7 +113,7 @@ async def authenticate_user_legacy(
 
 async def authenticate_user(
     db: AsyncSession, username: str, password: str
-) -> DBUser | None:
+) -> User | None:
     """验证用户身份"""
     return await authenticate_user_legacy(db, username, password)
 

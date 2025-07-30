@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 
 from app.models.score import GameMode
 
-from .user import User
+from .lazer_user import User
 
 from sqlmodel import (
     BigInteger,
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 class BestScore(SQLModel, table=True):
     __tablename__ = "best_scores"  # pyright: ignore[reportAssignmentType]
     user_id: int = Field(
-        sa_column=Column(BigInteger, ForeignKey("users.id"), index=True)
+        sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True)
     )
     score_id: int = Field(
         sa_column=Column(BigInteger, ForeignKey("scores.id"), primary_key=True)

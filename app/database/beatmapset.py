@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, TypedDict, cast
 
 from app.models.beatmap import BeatmapRankStatus, Genre, Language
+from app.models.model import UTCBaseModel
 from app.models.score import GameMode
 
 from pydantic import BaseModel, model_serializer
@@ -82,7 +83,7 @@ class BeatmapTranslationText(BaseModel):
     id: int | None = None
 
 
-class BeatmapsetBase(SQLModel):
+class BeatmapsetBase(SQLModel, UTCBaseModel):
     # Beatmapset
     artist: str = Field(index=True)
     artist_unicode: str = Field(index=True)

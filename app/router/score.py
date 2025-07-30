@@ -1,11 +1,7 @@
 from __future__ import annotations
 
-from app.database import (
-    User as DBUser,
-)
-from app.database.beatmap import Beatmap
-from app.database.score import Score, ScoreResp, process_score, process_user
-from app.database.score_token import ScoreToken, ScoreTokenResp
+from app.database import Beatmap, Score, ScoreResp, ScoreToken, ScoreTokenResp, User
+from app.database.score import process_score, process_user
 from app.dependencies.database import get_db, get_redis
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.user import get_current_user
@@ -41,7 +37,7 @@ async def get_beatmap_scores(
     mode: GameMode | None = Query(None),
     # mods: List[APIMod] = Query(None), # TODO:加入指定MOD的查询
     type: str = Query(None),
-    current_user: DBUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     if legacy_only:
@@ -94,7 +90,7 @@ async def get_user_beatmap_score(
     legacy_only: bool = Query(None),
     mode: str = Query(None),
     mods: str = Query(None),  # TODO:添加mods筛选
-    current_user: DBUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     if legacy_only:
@@ -134,7 +130,7 @@ async def get_user_all_beatmap_scores(
     user: int,
     legacy_only: bool = Query(None),
     ruleset: str = Query(None),
-    current_user: DBUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     if legacy_only:
@@ -166,9 +162,10 @@ async def create_solo_score(
     version_hash: str = Form(""),
     beatmap_hash: str = Form(),
     ruleset_id: int = Form(..., ge=0, le=3),
-    current_user: DBUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    assert current_user.id
     async with db:
         score_token = ScoreToken(
             user_id=current_user.id,
@@ -190,7 +187,7 @@ async def submit_solo_score(
     beatmap: int,
     token: int,
     info: SoloScoreSubmissionInfo,
-    current_user: DBUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
     fetcher=Depends(get_fetcher),

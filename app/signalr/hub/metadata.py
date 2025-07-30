@@ -4,7 +4,7 @@ import asyncio
 from collections.abc import Coroutine
 from typing import override
 
-from app.database.relationship import Relationship, RelationshipType
+from app.database import Relationship, RelationshipType
 from app.dependencies.database import engine
 from app.models.metadata_hub import MetadataClientState, OnlineStatus, UserActivity
 

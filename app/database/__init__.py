@@ -1,3 +1,4 @@
+from .achievement import UserAchievement, UserAchievementResp
 from .auth import OAuthToken
 from .beatmap import (
     Beatmap as Beatmap,
@@ -8,7 +9,11 @@ from .beatmapset import (
     BeatmapsetResp as BeatmapsetResp,
 )
 from .best_score import BestScore
-from .legacy import LegacyOAuthToken, LegacyUserStatistics
+from .daily_challenge import DailyChallengeStats, DailyChallengeStatsResp
+from .lazer_user import (
+    User,
+    UserResp,
+)
 from .relationship import Relationship, RelationshipResp, RelationshipType
 from .score import (
     Score,
@@ -17,29 +22,17 @@ from .score import (
     ScoreStatistics,
 )
 from .score_token import ScoreToken, ScoreTokenResp
+from .statistics import (
+    UserStatistics,
+    UserStatisticsResp,
+)
 from .team import Team, TeamMember
-from .user import (
-    DailyChallengeStats,
-    LazerUserAchievement,
-    LazerUserBadge,
-    LazerUserBanners,
-    LazerUserCountry,
-    LazerUserCounts,
-    LazerUserKudosu,
-    LazerUserMonthlyPlaycounts,
-    LazerUserPreviousUsername,
-    LazerUserProfile,
-    LazerUserProfileSections,
-    LazerUserReplaysWatched,
-    LazerUserStatistics,
-    RankHistory,
-    User,
-    UserAchievement,
-    UserAvatar,
+from .user_account_history import (
+    UserAccountHistory,
+    UserAccountHistoryResp,
+    UserAccountHistoryType,
 )
 
-BeatmapsetResp.model_rebuild()
-BeatmapResp.model_rebuild()
 __all__ = [
     "Beatmap",
     "BeatmapResp",
@@ -47,22 +40,8 @@ __all__ = [
     "BeatmapsetResp",
     "BestScore",
     "DailyChallengeStats",
-    "LazerUserAchievement",
-    "LazerUserBadge",
-    "LazerUserBanners",
-    "LazerUserCountry",
-    "LazerUserCounts",
-    "LazerUserKudosu",
-    "LazerUserMonthlyPlaycounts",
-    "LazerUserPreviousUsername",
-    "LazerUserProfile",
-    "LazerUserProfileSections",
-    "LazerUserReplaysWatched",
-    "LazerUserStatistics",
-    "LegacyOAuthToken",
-    "LegacyUserStatistics",
+    "DailyChallengeStatsResp",
     "OAuthToken",
-    "RankHistory",
     "Relationship",
     "RelationshipResp",
     "RelationshipType",
@@ -75,6 +54,17 @@ __all__ = [
     "Team",
     "TeamMember",
     "User",
+    "UserAccountHistory",
+    "UserAccountHistoryResp",
+    "UserAccountHistoryType",
     "UserAchievement",
-    "UserAvatar",
+    "UserAchievement",
+    "UserAchievementResp",
+    "UserResp",
+    "UserStatistics",
+    "UserStatisticsResp",
 ]
+
+for i in __all__:
+    if i.endswith("Resp"):
+        globals()[i].model_rebuild()  # type: ignore[call-arg]

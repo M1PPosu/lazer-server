@@ -78,23 +78,10 @@ docker run -d --name mysql -e MYSQL_ROOT_PASSWORD=password -e MYSQL_DATABASE=osu
 docker run -d --name redis -p 6379:6379 redis:7-alpine
 ```
 
-4. 创建示例数据
-```bash
-python create_sample_data.py
-```
 
-5. 启动应用
+4. 启动应用
 ```bash
 uvicorn main:app --reload
-```
-
-6. 测试 API
-```bash
-# 使用测试脚本（会自动加载 .env 文件）
-python test_api.py
-
-# 或使用原始示例脚本
-python osu_api_example.py
 ```
 
 ## 项目结构

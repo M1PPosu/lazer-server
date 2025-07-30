@@ -3,11 +3,13 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 
+from app.database import User
 from app.database.beatmap import Beatmap
-from app.database.user import User
 from app.models.mods import APIMod
 
-from pydantic import BaseModel
+from .model import UTCBaseModel
+
+from pydantic import BaseModel, Field
 
 
 class RoomCategory(str, Enum):
@@ -40,15 +42,15 @@ class RoomStatus(str, Enum):
     PLAYING = "playing"
 
 
-class PlaylistItem(BaseModel):
+class PlaylistItem(UTCBaseModel):
     id: int | None
     owner_id: int
     ruleset_id: int
     expired: bool
     playlist_order: int | None
     played_at: datetime | None
-    allowed_mods: list[APIMod] = []
-    required_mods: list[APIMod] = []
+    allowed_mods: list[APIMod] = Field(default_factory=list)
+    required_mods: list[APIMod] = Field(default_factory=list)
     beatmap_id: int
     beatmap: Beatmap | None
     freestyle: bool
@@ -75,7 +77,7 @@ class PlaylistAggregateScore(BaseModel):
     playlist_item_attempts: list[ItemAttemptsCount]
 
 
-class Room(BaseModel):
+class Room(UTCBaseModel):
     id: int | None
     name: str = ""
     password: str | None
@@ -86,9 +88,9 @@ class Room(BaseModel):
     starts_at: datetime | None
     ends_at: datetime | None
     participant_count: int = 0
-    recent_participants: list[User] = []
+    recent_participants: list[User] = Field(default_factory=list)
     max_attempts: int | None
-    playlist: list[PlaylistItem] = []
+    playlist: list[PlaylistItem] = Field(default_factory=list)
     playlist_item_stats: RoomPlaylistItemStats | None
     difficulty_range: RoomDifficultyRange | None
     type: MatchType = MatchType.PLAYLISTS

@@ -12,9 +12,8 @@ from app.calculator import (
     calculate_weighted_pp,
     clamp,
 )
-from app.database.score_token import ScoreToken
-from app.database.user import LazerUserStatistics, User
 from app.models.beatmap import BeatmapRankStatus
+from app.models.model import UTCBaseModel
 from app.models.mods import APIMod, mods_can_get_pp
 from app.models.score import (
     INT_TO_MODE,
@@ -26,11 +25,12 @@ from app.models.score import (
     ScoreStatistics,
     SoloScoreSubmissionInfo,
 )
-from app.models.user import User as APIUser
 
 from .beatmap import Beatmap, BeatmapResp
 from .beatmapset import Beatmapset, BeatmapsetResp
 from .best_score import BestScore
+from .lazer_user import User, UserResp
+from .score_token import ScoreToken
 
 from redis import Redis
 from sqlalchemy import Column, ColumnExpressionArgument, DateTime
@@ -54,7 +54,7 @@ if TYPE_CHECKING:
     from app.fetcher import Fetcher
 
 
-class ScoreBase(SQLModel):
+class ScoreBase(SQLModel, UTCBaseModel):
     # 基本字段
     accuracy: float
     map_md5: str = Field(max_length=32, index=True)
@@ -94,7 +94,7 @@ class Score(ScoreBase, table=True):
         default=None,
         sa_column=Column(
             BigInteger,
-            ForeignKey("users.id"),
+            ForeignKey("lazer_users.id"),
             index=True,
         ),
     )
@@ -112,8 +112,8 @@ class Score(ScoreBase, table=True):
     gamemode: GameMode = Field(index=True)
 
     # optional
-    beatmap: "Beatmap" = Relationship()
-    user: "User" = Relationship()
+    beatmap: Beatmap = Relationship()
+    user: User = Relationship()
 
     @property
     def is_perfect_combo(self) -> bool:
@@ -173,7 +173,7 @@ class ScoreResp(ScoreBase):
     ruleset_id: int | None = None
     beatmap: BeatmapResp | None = None
     beatmapset: BeatmapsetResp | None = None
-    user: APIUser | None = None
+    user: UserResp | None = None
     statistics: ScoreStatistics | None = None
     maximum_statistics: ScoreStatistics | None = None
     rank_global: int | None = None
@@ -183,8 +183,6 @@ class ScoreResp(ScoreBase):
     async def from_db(
         cls, session: AsyncSession, score: Score, user: User | None = None
     ) -> "ScoreResp":
-        from app.utils import convert_db_user_to_api_user
-
         s = cls.model_validate(score.model_dump())
         assert score.id
         s.beatmap = BeatmapResp.from_db(score.beatmap)
@@ -221,7 +219,12 @@ class ScoreResp(ScoreBase):
                 HitResult.GREAT: score.beatmap.max_combo,
             }
         if user:
-            s.user = await convert_db_user_to_api_user(user)
+            s.user = await UserResp.from_db(
+                user,
+                session,
+                include=["statistics", "team", "daily_challenge_user_stats"],
+                ruleset=score.gamemode,
+            )
         s.rank_global = (
             await get_score_position_by_id(
                 session,
@@ -494,21 +497,20 @@ async def get_user_best_pp(
 async def process_user(
     session: AsyncSession, user: User, score: Score, ranked: bool = False
 ):
+    assert user.id
     previous_score_best = await get_user_best_score_in_beatmap(
         session, score.beatmap_id, user.id, score.gamemode
     )
     statistics = None
     add_to_db = False
-    for i in user.lazer_statistics:
+    for i in user.statistics:
         if i.mode == score.gamemode.value:
             statistics = i
             break
     if statistics is None:
-        statistics = LazerUserStatistics(
-            mode=score.gamemode.value,
-            user_id=user.id,
+        raise ValueError(
+            f"User {user.id} does not have statistics for mode {score.gamemode.value}"
         )
-        add_to_db = True
 
     # pc, pt, tth, tts
     statistics.total_score += score.total_score
@@ -546,6 +548,10 @@ async def process_user(
         statistics.maximum_combo = max(statistics.maximum_combo, score.max_combo)
     statistics.play_count += 1
     statistics.play_time += int((score.ended_at - score.started_at).total_seconds())
+    statistics.count_100 += score.n100 + score.nkatu
+    statistics.count_300 += score.n300 + score.ngeki
+    statistics.count_50 += score.n50
+    statistics.count_miss += score.nmiss
     statistics.total_hits += (
         score.n300 + score.n100 + score.n50 + score.ngeki + score.nkatu
     )
@@ -564,8 +570,6 @@ async def process_user(
         statistics.pp = pp_sum
         statistics.hit_accuracy = acc_sum
 
-    statistics.updated_at = datetime.now(UTC)
-
     if add_to_db:
         session.add(statistics)
     await session.commit()
@@ -582,6 +586,7 @@ async def process_score(
     session: AsyncSession,
     redis: Redis,
 ) -> Score:
+    assert user.id
     can_get_pp = info.passed and ranked and mods_can_get_pp(info.ruleset_id, info.mods)
     score = Score(
         accuracy=info.accuracy,

@@ -1,15 +1,16 @@
 from datetime import datetime
 
+from app.models.model import UTCBaseModel
 from app.models.score import GameMode
 
 from .beatmap import Beatmap
-from .user import User
+from .lazer_user import User
 
 from sqlalchemy import Column, DateTime, Index
 from sqlmodel import BigInteger, Field, ForeignKey, Relationship, SQLModel
 
 
-class ScoreTokenBase(SQLModel):
+class ScoreTokenBase(SQLModel, UTCBaseModel):
     score_id: int | None = Field(sa_column=Column(BigInteger), default=None)
     ruleset_id: GameMode
     playlist_item_id: int | None = Field(default=None)  # playlist
@@ -34,10 +35,10 @@ class ScoreToken(ScoreTokenBase, table=True):
             autoincrement=True,
         ),
     )
-    user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("users.id")))
+    user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id")))
     beatmap_id: int = Field(foreign_key="beatmaps.id")
-    user: "User" = Relationship()
-    beatmap: "Beatmap" = Relationship()
+    user: User = Relationship()
+    beatmap: Beatmap = Relationship()
 
 
 class ScoreTokenResp(ScoreTokenBase):

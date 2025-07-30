@@ -8,6 +8,7 @@ from app.dependencies.user import get_current_user
 from .api_router import router
 
 from fastapi import Depends, HTTPException, Query, Request
+from pydantic import BaseModel
 from sqlalchemy.orm import joinedload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -36,7 +37,11 @@ async def get_relationship(
     return [await RelationshipResp.from_db(db, rel) for rel in relationships]
 
 
-@router.post("/friends", tags=["relationship"], response_model=RelationshipResp)
+class AddFriendResp(BaseModel):
+    user_relation: RelationshipResp
+
+
+@router.post("/friends", tags=["relationship"], response_model=AddFriendResp)
 @router.post("/blocks", tags=["relationship"])
 async def add_relationship(
     request: Request,
@@ -98,7 +103,9 @@ async def add_relationship(
             )
         ).first()
         assert relationship, "Relationship should exist after commit"
-        return await RelationshipResp.from_db(db, relationship)
+        return AddFriendResp(
+            user_relation=await RelationshipResp.from_db(db, relationship)
+        )
 
 
 @router.delete("/friends/{target}", tags=["relationship"])

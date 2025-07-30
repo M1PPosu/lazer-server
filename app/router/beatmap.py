@@ -5,12 +5,7 @@ import hashlib
 import json
 
 from app.calculator import calculate_beatmap_attribute
-from app.database import (
-    Beatmap,
-    BeatmapResp,
-    User as DBUser,
-)
-from app.database.beatmapset import Beatmapset
+from app.database import Beatmap, BeatmapResp, Beatmapset, User
 from app.dependencies.database import get_db, get_redis
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.user import get_current_user
@@ -39,7 +34,7 @@ async def lookup_beatmap(
     id: int | None = Query(default=None, alias="id"),
     md5: str | None = Query(default=None, alias="checksum"),
     filename: str | None = Query(default=None, alias="filename"),
-    current_user: DBUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     fetcher: Fetcher = Depends(get_fetcher),
 ):
@@ -62,7 +57,7 @@ async def lookup_beatmap(
 @router.get("/beatmaps/{bid}", tags=["beatmap"], response_model=BeatmapResp)
 async def get_beatmap(
     bid: int,
-    current_user: DBUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     fetcher: Fetcher = Depends(get_fetcher),
 ):
@@ -81,7 +76,7 @@ class BatchGetResp(BaseModel):
 @router.get("/beatmaps/", tags=["beatmap"], response_model=BatchGetResp)
 async def batch_get_beatmaps(
     b_ids: list[int] = Query(alias="id", default_factory=list),
-    current_user: DBUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     if not b_ids:
@@ -126,7 +121,7 @@ async def batch_get_beatmaps(
 )
 async def get_beatmap_attributes(
     beatmap: int,
-    current_user: DBUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     mods: list[str] = Query(default_factory=list),
     ruleset: GameMode | None = Query(default=None),
     ruleset_id: int | None = Query(default=None),

@@ -1,8 +1,6 @@
 from enum import Enum
 
-from app.models.user import User as APIUser
-
-from .user import User as DBUser
+from .lazer_user import User, UserResp
 
 from pydantic import BaseModel
 from sqlmodel import (
@@ -28,7 +26,7 @@ class Relationship(SQLModel, table=True):
         default=None,
         sa_column=Column(
             BigInteger,
-            ForeignKey("users.id"),
+            ForeignKey("lazer_users.id"),
             primary_key=True,
             index=True,
         ),
@@ -37,20 +35,20 @@ class Relationship(SQLModel, table=True):
         default=None,
         sa_column=Column(
             BigInteger,
-            ForeignKey("users.id"),
+            ForeignKey("lazer_users.id"),
             primary_key=True,
             index=True,
         ),
     )
     type: RelationshipType = Field(default=RelationshipType.FOLLOW, nullable=False)
-    target: DBUser = SQLRelationship(
+    target: User = SQLRelationship(
         sa_relationship_kwargs={"foreign_keys": "[Relationship.target_id]"}
     )
 
 
 class RelationshipResp(BaseModel):
     target_id: int
-    target: APIUser
+    target: UserResp
     mutual: bool = False
     type: RelationshipType
 
@@ -58,8 +56,6 @@ class RelationshipResp(BaseModel):
     async def from_db(
         cls, session: AsyncSession, relationship: Relationship
     ) -> "RelationshipResp":
-        from app.utils import convert_db_user_to_api_user
-
         target_relationship = (
             await session.exec(
                 select(Relationship).where(
@@ -75,7 +71,17 @@ class RelationshipResp(BaseModel):
         )
         return cls(
             target_id=relationship.target_id,
-            target=await convert_db_user_to_api_user(relationship.target),
+            target=await UserResp.from_db(
+                relationship.target,
+                session,
+                include=[
+                    "team",
+                    "daily_challenge_user_stats",
+                    "statistics",
+                    "statistics_rulesets",
+                    "achievements",
+                ],
+            ),
             mutual=mutual,
             type=relationship.type,
         )

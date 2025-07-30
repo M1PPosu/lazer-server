@@ -4,15 +4,11 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 
 from app.config import settings
-from app.database import Team  # noqa: F401
 from app.dependencies.database import create_tables, engine
 from app.dependencies.fetcher import get_fetcher
-from app.models.user import User
 from app.router import api_router, auth_router, fetcher_router, signalr_router
 
 from fastapi import FastAPI
-
-User.model_rebuild()
 
 
 @asynccontextmanager

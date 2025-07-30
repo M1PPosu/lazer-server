@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from app.models.beatmap import BeatmapRankStatus
+from app.models.model import UTCBaseModel
 from app.models.score import MODE_TO_INT, GameMode
 
 from .beatmapset import Beatmapset, BeatmapsetResp
@@ -20,7 +21,7 @@ class BeatmapOwner(SQLModel):
     username: str
 
 
-class BeatmapBase(SQLModel):
+class BeatmapBase(SQLModel, UTCBaseModel):
     # Beatmap
     url: str
     mode: GameMode

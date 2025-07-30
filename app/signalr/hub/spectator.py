@@ -7,10 +7,9 @@ import struct
 import time
 from typing import override
 
-from app.database import Beatmap
+from app.database import Beatmap, User
 from app.database.score import Score
 from app.database.score_token import ScoreToken
-from app.database.user import User
 from app.dependencies.database import engine
 from app.models.beatmap import BeatmapRankStatus
 from app.models.mods import mods_to_int
@@ -197,7 +196,7 @@ class SpectatorHub(Hub[StoreClientState]):
                 ).first()
                 if not user:
                     return
-                name = user.name
+                name = user.username
                 store.state = state
                 store.beatmap_status = beatmap.beatmap_status
                 store.checksum = beatmap.checksum
@@ -339,7 +338,7 @@ class SpectatorHub(Hub[StoreClientState]):
         async with AsyncSession(engine) as session:
             async with session.begin():
                 username = (
-                    await session.exec(select(User.name).where(User.id == user_id))
+                    await session.exec(select(User.username).where(User.id == user_id))
                 ).first()
                 if not username:
                     return

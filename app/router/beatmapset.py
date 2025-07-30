@@ -3,7 +3,7 @@ from __future__ import annotations
 from app.database import (
     Beatmapset,
     BeatmapsetResp,
-    User as DBUser,
+    User,
 )
 from app.dependencies.database import get_db
 from app.dependencies.fetcher import get_fetcher
@@ -22,7 +22,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 @router.get("/beatmapsets/{sid}", tags=["beatmapset"], response_model=BeatmapsetResp)
 async def get_beatmapset(
     sid: int,
-    current_user: DBUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     fetcher: Fetcher = Depends(get_fetcher),
 ):
