@@ -12,7 +12,8 @@ from app.fetcher import Fetcher
 
 from .api_router import router
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Query
+from fastapi.responses import RedirectResponse
 from httpx import HTTPStatusError
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
@@ -42,3 +43,20 @@ async def get_beatmapset(
     else:
         resp = BeatmapsetResp.from_db(beatmapset)
     return resp
+
+
+@router.get("/beatmapsets/{beatmapset}/download", tags=["beatmapset"])
+async def download_beatmapset(
+    beatmapset: int,
+    no_video: bool = Query(True, alias="noVideo"),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.country_code == "CN":
+        return RedirectResponse(
+            f"https://txy1.sayobot.cn/beatmaps/download/"
+            f"{'novideo' if no_video else 'full'}/{beatmapset}?server=auto"
+        )
+    else:
+        return RedirectResponse(
+            f"https://api.nerinyan.moe/d/{beatmapset}?noVideo={no_video}"
+        )
