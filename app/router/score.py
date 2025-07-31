@@ -18,7 +18,7 @@ from .api_router import router
 
 from fastapi import Depends, Form, HTTPException, Query
 from pydantic import BaseModel
-from redis import Redis
+from redis.asyncio import Redis
 from sqlalchemy.orm import joinedload
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession

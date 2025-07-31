@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 
 from app.config import settings
-from app.dependencies.database import create_tables, engine
+from app.dependencies.database import create_tables, engine, redis_client
 from app.dependencies.fetcher import get_fetcher
 from app.router import api_router, auth_router, fetcher_router, signalr_router
 
@@ -15,10 +15,11 @@ from fastapi import FastAPI
 async def lifespan(app: FastAPI):
     # on startup
     await create_tables()
-    get_fetcher()  # 初始化 fetcher
+    await get_fetcher()  # 初始化 fetcher
     # on shutdown
     yield
     await engine.dispose()
+    await redis_client.aclose()
 
 
 app = FastAPI(title="osu! API 模拟服务器", version="1.0.0", lifespan=lifespan)

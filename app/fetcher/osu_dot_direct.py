@@ -4,7 +4,7 @@ from ._base import BaseFetcher
 
 from httpx import AsyncClient
 from loguru import logger
-import redis
+import redis.asyncio as redis
 
 
 class OsuDotDirectFetcher(BaseFetcher):
@@ -23,7 +23,7 @@ class OsuDotDirectFetcher(BaseFetcher):
         self, redis: redis.Redis, beatmap_id: int
     ) -> str:
         if redis.exists(f"beatmap:{beatmap_id}:raw"):
-            return redis.get(f"beatmap:{beatmap_id}:raw")  # pyright: ignore[reportReturnType]
+            return await redis.get(f"beatmap:{beatmap_id}:raw")  # pyright: ignore[reportReturnType]
         raw = await self.get_beatmap_raw(beatmap_id)
-        redis.set(f"beatmap:{beatmap_id}:raw", raw, ex=60 * 60 * 24)
+        await redis.set(f"beatmap:{beatmap_id}:raw", raw, ex=60 * 60 * 24)
         return raw

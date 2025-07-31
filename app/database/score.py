@@ -39,7 +39,7 @@ from .relationship import (
 )
 from .score_token import ScoreToken
 
-from redis import Redis
+from redis.asyncio import Redis
 from sqlalchemy import Column, ColumnExpressionArgument, DateTime
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import aliased

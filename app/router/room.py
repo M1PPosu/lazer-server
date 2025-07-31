@@ -6,7 +6,8 @@ from app.models.room import Room
 
 from .api_router import router
 
-from fastapi import Depends, HTTPException, Query
+from fastapi import Depends, Query
+from redis.asyncio import Redis
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -19,17 +20,14 @@ async def get_all_rooms(
     status: str = Query(None),
     category: str = Query(None),
     db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
 ):
     all_room_ids = (await db.exec(select(RoomIndex).where(True))).all()
-    redis = get_redis()
     roomsList: list[Room] = []
-    if redis:
-        for room_index in all_room_ids:
-            dumped_room = redis.get(str(room_index.id))
-            if dumped_room:
-                actual_room = Room.model_validate_json(str(dumped_room))
-                if actual_room.status == status and actual_room.category == category:
-                    roomsList.append(actual_room)
-        return roomsList
-    else:
-        raise HTTPException(status_code=500, detail="Redis Error")
+    for room_index in all_room_ids:
+        dumped_room = await redis.get(str(room_index.id))
+        if dumped_room:
+            actual_room = Room.model_validate_json(str(dumped_room))
+            if actual_room.status == status and actual_room.category == category:
+                roomsList.append(actual_room)
+    return roomsList

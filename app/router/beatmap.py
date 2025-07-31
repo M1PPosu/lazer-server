@@ -22,7 +22,7 @@ from .api_router import router
 from fastapi import Depends, HTTPException, Query
 from httpx import HTTPError, HTTPStatusError
 from pydantic import BaseModel
-from redis import Redis
+from redis.asyncio import Redis
 import rosu_pp_py as rosu
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -127,8 +127,8 @@ async def get_beatmap_attributes(
         f"beatmap:{beatmap}:{ruleset}:"
         f"{hashlib.md5(str(mods_).encode()).hexdigest()}:attributes"
     )
-    if redis.exists(key):
-        return BeatmapAttributes.model_validate_json(redis.get(key))  # pyright: ignore[reportArgumentType]
+    if await redis.exists(key):
+        return BeatmapAttributes.model_validate_json(await redis.get(key))  # pyright: ignore[reportArgumentType]
 
     try:
         resp = await fetcher.get_or_fetch_beatmap_raw(redis, beatmap)
@@ -138,7 +138,7 @@ async def get_beatmap_attributes(
             )
         except rosu.ConvertError as e:  # pyright: ignore[reportAttributeAccessIssue]
             raise HTTPException(status_code=400, detail=str(e))
-        redis.set(key, attr.model_dump_json())
+        await redis.set(key, attr.model_dump_json())
         return attr
     except HTTPStatusError:
         raise HTTPException(status_code=404, detail="Beatmap not found")

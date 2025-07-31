@@ -59,16 +59,15 @@ class BaseFetcher:
             self.refresh_token = token_data.get("refresh_token", "")
             self.token_expiry = int(time.time()) + token_data["expires_in"]
             redis = get_redis()
-            if redis:
-                redis.set(
-                    f"fetcher:access_token:{self.client_id}",
-                    self.access_token,
-                    ex=token_data["expires_in"],
-                )
-                redis.set(
-                    f"fetcher:refresh_token:{self.client_id}",
-                    self.refresh_token,
-                )
+            await redis.set(
+                f"fetcher:access_token:{self.client_id}",
+                self.access_token,
+                ex=token_data["expires_in"],
+            )
+            await redis.set(
+                f"fetcher:refresh_token:{self.client_id}",
+                self.refresh_token,
+            )
 
     async def refresh_access_token(self) -> None:
         async with AsyncClient() as client:
@@ -87,13 +86,12 @@ class BaseFetcher:
             self.refresh_token = token_data.get("refresh_token", "")
             self.token_expiry = int(time.time()) + token_data["expires_in"]
             redis = get_redis()
-            if redis:
-                redis.set(
-                    f"fetcher:access_token:{self.client_id}",
-                    self.access_token,
-                    ex=token_data["expires_in"],
-                )
-                redis.set(
-                    f"fetcher:refresh_token:{self.client_id}",
-                    self.refresh_token,
-                )
+            await redis.set(
+                f"fetcher:access_token:{self.client_id}",
+                self.access_token,
+                ex=token_data["expires_in"],
+            )
+            await redis.set(
+                f"fetcher:refresh_token:{self.client_id}",
+                self.refresh_token,
+            )
