@@ -15,7 +15,6 @@ from .api_router import router
 from fastapi import Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
 from httpx import HTTPStatusError
-from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -27,13 +26,7 @@ async def get_beatmapset(
     db: AsyncSession = Depends(get_db),
     fetcher: Fetcher = Depends(get_fetcher),
 ):
-    beatmapset = (
-        await db.exec(
-            select(Beatmapset)
-            .options(selectinload(Beatmapset.beatmaps))  # pyright: ignore[reportArgumentType]
-            .where(Beatmapset.id == sid)
-        )
-    ).first()
+    beatmapset = (await db.exec(select(Beatmapset).where(Beatmapset.id == sid))).first()
     if not beatmapset:
         try:
             resp = await fetcher.get_beatmapset(sid)
@@ -41,7 +34,7 @@ async def get_beatmapset(
         except HTTPStatusError:
             raise HTTPException(status_code=404, detail="Beatmapset not found")
     else:
-        resp = BeatmapsetResp.from_db(beatmapset)
+        resp = await BeatmapsetResp.from_db(beatmapset)
     return resp
 
 
