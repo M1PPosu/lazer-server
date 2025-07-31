@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import Sequence
 from datetime import UTC, date, datetime
+import json
 import math
 from typing import TYPE_CHECKING
 
@@ -12,7 +13,7 @@ from app.calculator import (
     calculate_weighted_pp,
     clamp,
 )
-from app.models.beatmap import BeatmapRankStatus
+from app.database.team import TeamMember
 from app.models.model import UTCBaseModel
 from app.models.mods import APIMod, mods_can_get_pp
 from app.models.score import (
@@ -31,12 +32,18 @@ from .beatmapset import BeatmapsetResp
 from .best_score import BestScore
 from .lazer_user import User, UserResp
 from .monthly_playcounts import MonthlyPlaycounts
+from .pp_best_score import PPBestScore
+from .relationship import (
+    Relationship as DBRelationship,
+    RelationshipType,
+)
 from .score_token import ScoreToken
 
 from redis import Redis
 from sqlalchemy import Column, ColumnExpressionArgument, DateTime
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import aliased
+from sqlalchemy.sql.elements import ColumnElement
 from sqlmodel import (
     JSON,
     BigInteger,
@@ -45,9 +52,10 @@ from sqlmodel import (
     Relationship,
     SQLModel,
     col,
-    false,
     func,
     select,
+    text,
+    true,
 )
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel.sql._expression_select_cls import SelectOfScalar
@@ -156,9 +164,7 @@ class ScoreResp(ScoreBase):
     rank_country: int | None = None
 
     @classmethod
-    async def from_db(
-        cls, session: AsyncSession, score: Score, user: User | None = None
-    ) -> "ScoreResp":
+    async def from_db(cls, session: AsyncSession, score: Score) -> "ScoreResp":
         s = cls.model_validate(score.model_dump())
         assert score.id
         await score.awaitable_attrs.beatmap
@@ -195,30 +201,30 @@ class ScoreResp(ScoreBase):
             s.maximum_statistics = {
                 HitResult.GREAT: score.beatmap.max_combo,
             }
-        if user:
-            s.user = await UserResp.from_db(
-                user,
-                session,
-                include=["statistics", "team", "daily_challenge_user_stats"],
-                ruleset=score.gamemode,
-            )
+        s.user = await UserResp.from_db(
+            score.user,
+            session,
+            include=["statistics", "team", "daily_challenge_user_stats"],
+            ruleset=score.gamemode,
+        )
         s.rank_global = (
             await get_score_position_by_id(
                 session,
-                score.map_md5,
+                score.beatmap_id,
                 score.id,
                 mode=score.gamemode,
-                user=user or score.user,
+                user=score.user,
             )
             or None
         )
         s.rank_country = (
             await get_score_position_by_id(
                 session,
-                score.map_md5,
+                score.beatmap_id,
                 score.id,
                 score.gamemode,
-                user or score.user,
+                score.user,
+                type=LeaderboardType.COUNTRY,
             )
             or None
         )
@@ -228,134 +234,137 @@ class ScoreResp(ScoreBase):
 async def get_best_id(session: AsyncSession, score_id: int) -> None:
     rownum = (
         func.row_number()
-        .over(partition_by=col(BestScore.user_id), order_by=col(BestScore.pp).desc())
+        .over(
+            partition_by=col(PPBestScore.user_id), order_by=col(PPBestScore.pp).desc()
+        )
         .label("rn")
     )
-    subq = select(BestScore, rownum).subquery()
+    subq = select(PPBestScore, rownum).subquery()
     stmt = select(subq.c.rn).where(subq.c.score_id == score_id)
     result = await session.exec(stmt)
     return result.one_or_none()
 
 
+async def _score_where(
+    type: LeaderboardType,
+    beatmap: int,
+    mode: GameMode,
+    mods: list[str] | None = None,
+    user: User | None = None,
+) -> list[ColumnElement[bool]] | None:
+    wheres = [
+        col(BestScore.beatmap_id) == beatmap,
+        col(BestScore.gamemode) == mode,
+    ]
+
+    if type == LeaderboardType.FRIENDS:
+        if user and user.is_supporter:
+            subq = (
+                select(DBRelationship.target_id)
+                .where(
+                    DBRelationship.type == RelationshipType.FOLLOW,
+                    DBRelationship.user_id == user.id,
+                )
+                .subquery()
+            )
+            wheres.append(col(BestScore.user_id).in_(select(subq.c.target_id)))
+        else:
+            return None
+    elif type == LeaderboardType.COUNTRY:
+        if user and user.is_supporter:
+            wheres.append(
+                col(BestScore.user).has(col(User.country_code) == user.country_code)
+            )
+        else:
+            return None
+    elif type == LeaderboardType.TEAM:
+        if user:
+            team_membership = await user.awaitable_attrs.team_membership
+            if team_membership:
+                team_id = team_membership.team_id
+                wheres.append(
+                    col(BestScore.user).has(
+                        col(User.team_membership).has(TeamMember.team_id == team_id)
+                    )
+                )
+    if mods:
+        if user and user.is_supporter:
+            wheres.append(
+                text(
+                    "JSON_CONTAINS(total_score_best_scores.mods, :w)"
+                    " AND JSON_CONTAINS(:w, total_score_best_scores.mods)"
+                )  # pyright: ignore[reportArgumentType]
+            )
+        else:
+            return None
+    return wheres
+
+
 async def get_leaderboard(
     session: AsyncSession,
-    beatmap_md5: str,
+    beatmap: int,
     mode: GameMode,
     type: LeaderboardType = LeaderboardType.GLOBAL,
-    mods: list[APIMod] | None = None,
+    mods: list[str] | None = None,
     user: User | None = None,
     limit: int = 50,
-) -> list[Score]:
-    scores = []
-    if type == LeaderboardType.GLOBAL:
-        query = (
-            select(Score)
-            .where(
-                col(Beatmap.beatmap_status).in_(
-                    [
-                        BeatmapRankStatus.RANKED,
-                        BeatmapRankStatus.LOVED,
-                        BeatmapRankStatus.QUALIFIED,
-                        BeatmapRankStatus.APPROVED,
-                    ]
-                ),
-                Score.map_md5 == beatmap_md5,
-                Score.gamemode == mode,
-                col(Score.passed).is_(True),
-                Score.mods == mods if user and user.is_supporter else false(),
-            )
-            .limit(limit)
-            .order_by(
-                col(Score.total_score).desc(),
-            )
-        )
-        result = await session.exec(query)
-        scores = list[Score](result.all())
-    elif type == LeaderboardType.FRIENDS and user and user.is_supporter:
-        # TODO
-        ...
-    elif type == LeaderboardType.TEAM and user and user.team_membership:
-        team_id = user.team_membership.team_id
-        query = (
-            select(Score)
-            .join(Beatmap)
-            .where(
-                Score.map_md5 == beatmap_md5,
-                Score.gamemode == mode,
-                col(Score.passed).is_(True),
-                col(Score.user.team_membership).is_not(None),
-                Score.user.team_membership.team_id == team_id,  # pyright: ignore[reportOptionalMemberAccess]
-                Score.mods == mods if user and user.is_supporter else false(),
-            )
-            .limit(limit)
-            .order_by(
-                col(Score.total_score).desc(),
-            )
-        )
-        result = await session.exec(query)
-        scores = list[Score](result.all())
+) -> tuple[list[Score], Score | None]:
+    wheres = await _score_where(type, beatmap, mode, mods, user)
+    if wheres is None:
+        return [], None
+    query = (
+        select(BestScore)
+        .where(*wheres)
+        .limit(limit)
+        .order_by(col(BestScore.total_score).desc())
+    )
+    if mods:
+        query = query.params(w=json.dumps(mods))
+    scores = [s.score for s in await session.exec(query)]
+    user_score = None
     if user:
-        user_score = (
-            await session.exec(
-                select(Score).where(
-                    Score.map_md5 == beatmap_md5,
-                    Score.gamemode == mode,
-                    Score.user_id == user.id,
-                    col(Score.passed).is_(True),
+        self_query = (
+            select(BestScore)
+            .where(BestScore.user_id == user.id)
+            .order_by(col(BestScore.total_score).desc())
+            .limit(1)
+        )
+        if mods:
+            self_query = self_query.where(
+                text(
+                    "JSON_CONTAINS(total_score_best_scores.mods, :w)"
+                    " AND JSON_CONTAINS(:w, total_score_best_scores.mods)"
                 )
-            )
-        ).first()
+            ).params(w=json.dumps(mods))
+        user_bs = (await session.exec(self_query)).first()
+        if user_bs:
+            user_score = user_bs.score
         if user_score and user_score not in scores:
             scores.append(user_score)
-    return scores
+    return scores, user_score
 
 
 async def get_score_position_by_user(
     session: AsyncSession,
-    beatmap_md5: str,
+    beatmap: int,
     user: User,
     mode: GameMode,
     type: LeaderboardType = LeaderboardType.GLOBAL,
-    mods: list[APIMod] | None = None,
+    mods: list[str] | None = None,
 ) -> int:
-    where_clause = [
-        Score.map_md5 == beatmap_md5,
-        Score.gamemode == mode,
-        col(Score.passed).is_(True),
-        col(Beatmap.beatmap_status).in_(
-            [
-                BeatmapRankStatus.RANKED,
-                BeatmapRankStatus.LOVED,
-                BeatmapRankStatus.QUALIFIED,
-                BeatmapRankStatus.APPROVED,
-            ]
-        ),
-    ]
-    if mods and user.is_supporter:
-        where_clause.append(Score.mods == mods)
-    else:
-        where_clause.append(false())
-    if type == LeaderboardType.FRIENDS and user.is_supporter:
-        # TODO
-        ...
-    elif type == LeaderboardType.TEAM and user.team_membership:
-        team_id = user.team_membership.team_id
-        where_clause.append(
-            col(Score.user.team_membership).is_not(None),
-        )
-        where_clause.append(
-            Score.user.team_membership.team_id == team_id,  # pyright: ignore[reportOptionalMemberAccess]
-        )
+    wheres = await _score_where(type, beatmap, mode, mods, user=user)
+    if wheres is None:
+        return 0
     rownum = (
         func.row_number()
         .over(
-            partition_by=Score.map_md5,
-            order_by=col(Score.total_score).desc(),
+            partition_by=col(BestScore.beatmap_id),
+            order_by=col(BestScore.total_score).desc(),
         )
         .label("row_number")
     )
-    subq = select(Score, rownum).join(Beatmap).where(*where_clause).subquery()
-    stmt = select(subq.c.row_number).where(subq.c.user == user)
+    subq = select(BestScore, rownum).join(Beatmap).where(*wheres).subquery()
+    stmt = select(subq.c.row_number).where(subq.c.user_id == user.id)
     result = await session.exec(stmt)
     s = result.one_or_none()
     return s if s else 0
@@ -363,57 +372,26 @@ async def get_score_position_by_user(
 
 async def get_score_position_by_id(
     session: AsyncSession,
-    beatmap_md5: str,
+    beatmap: int,
     score_id: int,
     mode: GameMode,
     user: User | None = None,
     type: LeaderboardType = LeaderboardType.GLOBAL,
-    mods: list[APIMod] | None = None,
+    mods: list[str] | None = None,
 ) -> int:
-    where_clause = [
-        Score.map_md5 == beatmap_md5,
-        Score.id == score_id,
-        Score.gamemode == mode,
-        col(Score.passed).is_(True),
-        col(Beatmap.beatmap_status).in_(
-            [
-                BeatmapRankStatus.RANKED,
-                BeatmapRankStatus.LOVED,
-                BeatmapRankStatus.QUALIFIED,
-                BeatmapRankStatus.APPROVED,
-            ]
-        ),
-    ]
-    if mods and user and user.is_supporter:
-        where_clause.append(Score.mods == mods)
-    elif mods:
-        where_clause.append(false())
+    wheres = await _score_where(type, beatmap, mode, mods, user=user)
+    if wheres is None:
+        return 0
     rownum = (
         func.row_number()
         .over(
-            partition_by=[col(Score.user_id), col(Score.map_md5)],
-            order_by=col(Score.total_score).desc(),
+            partition_by=col(BestScore.beatmap_id),
+            order_by=col(BestScore.total_score).desc(),
         )
-        .label("rownum")
+        .label("row_number")
     )
-    subq = (
-        select(Score.user_id, Score.id, Score.total_score, rownum)
-        .join(Beatmap)
-        .where(*where_clause)
-        .subquery()
-    )
-    best_scores = aliased(subq)
-    overall_rank = (
-        func.rank().over(order_by=best_scores.c.total_score.desc()).label("global_rank")
-    )
-    final_q = (
-        select(best_scores.c.id, overall_rank)
-        .select_from(best_scores)
-        .where(best_scores.c.rownum == 1)
-        .subquery()
-    )
-
-    stmt = select(final_q.c.global_rank).where(final_q.c.id == score_id)
+    subq = select(BestScore, rownum).join(Beatmap).where(*wheres).subquery()
+    stmt = select(subq.c.row_number).where(subq.c.score_id == score_id)
     result = await session.exec(stmt)
     s = result.one_or_none()
     return s if s else 0
@@ -424,16 +402,38 @@ async def get_user_best_score_in_beatmap(
     beatmap: int,
     user: int,
     mode: GameMode | None = None,
-) -> Score | None:
+) -> BestScore | None:
     return (
         await session.exec(
-            select(Score)
+            select(BestScore)
             .where(
-                Score.gamemode == mode if mode is not None else True,
-                Score.beatmap_id == beatmap,
-                Score.user_id == user,
+                BestScore.gamemode == mode if mode is not None else true(),
+                BestScore.beatmap_id == beatmap,
+                BestScore.user_id == user,
             )
-            .order_by(col(Score.total_score).desc())
+            .order_by(col(BestScore.total_score).desc())
+        )
+    ).first()
+
+
+# FIXME
+async def get_user_best_score_with_mod_in_beatmap(
+    session: AsyncSession,
+    beatmap: int,
+    user: int,
+    mod: list[str],
+    mode: GameMode | None = None,
+) -> BestScore | None:
+    return (
+        await session.exec(
+            select(BestScore)
+            .where(
+                BestScore.gamemode == mode if mode is not None else True,
+                BestScore.beatmap_id == beatmap,
+                BestScore.user_id == user,
+                # BestScore.mods == mod,
+            )
+            .order_by(col(BestScore.total_score).desc())
         )
     ).first()
 
@@ -443,13 +443,13 @@ async def get_user_best_pp_in_beatmap(
     beatmap: int,
     user: int,
     mode: GameMode,
-) -> BestScore | None:
+) -> PPBestScore | None:
     return (
         await session.exec(
-            select(BestScore).where(
-                BestScore.beatmap_id == beatmap,
-                BestScore.user_id == user,
-                BestScore.gamemode == mode,
+            select(PPBestScore).where(
+                PPBestScore.beatmap_id == beatmap,
+                PPBestScore.user_id == user,
+                PPBestScore.gamemode == mode,
             )
         )
     ).first()
@@ -459,12 +459,12 @@ async def get_user_best_pp(
     session: AsyncSession,
     user: int,
     limit: int = 200,
-) -> Sequence[BestScore]:
+) -> Sequence[PPBestScore]:
     return (
         await session.exec(
-            select(BestScore)
-            .where(BestScore.user_id == user)
-            .order_by(col(BestScore.pp).desc())
+            select(PPBestScore)
+            .where(PPBestScore.user_id == user)
+            .order_by(col(PPBestScore.pp).desc())
             .limit(limit)
         )
     ).all()
@@ -474,9 +474,15 @@ async def process_user(
     session: AsyncSession, user: User, score: Score, ranked: bool = False
 ):
     assert user.id
+    assert score.id
+    mod_for_save = list({mod["acronym"] for mod in score.mods})
     previous_score_best = await get_user_best_score_in_beatmap(
         session, score.beatmap_id, user.id, score.gamemode
     )
+    previous_score_best_mod = await get_user_best_score_with_mod_in_beatmap(
+        session, score.beatmap_id, user.id, mod_for_save, score.gamemode
+    )
+    print(previous_score_best, previous_score_best_mod)
     add_to_db = False
     mouthly_playcount = (
         await session.exec(
@@ -493,7 +499,7 @@ async def process_user(
         )
         add_to_db = True
     statistics = None
-    for i in user.statistics:
+    for i in await user.awaitable_attrs.statistics:
         if i.mode == score.gamemode.value:
             statistics = i
             break
@@ -506,7 +512,7 @@ async def process_user(
     statistics.total_score += score.total_score
     difference = (
         score.total_score - previous_score_best.total_score
-        if previous_score_best and previous_score_best.id != score.id
+        if previous_score_best
         else score.total_score
     )
     if difference > 0 and score.passed and ranked:
@@ -533,9 +539,41 @@ async def process_user(
                     statistics.grade_sh -= 1
                 case Rank.A:
                     statistics.grade_a -= 1
+        else:
+            previous_score_best = BestScore(
+                user_id=user.id,
+                beatmap_id=score.beatmap_id,
+                gamemode=score.gamemode,
+                score_id=score.id,
+                total_score=score.total_score,
+                rank=score.rank,
+                mods=mod_for_save,
+            )
+            session.add(previous_score_best)
+
         statistics.ranked_score += difference
         statistics.level_current = calculate_score_to_level(statistics.ranked_score)
         statistics.maximum_combo = max(statistics.maximum_combo, score.max_combo)
+    if score.passed and ranked:
+        if previous_score_best_mod is not None:
+            previous_score_best_mod.mods = mod_for_save
+            previous_score_best_mod.score_id = score.id
+            previous_score_best_mod.rank = score.rank
+            previous_score_best_mod.total_score = score.total_score
+        elif (
+            previous_score_best is not None and previous_score_best.score_id != score.id
+        ):
+            session.add(
+                BestScore(
+                    user_id=user.id,
+                    beatmap_id=score.beatmap_id,
+                    gamemode=score.gamemode,
+                    score_id=score.id,
+                    total_score=score.total_score,
+                    rank=score.rank,
+                    mods=mod_for_save,
+                )
+            )
     statistics.play_count += 1
     mouthly_playcount.playcount += 1
     statistics.play_time += int((score.ended_at - score.started_at).total_seconds())
@@ -623,7 +661,7 @@ async def process_score(
         )
         if previous_pp_best is None or score.pp > previous_pp_best.pp:
             assert score.id
-            best_score = BestScore(
+            best_score = PPBestScore(
                 user_id=user_id,
                 score_id=score.id,
                 beatmap_id=beatmap_id,

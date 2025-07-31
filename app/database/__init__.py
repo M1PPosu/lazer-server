@@ -14,6 +14,7 @@ from .lazer_user import (
     User,
     UserResp,
 )
+from .pp_best_score import PPBestScore
 from .relationship import Relationship, RelationshipResp, RelationshipType
 from .score import (
     Score,
@@ -35,13 +36,13 @@ from .user_account_history import (
 
 __all__ = [
     "Beatmap",
-    "BeatmapResp",
     "Beatmapset",
     "BeatmapsetResp",
     "BestScore",
     "DailyChallengeStats",
     "DailyChallengeStatsResp",
     "OAuthToken",
+    "PPBestScore",
     "Relationship",
     "RelationshipResp",
     "RelationshipType",

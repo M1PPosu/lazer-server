@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.database import Beatmap, Score, ScoreResp, ScoreToken, ScoreTokenResp, User
-from app.database.score import process_score, process_user
+from app.database.score import get_leaderboard, process_score, process_user
 from app.dependencies.database import get_db, get_redis
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.user import get_current_user
@@ -9,6 +9,7 @@ from app.models.beatmap import BeatmapRankStatus
 from app.models.score import (
     INT_TO_MODE,
     GameMode,
+    LeaderboardType,
     Rank,
     SoloScoreSubmissionInfo,
 )
@@ -19,7 +20,7 @@ from fastapi import Depends, Form, HTTPException, Query
 from pydantic import BaseModel
 from redis import Redis
 from sqlalchemy.orm import joinedload
-from sqlmodel import col, select, true
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
@@ -33,44 +34,26 @@ class BeatmapScores(BaseModel):
 )
 async def get_beatmap_scores(
     beatmap: int,
+    mode: GameMode,
     legacy_only: bool = Query(None),  # TODO:加入对这个参数的查询
-    mode: GameMode | None = Query(None),
-    # mods: List[APIMod] = Query(None), # TODO:加入指定MOD的查询
-    type: str = Query(None),
+    mods: list[str] = Query(default_factory=set, alias="mods[]"),
+    type: LeaderboardType = Query(LeaderboardType.GLOBAL),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    limit: int = Query(50, ge=1, le=200),
 ):
     if legacy_only:
         raise HTTPException(
             status_code=404, detail="this server only contains lazer scores"
         )
 
-    all_scores = (
-        await db.exec(
-            Score.select_clause_unique(
-                Score.beatmap_id == beatmap,
-                col(Score.passed).is_(True),
-                Score.gamemode == mode if mode is not None else true(),
-            )
-        )
-    ).all()
-
-    user_score = (
-        await db.exec(
-            Score.select_clause_unique(
-                Score.beatmap_id == beatmap,
-                Score.user_id == current_user.id,
-                col(Score.passed).is_(True),
-                Score.gamemode == mode if mode is not None else true(),
-            )
-        )
-    ).first()
+    all_scores, user_score = await get_leaderboard(
+        db, beatmap, mode, type=type, user=current_user, limit=limit, mods=mods
+    )
 
     return BeatmapScores(
-        scores=[await ScoreResp.from_db(db, score, score.user) for score in all_scores],
-        userScore=await ScoreResp.from_db(db, user_score, user_score.user)
-        if user_score
-        else None,
+        scores=[await ScoreResp.from_db(db, score) for score in all_scores],
+        userScore=await ScoreResp.from_db(db, user_score) if user_score else None,
     )
 
 
@@ -116,7 +99,7 @@ async def get_user_beatmap_score(
     else:
         return BeatmapUserScore(
             position=user_score.position if user_score.position is not None else 0,
-            score=await ScoreResp.from_db(db, user_score, user_score.user),
+            score=await ScoreResp.from_db(db, user_score),
         )
 
 
@@ -149,9 +132,7 @@ async def get_user_all_beatmap_scores(
         )
     ).all()
 
-    return [
-        await ScoreResp.from_db(db, score, current_user) for score in all_user_scores
-    ]
+    return [await ScoreResp.from_db(db, score) for score in all_user_scores]
 
 
 @router.post(
@@ -243,4 +224,4 @@ async def submit_solo_score(
             await process_user(db, current_user, score, ranked)
             score = (await db.exec(select(Score).where(Score.id == score_id))).first()
             assert score is not None
-        return await ScoreResp.from_db(db, score, current_user)
+        return await ScoreResp.from_db(db, score)
