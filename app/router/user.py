@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.database import User, UserResp
+from app.database.lazer_user import SEARCH_INCLUDED
 from app.dependencies.database import get_db
 from app.models.score import GameMode
 
@@ -15,15 +16,6 @@ from sqlmodel.sql.expression import col
 
 class BatchUserResponse(BaseModel):
     users: list[UserResp]
-
-
-SEARCH_INCLUDE = [
-    "team",
-    "daily_challenge_user_stats",
-    "statistics",
-    "statistics_rulesets",
-    "achievements",
-]
 
 
 @router.get("/users", response_model=BatchUserResponse)
@@ -54,7 +46,7 @@ async def get_users(
             await UserResp.from_db(
                 searched_user,
                 session,
-                include=SEARCH_INCLUDE,
+                include=SEARCH_INCLUDED,
             )
             for searched_user in searched_users
         ]
@@ -85,6 +77,6 @@ async def get_user_info(
     return await UserResp.from_db(
         searched_user,
         session,
-        include=SEARCH_INCLUDE,
+        include=SEARCH_INCLUDED,
         ruleset=ruleset,
     )

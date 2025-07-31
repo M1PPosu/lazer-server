@@ -7,6 +7,7 @@ from app.models.user import Country, Page, RankHistory
 
 from .achievement import UserAchievement, UserAchievementResp
 from .daily_challenge import DailyChallengeStats, DailyChallengeStatsResp
+from .monthly_playcounts import MonthlyPlaycounts, MonthlyPlaycountsResp
 from .statistics import UserStatistics, UserStatisticsResp
 from .team import Team, TeamMember
 from .user_account_history import UserAccountHistory, UserAccountHistoryResp
@@ -141,6 +142,7 @@ class User(UserBase, table=True):
     daily_challenge_stats: DailyChallengeStats | None = Relationship(
         back_populates="user"
     )
+    monthly_playcounts: list[MonthlyPlaycounts] = Relationship(back_populates="user")
 
     email: str = Field(max_length=254, unique=True, index=True, exclude=True)
     priv: int = Field(default=1, exclude=True)
@@ -160,6 +162,7 @@ class User(UserBase, table=True):
             selectinload(cls.achievement),  # pyright: ignore[reportArgumentType]
             joinedload(cls.team_membership).joinedload(TeamMember.team),  # pyright: ignore[reportArgumentType]
             joinedload(cls.daily_challenge_stats),  # pyright: ignore[reportArgumentType]
+            selectinload(cls.monthly_playcounts),  # pyright: ignore[reportArgumentType]
         )
 
 
@@ -186,7 +189,7 @@ class UserResp(UserBase):
     account_history: list[UserAccountHistoryResp] = []
     active_tournament_banners: list[dict] = []  # TODO
     kudosu: Kudosu = Field(default_factory=lambda: Kudosu(available=0, total=0))  # TODO
-    monthly_playcounts: list = Field(default_factory=list)  # TODO
+    monthly_playcounts: list[MonthlyPlaycountsResp] = Field(default_factory=list)
     unread_pm_count: int = 0  # TODO
     rank_history: RankHistory | None = None  # TODO
     rank_highest: RankHighest | None = None  # TODO
@@ -196,7 +199,7 @@ class UserResp(UserBase):
     cover_url: str = ""  # deprecated
     team: Team | None = None
     session_verified: bool = True
-    daily_challenge_user_stats: DailyChallengeStatsResp | None = None  # TODO
+    daily_challenge_user_stats: DailyChallengeStatsResp | None = None
 
     # TODO: monthly_playcounts, unread_pm_count， rank_history, user_preferences
 
@@ -292,9 +295,36 @@ class UserResp(UserBase):
                 i.mode.value: UserStatisticsResp.from_db(i) for i in obj.statistics
             }
 
+        if "monthly_playcounts" in include:
+            u.monthly_playcounts = [
+                MonthlyPlaycountsResp.from_db(pc) for pc in obj.monthly_playcounts
+            ]
+
         if "achievements" in include:
             u.user_achievements = [
                 UserAchievementResp.from_db(ua) for ua in obj.achievement
             ]
 
         return u
+
+
+ALL_INCLUDED = [
+    "friends",
+    "team",
+    "account_history",
+    "daily_challenge_user_stats",
+    "statistics",
+    "statistics_rulesets",
+    "achievements",
+    "monthly_playcounts",
+]
+
+
+SEARCH_INCLUDED = [
+    "team",
+    "daily_challenge_user_stats",
+    "statistics",
+    "statistics_rulesets",
+    "achievements",
+    "monthly_playcounts",
+]

@@ -1,6 +1,6 @@
 import asyncio
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 import math
 from typing import TYPE_CHECKING
 
@@ -30,6 +30,7 @@ from .beatmap import Beatmap, BeatmapResp
 from .beatmapset import Beatmapset, BeatmapsetResp
 from .best_score import BestScore
 from .lazer_user import User, UserResp
+from .monthly_playcounts import MonthlyPlaycounts
 from .score_token import ScoreToken
 
 from redis import Redis
@@ -501,8 +502,22 @@ async def process_user(
     previous_score_best = await get_user_best_score_in_beatmap(
         session, score.beatmap_id, user.id, score.gamemode
     )
-    statistics = None
     add_to_db = False
+    mouthly_playcount = (
+        await session.exec(
+            select(MonthlyPlaycounts).where(
+                MonthlyPlaycounts.user_id == user.id,
+                MonthlyPlaycounts.year == date.today().year,
+                MonthlyPlaycounts.month == date.today().month,
+            )
+        )
+    ).first()
+    if mouthly_playcount is None:
+        mouthly_playcount = MonthlyPlaycounts(
+            user_id=user.id, year=date.today().year, month=date.today().month
+        )
+        add_to_db = True
+    statistics = None
     for i in user.statistics:
         if i.mode == score.gamemode.value:
             statistics = i
@@ -547,6 +562,7 @@ async def process_user(
         statistics.level_current = calculate_score_to_level(statistics.ranked_score)
         statistics.maximum_combo = max(statistics.maximum_combo, score.max_combo)
     statistics.play_count += 1
+    mouthly_playcount.playcount += 1
     statistics.play_time += int((score.ended_at - score.started_at).total_seconds())
     statistics.count_100 += score.n100 + score.nkatu
     statistics.count_300 += score.n300 + score.ngeki
@@ -569,9 +585,8 @@ async def process_user(
         acc_sum = clamp(acc_sum, 0.0, 100.0)
         statistics.pp = pp_sum
         statistics.hit_accuracy = acc_sum
-
     if add_to_db:
-        session.add(statistics)
+        session.add(mouthly_playcount)
     await session.commit()
     await session.refresh(user)
 

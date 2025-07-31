@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.database import User, UserResp
+from app.database.lazer_user import ALL_INCLUDED
 from app.dependencies import get_current_user
 from app.dependencies.database import get_db
 from app.models.score import GameMode
@@ -21,14 +22,6 @@ async def get_user_info_default(
     return await UserResp.from_db(
         current_user,
         session,
-        [
-            "friends",
-            "team",
-            "account_history",
-            "daily_challenge_user_stats",
-            "statistics",
-            "statistics_rulesets",
-            "achievements",
-        ],
+        ALL_INCLUDED,
         ruleset,
     )
