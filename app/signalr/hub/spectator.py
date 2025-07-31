@@ -296,19 +296,18 @@ class SpectatorHub(Hub[StoreClientState]):
                     score_record.id,
                 )
                 # save replay
-                if store.state.state == SpectatedUserState.Passed:
-                    score_record.has_replay = True
-                    await session.commit()
-                    await session.refresh(score_record)
-                    save_replay(
-                        ruleset_id=store.ruleset_id,
-                        md5=store.checksum,
-                        username=store.score.score_info.user.name,
-                        score=score_record,
-                        statistics=store.score.score_info.statistics,
-                        maximum_statistics=store.score.score_info.maximum_statistics,
-                        frames=store.score.replay_frames,
-                    )
+                score_record.has_replay = True
+                await session.commit()
+                await session.refresh(score_record)
+                save_replay(
+                    ruleset_id=store.ruleset_id,
+                    md5=store.checksum,
+                    username=store.score.score_info.user.name,
+                    score=score_record,
+                    statistics=store.score.score_info.statistics,
+                    maximum_statistics=store.score.score_info.maximum_statistics,
+                    frames=store.score.replay_frames,
+                )
 
     async def _end_session(self, user_id: int, state: SpectatorState) -> None:
         if state.state == SpectatedUserState.Playing:
