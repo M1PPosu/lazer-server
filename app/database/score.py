@@ -169,7 +169,9 @@ class ScoreResp(ScoreBase):
         assert score.id
         await score.awaitable_attrs.beatmap
         s.beatmap = await BeatmapResp.from_db(score.beatmap)
-        s.beatmapset = await BeatmapsetResp.from_db(score.beatmap.beatmapset)
+        s.beatmapset = await BeatmapsetResp.from_db(
+            score.beatmap.beatmapset, session=session, user=score.user
+        )
         s.is_perfect_combo = s.max_combo == s.beatmap.max_combo
         s.legacy_perfect = s.max_combo == s.beatmap.max_combo
         s.ruleset_id = MODE_TO_INT[score.gamemode]
@@ -669,7 +671,7 @@ async def process_score(
                 acc=score.accuracy,
             )
             session.add(best_score)
-            session.delete(previous_pp_best) if previous_pp_best else None
+            await session.delete(previous_pp_best) if previous_pp_best else None
             await session.commit()
             await session.refresh(score)
     await session.refresh(score_token)

@@ -10,6 +10,7 @@ from .beatmapset import (
 )
 from .best_score import BestScore
 from .daily_challenge import DailyChallengeStats, DailyChallengeStatsResp
+from .favourite_beatmapset import FavouriteBeatmapset
 from .lazer_user import (
     User,
     UserResp,
@@ -41,6 +42,7 @@ __all__ = [
     "BestScore",
     "DailyChallengeStats",
     "DailyChallengeStatsResp",
+    "FavouriteBeatmapset",
     "OAuthToken",
     "PPBestScore",
     "Relationship",

@@ -14,6 +14,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 if TYPE_CHECKING:
     from app.fetcher import Fetcher
 
+    from .lazer_user import User
+
 
 class BeatmapOwner(SQLModel):
     id: int
@@ -161,6 +163,8 @@ class BeatmapResp(BeatmapBase):
         beatmap: Beatmap,
         query_mode: GameMode | None = None,
         from_set: bool = False,
+        session: AsyncSession | None = None,
+        user: "User | None" = None,
     ) -> "BeatmapResp":
         beatmap_ = beatmap.model_dump()
         if query_mode is not None and beatmap.mode != query_mode:
@@ -170,5 +174,7 @@ class BeatmapResp(BeatmapBase):
         beatmap_["ranked"] = beatmap.beatmap_status.value
         beatmap_["mode_int"] = MODE_TO_INT[beatmap.mode]
         if not from_set:
-            beatmap_["beatmapset"] = await BeatmapsetResp.from_db(beatmap.beatmapset)
+            beatmap_["beatmapset"] = await BeatmapsetResp.from_db(
+                beatmap.beatmapset, session=session, user=user
+            )
         return cls.model_validate(beatmap_)

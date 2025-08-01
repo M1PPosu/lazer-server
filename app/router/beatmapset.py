@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from app.database import (
-    Beatmapset,
-    BeatmapsetResp,
-    User,
-)
+from typing import Literal
+
+from app.database import Beatmapset, BeatmapsetResp, FavouriteBeatmapset, User
 from app.dependencies.database import get_db
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.user import get_current_user
@@ -12,7 +10,7 @@ from app.fetcher import Fetcher
 
 from .api_router import router
 
-from fastapi import Depends, HTTPException, Query
+from fastapi import Depends, Form, HTTPException, Query
 from fastapi.responses import RedirectResponse
 from httpx import HTTPStatusError
 from sqlmodel import select
@@ -34,7 +32,9 @@ async def get_beatmapset(
         except HTTPStatusError:
             raise HTTPException(status_code=404, detail="Beatmapset not found")
     else:
-        resp = await BeatmapsetResp.from_db(beatmapset)
+        resp = await BeatmapsetResp.from_db(
+            beatmapset, session=db, include=["recent_favourites"], user=current_user
+        )
     return resp
 
 
@@ -53,3 +53,34 @@ async def download_beatmapset(
         return RedirectResponse(
             f"https://api.nerinyan.moe/d/{beatmapset}?noVideo={no_video}"
         )
+
+
+@router.post("/beatmapsets/{beatmapset}/favourites", tags=["beatmapset"])
+async def favourite_beatmapset(
+    beatmapset: int,
+    action: Literal["favourite", "unfavourite"] = Form(),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    existing_favourite = (
+        await db.exec(
+            select(FavouriteBeatmapset).where(
+                FavouriteBeatmapset.user_id == current_user.id,
+                FavouriteBeatmapset.beatmapset_id == beatmapset,
+            )
+        )
+    ).first()
+
+    if action == "favourite" and existing_favourite:
+        raise HTTPException(status_code=400, detail="Already favourited")
+    elif action == "unfavourite" and not existing_favourite:
+        raise HTTPException(status_code=400, detail="Not favourited")
+
+    if action == "favourite":
+        favourite = FavouriteBeatmapset(
+            user_id=current_user.id, beatmapset_id=beatmapset
+        )
+        db.add(favourite)
+    else:
+        await db.delete(existing_favourite)
+    await db.commit()

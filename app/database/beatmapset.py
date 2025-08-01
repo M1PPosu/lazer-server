@@ -5,14 +5,17 @@ from app.models.beatmap import BeatmapRankStatus, Genre, Language
 from app.models.model import UTCBaseModel
 from app.models.score import GameMode
 
+from .lazer_user import BASE_INCLUDES, User, UserResp
+
 from pydantic import BaseModel, model_serializer
 from sqlalchemy import DECIMAL, JSON, Column, DateTime, Text
 from sqlalchemy.ext.asyncio import AsyncAttrs
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship, SQLModel, col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 if TYPE_CHECKING:
     from .beatmap import Beatmap, BeatmapResp
+    from .favourite_beatmapset import FavouriteBeatmapset
 
 
 class BeatmapCovers(SQLModel):
@@ -90,7 +93,6 @@ class BeatmapsetBase(SQLModel, UTCBaseModel):
     artist_unicode: str = Field(index=True)
     covers: BeatmapCovers | None = Field(sa_column=Column(JSON))
     creator: str
-    favourite_count: int
     nsfw: bool = Field(default=False)
     play_count: int
     preview_url: str
@@ -114,11 +116,9 @@ class BeatmapsetBase(SQLModel, UTCBaseModel):
 
     pack_tags: list[str] = Field(default=[], sa_column=Column(JSON))
     ratings: list[int] = Field(default=None, sa_column=Column(JSON))
-    # TODO: recent_favourites: Optional[list[User]] = None
     # TODO: related_users: Optional[list[User]] = None
     # TODO: user: Optional[User] = Field(default=None)
     track_id: int | None = Field(default=None)  # feature artist?
-    # TODO: has_favourited
 
     # BeatmapsetExtended
     bpm: float = Field(default=0.0, sa_column=Column(DECIMAL(10, 2)))
@@ -152,6 +152,7 @@ class Beatmapset(AsyncAttrs, BeatmapsetBase, table=True):
     hype_required: int = Field(default=0)
     availability_info: str | None = Field(default=None)
     download_disabled: bool = Field(default=False)
+    favourites: list["FavouriteBeatmapset"] = Relationship(back_populates="beatmapset")
 
     @classmethod
     async def from_resp(
@@ -199,40 +200,88 @@ class BeatmapsetResp(BeatmapsetBase):
     genre: BeatmapTranslationText | None = None
     language: BeatmapTranslationText | None = None
     nominations: BeatmapNominations | None = None
+    has_favourited: bool = False
+    favourite_count: int = 0
+    recent_favourites: list[UserResp] = Field(default_factory=list)
 
     @classmethod
-    async def from_db(cls, beatmapset: Beatmapset) -> "BeatmapsetResp":
+    async def from_db(
+        cls,
+        beatmapset: Beatmapset,
+        include: list[str] = [],
+        session: AsyncSession | None = None,
+        user: User | None = None,
+    ) -> "BeatmapsetResp":
         from .beatmap import BeatmapResp
+        from .favourite_beatmapset import FavouriteBeatmapset
 
-        beatmaps = [
-            await BeatmapResp.from_db(beatmap, from_set=True)
-            for beatmap in await beatmapset.awaitable_attrs.beatmaps
-        ]
+        update = {
+            "beatmaps": [
+                await BeatmapResp.from_db(beatmap, from_set=True)
+                for beatmap in await beatmapset.awaitable_attrs.beatmaps
+            ],
+            "hype": BeatmapHype(
+                current=beatmapset.hype_current, required=beatmapset.hype_required
+            ),
+            "availability": BeatmapAvailability(
+                more_information=beatmapset.availability_info,
+                download_disabled=beatmapset.download_disabled,
+            ),
+            "genre": BeatmapTranslationText(
+                name=beatmapset.beatmap_genre.name,
+                id=beatmapset.beatmap_genre.value,
+            ),
+            "language": BeatmapTranslationText(
+                name=beatmapset.beatmap_language.name,
+                id=beatmapset.beatmap_language.value,
+            ),
+            "nominations": BeatmapNominations(
+                required=beatmapset.nominations_required,
+                current=beatmapset.nominations_current,
+            ),
+            "status": beatmapset.beatmap_status.name.lower(),
+            "ranked": beatmapset.beatmap_status.value,
+            "is_scoreable": beatmapset.beatmap_status > BeatmapRankStatus.PENDING,
+            **beatmapset.model_dump(),
+        }
+        if session and user:
+            existing_favourite = (
+                await session.exec(
+                    select(FavouriteBeatmapset).where(
+                        FavouriteBeatmapset.beatmapset_id == beatmapset.id
+                    )
+                )
+            ).first()
+            update["has_favourited"] = existing_favourite is not None
+
+        if session and "recent_favourites" in include:
+            recent_favourites = (
+                await session.exec(
+                    select(FavouriteBeatmapset)
+                    .where(
+                        FavouriteBeatmapset.beatmapset_id == beatmapset.id,
+                    )
+                    .order_by(col(FavouriteBeatmapset.date).desc())
+                    .limit(50)
+                )
+            ).all()
+            update["recent_favourites"] = [
+                await UserResp.from_db(
+                    await favourite.awaitable_attrs.user,
+                    session=session,
+                    include=BASE_INCLUDES,
+                )
+                for favourite in recent_favourites
+            ]
+
+        if session:
+            update["favourite_count"] = (
+                await session.exec(
+                    select(func.count())
+                    .select_from(FavouriteBeatmapset)
+                    .where(FavouriteBeatmapset.beatmapset_id == beatmapset.id)
+                )
+            ).one()
         return cls.model_validate(
-            {
-                "beatmaps": beatmaps,
-                "hype": BeatmapHype(
-                    current=beatmapset.hype_current, required=beatmapset.hype_required
-                ),
-                "availability": BeatmapAvailability(
-                    more_information=beatmapset.availability_info,
-                    download_disabled=beatmapset.download_disabled,
-                ),
-                "genre": BeatmapTranslationText(
-                    name=beatmapset.beatmap_genre.name,
-                    id=beatmapset.beatmap_genre.value,
-                ),
-                "language": BeatmapTranslationText(
-                    name=beatmapset.beatmap_language.name,
-                    id=beatmapset.beatmap_language.value,
-                ),
-                "nominations": BeatmapNominations(
-                    required=beatmapset.nominations_required,
-                    current=beatmapset.nominations_current,
-                ),
-                "status": beatmapset.beatmap_status.name.lower(),
-                "ranked": beatmapset.beatmap_status.value,
-                "is_scoreable": beatmapset.beatmap_status > BeatmapRankStatus.PENDING,
-                **beatmapset.model_dump(),
-            }
+            update,
         )

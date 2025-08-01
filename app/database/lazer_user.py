@@ -1,7 +1,6 @@
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, NotRequired, TypedDict
 
-from app.dependencies.database import get_redis
 from app.models.model import UTCBaseModel
 from app.models.score import GameMode
 from app.models.user import Country, Page, RankHistory
@@ -28,7 +27,8 @@ from sqlmodel import (
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 if TYPE_CHECKING:
-    from app.database.relationship import RelationshipResp
+    from .favourite_beatmapset import FavouriteBeatmapset
+    from .relationship import RelationshipResp
 
 
 class Kudosu(TypedDict):
@@ -144,6 +144,9 @@ class User(AsyncAttrs, UserBase, table=True):
         back_populates="user"
     )
     monthly_playcounts: list[MonthlyPlaycounts] = Relationship(back_populates="user")
+    favourite_beatmapsets: list["FavouriteBeatmapset"] = Relationship(
+        back_populates="user"
+    )
 
     email: str = Field(max_length=254, unique=True, index=True, exclude=True)
     priv: int = Field(default=1, exclude=True)
@@ -201,6 +204,8 @@ class UserResp(UserBase):
         include: list[str] = [],
         ruleset: GameMode | None = None,
     ) -> "UserResp":
+        from app.dependencies.database import get_redis
+
         from .best_score import BestScore
         from .relationship import Relationship, RelationshipResp, RelationshipType
 
@@ -319,4 +324,10 @@ SEARCH_INCLUDED = [
     "statistics_rulesets",
     "achievements",
     "monthly_playcounts",
+]
+
+BASE_INCLUDES = [
+    "team",
+    "daily_challenge_user_stats",
+    "statistics",
 ]

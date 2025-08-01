@@ -50,7 +50,7 @@ async def lookup_beatmap(
     if beatmap is None:
         raise HTTPException(status_code=404, detail="Beatmap not found")
 
-    return await BeatmapResp.from_db(beatmap)
+    return await BeatmapResp.from_db(beatmap, session=db, user=current_user)
 
 
 @router.get("/beatmaps/{bid}", tags=["beatmap"], response_model=BeatmapResp)
@@ -62,7 +62,7 @@ async def get_beatmap(
 ):
     try:
         beatmap = await Beatmap.get_or_fetch(db, fetcher, bid)
-        return await BeatmapResp.from_db(beatmap)
+        return await BeatmapResp.from_db(beatmap, session=db, user=current_user)
     except HTTPError:
         raise HTTPException(status_code=404, detail="Beatmap not found")
 
@@ -90,7 +90,12 @@ async def batch_get_beatmaps(
             await db.exec(select(Beatmap).where(col(Beatmap.id).in_(b_ids)).limit(50))
         ).all()
 
-    return BatchGetResp(beatmaps=[await BeatmapResp.from_db(bm) for bm in beatmaps])
+    return BatchGetResp(
+        beatmaps=[
+            await BeatmapResp.from_db(bm, session=db, user=current_user)
+            for bm in beatmaps
+        ]
+    )
 
 
 @router.post(
