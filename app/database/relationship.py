@@ -22,12 +22,16 @@ class RelationshipType(str, Enum):
 
 class Relationship(SQLModel, table=True):
     __tablename__ = "relationship"  # pyright: ignore[reportAssignmentType]
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, autoincrement=True, primary_key=True),
+        exclude=True,
+    )
     user_id: int = Field(
         default=None,
         sa_column=Column(
             BigInteger,
             ForeignKey("lazer_users.id"),
-            primary_key=True,
             index=True,
         ),
     )
@@ -36,7 +40,6 @@ class Relationship(SQLModel, table=True):
         sa_column=Column(
             BigInteger,
             ForeignKey("lazer_users.id"),
-            primary_key=True,
             index=True,
         ),
     )
