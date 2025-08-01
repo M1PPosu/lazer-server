@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, NotRequired, TypedDict
 
+from app.dependencies.database import get_redis
 from app.models.model import UTCBaseModel
 from app.models.score import GameMode
 from app.models.user import Country, Page, RankHistory
@@ -157,7 +158,7 @@ class User(AsyncAttrs, UserBase, table=True):
 
 class UserResp(UserBase):
     id: int | None = None
-    is_online: bool = True  # TODO
+    is_online: bool = False
     groups: list = []  # TODO
     country: Country = Field(default_factory=lambda: Country(code="CN", name="China"))
     favourite_beatmapset_count: int = 0  # TODO
@@ -225,6 +226,8 @@ class UserResp(UserBase):
                 .limit(200)
             )
         ).one()
+        redis = get_redis()
+        u.is_online = await redis.exists(f"metadata:online:{obj.id}")
         u.cover_url = (
             obj.cover.get(
                 "url", "https://assets.ppy.sh/user-profile-covers/default.jpeg"

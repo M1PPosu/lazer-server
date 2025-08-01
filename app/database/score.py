@@ -482,7 +482,6 @@ async def process_user(
     previous_score_best_mod = await get_user_best_score_with_mod_in_beatmap(
         session, score.beatmap_id, user.id, mod_for_save, score.gamemode
     )
-    print(previous_score_best, previous_score_best_mod)
     add_to_db = False
     mouthly_playcount = (
         await session.exec(

@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Coroutine
+from datetime import UTC, datetime
 from typing import override
 
 from app.database import Relationship, RelationshipType
-from app.dependencies.database import engine
+from app.database.lazer_user import User
+from app.dependencies.database import engine, get_redis
 from app.models.metadata_hub import MetadataClientState, OnlineStatus, UserActivity
 
 from .hub import Client, Hub
@@ -54,6 +56,18 @@ class MetadataHub(Hub[MetadataClientState]):
     async def _clean_state(self, state: MetadataClientState) -> None:
         if state.pushable:
             await asyncio.gather(*self.broadcast_tasks(int(state.connection_id), None))
+        redis = get_redis()
+        if await redis.exists(f"metadata:online:{state.connection_id}"):
+            await redis.delete(f"metadata:online:{state.connection_id}")
+        async with AsyncSession(engine) as session:
+            async with session.begin():
+                user = (
+                    await session.exec(
+                        select(User).where(User.id == int(state.connection_id))
+                    )
+                ).one()
+                user.last_visit = datetime.now(UTC)
+                await session.commit()
 
     @override
     def create_state(self, client: Client) -> MetadataClientState:
@@ -93,6 +107,8 @@ class MetadataHub(Hub[MetadataClientState]):
                             )
                         )
                 await asyncio.gather(*tasks)
+        redis = get_redis()
+        await redis.set(f"metadata:online:{user_id}", "")
 
     async def UpdateStatus(self, client: Client, status: int) -> None:
         status_ = OnlineStatus(status)

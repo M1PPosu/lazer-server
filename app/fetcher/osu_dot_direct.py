@@ -22,7 +22,7 @@ class OsuDotDirectFetcher(BaseFetcher):
     async def get_or_fetch_beatmap_raw(
         self, redis: redis.Redis, beatmap_id: int
     ) -> str:
-        if redis.exists(f"beatmap:{beatmap_id}:raw"):
+        if await redis.exists(f"beatmap:{beatmap_id}:raw"):
             return await redis.get(f"beatmap:{beatmap_id}:raw")  # pyright: ignore[reportReturnType]
         raw = await self.get_beatmap_raw(beatmap_id)
         await redis.set(f"beatmap:{beatmap_id}:raw", raw, ex=60 * 60 * 24)
