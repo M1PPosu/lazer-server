@@ -15,8 +15,11 @@ from .lazer_user import (
     User,
     UserResp,
 )
+from .playlist_attempts import ItemAttemptsCount
+from .playlists import Playlist, PlaylistResp
 from .pp_best_score import PPBestScore
 from .relationship import Relationship, RelationshipResp, RelationshipType
+from .room import Room, RoomResp
 from .score import (
     Score,
     ScoreBase,
@@ -43,11 +46,16 @@ __all__ = [
     "DailyChallengeStats",
     "DailyChallengeStatsResp",
     "FavouriteBeatmapset",
+    "ItemAttemptsCount",
     "OAuthToken",
     "PPBestScore",
+    "Playlist",
+    "PlaylistResp",
     "Relationship",
     "RelationshipResp",
     "RelationshipType",
+    "Room",
+    "RoomResp",
     "Score",
     "ScoreBase",
     "ScoreResp",

@@ -5,10 +5,12 @@ from typing import Literal, NotRequired, TypedDict
 
 from app.path import STATIC_DIR
 
+from msgpack_lazer_api import APIMod as MsgpackAPIMod
+
 
 class APIMod(TypedDict):
     acronym: str
-    settings: NotRequired[dict[str, bool | float | str]]
+    settings: NotRequired[dict[str, bool | float | str | int]]
 
 
 # https://github.com/ppy/osu-api/wiki#mods
@@ -167,3 +169,13 @@ def mods_can_get_pp(ruleset_id: int, mods: list[APIMod]) -> bool:
             if expected_value != NO_CHECK and value != expected_value:
                 return False
     return True
+
+
+def msgpack_to_apimod(mod: MsgpackAPIMod) -> APIMod:
+    """
+    Convert a MsgpackAPIMod to an APIMod.
+    """
+    return APIMod(
+        acronym=mod.acronym,
+        settings=mod.settings,
+    )

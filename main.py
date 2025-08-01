@@ -6,7 +6,12 @@ from datetime import datetime
 from app.config import settings
 from app.dependencies.database import create_tables, engine, redis_client
 from app.dependencies.fetcher import get_fetcher
-from app.router import api_router, auth_router, fetcher_router, signalr_router
+from app.router import (
+    api_router,
+    auth_router,
+    fetcher_router,
+    signalr_router,
+)
 
 from fastapi import FastAPI
 
