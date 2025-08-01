@@ -13,6 +13,8 @@ pub fn read_object(
     match rmp::decode::read_marker(cursor) {
         Ok(marker) => match marker {
             rmp::Marker::Null => Ok(py.None()),
+            rmp::Marker::True => Ok(true.into_py_any(py)?),
+            rmp::Marker::False => Ok(false.into_py_any(py)?),
             rmp::Marker::FixPos(val) => Ok(val.into_pyobject(py)?.into_any().unbind()),
             rmp::Marker::FixNeg(val) => Ok(val.into_pyobject(py)?.into_any().unbind()),
             rmp::Marker::U8 => {
@@ -86,8 +88,6 @@ pub fn read_object(
                 cursor.read_exact(&mut data).map_err(to_py_err)?;
                 Ok(data.into_pyobject(py)?.into_any().unbind())
             }
-            rmp::Marker::True => Ok(true.into_py_any(py)?),
-            rmp::Marker::False => Ok(false.into_py_any(py)?),
             rmp::Marker::FixStr(len) => read_string(py, cursor, len as u32),
             rmp::Marker::Str8 => {
                 let mut buf = [0u8; 1];

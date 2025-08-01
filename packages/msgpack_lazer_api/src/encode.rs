@@ -110,12 +110,12 @@ pub fn write_object(buf: &mut Vec<u8>, obj: &Bound<'_, PyAny>) {
         write_list(buf, list);
     } else if let Ok(string) = obj.downcast::<PyString>() {
         write_string(buf, string);
-    } else if let Ok(integer) = obj.downcast::<PyInt>() {
-        write_integer(buf, integer);
-    } else if let Ok(float) = obj.downcast::<PyFloat>() {
-        write_float(buf, float);
     } else if let Ok(boolean) = obj.downcast::<PyBool>() {
-        write_bool(buf, boolean);
+      write_bool(buf, boolean);
+    } else if let Ok(float) = obj.downcast::<PyFloat>() {
+      write_float(buf, float);
+    } else if let Ok(integer) = obj.downcast::<PyInt>() {
+      write_integer(buf, integer);
     } else if let Ok(bytes) = obj.downcast::<PyBytes>() {
         write_bin(buf, bytes);
     } else if let Ok(dict) = obj.downcast::<PyDict>() {
