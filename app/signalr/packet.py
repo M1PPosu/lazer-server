@@ -158,7 +158,7 @@ class MsgpackProtocol:
             result_kind = 2
             if packet.error:
                 result_kind = 1
-            elif packet.result is None:
+            elif packet.result is not None:
                 result_kind = 3
             payload.extend(
                 [
