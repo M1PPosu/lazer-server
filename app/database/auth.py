@@ -1,19 +1,21 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from app.models.model import UTCBaseModel
+
 from sqlalchemy import Column, DateTime
 from sqlmodel import BigInteger, Field, ForeignKey, Relationship, SQLModel
 
 if TYPE_CHECKING:
-    from .user import User
+    from .lazer_user import User
 
 
-class OAuthToken(SQLModel, table=True):
+class OAuthToken(UTCBaseModel, SQLModel, table=True):
     __tablename__ = "oauth_tokens"  # pyright: ignore[reportAssignmentType]
 
     id: int | None = Field(default=None, primary_key=True, index=True)
     user_id: int = Field(
-        sa_column=Column(BigInteger, ForeignKey("users.id"), index=True)
+        sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True)
     )
     access_token: str = Field(max_length=500, unique=True)
     refresh_token: str = Field(max_length=500, unique=True)

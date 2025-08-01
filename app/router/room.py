@@ -6,8 +6,10 @@ from app.dependencies.fetcher import get_fetcher
 from app.fetcher import Fetcher
 from app.models.room import MultiplayerRoom, MultiplayerRoomState, Room
 
-from api_router import router
+from .api_router import router
+
 from fastapi import Depends, HTTPException, Query
+from redis.asyncio import Redis
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -21,6 +23,7 @@ async def get_all_rooms(
     ),  # TODO: 对房间根据分类进行筛选（真的有人用这功能吗）
     db: AsyncSession = Depends(get_db),
     fetcher: Fetcher = Depends(get_fetcher),
+    redis: Redis = Depends(get_redis),
 ):
     all_roomID = (await db.exec(select(RoomIndex))).all()
     redis = get_redis()

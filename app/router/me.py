@@ -1,28 +1,27 @@
 from __future__ import annotations
 
-from typing import Literal
-
-from app.database import (
-    User as DBUser,
-)
+from app.database import User, UserResp
+from app.database.lazer_user import ALL_INCLUDED
 from app.dependencies import get_current_user
-from app.models.user import (
-    User as ApiUser,
-)
-from app.utils import convert_db_user_to_api_user
+from app.dependencies.database import get_db
+from app.models.score import GameMode
 
 from .api_router import router
 
 from fastapi import Depends
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 
-@router.get("/me/{ruleset}", response_model=ApiUser)
-@router.get("/me/", response_model=ApiUser)
+@router.get("/me/{ruleset}", response_model=UserResp)
+@router.get("/me/", response_model=UserResp)
 async def get_user_info_default(
-    ruleset: Literal["osu", "taiko", "fruits", "mania"] = "osu",
-    current_user: DBUser = Depends(get_current_user),
+    ruleset: GameMode | None = None,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
 ):
-    """获取当前用户信息（默认使用osu模式）"""
-    # 默认使用osu模式
-    api_user = await convert_db_user_to_api_user(current_user, ruleset)
-    return api_user
+    return await UserResp.from_db(
+        current_user,
+        session,
+        ALL_INCLUDED,
+        ruleset,
+    )

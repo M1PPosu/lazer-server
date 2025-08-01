@@ -5,14 +5,10 @@ import json
 from app.config import settings
 
 from pydantic import BaseModel
+import redis.asyncio as redis
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
-
-try:
-    import redis
-except ImportError:
-    redis = None
 
 
 def json_serializer(value):
@@ -25,10 +21,7 @@ def json_serializer(value):
 engine = create_async_engine(settings.DATABASE_URL, json_serializer=json_serializer)
 
 # Redis 连接
-if redis:
-    redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
-else:
-    redis_client = None
+redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
 
 
 # 数据库依赖

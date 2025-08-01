@@ -7,10 +7,9 @@ import struct
 import time
 from typing import override
 
-from app.database import Beatmap
+from app.database import Beatmap, User
 from app.database.score import Score
 from app.database.score_token import ScoreToken
-from app.database.user import User
 from app.dependencies.database import engine
 from app.models.beatmap import BeatmapRankStatus
 from app.models.mods import mods_to_int
@@ -197,7 +196,7 @@ class SpectatorHub(Hub[StoreClientState]):
                 ).first()
                 if not user:
                     return
-                name = user.name
+                name = user.username
                 store.state = state
                 store.beatmap_status = beatmap.beatmap_status
                 store.checksum = beatmap.checksum
@@ -241,65 +240,17 @@ class SpectatorHub(Hub[StoreClientState]):
         user_id = int(client.connection_id)
         store = self.get_or_create_state(client)
         score = store.score
+        assert store.beatmap_status is not None
+        assert store.state is not None
+        assert store.score is not None
         if not score or not store.score_token:
             return
-
-        assert store.beatmap_status is not None
-
-        async def _save_replay():
-            assert store.checksum is not None
-            assert store.ruleset_id is not None
-            assert store.state is not None
-            assert store.score is not None
-            async with AsyncSession(engine) as session:
-                async with session:
-                    start_time = time.time()
-                    score_record = None
-                    while time.time() - start_time < READ_SCORE_TIMEOUT:
-                        sub_query = select(ScoreToken.score_id).where(
-                            ScoreToken.id == store.score_token,
-                        )
-                        result = await session.exec(
-                            select(Score)
-                            .options(joinedload(Score.beatmap))  # pyright: ignore[reportArgumentType]
-                            .where(
-                                Score.id == sub_query,
-                                Score.user_id == user_id,
-                            )
-                        )
-                        score_record = result.first()
-                        if score_record:
-                            break
-                    if not score_record:
-                        return
-                    if not score_record.passed:
-                        return
-                    score_record.has_replay = True
-                    await session.commit()
-                    await session.refresh(score_record)
-                    save_replay(
-                        ruleset_id=store.ruleset_id,
-                        md5=store.checksum,
-                        username=store.score.score_info.user.name,
-                        score=score_record,
-                        statistics=score.score_info.statistics,
-                        maximum_statistics=score.score_info.maximum_statistics,
-                        frames=score.replay_frames,
-                    )
-
         if (
-            (
-                BeatmapRankStatus.PENDING
-                < store.beatmap_status
-                <= BeatmapRankStatus.LOVED
-            )
-            and any(
-                k.is_hit() and v > 0 for k, v in score.score_info.statistics.items()
-            )
-            and state.state != SpectatedUserState.Failed
+            BeatmapRankStatus.PENDING < store.beatmap_status <= BeatmapRankStatus.LOVED
+        ) and any(
+            k.is_hit() and v > 0 for k, v in store.score.score_info.statistics.items()
         ):
-            # save replay
-            await _save_replay()
+            await self._process_score(store, client)
         store.state = None
         store.beatmap_status = None
         store.checksum = None
@@ -307,6 +258,56 @@ class SpectatorHub(Hub[StoreClientState]):
         store.score_token = None
         store.score = None
         await self._end_session(user_id, state)
+
+    async def _process_score(self, store: StoreClientState, client: Client) -> None:
+        user_id = int(client.connection_id)
+        assert store.state is not None
+        assert store.score_token is not None
+        assert store.checksum is not None
+        assert store.ruleset_id is not None
+        assert store.score is not None
+        async with AsyncSession(engine) as session:
+            async with session:
+                start_time = time.time()
+                score_record = None
+                while time.time() - start_time < READ_SCORE_TIMEOUT:
+                    sub_query = select(ScoreToken.score_id).where(
+                        ScoreToken.id == store.score_token,
+                    )
+                    result = await session.exec(
+                        select(Score)
+                        .options(joinedload(Score.beatmap))  # pyright: ignore[reportArgumentType]
+                        .where(
+                            Score.id == sub_query,
+                            Score.user_id == user_id,
+                        )
+                    )
+                    score_record = result.first()
+                    if score_record:
+                        break
+                if not score_record:
+                    return
+                if not score_record.passed:
+                    return
+                await self.call_noblock(
+                    client,
+                    "UserScoreProcessed",
+                    user_id,
+                    score_record.id,
+                )
+                # save replay
+                score_record.has_replay = True
+                await session.commit()
+                await session.refresh(score_record)
+                save_replay(
+                    ruleset_id=store.ruleset_id,
+                    md5=store.checksum,
+                    username=store.score.score_info.user.name,
+                    score=score_record,
+                    statistics=store.score.score_info.statistics,
+                    maximum_statistics=store.score.score_info.maximum_statistics,
+                    frames=store.score.replay_frames,
+                )
 
     async def _end_session(self, user_id: int, state: SpectatorState) -> None:
         if state.state == SpectatedUserState.Playing:
@@ -336,7 +337,7 @@ class SpectatorHub(Hub[StoreClientState]):
         async with AsyncSession(engine) as session:
             async with session.begin():
                 username = (
-                    await session.exec(select(User.name).where(User.id == user_id))
+                    await session.exec(select(User.username).where(User.id == user_id))
                 ).first()
                 if not username:
                     return

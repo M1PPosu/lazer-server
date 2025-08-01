@@ -132,7 +132,7 @@ class HitResultInt(IntEnum):
 
 class LeaderboardType(Enum):
     GLOBAL = "global"
-    FRIENDS = "friends"
+    FRIENDS = "friend"
     COUNTRY = "country"
     TEAM = "team"
 
