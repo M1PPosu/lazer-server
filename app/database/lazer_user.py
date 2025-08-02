@@ -66,7 +66,7 @@ class UserBase(UTCBaseModel, SQLModel):
     is_active: bool = True
     is_bot: bool = False
     is_supporter: bool = False
-    last_visit: datetime = Field(
+    last_visit: datetime | None = Field(
         default=datetime.now(UTC), sa_column=Column(DateTime(timezone=True))
     )
     pm_friends_only: bool = False
