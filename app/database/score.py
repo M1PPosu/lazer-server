@@ -328,6 +328,10 @@ async def get_leaderboard(
         self_query = (
             select(BestScore)
             .where(BestScore.user_id == user.id)
+            .where(
+                col(BestScore.beatmap_id) == beatmap,
+                col(BestScore.gamemode) == mode,
+            )
             .order_by(col(BestScore.total_score).desc())
             .limit(1)
         )
