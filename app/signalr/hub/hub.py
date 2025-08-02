@@ -2,13 +2,15 @@ from __future__ import annotations
 
 from abc import abstractmethod
 import asyncio
+from enum import Enum
+import inspect
 import time
 from typing import Any
 
 from app.config import settings
 from app.exception import InvokeException
 from app.log import logger
-from app.models.signalr import UserState
+from app.models.signalr import UserState, _by_index
 from app.signalr.packet import (
     ClosePacket,
     CompletionPacket,
@@ -265,6 +267,10 @@ class Hub[TState: UserState]:
                 continue
             if issubclass(param.annotation, BaseModel):
                 call_params.append(param.annotation.model_validate(args.pop(0)))
+            elif inspect.isclass(param.annotation) and issubclass(
+                param.annotation, Enum
+            ):
+                call_params.append(_by_index(args.pop(0), param.annotation))
             else:
                 call_params.append(args.pop(0))
         return await method_(client, *call_params)
