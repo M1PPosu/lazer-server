@@ -15,26 +15,26 @@ from pydantic import (
 )
 
 
+def serialize_msgpack(v: Any) -> Any:
+    typ = v.__class__
+    if issubclass(typ, BaseModel):
+        return serialize_to_list(v)
+    elif issubclass(typ, list):
+        return TypeAdapter(
+            typ, config=ConfigDict(arbitrary_types_allowed=True)
+        ).dump_python(v)
+    elif issubclass(typ, datetime.datetime):
+        return [v, 0]
+    elif issubclass(typ, Enum):
+        list_ = list(typ)
+        return list_.index(v) if v in list_ else v.value
+    return v
+
+
 def serialize_to_list(value: BaseModel) -> list[Any]:
     data = []
     for field, info in value.__class__.model_fields.items():
-        v = getattr(value, field)
-        typ = v.__class__
-        if issubclass(typ, BaseModel):
-            data.append(serialize_to_list(v))
-        elif issubclass(typ, list):
-            data.append(
-                TypeAdapter(
-                    info.annotation, config=ConfigDict(arbitrary_types_allowed=True)
-                ).dump_python(v)
-            )
-        elif issubclass(typ, datetime.datetime):
-            data.append([v, 0])
-        elif issubclass(typ, Enum):
-            list_ = list(typ)
-            data.append(list_.index(v) if v in list_ else v.value)
-        else:
-            data.append(v)
+        data.append(serialize_msgpack(v=getattr(value, field)))
     return data
 
 

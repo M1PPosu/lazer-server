@@ -8,6 +8,8 @@ from typing import (
     Protocol as TypingProtocol,
 )
 
+from app.models.signalr import serialize_msgpack
+
 import msgpack_lazer_api as m
 
 SEP = b"\x1e"
@@ -151,7 +153,7 @@ class MsgpackProtocol:
                 ]
             )
             if packet.arguments is not None:
-                payload.append(packet.arguments)
+                payload.append([serialize_msgpack(arg) for arg in packet.arguments])
             if packet.stream_ids is not None:
                 payload.append(packet.stream_ids)
         elif isinstance(packet, CompletionPacket):
