@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from app.database import Beatmapset, BeatmapsetResp, FavouriteBeatmapset, User
+from app.database import Beatmap, Beatmapset, BeatmapsetResp, FavouriteBeatmapset, User
 from app.dependencies.database import get_db
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.user import get_current_user
@@ -15,6 +15,32 @@ from fastapi.responses import RedirectResponse
 from httpx import HTTPStatusError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
+
+
+@router.get("/beatmapsets/lookup", tags=["beatmapset"], response_model=BeatmapsetResp)
+async def lookup_beatmapset(
+    beatmap_id: int = Query(),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    fetcher: Fetcher = Depends(get_fetcher),
+):
+    beatmapset_id = (
+        await db.exec(select(Beatmap.beatmapset_id).where(Beatmap.id == beatmap_id))
+    ).first()
+    if not beatmapset_id:
+        try:
+            resp = await fetcher.get_beatmap(beatmap_id)
+            await Beatmap.from_resp(db, resp)
+            await db.refresh(current_user)
+        except HTTPStatusError:
+            raise HTTPException(status_code=404, detail="Beatmapset not found")
+    beatmapset = (
+        await db.exec(select(Beatmapset).where(Beatmapset.id == beatmapset_id))
+    ).first()
+    if not beatmapset:
+        raise HTTPException(status_code=404, detail="Beatmapset not found")
+    resp = await BeatmapsetResp.from_db(beatmapset, session=db, user=current_user)
+    return resp
 
 
 @router.get("/beatmapsets/{sid}", tags=["beatmapset"], response_model=BeatmapsetResp)

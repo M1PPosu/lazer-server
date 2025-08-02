@@ -74,7 +74,7 @@ class BatchGetResp(BaseModel):
 @router.get("/beatmaps", tags=["beatmap"], response_model=BatchGetResp)
 @router.get("/beatmaps/", tags=["beatmap"], response_model=BatchGetResp)
 async def batch_get_beatmaps(
-    b_ids: list[int] = Query(alias="id", default_factory=list),
+    b_ids: list[int] = Query(alias="ids[]", default_factory=list),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
