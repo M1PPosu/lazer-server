@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import override
 
 from app.database import Room
+from app.database.beatmap import Beatmap
 from app.database.playlists import Playlist
 from app.dependencies.database import engine
 from app.exception import InvokeException
@@ -17,10 +18,13 @@ from app.models.multiplayer_hub import (
     ServerMultiplayerRoom,
 )
 from app.models.room import RoomCategory, RoomStatus
+from app.models.score import GameMode
 from app.models.signalr import serialize_to_list
 
 from .hub import Client, Hub
 
+from msgpack_lazer_api import APIMod
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
@@ -218,4 +222,176 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             self.group_id(room.room.room_id),
             "PlaylistItemChanged",
             serialize_to_list(item),
+        )
+
+    async def ChangeUserStyle(
+        self, client: Client, beatmap_id: int | None, ruleset_id: int | None
+    ):
+        store = self.get_or_create_state(client)
+        if store.room_id == 0:
+            raise InvokeException("You are not in a room")
+        if store.room_id not in self.rooms:
+            raise InvokeException("Room does not exist")
+        server_room = self.rooms[store.room_id]
+        room = server_room.room
+        user = next((u for u in room.users if u.user_id == client.user_id), None)
+        if user is None:
+            raise InvokeException("You are not in this room")
+
+        await self.change_user_style(
+            beatmap_id,
+            ruleset_id,
+            server_room,
+            user,
+        )
+
+    async def validate_styles(self, room: ServerMultiplayerRoom):
+        assert room.queue
+        if not room.queue.current_item.freestyle:
+            for user in room.room.users:
+                await self.change_user_style(
+                    None,
+                    None,
+                    room,
+                    user,
+                )
+        async with AsyncSession(engine) as session:
+            beatmap = await session.get(Beatmap, room.queue.current_item.beatmap_id)
+            if beatmap is None:
+                raise InvokeException("Beatmap not found")
+            beatmap_ids = (
+                await session.exec(
+                    select(Beatmap.id, Beatmap.mode).where(
+                        Beatmap.beatmapset_id == beatmap.beatmapset_id,
+                    )
+                )
+            ).all()
+            for user in room.room.users:
+                beatmap_id = user.beatmap_id
+                ruleset_id = user.ruleset_id
+                user_beatmap = next(
+                    (b for b in beatmap_ids if b[0] == beatmap_id),
+                    None,
+                )
+                if beatmap_id is not None and user_beatmap is None:
+                    beatmap_id = None
+                beatmap_ruleset = user_beatmap[1] if user_beatmap else beatmap.mode
+                if (
+                    ruleset_id is not None
+                    and beatmap_ruleset != GameMode.OSU
+                    and ruleset_id != beatmap_ruleset
+                ):
+                    ruleset_id = None
+                await self.change_user_style(
+                    beatmap_id,
+                    ruleset_id,
+                    room,
+                    user,
+                )
+
+        for user in room.room.users:
+            is_valid, valid_mods = room.queue.current_item.validate_user_mods(
+                user, user.mods
+            )
+            if not is_valid:
+                await self.change_user_mods(valid_mods, room, user)
+
+    async def change_user_style(
+        self,
+        beatmap_id: int | None,
+        ruleset_id: int | None,
+        room: ServerMultiplayerRoom,
+        user: MultiplayerRoomUser,
+    ):
+        if user.beatmap_id == beatmap_id and user.ruleset_id == ruleset_id:
+            return
+
+        if beatmap_id is not None or ruleset_id is not None:
+            assert room.queue
+            if not room.queue.current_item.freestyle:
+                raise InvokeException("Current item does not allow free user styles.")
+
+            async with AsyncSession(engine) as session:
+                item_beatmap = await session.get(
+                    Beatmap, room.queue.current_item.beatmap_id
+                )
+                if item_beatmap is None:
+                    raise InvokeException("Item beatmap not found")
+
+                user_beatmap = (
+                    item_beatmap
+                    if beatmap_id is None
+                    else await session.get(Beatmap, beatmap_id)
+                )
+
+                if user_beatmap is None:
+                    raise InvokeException("Invalid beatmap selected.")
+
+                if user_beatmap.beatmapset_id != item_beatmap.beatmapset_id:
+                    raise InvokeException(
+                        "Selected beatmap is not from the same beatmap set."
+                    )
+
+                if (
+                    ruleset_id is not None
+                    and user_beatmap.mode != GameMode.OSU
+                    and ruleset_id != user_beatmap.mode
+                ):
+                    raise InvokeException(
+                        "Selected ruleset is not supported for the given beatmap."
+                    )
+
+        user.beatmap_id = beatmap_id
+        user.ruleset_id = ruleset_id
+
+        await self.broadcast_group_call(
+            self.group_id(room.room.room_id),
+            "UserStyleChanged",
+            user.user_id,
+            beatmap_id,
+            ruleset_id,
+        )
+
+    async def ChangeUserMods(self, client: Client, new_mods: list[APIMod]):
+        store = self.get_or_create_state(client)
+        if store.room_id == 0:
+            raise InvokeException("You are not in a room")
+        if store.room_id not in self.rooms:
+            raise InvokeException("Room does not exist")
+        server_room = self.rooms[store.room_id]
+        room = server_room.room
+        user = next((u for u in room.users if u.user_id == client.user_id), None)
+        if user is None:
+            raise InvokeException("You are not in this room")
+
+        await self.change_user_mods(new_mods, server_room, user)
+
+    async def change_user_mods(
+        self,
+        new_mods: list[APIMod],
+        room: ServerMultiplayerRoom,
+        user: MultiplayerRoomUser,
+    ):
+        assert room.queue
+        is_valid, valid_mods = room.queue.current_item.validate_user_mods(
+            user, new_mods
+        )
+        if not is_valid:
+            incompatible_mods = [
+                mod.acronym for mod in new_mods if mod not in valid_mods
+            ]
+            raise InvokeException(
+                f"Incompatible mods were selected: {','.join(incompatible_mods)}"
+            )
+
+        if user.mods == valid_mods:
+            return
+
+        user.mods = valid_mods
+
+        await self.broadcast_group_call(
+            self.group_id(room.room.room_id),
+            "UserModsChanged",
+            user.user_id,
+            valid_mods,
         )

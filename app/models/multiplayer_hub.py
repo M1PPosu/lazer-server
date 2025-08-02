@@ -103,6 +103,84 @@ class PlaylistItem(MessagePackArrayModel):
     star: float
     freestyle: bool
 
+    def validate_user_mods(
+        self,
+        user: "MultiplayerRoomUser",
+        proposed_mods: list[APIMod],
+    ) -> tuple[bool, list[APIMod]]:
+        """
+        Validates user mods against playlist item rules and returns valid mods.
+        Returns (is_valid, valid_mods).
+        """
+        from typing import Literal, cast
+
+        from app.models.mods import API_MODS, init_mods
+
+        if not API_MODS:
+            init_mods()
+
+        ruleset_id = user.ruleset_id if user.ruleset_id is not None else self.ruleset_id
+        ruleset_key = cast(Literal[0, 1, 2, 3], ruleset_id)
+
+        valid_mods = []
+        all_proposed_valid = True
+
+        # Check if mods are valid for the ruleset
+        for mod in proposed_mods:
+            if ruleset_key not in API_MODS or mod.acronym not in API_MODS[ruleset_key]:
+                all_proposed_valid = False
+                continue
+            valid_mods.append(mod)
+
+        # Check mod compatibility within user mods
+        incompatible_mods = set()
+        final_valid_mods = []
+        for mod in valid_mods:
+            if mod.acronym in incompatible_mods:
+                all_proposed_valid = False
+                continue
+            setting_mods = API_MODS[ruleset_key].get(mod.acronym)
+            if setting_mods:
+                incompatible_mods.update(setting_mods["IncompatibleMods"])
+            final_valid_mods.append(mod)
+
+        # If not freestyle, check against allowed mods
+        if not self.freestyle:
+            allowed_acronyms = {mod.acronym for mod in self.allowed_mods}
+            filtered_valid_mods = []
+            for mod in final_valid_mods:
+                if mod.acronym not in allowed_acronyms:
+                    all_proposed_valid = False
+                else:
+                    filtered_valid_mods.append(mod)
+            final_valid_mods = filtered_valid_mods
+
+        # Check compatibility with required mods
+        required_mod_acronyms = {mod.acronym for mod in self.required_mods}
+        all_mod_acronyms = {
+            mod.acronym for mod in final_valid_mods
+        } | required_mod_acronyms
+
+        # Check for incompatibility between required and user mods
+        filtered_valid_mods = []
+        for mod in final_valid_mods:
+            mod_acronym = mod.acronym
+            is_compatible = True
+
+            for other_acronym in all_mod_acronyms:
+                if other_acronym == mod_acronym:
+                    continue
+                setting_mods = API_MODS[ruleset_key].get(mod_acronym)
+                if setting_mods and other_acronym in setting_mods["IncompatibleMods"]:
+                    is_compatible = False
+                    all_proposed_valid = False
+                    break
+
+            if is_compatible:
+                filtered_valid_mods.append(mod)
+
+        return all_proposed_valid, filtered_valid_mods
+
 
 class _MultiplayerCountdown(MessagePackArrayModel):
     id: int
@@ -405,7 +483,6 @@ class MultiplayerQueue:
         current_id = self.room.settings.playlist_item_id
         return next(
             (item for item in self.room.playlist if item.id == current_id),
-            None,
         )
 
 
