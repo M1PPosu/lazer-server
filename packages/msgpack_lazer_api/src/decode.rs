@@ -1,8 +1,6 @@
-use crate::APIMod;
 use chrono::{TimeZone, Utc};
 use pyo3::types::PyDict;
 use pyo3::{prelude::*, IntoPyObjectExt};
-use std::collections::HashMap;
 use std::io::Read;
 
 pub fn read_object(
@@ -206,13 +204,12 @@ fn read_array(
         let obj1 = read_object(py, cursor, false)?;
         if obj1.extract::<String>(py).map_or(false, |k| k.len() == 2) {
             let obj2 = read_object(py, cursor, true)?;
-            return Ok(APIMod {
-                acronym: obj1.extract::<String>(py)?,
-                settings: obj2.extract::<HashMap<String, PyObject>>(py)?,
-            }
-            .into_pyobject(py)?
-            .into_any()
-            .unbind());
+
+            let api_mod_dict = PyDict::new(py);
+            api_mod_dict.set_item("acronym", obj1)?;
+            api_mod_dict.set_item("settings", obj2)?;
+
+            return Ok(api_mod_dict.into_pyobject(py)?.into_any().unbind());
         } else {
             items.push(obj1);
             i += 1;

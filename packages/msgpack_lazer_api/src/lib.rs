@@ -2,30 +2,6 @@ mod decode;
 mod encode;
 
 use pyo3::prelude::*;
-use std::collections::HashMap;
-
-#[pyclass]
-struct APIMod {
-    #[pyo3(get, set)]
-    acronym: String,
-    #[pyo3(get, set)]
-    settings: HashMap<String, PyObject>,
-}
-
-#[pymethods]
-impl APIMod {
-    #[new]
-    fn new(acronym: String, settings: HashMap<String, PyObject>) -> Self {
-        APIMod { acronym, settings }
-    }
-
-    fn __repr__(&self) -> String {
-        format!(
-            "APIMod(acronym='{}', settings={:?})",
-            self.acronym, self.settings
-        )
-    }
-}
 
 #[pyfunction]
 #[pyo3(name = "encode")]
@@ -46,6 +22,5 @@ fn decode_py(py: Python, data: &[u8]) -> PyResult<PyObject> {
 fn msgpack_lazer_api(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(encode_py, m)?)?;
     m.add_function(wrap_pyfunction!(decode_py, m)?)?;
-    m.add_class::<APIMod>()?;
     Ok(())
 }

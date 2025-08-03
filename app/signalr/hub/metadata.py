@@ -11,7 +11,6 @@ from app.models.metadata_hub import MetadataClientState, OnlineStatus, UserActiv
 
 from .hub import Client, Hub
 
-from pydantic import TypeAdapter
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -31,7 +30,7 @@ class MetadataHub(Hub[MetadataClientState]):
     ) -> set[Coroutine]:
         if store is not None and not store.pushable:
             return set()
-        data = store.to_dict() if store else None
+        data = store.for_push if store else None
         return {
             self.broadcast_group_call(
                 self.online_presence_watchers_group(),
@@ -102,7 +101,9 @@ class MetadataHub(Hub[MetadataClientState]):
                                 self.friend_presence_watchers_group(friend_id),
                                 "FriendPresenceUpdated",
                                 friend_id,
-                                friend_state.to_dict(),
+                                friend_state.for_push
+                                if friend_state.pushable
+                                else None,
                             )
                         )
                 await asyncio.gather(*tasks)
@@ -122,27 +123,24 @@ class MetadataHub(Hub[MetadataClientState]):
                 client,
                 "UserPresenceUpdated",
                 user_id,
-                store.to_dict(),
+                store.for_push,
             )
         )
         await asyncio.gather(*tasks)
 
-    async def UpdateActivity(self, client: Client, activity_dict: dict | None) -> None:
+    async def UpdateActivity(
+        self, client: Client, activity: UserActivity | None
+    ) -> None:
         user_id = int(client.connection_id)
-        activity = (
-            TypeAdapter(UserActivity).validate_python(activity_dict)
-            if activity_dict
-            else None
-        )
         store = self.get_or_create_state(client)
-        store.user_activity = activity
+        store.activity = activity
         tasks = self.broadcast_tasks(user_id, store)
         tasks.add(
             self.call_noblock(
                 client,
                 "UserPresenceUpdated",
                 user_id,
-                store.to_dict(),
+                store.for_push,
             )
         )
         await asyncio.gather(*tasks)
@@ -154,7 +152,7 @@ class MetadataHub(Hub[MetadataClientState]):
                     client,
                     "UserPresenceUpdated",
                     user_id,
-                    store.to_dict(),
+                    store,
                 )
                 for user_id, store in self.state.items()
                 if store.pushable
