@@ -15,16 +15,20 @@ from app.models.multiplayer_hub import (
     BeatmapAvailability,
     ForceGameplayStartCountdown,
     GameplayAbortReason,
+    MatchRequest,
     MatchServerEvent,
     MultiplayerClientState,
-    MultiplayerQueue,
     MultiplayerRoom,
+    MultiplayerRoomSettings,
     MultiplayerRoomUser,
     PlaylistItem,
     ServerMultiplayerRoom,
+    StartMatchCountdownRequest,
+    StopCountdownRequest,
 )
 from app.models.room import (
     DownloadState,
+    MatchType,
     MultiplayerRoomState,
     MultiplayerUserState,
     RoomCategory,
@@ -88,15 +92,11 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 server_room = ServerMultiplayerRoom(
                     room=room,
                     category=RoomCategory.NORMAL,
-                    status=RoomStatus.IDLE,
                     start_at=starts_at,
                     hub=self,
                 )
-                queue = MultiplayerQueue(
-                    room=server_room,
-                )
-                server_room.queue = queue
                 self.rooms[room.room_id] = server_room
+                await server_room.set_handler()
                 return await self.JoinRoomWithPassword(
                     client, room.room_id, room.settings.password
                 )
@@ -126,6 +126,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         await self.broadcast_group_call(self.group_id(room_id), "UserJoined", user)
         room.users.append(user)
         self.add_to_group(client, self.group_id(room_id))
+        await server_room.match_type_handler.handle_join(user)
         return room
 
     async def ChangeBeatmapAvailability(
@@ -164,7 +165,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             raise InvokeException("Room does not exist")
         server_room = self.rooms[store.room_id]
         room = server_room.room
-        assert server_room.queue
+
         user = next((u for u in room.users if u.user_id == client.user_id), None)
         if user is None:
             raise InvokeException("You are not in this room")
@@ -182,7 +183,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             raise InvokeException("Room does not exist")
         server_room = self.rooms[store.room_id]
         room = server_room.room
-        assert server_room.queue
+
         user = next((u for u in room.users if u.user_id == client.user_id), None)
         if user is None:
             raise InvokeException("You are not in this room")
@@ -200,7 +201,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             raise InvokeException("Room does not exist")
         server_room = self.rooms[store.room_id]
         room = server_room.room
-        assert server_room.queue
+
         user = next((u for u in room.users if u.user_id == client.user_id), None)
         if user is None:
             raise InvokeException("You are not in this room")
@@ -262,7 +263,6 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         )
 
     async def validate_styles(self, room: ServerMultiplayerRoom):
-        assert room.queue
         if not room.queue.current_item.freestyle:
             for user in room.room.users:
                 await self.change_user_style(
@@ -323,7 +323,6 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             return
 
         if beatmap_id is not None or ruleset_id is not None:
-            assert room.queue
             if not room.queue.current_item.freestyle:
                 raise InvokeException("Current item does not allow free user styles.")
 
@@ -388,7 +387,6 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         room: ServerMultiplayerRoom,
         user: MultiplayerRoomUser,
     ):
-        assert room.queue
         is_valid, valid_mods = room.queue.current_item.validate_user_mods(
             user, new_mods
         )
@@ -418,7 +416,6 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         old: MultiplayerUserState,
         new: MultiplayerUserState,
     ):
-        assert room.queue
         match new:
             case MultiplayerUserState.IDLE:
                 if old.is_playing:
@@ -515,7 +512,6 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 if played_count == ready_count:
                     await self.start_gameplay(room)
             case MultiplayerRoomState.PLAYING:
-                assert room.queue
                 if all(
                     u.state != MultiplayerUserState.PLAYING for u in room.room.users
                 ):
@@ -562,7 +558,6 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         await self.start_match(server_room)
 
     async def start_match(self, room: ServerMultiplayerRoom):
-        assert room.queue
         if room.room.state != MultiplayerRoomState.OPEN:
             raise InvokeException("Can't start match when already in a running state.")
         if room.queue.current_item.expired:
@@ -598,7 +593,6 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         )
 
     async def start_gameplay(self, room: ServerMultiplayerRoom):
-        assert room.queue
         if room.room.state != MultiplayerRoomState.WAITING_FOR_LOAD:
             raise InvokeException("Room is not ready for gameplay")
         if room.queue.current_item.expired:
@@ -801,3 +795,69 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             GameplayAbortReason.HOST_ABORTED,
         )
         await self.update_room_state(server_room)
+
+    async def change_user_match_state(
+        self, room: ServerMultiplayerRoom, user: MultiplayerRoomUser
+    ):
+        await self.broadcast_group_call(
+            self.group_id(room.room.room_id),
+            "MatchUserStateChanged",
+            user.user_id,
+            user.match_state,
+        )
+
+    async def change_room_match_state(self, room: ServerMultiplayerRoom):
+        await self.broadcast_group_call(
+            self.group_id(room.room.room_id),
+            "MatchRoomStateChanged",
+            room.room.match_state,
+        )
+
+    async def ChangeSettings(self, client: Client, settings: MultiplayerRoomSettings):
+        store = self.get_or_create_state(client)
+        if store.room_id == 0:
+            raise InvokeException("You are not in a room")
+        if store.room_id not in self.rooms:
+            raise InvokeException("Room does not exist")
+        server_room = self.rooms[store.room_id]
+        room = server_room.room
+
+        if room.host is None or room.host.user_id != client.user_id:
+            raise InvokeException("You are not the host of this room")
+
+        if room.state != MultiplayerRoomState.OPEN:
+            raise InvokeException("Cannot change settings while playing")
+
+        if settings.match_type == MatchType.PLAYLISTS:
+            raise InvokeException("Invalid match type selected")
+
+        previous_settings = room.settings
+        room.settings = settings
+
+        if previous_settings.match_type != settings.match_type:
+            await server_room.set_handler()
+        if previous_settings.queue_mode != settings.queue_mode:
+            await server_room.queue.update_queue_mode()
+
+        await self.setting_changed(server_room, beatmap_changed=False)
+        await self.update_room_state(server_room)
+
+    async def SendMatchRequest(self, client: Client, request: MatchRequest):
+        store = self.get_or_create_state(client)
+        if store.room_id == 0:
+            raise InvokeException("You are not in a room")
+        if store.room_id not in self.rooms:
+            raise InvokeException("Room does not exist")
+        server_room = self.rooms[store.room_id]
+        room = server_room.room
+        user = next((u for u in room.users if u.user_id == client.user_id), None)
+        if user is None:
+            raise InvokeException("You are not in this room")
+
+        if isinstance(request, StartMatchCountdownRequest):
+            # TODO: countdown
+            ...
+        elif isinstance(request, StopCountdownRequest):
+            ...
+        else:
+            await server_room.match_type_handler.handle_request(user, request)

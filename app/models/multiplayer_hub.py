@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 import asyncio
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import IntEnum
-from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal, override
 
 from app.database.beatmap import Beatmap
 from app.dependencies.database import engine
@@ -291,7 +292,9 @@ class MultiplayerQueue:
                             current_set.append(items[i])
 
                     if is_first_set:
-                        current_set.sort(key=lambda item: (item.order, item.id))
+                        current_set.sort(
+                            key=lambda item: (item.playlist_order, item.id)
+                        )
                         ordered_active_items.extend(current_set)
                         first_set_order_by_user_id = {
                             item.owner_id: idx
@@ -308,7 +311,7 @@ class MultiplayerQueue:
                     is_first_set = False
 
                 for idx, item in enumerate(ordered_active_items):
-                    item.order = idx
+                    item.playlist_order = idx
             case _:
                 ordered_active_items = sorted(
                     (item for item in self.room.playlist if not item.expired),
@@ -487,6 +490,15 @@ class MultiplayerQueue:
             assert self.room.host
             await self.add_item(self.current_item.clone(), self.room.host)
 
+    async def update_queue_mode(self):
+        if self.room.settings.queue_mode == QueueMode.HOST_ONLY and all(
+            playitem.expired for playitem in self.room.playlist
+        ):
+            assert self.room.host
+            await self.add_item(self.current_item.clone(), self.room.host)
+        await self.update_order()
+        await self.update_current_item()
+
     @property
     def current_item(self):
         return self.room.playlist[self.current_index]
@@ -507,6 +519,125 @@ class CountdownInfo:
         )
 
 
+class _MatchRequest(SignalRUnionMessage): ...
+
+
+class ChangeTeamRequest(_MatchRequest):
+    union_type: ClassVar[Literal[0]] = 0
+    team_id: int
+
+
+class StartMatchCountdownRequest(_MatchRequest):
+    union_type: ClassVar[Literal[1]] = 1
+    duration: timedelta
+
+
+class StopCountdownRequest(_MatchRequest):
+    union_type: ClassVar[Literal[2]] = 2
+    id: int
+
+
+MatchRequest = ChangeTeamRequest | StartMatchCountdownRequest | StopCountdownRequest
+
+
+class MatchTypeHandler(ABC):
+    def __init__(self, room: "ServerMultiplayerRoom"):
+        self.room = room
+        self.hub = room.hub
+
+    @abstractmethod
+    async def handle_join(self, user: MultiplayerRoomUser): ...
+
+    @abstractmethod
+    async def handle_request(
+        self, user: MultiplayerRoomUser, request: MatchRequest
+    ): ...
+
+    @abstractmethod
+    async def handle_leave(self, user: MultiplayerRoomUser): ...
+
+
+class HeadToHeadHandler(MatchTypeHandler):
+    @override
+    async def handle_join(self, user: MultiplayerRoomUser):
+        if user.match_state is not None:
+            user.match_state = None
+            await self.hub.change_user_match_state(self.room, user)
+
+    @override
+    async def handle_request(
+        self, user: MultiplayerRoomUser, request: MatchRequest
+    ): ...
+
+    @override
+    async def handle_leave(self, user: MultiplayerRoomUser): ...
+
+
+class TeamVersusHandler(MatchTypeHandler):
+    @override
+    def __init__(self, room: "ServerMultiplayerRoom"):
+        super().__init__(room)
+        self.state = TeamVersusRoomState()
+        room.room.match_state = self.state
+        task = asyncio.create_task(self.hub.change_room_match_state(self.room))
+        self.hub.tasks.add(task)
+        task.add_done_callback(self.hub.tasks.discard)
+
+    def _get_best_available_team(self) -> int:
+        for team in self.state.teams:
+            if all(
+                (
+                    user.match_state is None
+                    or not isinstance(user.match_state, TeamVersusUserState)
+                    or user.match_state.team_id != team.id
+                )
+                for user in self.room.room.users
+            ):
+                return team.id
+
+        from collections import defaultdict
+
+        team_counts = defaultdict(int)
+        for user in self.room.room.users:
+            if user.match_state is not None and isinstance(
+                user.match_state, TeamVersusUserState
+            ):
+                team_counts[user.match_state.team_id] += 1
+
+        if team_counts:
+            min_count = min(team_counts.values())
+            for team_id, count in team_counts.items():
+                if count == min_count:
+                    return team_id
+        return self.state.teams[0].id if self.state.teams else 0
+
+    @override
+    async def handle_join(self, user: MultiplayerRoomUser):
+        best_team_id = self._get_best_available_team()
+        user.match_state = TeamVersusUserState(team_id=best_team_id)
+        await self.hub.change_user_match_state(self.room, user)
+
+    @override
+    async def handle_request(self, user: MultiplayerRoomUser, request: MatchRequest):
+        if not isinstance(request, ChangeTeamRequest):
+            return
+
+        if request.team_id not in [team.id for team in self.state.teams]:
+            raise InvokeException("Invalid team ID")
+
+        user.match_state = TeamVersusUserState(team_id=request.team_id)
+        await self.hub.change_user_match_state(self.room, user)
+
+    @override
+    async def handle_leave(self, user: MultiplayerRoomUser): ...
+
+
+MATCH_TYPE_HANDLERS = {
+    MatchType.HEAD_TO_HEAD: HeadToHeadHandler,
+    MatchType.TEAM_VERSUS: TeamVersusHandler,
+}
+
+
 @dataclass
 class ServerMultiplayerRoom:
     room: MultiplayerRoom
@@ -514,10 +645,35 @@ class ServerMultiplayerRoom:
     status: RoomStatus
     start_at: datetime
     hub: "MultiplayerHub"
-    queue: MultiplayerQueue | None = None
-    _next_countdown_id: int = 0
-    _countdown_id_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-    _tracked_countdown: dict[int, CountdownInfo] = field(default_factory=dict)
+    match_type_handler: MatchTypeHandler
+    queue: MultiplayerQueue
+    _next_countdown_id: int
+    _countdown_id_lock: asyncio.Lock
+    _tracked_countdown: dict[int, CountdownInfo]
+
+    def __init__(
+        self,
+        room: MultiplayerRoom,
+        category: RoomCategory,
+        start_at: datetime,
+        hub: "MultiplayerHub",
+    ):
+        self.room = room
+        self.category = category
+        self.status = RoomStatus.IDLE
+        self.start_at = start_at
+        self.hub = hub
+        self.queue = MultiplayerQueue(self)
+        self._next_countdown_id = 0
+        self._countdown_id_lock = asyncio.Lock()
+        self._tracked_countdown = {}
+
+    async def set_handler(self):
+        self.match_type_handler = MATCH_TYPE_HANDLERS[self.room.settings.match_type](
+            self
+        )
+        for i in self.room.users:
+            await self.match_type_handler.handle_join(i)
 
     async def get_next_countdown_id(self) -> int:
         async with self._countdown_id_lock:
