@@ -2,14 +2,12 @@ from __future__ import annotations
 
 from abc import abstractmethod
 import asyncio
-from enum import Enum
-import inspect
 import time
 from typing import Any
 
 from app.config import settings
 from app.log import logger
-from app.models.signalr import UserState, _by_index
+from app.models.signalr import UserState
 from app.signalr.exception import InvokeException
 from app.signalr.packet import (
     ClosePacket,
@@ -23,7 +21,6 @@ from app.signalr.store import ResultStore
 from app.signalr.utils import get_signature
 
 from fastapi import WebSocket
-from pydantic import BaseModel
 from starlette.websockets import WebSocketDisconnect
 
 
@@ -51,7 +48,7 @@ class Client:
         self.connection_id = connection_id
         self.connection_token = connection_token
         self.connection = connection
-        self.procotol = protocol
+        self.protocol = protocol
         self._listen_task: asyncio.Task | None = None
         self._ping_task: asyncio.Task | None = None
         self._store = ResultStore()
@@ -64,14 +61,14 @@ class Client:
         return int(self.connection_id)
 
     async def send_packet(self, packet: Packet):
-        await self.connection.send_bytes(self.procotol.encode(packet))
+        await self.connection.send_bytes(self.protocol.encode(packet))
 
     async def receive_packets(self) -> list[Packet]:
         message = await self.connection.receive()
         d = message.get("bytes") or message.get("text", "").encode()
         if not d:
             return []
-        return self.procotol.decode(d)
+        return self.protocol.decode(d)
 
     async def _ping(self):
         while True:
@@ -265,14 +262,9 @@ class Hub[TState: UserState]:
         for name, param in signature.parameters.items():
             if name == "self" or param.annotation is Client:
                 continue
-            if issubclass(param.annotation, BaseModel):
-                call_params.append(param.annotation.model_validate(args.pop(0)))
-            elif inspect.isclass(param.annotation) and issubclass(
-                param.annotation, Enum
-            ):
-                call_params.append(_by_index(args.pop(0), param.annotation))
-            else:
-                call_params.append(args.pop(0))
+            call_params.append(
+                client.protocol.validate_object(args.pop(0), param.annotation)
+            )
         return await method_(client, *call_params)
 
     async def call(self, client: Client, method: str, *args: Any) -> Any:

@@ -1,114 +1,85 @@
 from __future__ import annotations
 
 from enum import IntEnum
-from typing import Any, Literal
+from typing import ClassVar, Literal
 
-from app.models.signalr import UserState
+from app.models.signalr import SignalRMeta, SignalRUnionMessage, UserState
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 
-class _UserActivity(BaseModel):
-    model_config = ConfigDict(serialize_by_alias=True)
-    type: Literal[
-        "ChoosingBeatmap",
-        "InSoloGame",
-        "WatchingReplay",
-        "SpectatingUser",
-        "SearchingForLobby",
-        "InLobby",
-        "InMultiplayerGame",
-        "SpectatingMultiplayerGame",
-        "InPlaylistGame",
-        "EditingBeatmap",
-        "ModdingBeatmap",
-        "TestingBeatmap",
-        "InDailyChallengeLobby",
-        "PlayingDailyChallenge",
-    ] = Field(alias="$dtype")
-    value: Any | None = Field(alias="$value")
+class _UserActivity(SignalRUnionMessage): ...
 
 
 class ChoosingBeatmap(_UserActivity):
-    type: Literal["ChoosingBeatmap"] = Field(alias="$dtype")
-
-
-class InGameValue(BaseModel):
-    beatmap_id: int = Field(alias="BeatmapID")
-    beatmap_display_title: str = Field(alias="BeatmapDisplayTitle")
-    ruleset_id: int = Field(alias="RulesetID")
-    ruleset_playing_verb: str = Field(alias="RulesetPlayingVerb")
+    union_type: ClassVar[Literal[11]] = 11
 
 
 class _InGame(_UserActivity):
-    value: InGameValue = Field(alias="$value")
+    beatmap_id: int
+    beatmap_display_title: str
+    ruleset_id: int
+    ruleset_playing_verb: str
 
 
 class InSoloGame(_InGame):
-    type: Literal["InSoloGame"] = Field(alias="$dtype")
+    union_type: ClassVar[Literal[12]] = 12
 
 
 class InMultiplayerGame(_InGame):
-    type: Literal["InMultiplayerGame"] = Field(alias="$dtype")
+    union_type: ClassVar[Literal[23]] = 23
 
 
 class SpectatingMultiplayerGame(_InGame):
-    type: Literal["SpectatingMultiplayerGame"] = Field(alias="$dtype")
+    union_type: ClassVar[Literal[24]] = 24
 
 
 class InPlaylistGame(_InGame):
-    type: Literal["InPlaylistGame"] = Field(alias="$dtype")
+    union_type: ClassVar[Literal[31]] = 31
 
 
-class EditingBeatmapValue(BaseModel):
-    beatmap_id: int = Field(alias="BeatmapID")
-    beatmap_display_title: str = Field(alias="BeatmapDisplayTitle")
+class PlayingDailyChallenge(_InGame):
+    union_type: ClassVar[Literal[52]] = 52
 
 
 class EditingBeatmap(_UserActivity):
-    type: Literal["EditingBeatmap"] = Field(alias="$dtype")
-    value: EditingBeatmapValue = Field(alias="$value")
+    union_type: ClassVar[Literal[41]] = 41
+    beatmap_id: int
+    beatmap_display_title: str
 
 
-class TestingBeatmap(_UserActivity):
-    type: Literal["TestingBeatmap"] = Field(alias="$dtype")
+class TestingBeatmap(EditingBeatmap):
+    union_type: ClassVar[Literal[43]] = 43
 
 
-class ModdingBeatmap(_UserActivity):
-    type: Literal["ModdingBeatmap"] = Field(alias="$dtype")
-
-
-class WatchingReplayValue(BaseModel):
-    score_id: int = Field(alias="ScoreID")
-    player_name: str = Field(alias="PlayerName")
-    beatmap_id: int = Field(alias="BeatmapID")
-    beatmap_display_title: str = Field(alias="BeatmapDisplayTitle")
+class ModdingBeatmap(EditingBeatmap):
+    union_type: ClassVar[Literal[42]] = 42
 
 
 class WatchingReplay(_UserActivity):
-    type: Literal["WatchingReplay"] = Field(alias="$dtype")
-    value: int | None = Field(alias="$value")  # Replay ID
+    union_type: ClassVar[Literal[13]] = 13
+    score_id: int
+    player_name: str
+    beatmap_id: int
+    beatmap_display_title: str
 
 
 class SpectatingUser(WatchingReplay):
-    type: Literal["SpectatingUser"] = Field(alias="$dtype")
+    union_type: ClassVar[Literal[14]] = 14
 
 
 class SearchingForLobby(_UserActivity):
-    type: Literal["SearchingForLobby"] = Field(alias="$dtype")
-
-
-class InLobbyValue(BaseModel):
-    room_id: int = Field(alias="RoomID")
-    room_name: str = Field(alias="RoomName")
+    union_type: ClassVar[Literal[21]] = 21
 
 
 class InLobby(_UserActivity):
-    type: Literal["InLobby"] = "InLobby"
+    union_type: ClassVar[Literal[22]] = 22
+    room_id: int
+    room_name: str
 
 
 class InDailyChallengeLobby(_UserActivity):
-    type: Literal["InDailyChallengeLobby"] = Field(alias="$dtype")
+    union_type: ClassVar[Literal[51]] = 51
 
 
 UserActivity = (
@@ -128,22 +99,27 @@ UserActivity = (
 )
 
 
-class MetadataClientState(UserState):
-    user_activity: UserActivity | None = None
-    status: OnlineStatus | None = None
-
-    def to_dict(self) -> dict[str, Any] | None:
-        if self.status is None or self.status == OnlineStatus.OFFLINE:
-            return None
-        dumped = self.model_dump(by_alias=True, exclude_none=True)
-        return {
-            "Activity": dumped.get("user_activity"),
-            "Status": dumped.get("status"),
-        }
+class UserPresence(BaseModel):
+    activity: UserActivity | None = Field(
+        default=None, metadata=SignalRMeta(use_upper_case=True)
+    )
+    status: OnlineStatus | None = Field(
+        default=None, metadata=SignalRMeta(use_upper_case=True)
+    )
 
     @property
     def pushable(self) -> bool:
         return self.status is not None and self.status != OnlineStatus.OFFLINE
+
+    @property
+    def for_push(self) -> "UserPresence | None":
+        return UserPresence(
+            activity=self.activity,
+            status=self.status,
+        )
+
+
+class MetadataClientState(UserPresence, UserState): ...
 
 
 class OnlineStatus(IntEnum):

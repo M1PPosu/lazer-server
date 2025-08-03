@@ -13,8 +13,7 @@ from app.database.score_token import ScoreToken
 from app.dependencies.database import engine
 from app.models.beatmap import BeatmapRankStatus
 from app.models.mods import mods_to_int
-from app.models.score import LegacyReplaySoloScoreInfo, ScoreStatisticsInt
-from app.models.signalr import serialize_to_list
+from app.models.score import LegacyReplaySoloScoreInfo, ScoreStatistics
 from app.models.spectator_hub import (
     APIUser,
     FrameDataBundle,
@@ -69,8 +68,8 @@ def save_replay(
     md5: str,
     username: str,
     score: Score,
-    statistics: ScoreStatisticsInt,
-    maximum_statistics: ScoreStatisticsInt,
+    statistics: ScoreStatistics,
+    maximum_statistics: ScoreStatistics,
     frames: list[LegacyReplayFrame],
 ) -> None:
     data = bytearray()
@@ -107,8 +106,8 @@ def save_replay(
     last_time = 0
     for frame in frames:
         frame_strs.append(
-            f"{frame.time - last_time}|{frame.x or 0.0}"
-            f"|{frame.y or 0.0}|{frame.button_state}"
+            f"{frame.time - last_time}|{frame.mouse_x or 0.0}"
+            f"|{frame.mouse_y or 0.0}|{frame.button_state}"
         )
         last_time = frame.time
     frame_strs.append("-12345|0|0|0")
@@ -165,9 +164,7 @@ class SpectatorHub(Hub[StoreClientState]):
 
     async def on_client_connect(self, client: Client) -> None:
         tasks = [
-            self.call_noblock(
-                client, "UserBeganPlaying", user_id, serialize_to_list(store.state)
-            )
+            self.call_noblock(client, "UserBeganPlaying", user_id, store.state)
             for user_id, store in self.state.items()
             if store.state is not None
         ]
@@ -214,7 +211,7 @@ class SpectatorHub(Hub[StoreClientState]):
             self.group_id(user_id),
             "UserBeganPlaying",
             user_id,
-            serialize_to_list(state),
+            state,
         )
 
     async def SendFrameData(self, client: Client, frame_data: FrameDataBundle) -> None:
@@ -222,7 +219,7 @@ class SpectatorHub(Hub[StoreClientState]):
         state = self.get_or_create_state(client)
         if not state.score:
             return
-        state.score.score_info.acc = frame_data.header.acc
+        state.score.score_info.accuracy = frame_data.header.accuracy
         state.score.score_info.combo = frame_data.header.combo
         state.score.score_info.max_combo = frame_data.header.max_combo
         state.score.score_info.statistics = frame_data.header.statistics
@@ -233,7 +230,7 @@ class SpectatorHub(Hub[StoreClientState]):
             self.group_id(user_id),
             "UserSentFrames",
             user_id,
-            frame_data.model_dump(),
+            frame_data,
         )
 
     async def EndPlaySession(self, client: Client, state: SpectatorState) -> None:
@@ -316,7 +313,7 @@ class SpectatorHub(Hub[StoreClientState]):
             self.group_id(user_id),
             "UserFinishedPlaying",
             user_id,
-            serialize_to_list(state) if state else None,
+            state,
         )
 
     async def StartWatchingUser(self, client: Client, target_id: int) -> None:
@@ -327,7 +324,7 @@ class SpectatorHub(Hub[StoreClientState]):
                 client,
                 "UserBeganPlaying",
                 target_id,
-                serialize_to_list(target_store.state),
+                target_store.state,
             )
         store = self.get_or_create_state(client)
         store.watched_user.add(target_id)

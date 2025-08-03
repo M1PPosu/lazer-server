@@ -1,41 +1,21 @@
 from __future__ import annotations
 
-import datetime
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic import (
     BaseModel,
     BeforeValidator,
-    ConfigDict,
     Field,
-    TypeAdapter,
-    model_serializer,
-    model_validator,
 )
 
 
-def serialize_msgpack(v: Any) -> Any:
-    typ = v.__class__
-    if issubclass(typ, BaseModel):
-        return serialize_to_list(v)
-    elif issubclass(typ, list):
-        return TypeAdapter(
-            typ, config=ConfigDict(arbitrary_types_allowed=True)
-        ).dump_python(v)
-    elif issubclass(typ, datetime.datetime):
-        return [v, 0]
-    elif issubclass(typ, Enum):
-        list_ = list(typ)
-        return list_.index(v) if v in list_ else v.value
-    return v
-
-
-def serialize_to_list(value: BaseModel) -> list[Any]:
-    data = []
-    for field, info in value.__class__.model_fields.items():
-        data.append(serialize_msgpack(v=getattr(value, field)))
-    return data
+@dataclass
+class SignalRMeta:
+    member_ignore: bool = False  # implement of IgnoreMember (msgpack) attribute
+    json_ignore: bool = False  # implement of JsonIgnore (json) attribute
+    use_upper_case: bool = False  # use upper CamelCase for field names
 
 
 def _by_index(v: Any, class_: type[Enum]):
@@ -54,37 +34,8 @@ def EnumByIndex(enum_class: type[Enum]) -> BeforeValidator:
     return BeforeValidator(lambda v: _by_index(v, enum_class))
 
 
-def msgpack_union(v):
-    data = v[1]
-    data.append(v[0])
-    return data
-
-
-def msgpack_union_dump(v: BaseModel) -> list[Any]:
-    _type = getattr(v, "type", None)
-    if _type is None:
-        raise ValueError(
-            f"Model {v.__class__.__name__} does not have a '_type' attribute"
-        )
-    return [_type, serialize_to_list(v)]
-
-
-class MessagePackArrayModel(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    @model_validator(mode="before")
-    @classmethod
-    def unpack(cls, v: Any) -> Any:
-        if isinstance(v, list):
-            fields = list(cls.model_fields.keys())
-            if len(v) != len(fields):
-                raise ValueError(f"Expected list of length {len(fields)}, got {len(v)}")
-            return dict(zip(fields, v))
-        return v
-
-    @model_serializer
-    def serialize(self) -> list[Any]:
-        return serialize_to_list(self)
+class SignalRUnionMessage(BaseModel):
+    union_type: ClassVar[int]
 
 
 class Transport(BaseModel):
