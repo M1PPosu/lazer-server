@@ -126,15 +126,19 @@ class MsgpackProtocol:
     def process_object(v: Any, typ: type[BaseModel]) -> Any:
         if isinstance(v, list):
             d = {}
-            for i, f in enumerate(typ.model_fields.items()):
-                field, info = f
-                if info.exclude:
+            i = 0
+            for field, info in typ.model_fields.items():
+                metadata = next(
+                    (m for m in info.metadata if isinstance(m, SignalRMeta)), None
+                )
+                if metadata and metadata.member_ignore:
                     continue
                 anno = info.annotation
                 if anno is None:
                     d[camel_to_snake(field)] = v[i]
-                    continue
-                d[field] = MsgpackProtocol.validate_object(v[i], anno)
+                else:
+                    d[field] = MsgpackProtocol.validate_object(v[i], anno)
+                i += 1
             return d
         return v
 

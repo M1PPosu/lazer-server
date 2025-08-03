@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import IntEnum
-from typing import ClassVar, Literal
+from typing import Annotated, ClassVar, Literal
 
 from app.models.signalr import SignalRMeta, SignalRUnionMessage, UserState
 
@@ -100,12 +100,12 @@ UserActivity = (
 
 
 class UserPresence(BaseModel):
-    activity: UserActivity | None = Field(
-        default=None, metadata=SignalRMeta(use_upper_case=True)
-    )
-    status: OnlineStatus | None = Field(
-        default=None, metadata=SignalRMeta(use_upper_case=True)
-    )
+    activity: Annotated[
+        UserActivity | None, Field(default=None), SignalRMeta(use_upper_case=True)
+    ]
+    status: Annotated[
+        OnlineStatus | None, Field(default=None), SignalRMeta(use_upper_case=True)
+    ]
 
     @property
     def pushable(self) -> bool:
