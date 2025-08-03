@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from app.models.model import UTCBaseModel
-from app.models.mods import APIMod, msgpack_to_apimod
+from app.models.mods import APIMod
 from app.models.multiplayer_hub import PlaylistItem
 
 from .beatmap import Beatmap, BeatmapResp
@@ -79,10 +79,10 @@ class Playlist(PlaylistBase, table=True):
             owner_id=playlist.owner_id,
             ruleset_id=playlist.ruleset_id,
             beatmap_id=playlist.beatmap_id,
-            required_mods=[msgpack_to_apimod(mod) for mod in playlist.required_mods],
-            allowed_mods=[msgpack_to_apimod(mod) for mod in playlist.allowed_mods],
+            required_mods=playlist.required_mods,
+            allowed_mods=playlist.allowed_mods,
             expired=playlist.expired,
-            playlist_order=playlist.order,
+            playlist_order=playlist.playlist_order,
             played_at=playlist.played_at,
             freestyle=playlist.freestyle,
             room_id=room_id,
@@ -99,14 +99,10 @@ class Playlist(PlaylistBase, table=True):
         db_playlist.owner_id = playlist.owner_id
         db_playlist.ruleset_id = playlist.ruleset_id
         db_playlist.beatmap_id = playlist.beatmap_id
-        db_playlist.required_mods = [
-            msgpack_to_apimod(mod) for mod in playlist.required_mods
-        ]
-        db_playlist.allowed_mods = [
-            msgpack_to_apimod(mod) for mod in playlist.allowed_mods
-        ]
+        db_playlist.required_mods = playlist.required_mods
+        db_playlist.allowed_mods = playlist.allowed_mods
         db_playlist.expired = playlist.expired
-        db_playlist.playlist_order = playlist.order
+        db_playlist.playlist_order = playlist.playlist_order
         db_playlist.played_at = playlist.played_at
         db_playlist.freestyle = playlist.freestyle
         await session.commit()

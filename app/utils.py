@@ -21,7 +21,7 @@ def camel_to_snake(name: str) -> str:
     return "".join(result)
 
 
-def snake_to_camel(name: str, lower_case: bool = True) -> str:
+def snake_to_camel(name: str, lower_case: bool = True, use_abbr: bool = True) -> str:
     """Convert a snake_case string to camelCase."""
     if not name:
         return name
@@ -47,7 +47,7 @@ def snake_to_camel(name: str, lower_case: bool = True) -> str:
 
     result = []
     for part in parts:
-        if part.lower() in abbreviations:
+        if part.lower() in abbreviations and use_abbr:
             result.append(part.upper())
         else:
             if result or not lower_case:

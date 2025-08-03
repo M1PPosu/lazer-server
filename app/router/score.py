@@ -1,10 +1,19 @@
 from __future__ import annotations
 
-from app.database import Beatmap, Score, ScoreResp, ScoreToken, ScoreTokenResp, User
+from app.database import (
+    Beatmap,
+    Playlist,
+    Score,
+    ScoreResp,
+    ScoreToken,
+    ScoreTokenResp,
+    User,
+)
 from app.database.score import get_leaderboard, process_score, process_user
 from app.dependencies.database import get_db, get_redis
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.user import get_current_user
+from app.fetcher import Fetcher
 from app.models.beatmap import BeatmapRankStatus
 from app.models.score import (
     INT_TO_MODE,
@@ -13,6 +22,7 @@ from app.models.score import (
     Rank,
     SoloScoreSubmissionInfo,
 )
+from app.signalr.hub import MultiplayerHubs
 
 from .api_router import router
 
@@ -22,6 +32,68 @@ from redis.asyncio import Redis
 from sqlalchemy.orm import joinedload
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
+
+
+async def submit_score(
+    info: SoloScoreSubmissionInfo,
+    beatmap: int,
+    token: int,
+    current_user: User,
+    db: AsyncSession,
+    redis: Redis,
+    fetcher: Fetcher,
+    item_id: int | None = None,
+    room_id: int | None = None,
+):
+    if not info.passed:
+        info.rank = Rank.F
+    score_token = (
+        await db.exec(
+            select(ScoreToken)
+            .options(joinedload(ScoreToken.beatmap))  # pyright: ignore[reportArgumentType]
+            .where(ScoreToken.id == token)
+        )
+    ).first()
+    if not score_token or score_token.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Score token not found")
+    if score_token.score_id:
+        score = (
+            await db.exec(
+                select(Score).where(
+                    Score.id == score_token.score_id,
+                    Score.user_id == current_user.id,
+                )
+            )
+        ).first()
+        if not score:
+            raise HTTPException(status_code=404, detail="Score not found")
+    else:
+        beatmap_status = (
+            await db.exec(select(Beatmap.beatmap_status).where(Beatmap.id == beatmap))
+        ).first()
+        if beatmap_status is None:
+            raise HTTPException(status_code=404, detail="Beatmap not found")
+        ranked = beatmap_status in {
+            BeatmapRankStatus.RANKED,
+            BeatmapRankStatus.APPROVED,
+        }
+        score = await process_score(
+            current_user,
+            beatmap,
+            ranked,
+            score_token,
+            info,
+            fetcher,
+            db,
+            redis,
+        )
+        await db.refresh(current_user)
+        score_id = score.id
+        score_token.score_id = score_id
+        await process_user(db, current_user, score, ranked)
+        score = (await db.exec(select(Score).where(Score.id == score_id))).first()
+        assert score is not None
+    return await ScoreResp.from_db(db, score)
 
 
 class BeatmapScores(BaseModel):
@@ -97,9 +169,10 @@ async def get_user_beatmap_score(
             status_code=404, detail=f"Cannot find user {user}'s score on this beatmap"
         )
     else:
+        resp = await ScoreResp.from_db(db, user_score)
         return BeatmapUserScore(
-            position=user_score.position if user_score.position is not None else 0,
-            score=await ScoreResp.from_db(db, user_score),
+            position=resp.rank_global or 0,
+            score=resp,
         )
 
 
@@ -173,55 +246,95 @@ async def submit_solo_score(
     redis: Redis = Depends(get_redis),
     fetcher=Depends(get_fetcher),
 ):
-    if not info.passed:
-        info.rank = Rank.F
-    async with db:
-        score_token = (
-            await db.exec(
-                select(ScoreToken)
-                .options(joinedload(ScoreToken.beatmap))  # pyright: ignore[reportArgumentType]
-                .where(ScoreToken.id == token, ScoreToken.user_id == current_user.id)
+    return await submit_score(info, beatmap, token, current_user, db, redis, fetcher)
+
+
+@router.post(
+    "/rooms/{room_id}/playlist/{playlist_id}/scores", response_model=ScoreTokenResp
+)
+async def create_playlist_score(
+    room_id: int,
+    playlist_id: int,
+    beatmap_id: int = Form(),
+    beatmap_hash: str = Form(),
+    ruleset_id: int = Form(..., ge=0, le=3),
+    version_hash: str = Form(""),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    room = MultiplayerHubs.rooms[room_id]
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    item = (
+        await session.exec(
+            select(Playlist).where(
+                Playlist.id == playlist_id, Playlist.room_id == room_id
             )
-        ).first()
-        if not score_token or score_token.user_id != current_user.id:
-            raise HTTPException(status_code=404, detail="Score token not found")
-        if score_token.score_id:
-            score = (
-                await db.exec(
-                    select(Score).where(
-                        Score.id == score_token.score_id,
-                        Score.user_id == current_user.id,
-                    )
-                )
-            ).first()
-            if not score:
-                raise HTTPException(status_code=404, detail="Score not found")
-        else:
-            beatmap_status = (
-                await db.exec(
-                    select(Beatmap.beatmap_status).where(Beatmap.id == beatmap)
-                )
-            ).first()
-            if beatmap_status is None:
-                raise HTTPException(status_code=404, detail="Beatmap not found")
-            ranked = beatmap_status in {
-                BeatmapRankStatus.RANKED,
-                BeatmapRankStatus.APPROVED,
-            }
-            score = await process_score(
-                current_user,
-                beatmap,
-                ranked,
-                score_token,
-                info,
-                fetcher,
-                db,
-                redis,
+        )
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Playlist not found")
+
+    # validate
+    if not item.freestyle:
+        if item.ruleset_id != ruleset_id:
+            raise HTTPException(
+                status_code=400, detail="Ruleset mismatch in playlist item"
             )
-            await db.refresh(current_user)
-            score_id = score.id
-            score_token.score_id = score_id
-            await process_user(db, current_user, score, ranked)
-            score = (await db.exec(select(Score).where(Score.id == score_id))).first()
-            assert score is not None
-        return await ScoreResp.from_db(db, score)
+        if item.beatmap_id != beatmap_id:
+            raise HTTPException(
+                status_code=400, detail="Beatmap ID mismatch in playlist item"
+            )
+    # TODO: max attempts
+    if item.expired:
+        raise HTTPException(status_code=400, detail="Playlist item has expired")
+    if item.played_at:
+        raise HTTPException(
+            status_code=400, detail="Playlist item has already been played"
+        )
+    # 这里应该不用验证mod了吧。。。
+
+    score_token = ScoreToken(
+        user_id=current_user.id,
+        beatmap_id=beatmap_id,
+        ruleset_id=INT_TO_MODE[ruleset_id],
+        playlist_item_id=playlist_id,
+    )
+    session.add(score_token)
+    await session.commit()
+    await session.refresh(score_token)
+    return ScoreTokenResp.from_db(score_token)
+
+
+@router.put("/rooms/{room_id}/playlist/{playlist_id}/scores/{token}")
+async def submit_playlist_score(
+    room_id: int,
+    playlist_id: int,
+    token: int,
+    info: SoloScoreSubmissionInfo,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+    fetcher: Fetcher = Depends(get_fetcher),
+):
+    item = (
+        await session.exec(
+            select(Playlist).where(
+                Playlist.id == playlist_id, Playlist.room_id == room_id
+            )
+        )
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Playlist item not found")
+    score_resp = await submit_score(
+        info,
+        item.beatmap_id,
+        token,
+        current_user,
+        session,
+        redis,
+        fetcher,
+        item.id,
+        room_id,
+    )
+    return score_resp

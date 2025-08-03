@@ -91,7 +91,7 @@ class ScoreBase(AsyncAttrs, SQLModel, UTCBaseModel):
 
     # optional
     # TODO: current_user_attributes
-    position: int | None = Field(default=None)  # multiplayer
+    # position: int | None = Field(default=None)  # multiplayer
 
 
 class Score(ScoreBase, table=True):
@@ -162,6 +162,7 @@ class ScoreResp(ScoreBase):
     maximum_statistics: ScoreStatistics | None = None
     rank_global: int | None = None
     rank_country: int | None = None
+    position: int = 1  # TODO
 
     @classmethod
     async def from_db(cls, session: AsyncSession, score: Score) -> "ScoreResp":
@@ -618,6 +619,8 @@ async def process_score(
     fetcher: "Fetcher",
     session: AsyncSession,
     redis: Redis,
+    item_id: int | None = None,
+    room_id: int | None = None,
 ) -> Score:
     assert user.id
     can_get_pp = info.passed and ranked and mods_can_get_pp(info.ruleset_id, info.mods)
@@ -649,6 +652,8 @@ async def process_score(
         nsmall_tick_hit=info.statistics.get(HitResult.SMALL_TICK_HIT, 0),
         nlarge_tick_hit=info.statistics.get(HitResult.LARGE_TICK_HIT, 0),
         nslider_tail_hit=info.statistics.get(HitResult.SLIDER_TAIL_HIT, 0),
+        playlist_item_id=item_id,
+        room_id=room_id,
     )
     if can_get_pp:
         beatmap_raw = await fetcher.get_or_fetch_beatmap_raw(redis, beatmap_id)

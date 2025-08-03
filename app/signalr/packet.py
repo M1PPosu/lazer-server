@@ -97,6 +97,8 @@ class MsgpackProtocol:
             return [cls.serialize_msgpack(item) for item in v]
         elif issubclass(typ, datetime.datetime):
             return [v, 0]
+        elif issubclass(typ, datetime.timedelta):
+            return int(v.total_seconds())
         elif isinstance(v, dict):
             return {
                 cls.serialize_msgpack(k): cls.serialize_msgpack(value)
@@ -213,6 +215,8 @@ class MsgpackProtocol:
             return typ.model_validate(obj=cls.process_object(v, typ))
         elif inspect.isclass(typ) and issubclass(typ, datetime.datetime):
             return v[0]
+        elif inspect.isclass(typ) and issubclass(typ, datetime.timedelta):
+            return datetime.timedelta(seconds=int(v))
         elif isinstance(v, list):
             return [cls.validate_object(item, get_args(typ)[0]) for item in v]
         elif inspect.isclass(typ) and issubclass(typ, Enum):
@@ -296,21 +300,30 @@ class MsgpackProtocol:
 
 class JSONProtocol:
     @classmethod
-    def serialize_to_json(cls, v: Any):
+    def serialize_to_json(cls, v: Any, dict_key: bool = False):
         typ = v.__class__
         if issubclass(typ, BaseModel):
             return cls.serialize_model(v)
         elif isinstance(v, dict):
             return {
-                cls.serialize_to_json(k): cls.serialize_to_json(value)
+                cls.serialize_to_json(k, True): cls.serialize_to_json(value)
                 for k, value in v.items()
             }
         elif isinstance(v, list):
             return [cls.serialize_to_json(item) for item in v]
         elif isinstance(v, datetime.datetime):
             return v.isoformat()
-        elif isinstance(v, Enum):
+        elif isinstance(v, datetime.timedelta):
+            # d.hh:mm:ss
+            total_seconds = int(v.total_seconds())
+            hours, remainder = divmod(total_seconds, 3600)
+            minutes, seconds = divmod(remainder, 60)
+            return f"{hours:02}:{minutes:02}:{seconds:02}"
+        elif isinstance(v, Enum) and dict_key:
             return v.value
+        elif isinstance(v, Enum):
+            list_ = list(typ)
+            return list_.index(v)
         return v
 
     @classmethod
@@ -322,9 +335,13 @@ class JSONProtocol:
             )
             if metadata and metadata.json_ignore:
                 continue
-            d[snake_to_camel(field, metadata.use_upper_case if metadata else False)] = (
-                cls.serialize_to_json(getattr(v, field))
-            )
+            d[
+                snake_to_camel(
+                    field,
+                    metadata.use_upper_case if metadata else False,
+                    metadata.use_abbr if metadata else True,
+                )
+            ] = cls.serialize_to_json(getattr(v, field))
         if issubclass(v.__class__, SignalRUnionMessage):
             return {
                 "$dtype": v.__class__.__name__,
@@ -343,7 +360,11 @@ class JSONProtocol:
             )
             if metadata and metadata.json_ignore:
                 continue
-            value = v.get(snake_to_camel(field, not from_union))
+            value = v.get(
+                snake_to_camel(
+                    field, not from_union, metadata.use_abbr if metadata else True
+                )
+            )
             anno = typ.model_fields[field].annotation
             if anno is None:
                 d[field] = value
@@ -401,6 +422,17 @@ class JSONProtocol:
             return typ.model_validate(JSONProtocol.process_object(v, typ, from_union))
         elif inspect.isclass(typ) and issubclass(typ, datetime.datetime):
             return datetime.datetime.fromisoformat(v)
+        elif inspect.isclass(typ) and issubclass(typ, datetime.timedelta):
+            # d.hh:mm:ss
+            parts = v.split(":")
+            if len(parts) == 3:
+                return datetime.timedelta(
+                    hours=int(parts[0]), minutes=int(parts[1]), seconds=int(parts[2])
+                )
+            elif len(parts) == 2:
+                return datetime.timedelta(minutes=int(parts[0]), seconds=int(parts[1]))
+            elif len(parts) == 1:
+                return datetime.timedelta(seconds=int(parts[0]))
         elif isinstance(v, list):
             return [cls.validate_object(item, get_args(typ)[0]) for item in v]
         elif inspect.isclass(typ) and issubclass(typ, Enum):

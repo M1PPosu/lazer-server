@@ -1,13 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-import datetime
-from typing import TYPE_CHECKING, Annotated, Any, Literal
+import asyncio
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal
 
 from app.database.beatmap import Beatmap
 from app.dependencies.database import engine
 from app.exception import InvokeException
 
+from .mods import APIMod
 from .room import (
     DownloadState,
     MatchType,
@@ -18,15 +21,14 @@ from .room import (
     RoomStatus,
 )
 from .signalr import (
-    EnumByIndex,
-    MessagePackArrayModel,
+    SignalRMeta,
+    SignalRUnionMessage,
     UserState,
-    msgpack_union,
-    msgpack_union_dump,
 )
 
-from msgpack_lazer_api import APIMod
-from pydantic import Field, field_serializer, field_validator
+from pydantic import BaseModel, Field
+from sqlalchemy import update
+from sqlmodel import col
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 if TYPE_CHECKING:
@@ -40,37 +42,37 @@ class MultiplayerClientState(UserState):
     room_id: int = 0
 
 
-class MultiplayerRoomSettings(MessagePackArrayModel):
+class MultiplayerRoomSettings(BaseModel):
     name: str = "Unnamed Room"
-    playlist_item_id: int = 0
+    playlist_item_id: Annotated[int, Field(default=0), SignalRMeta(use_abbr=False)]
     password: str = ""
-    match_type: Annotated[MatchType, EnumByIndex(MatchType)] = MatchType.HEAD_TO_HEAD
-    queue_mode: Annotated[QueueMode, EnumByIndex(QueueMode)] = QueueMode.HOST_ONLY
-    auto_start_duration: int = 0
+    match_type: MatchType = MatchType.HEAD_TO_HEAD
+    queue_mode: QueueMode = QueueMode.HOST_ONLY
+    auto_start_duration: timedelta = timedelta(seconds=0)
     auto_skip: bool = False
 
 
-class BeatmapAvailability(MessagePackArrayModel):
-    state: Annotated[DownloadState, EnumByIndex(DownloadState)] = DownloadState.UNKNOWN
+class BeatmapAvailability(BaseModel):
+    state: DownloadState = DownloadState.UNKNOWN
     progress: float | None = None
 
 
-class _MatchUserState(MessagePackArrayModel): ...
+class _MatchUserState(SignalRUnionMessage): ...
 
 
 class TeamVersusUserState(_MatchUserState):
     team_id: int
 
-    type: Literal[0] = Field(0, exclude=True)
+    union_type: ClassVar[Literal[0]] = 0
 
 
 MatchUserState = TeamVersusUserState
 
 
-class _MatchRoomState(MessagePackArrayModel): ...
+class _MatchRoomState(SignalRUnionMessage): ...
 
 
-class MultiplayerTeam(MessagePackArrayModel):
+class MultiplayerTeam(BaseModel):
     id: int
     name: str
 
@@ -83,24 +85,24 @@ class TeamVersusRoomState(_MatchRoomState):
         ]
     )
 
-    type: Literal[0] = Field(0, exclude=True)
+    union_type: ClassVar[Literal[0]] = 0
 
 
 MatchRoomState = TeamVersusRoomState
 
 
-class PlaylistItem(MessagePackArrayModel):
-    id: int
+class PlaylistItem(BaseModel):
+    id: Annotated[int, Field(default=0), SignalRMeta(use_abbr=False)]
     owner_id: int
     beatmap_id: int
-    checksum: str
+    beatmap_checksum: str
     ruleset_id: int
     required_mods: list[APIMod] = Field(default_factory=list)
     allowed_mods: list[APIMod] = Field(default_factory=list)
     expired: bool
-    order: int
-    played_at: datetime.datetime | None = None
-    star: float
+    playlist_order: int
+    played_at: datetime | None = None
+    star_rating: float
     freestyle: bool
 
     def validate_user_mods(
@@ -127,7 +129,10 @@ class PlaylistItem(MessagePackArrayModel):
 
         # Check if mods are valid for the ruleset
         for mod in proposed_mods:
-            if ruleset_key not in API_MODS or mod.acronym not in API_MODS[ruleset_key]:
+            if (
+                ruleset_key not in API_MODS
+                or mod["acronym"] not in API_MODS[ruleset_key]
+            ):
                 all_proposed_valid = False
                 continue
             valid_mods.append(mod)
@@ -136,35 +141,35 @@ class PlaylistItem(MessagePackArrayModel):
         incompatible_mods = set()
         final_valid_mods = []
         for mod in valid_mods:
-            if mod.acronym in incompatible_mods:
+            if mod["acronym"] in incompatible_mods:
                 all_proposed_valid = False
                 continue
-            setting_mods = API_MODS[ruleset_key].get(mod.acronym)
+            setting_mods = API_MODS[ruleset_key].get(mod["acronym"])
             if setting_mods:
                 incompatible_mods.update(setting_mods["IncompatibleMods"])
             final_valid_mods.append(mod)
 
         # If not freestyle, check against allowed mods
         if not self.freestyle:
-            allowed_acronyms = {mod.acronym for mod in self.allowed_mods}
+            allowed_acronyms = {mod["acronym"] for mod in self.allowed_mods}
             filtered_valid_mods = []
             for mod in final_valid_mods:
-                if mod.acronym not in allowed_acronyms:
+                if mod["acronym"] not in allowed_acronyms:
                     all_proposed_valid = False
                 else:
                     filtered_valid_mods.append(mod)
             final_valid_mods = filtered_valid_mods
 
         # Check compatibility with required mods
-        required_mod_acronyms = {mod.acronym for mod in self.required_mods}
+        required_mod_acronyms = {mod["acronym"] for mod in self.required_mods}
         all_mod_acronyms = {
-            mod.acronym for mod in final_valid_mods
+            mod["acronym"] for mod in final_valid_mods
         } | required_mod_acronyms
 
         # Check for incompatibility between required and user mods
         filtered_valid_mods = []
         for mod in final_valid_mods:
-            mod_acronym = mod.acronym
+            mod_acronym = mod["acronym"]
             is_compatible = True
 
             for other_acronym in all_mod_acronyms:
@@ -181,23 +186,29 @@ class PlaylistItem(MessagePackArrayModel):
 
         return all_proposed_valid, filtered_valid_mods
 
+    def clone(self) -> "PlaylistItem":
+        copy = self.model_copy()
+        copy.required_mods = list(self.required_mods)
+        copy.allowed_mods = list(self.allowed_mods)
+        return copy
 
-class _MultiplayerCountdown(MessagePackArrayModel):
-    id: int
-    remaining: int
-    is_exclusive: bool
+
+class _MultiplayerCountdown(BaseModel):
+    id: int = 0
+    remaining: timedelta
+    is_exclusive: bool = False
 
 
 class MatchStartCountdown(_MultiplayerCountdown):
-    type: Literal[0] = Field(0, exclude=True)
+    union_type: ClassVar[Literal[0]] = 0
 
 
 class ForceGameplayStartCountdown(_MultiplayerCountdown):
-    type: Literal[1] = Field(1, exclude=True)
+    union_type: ClassVar[Literal[1]] = 1
 
 
 class ServerShuttingDownCountdown(_MultiplayerCountdown):
-    type: Literal[2] = Field(2, exclude=True)
+    union_type: ClassVar[Literal[2]] = 2
 
 
 MultiplayerCountdown = (
@@ -205,11 +216,9 @@ MultiplayerCountdown = (
 )
 
 
-class MultiplayerRoomUser(MessagePackArrayModel):
+class MultiplayerRoomUser(BaseModel):
     user_id: int
-    state: Annotated[MultiplayerUserState, EnumByIndex(MultiplayerUserState)] = (
-        MultiplayerUserState.IDLE
-    )
+    state: MultiplayerUserState = MultiplayerUserState.IDLE
     availability: BeatmapAvailability = BeatmapAvailability(
         state=DownloadState.UNKNOWN, progress=None
     )
@@ -218,50 +227,33 @@ class MultiplayerRoomUser(MessagePackArrayModel):
     ruleset_id: int | None = None  # freestyle
     beatmap_id: int | None = None  # freestyle
 
-    @field_validator("match_state", mode="before")
-    def union_validate(v: Any):
-        if isinstance(v, list):
-            return msgpack_union(v)
-        return v
 
-    @field_serializer("match_state")
-    def union_serialize(v: Any):
-        return msgpack_union_dump(v)
-
-
-class MultiplayerRoom(MessagePackArrayModel):
+class MultiplayerRoom(BaseModel):
     room_id: int
-    state: Annotated[MultiplayerRoomState, EnumByIndex(MultiplayerRoomState)]
+    state: MultiplayerRoomState
     settings: MultiplayerRoomSettings
     users: list[MultiplayerRoomUser] = Field(default_factory=list)
     host: MultiplayerRoomUser | None = None
     match_state: MatchRoomState | None = None
     playlist: list[PlaylistItem] = Field(default_factory=list)
-    active_cooldowns: list[MultiplayerCountdown] = Field(default_factory=list)
+    active_countdowns: list[MultiplayerCountdown] = Field(default_factory=list)
     channel_id: int
-
-    @field_validator("match_state", mode="before")
-    def union_validate(v: Any):
-        if isinstance(v, list):
-            return msgpack_union(v)
-        return v
-
-    @field_serializer("match_state")
-    def union_serialize(v: Any):
-        return msgpack_union_dump(v)
 
 
 class MultiplayerQueue:
-    def __init__(self, room: "ServerMultiplayerRoom", hub: "MultiplayerHub"):
+    def __init__(self, room: "ServerMultiplayerRoom"):
         self.server_room = room
-        self.hub = hub
         self.current_index = 0
+
+    @property
+    def hub(self) -> "MultiplayerHub":
+        return self.server_room.hub
 
     @property
     def upcoming_items(self):
         return sorted(
             (item for item in self.room.playlist if not item.expired),
-            key=lambda i: i.order,
+            key=lambda i: i.playlist_order,
         )
 
     @property
@@ -323,9 +315,9 @@ class MultiplayerQueue:
                 )
         async with AsyncSession(engine) as session:
             for idx, item in enumerate(ordered_active_items):
-                if item.order == idx:
+                if item.playlist_order == idx:
                     continue
-                item.order = idx
+                item.playlist_order = idx
                 await Playlist.update(item, self.room.room_id, session)
                 await self.hub.playlist_changed(
                     self.server_room, item, beatmap_changed=False
@@ -338,7 +330,7 @@ class MultiplayerQueue:
             if upcoming_items
             else max(
                 self.room.playlist,
-                key=lambda i: i.played_at or datetime.datetime.min,
+                key=lambda i: i.played_at or datetime.min,
             )
         )
         self.current_index = self.room.playlist.index(next_item)
@@ -356,14 +348,7 @@ class MultiplayerQueue:
 
         limit = HOST_LIMIT if is_host else PER_USER_LIMIT
         if (
-            len(
-                list(
-                    filter(
-                        lambda x: x.owner_id == user.user_id,
-                        self.room.playlist,
-                    )
-                )
-            )
+            len([True for u in self.room.playlist if u.owner_id == user.user_id])
             >= limit
         ):
             raise InvokeException(f"You can only have {limit} items in the queue")
@@ -376,11 +361,11 @@ class MultiplayerQueue:
                 beatmap = await session.get(Beatmap, item.beatmap_id)
                 if beatmap is None:
                     raise InvokeException("Beatmap not found")
-                if item.checksum != beatmap.checksum:
+                if item.beatmap_checksum != beatmap.checksum:
                     raise InvokeException("Checksum mismatch")
                 # TODO: mods validation
                 item.owner_id = user.user_id
-                item.star = float(
+                item.star_rating = float(
                     beatmap.difficulty_rating
                 )  # FIXME: beatmap use decimal
                 await Playlist.add_to_db(item, self.room.room_id, session)
@@ -400,7 +385,7 @@ class MultiplayerQueue:
                 beatmap = await session.get(Beatmap, item.beatmap_id)
                 if beatmap is None:
                     raise InvokeException("Beatmap not found")
-                if item.checksum != beatmap.checksum:
+                if item.beatmap_checksum != beatmap.checksum:
                     raise InvokeException("Checksum mismatch")
 
                 existing_item = next(
@@ -423,8 +408,8 @@ class MultiplayerQueue:
 
                 # TODO: mods validation
                 item.owner_id = user.user_id
-                item.star = float(beatmap.difficulty_rating)
-                item.order = existing_item.order
+                item.star_rating = float(beatmap.difficulty_rating)
+                item.playlist_order = existing_item.playlist_order
 
                 await Playlist.update(item, self.room.room_id, session)
 
@@ -437,7 +422,8 @@ class MultiplayerQueue:
                 await self.hub.playlist_changed(
                     self.server_room,
                     item,
-                    beatmap_changed=item.checksum != existing_item.checksum,
+                    beatmap_changed=item.beatmap_checksum
+                    != existing_item.beatmap_checksum,
                 )
 
     async def remove_item(self, playlist_item_id: int, user: MultiplayerRoomUser):
@@ -477,12 +463,46 @@ class MultiplayerQueue:
         await self.update_current_item()
         await self.hub.playlist_removed(self.server_room, item.id)
 
+    async def finish_current_item(self):
+        from app.database import Playlist
+
+        async with AsyncSession(engine) as session:
+            played_at = datetime.now(UTC)
+            await session.execute(
+                update(Playlist)
+                .where(
+                    col(Playlist.id) == self.current_item.id,
+                    col(Playlist.room_id) == self.room.room_id,
+                )
+                .values(expired=True, played_at=played_at)
+            )
+            self.room.playlist[self.current_index].expired = True
+            self.room.playlist[self.current_index].played_at = played_at
+        await self.hub.playlist_changed(self.server_room, self.current_item, True)
+        await self.update_order()
+        if self.room.settings.queue_mode == QueueMode.HOST_ONLY and all(
+            playitem.expired for playitem in self.room.playlist
+        ):
+            assert self.room.host
+            await self.add_item(self.current_item.clone(), self.room.host)
+
     @property
     def current_item(self):
-        """Get the current playlist item"""
-        current_id = self.room.settings.playlist_item_id
-        return next(
-            (item for item in self.room.playlist if item.id == current_id),
+        return self.room.playlist[self.current_index]
+
+
+@dataclass
+class CountdownInfo:
+    countdown: MultiplayerCountdown
+    duration: timedelta
+    task: asyncio.Task | None = None
+
+    def __init__(self, countdown: MultiplayerCountdown):
+        self.countdown = countdown
+        self.duration = (
+            countdown.remaining
+            if countdown.remaining > timedelta(seconds=0)
+            else timedelta(seconds=0)
         )
 
 
@@ -491,5 +511,79 @@ class ServerMultiplayerRoom:
     room: MultiplayerRoom
     category: RoomCategory
     status: RoomStatus
-    start_at: datetime.datetime
+    start_at: datetime
+    hub: "MultiplayerHub"
     queue: MultiplayerQueue | None = None
+    _next_countdown_id: int = 0
+    _countdown_id_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    _tracked_countdown: dict[int, CountdownInfo] = field(default_factory=dict)
+
+    async def get_next_countdown_id(self) -> int:
+        async with self._countdown_id_lock:
+            self._next_countdown_id += 1
+            return self._next_countdown_id
+
+    async def start_countdown(
+        self,
+        countdown: MultiplayerCountdown,
+        on_complete: Callable[["ServerMultiplayerRoom"], Awaitable[Any]] | None = None,
+    ):
+        async def _countdown_task(self: "ServerMultiplayerRoom"):
+            await asyncio.sleep(info.duration.total_seconds())
+            await self.stop_countdown(countdown)
+            if on_complete is not None:
+                await on_complete(self)
+
+        if countdown.is_exclusive:
+            await self.stop_all_countdowns()
+
+        countdown.id = await self.get_next_countdown_id()
+        info = CountdownInfo(countdown)
+        self.room.active_countdowns.append(info.countdown)
+        self._tracked_countdown[countdown.id] = info
+        await self.hub.send_match_event(
+            self, CountdownStartedEvent(countdown=info.countdown)
+        )
+        info.task = asyncio.create_task(_countdown_task(self))
+
+    async def stop_countdown(self, countdown: MultiplayerCountdown):
+        info = next(
+            (
+                info
+                for info in self._tracked_countdown.values()
+                if info.countdown.id == countdown.id
+            ),
+            None,
+        )
+        if info is None:
+            return
+        if info.task is not None and not info.task.done():
+            info.task.cancel()
+        del self._tracked_countdown[countdown.id]
+        self.room.active_countdowns.remove(countdown)
+        await self.hub.send_match_event(self, CountdownStoppedEvent(id=countdown.id))
+
+    async def stop_all_countdowns(self):
+        for countdown in list(self._tracked_countdown.values()):
+            await self.stop_countdown(countdown.countdown)
+
+        self._tracked_countdown.clear()
+        self.room.active_countdowns.clear()
+
+
+class _MatchServerEvent(BaseModel): ...
+
+
+class CountdownStartedEvent(_MatchServerEvent):
+    countdown: MultiplayerCountdown
+
+    type: Literal[0] = Field(default=0, exclude=True)
+
+
+class CountdownStoppedEvent(_MatchServerEvent):
+    id: int
+
+    type: Literal[1] = Field(default=1, exclude=True)
+
+
+MatchServerEvent = CountdownStartedEvent | CountdownStoppedEvent

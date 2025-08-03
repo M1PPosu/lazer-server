@@ -53,6 +53,15 @@ class MultiplayerUserState(str, Enum):
     RESULTS = "results"
     SPECTATING = "spectating"
 
+    @property
+    def is_playing(self) -> bool:
+        return self in {
+            self.WAITING_FOR_LOAD,
+            self.PLAYING,
+            self.READY_FOR_GAMEPLAY,
+            self.LOADED,
+        }
+
 
 class DownloadState(str, Enum):
     UNKNOWN = "unknown"

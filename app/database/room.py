@@ -125,7 +125,7 @@ class RoomResp(RoomBase):
             type=room.settings.match_type,
             queue_mode=room.settings.queue_mode,
             auto_skip=room.settings.auto_skip,
-            auto_start_duration=room.settings.auto_start_duration,
+            auto_start_duration=int(room.settings.auto_start_duration.total_seconds()),
             status=server_room.status,
             category=server_room.category,
             # duration = room.settings.duration,
