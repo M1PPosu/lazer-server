@@ -14,6 +14,7 @@ from app.models.mods import APIMod
 from app.models.multiplayer_hub import (
     BeatmapAvailability,
     ForceGameplayStartCountdown,
+    GameplayAbortReason,
     MatchServerEvent,
     MultiplayerClientState,
     MultiplayerQueue,
@@ -615,6 +616,13 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 playing = True
                 await self.change_user_state(room, user, MultiplayerUserState.PLAYING)
                 await self.call_noblock(client, "GameplayStarted")
+            elif user.state == MultiplayerUserState.WAITING_FOR_LOAD:
+                await self.change_user_state(room, user, MultiplayerUserState.IDLE)
+                await self.broadcast_group_call(
+                    self.group_id(room.room.room_id),
+                    "GameplayAborted",
+                    GameplayAbortReason.LOAD_TOOK_TOO_LONG,
+                )
         await self.change_room_state(
             room,
             (MultiplayerRoomState.PLAYING if playing else MultiplayerRoomState.OPEN),
@@ -739,3 +747,57 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         if new_host is None:
             raise InvokeException("User not found in this room")
         await self.set_host(server_room, new_host)
+
+    async def AbortGameplay(self, client: Client):
+        store = self.get_or_create_state(client)
+        if store.room_id == 0:
+            raise InvokeException("You are not in a room")
+        if store.room_id not in self.rooms:
+            raise InvokeException("Room does not exist")
+        server_room = self.rooms[store.room_id]
+        room = server_room.room
+        user = next((u for u in room.users if u.user_id == client.user_id), None)
+        if user is None:
+            raise InvokeException("You are not in this room")
+
+        if not user.state.is_playing:
+            raise InvokeException("Cannot abort gameplay while not in a gameplay state")
+
+        await self.change_user_state(
+            server_room,
+            user,
+            MultiplayerUserState.IDLE,
+        )
+        await self.update_room_state(server_room)
+
+    async def AbortMatch(self, client: Client):
+        store = self.get_or_create_state(client)
+        if store.room_id == 0:
+            raise InvokeException("You are not in a room")
+        if store.room_id not in self.rooms:
+            raise InvokeException("Room does not exist")
+        server_room = self.rooms[store.room_id]
+        room = server_room.room
+
+        if room.host is None or room.host.user_id != client.user_id:
+            raise InvokeException("You are not the host of this room")
+
+        if (
+            room.state != MultiplayerRoomState.PLAYING
+            or room.state == MultiplayerRoomState.WAITING_FOR_LOAD
+        ):
+            raise InvokeException("Room is not in a playable state")
+
+        await asyncio.gather(
+            *[
+                self.change_user_state(server_room, u, MultiplayerUserState.IDLE)
+                for u in room.users
+                if u.state.is_playing
+            ]
+        )
+        await self.broadcast_group_call(
+            self.group_id(room.room_id),
+            "GameplayAborted",
+            GameplayAbortReason.HOST_ABORTED,
+        )
+        await self.update_room_state(server_room)

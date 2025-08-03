@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from enum import IntEnum
 from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal
 
 from app.database.beatmap import Beatmap
@@ -587,3 +588,8 @@ class CountdownStoppedEvent(_MatchServerEvent):
 
 
 MatchServerEvent = CountdownStartedEvent | CountdownStoppedEvent
+
+
+class GameplayAbortReason(IntEnum):
+    LOAD_TOOK_TOO_LONG = 0
+    HOST_ABORTED = 1
