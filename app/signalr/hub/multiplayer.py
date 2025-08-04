@@ -64,6 +64,18 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             connection_token=client.connection_token,
         )
 
+    @override
+    async def _clean_state(self, state: MultiplayerClientState):
+        user_id = int(state.connection_id)
+        if state.room_id != 0 and state.room_id in self.rooms:
+            server_room = self.rooms[state.room_id]
+            room = server_room.room
+            user = next((u for u in room.users if u.user_id == user_id), None)
+            if user is not None:
+                await self.make_user_leave(
+                    self.get_client_by_id(str(user_id)), server_room, user
+                )
+
     async def CreateRoom(self, client: Client, room: MultiplayerRoom):
         logger.info(f"[MultiplayerHub] {client.user_id} creating room")
         store = self.get_or_create_state(client)
@@ -554,8 +566,17 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             raise InvokeException("You are not in this room")
         if room.host is None or room.host.user_id != client.user_id:
             raise InvokeException("You are not the host of this room")
-        if any(u.state != MultiplayerUserState.READY for u in room.users):
-            raise InvokeException("Not all users are ready")
+
+        # Check host state - host must be ready or spectating
+        if room.host.state not in (
+            MultiplayerUserState.SPECTATING,
+            MultiplayerUserState.READY,
+        ):
+            raise InvokeException("Can't start match when the host is not ready.")
+
+        # Check if any users are ready
+        if all(u.state != MultiplayerUserState.READY for u in room.users):
+            raise InvokeException("Can't start match when no users are ready.")
 
         await self.start_match(server_room)
 
@@ -646,7 +667,11 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         if len(room.room.users) == 0:
             await self.end_room(room)
         await self.update_room_state(room)
-        if room.room.host and room.room.host.user_id == user.user_id:
+        if (
+            len(room.room.users) != 0
+            and room.room.host
+            and room.room.host.user_id == user.user_id
+        ):
             next_host = room.room.users[0]
             await self.set_host(room, next_host)
 
@@ -709,6 +734,9 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
 
         if room.host is None or room.host.user_id != client.user_id:
             raise InvokeException("You are not the host of this room")
+
+        if user_id == client.user_id:
+            raise InvokeException("Can't kick self")
 
         user = next((u for u in room.users if u.user_id == user_id), None)
         if user is None:
@@ -780,9 +808,9 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
 
         if (
             room.state != MultiplayerRoomState.PLAYING
-            or room.state == MultiplayerRoomState.WAITING_FOR_LOAD
+            and room.state != MultiplayerRoomState.WAITING_FOR_LOAD
         ):
-            raise InvokeException("Room is not in a playable state")
+            raise InvokeException("Cannot abort a match that hasn't started.")
 
         await asyncio.gather(
             *[
