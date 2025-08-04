@@ -6,7 +6,9 @@ from typing import override
 
 from app.database import Room
 from app.database.beatmap import Beatmap
+from app.database.lazer_user import User
 from app.database.playlists import Playlist
+from app.database.relationship import Relationship, RelationshipType
 from app.dependencies.database import engine
 from app.exception import InvokeException
 from app.log import logger
@@ -861,3 +863,73 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             ...
         else:
             await server_room.match_type_handler.handle_request(user, request)
+
+    async def InvitePlayer(self, client: Client, user_id: int):
+        print(f"Inviting player... {client.user_id} {user_id}")
+        store = self.get_or_create_state(client)
+        if store.room_id == 0:
+            raise InvokeException("You are not in a room")
+        if store.room_id not in self.rooms:
+            raise InvokeException("Room does not exist")
+        server_room = self.rooms[store.room_id]
+        room = server_room.room
+        user = next((u for u in room.users if u.user_id == client.user_id), None)
+        if user is None:
+            raise InvokeException("You are not in this room")
+
+        async with AsyncSession(engine) as session:
+            db_user = await session.get(User, user_id)
+            target_relationship = (
+                await session.exec(
+                    select(Relationship).where(
+                        Relationship.user_id == user_id,
+                        Relationship.target_id == client.user_id,
+                    )
+                )
+            ).first()
+            inviter_relationship = (
+                await session.exec(
+                    select(Relationship).where(
+                        Relationship.user_id == client.user_id,
+                        Relationship.target_id == user_id,
+                    )
+                )
+            ).first()
+            if db_user is None:
+                raise InvokeException("User not found")
+            if db_user.id == client.user_id:
+                raise InvokeException("You cannot invite yourself")
+            if db_user.id in [u.user_id for u in room.users]:
+                raise InvokeException("User already invited")
+            if db_user.is_restricted:
+                raise InvokeException("User is restricted")
+            if (
+                inviter_relationship
+                and inviter_relationship.type == RelationshipType.BLOCK
+            ):
+                raise InvokeException("Cannot perform action due to user being blocked")
+            if (
+                target_relationship
+                and target_relationship.type == RelationshipType.BLOCK
+            ):
+                raise InvokeException("Cannot perform action due to user being blocked")
+            if (
+                db_user.pm_friends_only
+                and target_relationship is not None
+                and target_relationship.type != RelationshipType.FOLLOW
+            ):
+                raise InvokeException(
+                    "Cannot perform action "
+                    "because user has disabled non-friend communications"
+                )
+
+        target_client = self.get_client_by_id(str(user_id))
+        if target_client is None:
+            raise InvokeException("User is not online")
+        await self.call_noblock(
+            target_client,
+            "Invited",
+            client.user_id,
+            room.room_id,
+            room.settings.password,
+        )
