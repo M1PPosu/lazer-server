@@ -13,7 +13,6 @@ from pydantic import (
 class SignalRMeta:
     member_ignore: bool = False  # implement of IgnoreMember (msgpack) attribute
     json_ignore: bool = False  # implement of JsonIgnore (json) attribute
-    use_upper_case: bool = False  # use upper CamelCase for field names
     use_abbr: bool = True
 
 

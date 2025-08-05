@@ -53,10 +53,14 @@ class MultiplayerRoomSettings(BaseModel):
     auto_start_duration: timedelta = timedelta(seconds=0)
     auto_skip: bool = False
 
+    @property
+    def auto_start_enabled(self) -> bool:
+        return self.auto_start_duration != timedelta(seconds=0)
+
 
 class BeatmapAvailability(BaseModel):
     state: DownloadState = DownloadState.UNKNOWN
-    progress: float | None = None
+    download_progress: float | None = None
 
 
 class _MatchUserState(SignalRUnionMessage): ...
@@ -283,10 +287,12 @@ class PlaylistItem(BaseModel):
         return copy
 
 
-class _MultiplayerCountdown(BaseModel):
+class _MultiplayerCountdown(SignalRUnionMessage):
     id: int = 0
-    remaining: timedelta
-    is_exclusive: bool = False
+    time_remaining: timedelta
+    is_exclusive: Annotated[
+        bool, Field(default=True), SignalRMeta(member_ignore=True)
+    ] = True
 
 
 class MatchStartCountdown(_MultiplayerCountdown):
@@ -310,7 +316,7 @@ class MultiplayerRoomUser(BaseModel):
     user_id: int
     state: MultiplayerUserState = MultiplayerUserState.IDLE
     availability: BeatmapAvailability = BeatmapAvailability(
-        state=DownloadState.UNKNOWN, progress=None
+        state=DownloadState.UNKNOWN, download_progress=None
     )
     mods: list[APIMod] = Field(default_factory=list)
     match_state: MatchUserState | None = None
@@ -602,8 +608,8 @@ class CountdownInfo:
     def __init__(self, countdown: MultiplayerCountdown):
         self.countdown = countdown
         self.duration = (
-            countdown.remaining
-            if countdown.remaining > timedelta(seconds=0)
+            countdown.time_remaining
+            if countdown.time_remaining > timedelta(seconds=0)
             else timedelta(seconds=0)
         )
 
@@ -776,13 +782,12 @@ class ServerMultiplayerRoom:
     ):
         async def _countdown_task(self: "ServerMultiplayerRoom"):
             await asyncio.sleep(info.duration.total_seconds())
-            await self.stop_countdown(countdown)
             if on_complete is not None:
                 await on_complete(self)
+            await self.stop_countdown(countdown)
 
         if countdown.is_exclusive:
             await self.stop_all_countdowns()
-
         countdown.id = await self.get_next_countdown_id()
         info = CountdownInfo(countdown)
         self.room.active_countdowns.append(info.countdown)
@@ -793,21 +798,14 @@ class ServerMultiplayerRoom:
         info.task = asyncio.create_task(_countdown_task(self))
 
     async def stop_countdown(self, countdown: MultiplayerCountdown):
-        info = next(
-            (
-                info
-                for info in self._tracked_countdown.values()
-                if info.countdown.id == countdown.id
-            ),
-            None,
-        )
+        info = self._tracked_countdown.get(countdown.id)
         if info is None:
             return
-        if info.task is not None and not info.task.done():
-            info.task.cancel()
         del self._tracked_countdown[countdown.id]
         self.room.active_countdowns.remove(countdown)
         await self.hub.send_match_event(self, CountdownStoppedEvent(id=countdown.id))
+        if info.task is not None and not info.task.done():
+            info.task.cancel()
 
     async def stop_all_countdowns(self):
         for countdown in list(self._tracked_countdown.values()):
@@ -817,19 +815,19 @@ class ServerMultiplayerRoom:
         self.room.active_countdowns.clear()
 
 
-class _MatchServerEvent(BaseModel): ...
+class _MatchServerEvent(SignalRUnionMessage): ...
 
 
 class CountdownStartedEvent(_MatchServerEvent):
     countdown: MultiplayerCountdown
 
-    type: Literal[0] = Field(default=0, exclude=True)
+    union_type: ClassVar[Literal[0]] = 0
 
 
 class CountdownStoppedEvent(_MatchServerEvent):
     id: int
 
-    type: Literal[1] = Field(default=1, exclude=True)
+    union_type: ClassVar[Literal[1]] = 1
 
 
 MatchServerEvent = CountdownStartedEvent | CountdownStoppedEvent

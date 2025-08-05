@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from enum import IntEnum
-from typing import Annotated, ClassVar, Literal
+from typing import ClassVar, Literal
 
-from app.models.signalr import SignalRMeta, SignalRUnionMessage, UserState
+from app.models.signalr import SignalRUnionMessage, UserState
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class _UserActivity(SignalRUnionMessage): ...
@@ -100,12 +100,9 @@ UserActivity = (
 
 
 class UserPresence(BaseModel):
-    activity: Annotated[
-        UserActivity | None, Field(default=None), SignalRMeta(use_upper_case=True)
-    ]
-    status: Annotated[
-        OnlineStatus | None, Field(default=None), SignalRMeta(use_upper_case=True)
-    ]
+    activity: UserActivity | None = None
+
+    status: OnlineStatus | None = None
 
     @property
     def pushable(self) -> bool:

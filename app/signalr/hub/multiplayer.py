@@ -19,12 +19,14 @@ from app.models.multiplayer_hub import (
     GameplayAbortReason,
     MatchRequest,
     MatchServerEvent,
+    MatchStartCountdown,
     MultiplayerClientState,
     MultiplayerRoom,
     MultiplayerRoomSettings,
     MultiplayerRoomUser,
     PlaylistItem,
     ServerMultiplayerRoom,
+    ServerShuttingDownCountdown,
     StartMatchCountdownRequest,
     StopCountdownRequest,
 )
@@ -160,7 +162,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         availability = user.availability
         if (
             availability.state == beatmap_availability.state
-            and availability.progress == beatmap_availability.progress
+            and availability.download_progress == beatmap_availability.download_progress
         ):
             return
         user.availability = beatmap_availability
@@ -512,6 +514,25 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
 
     async def update_room_state(self, room: ServerMultiplayerRoom):
         match room.room.state:
+            case MultiplayerRoomState.OPEN:
+                if room.room.settings.auto_start_enabled:
+                    if (
+                        not room.queue.current_item.expired
+                        and any(
+                            u.state == MultiplayerUserState.READY
+                            for u in room.room.users
+                        )
+                        and not any(
+                            isinstance(countdown, MatchStartCountdown)
+                            for countdown in room.room.active_countdowns
+                        )
+                    ):
+                        await room.start_countdown(
+                            MatchStartCountdown(
+                                time_remaining=room.room.settings.auto_start_duration
+                            ),
+                            self.start_match,
+                        )
             case MultiplayerRoomState.WAITING_FOR_LOAD:
                 played_count = len(
                     [True for user in room.room.users if user.state.is_playing]
@@ -610,7 +631,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         )
         await room.start_countdown(
             ForceGameplayStartCountdown(
-                remaining=timedelta(seconds=GAMEPLAY_LOAD_TIMEOUT)
+                time_remaining=timedelta(seconds=GAMEPLAY_LOAD_TIMEOUT)
             ),
             self.start_gameplay,
         )
@@ -885,15 +906,34 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             raise InvokeException("You are not in this room")
 
         if isinstance(request, StartMatchCountdownRequest):
-            # TODO: countdown
-            ...
+            if room.host and room.host.user_id != user.user_id:
+                raise InvokeException("You are not the host of this room")
+            if room.state != MultiplayerRoomState.OPEN:
+                raise InvokeException("Cannot start a countdown during ongoing play")
+            await server_room.start_countdown(
+                MatchStartCountdown(time_remaining=request.duration),
+                self.start_match,
+            )
         elif isinstance(request, StopCountdownRequest):
-            ...
+            countdown = next(
+                (c for c in room.active_countdowns if c.id == request.id),
+                None,
+            )
+            if countdown is None:
+                return
+            if (
+                isinstance(countdown, MatchStartCountdown)
+                and room.settings.auto_start_enabled
+            ) or isinstance(
+                countdown, (ForceGameplayStartCountdown | ServerShuttingDownCountdown)
+            ):
+                raise InvokeException("Cannot stop the requested countdown")
+
+            await server_room.stop_countdown(countdown)
         else:
             await server_room.match_type_handler.handle_request(user, request)
 
     async def InvitePlayer(self, client: Client, user_id: int):
-        print(f"Inviting player... {client.user_id} {user_id}")
         store = self.get_or_create_state(client)
         if store.room_id == 0:
             raise InvokeException("You are not in a room")

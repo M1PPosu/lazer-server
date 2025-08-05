@@ -15,7 +15,7 @@ from typing import (
 )
 
 from app.models.signalr import SignalRMeta, SignalRUnionMessage
-from app.utils import camel_to_snake, snake_to_camel
+from app.utils import camel_to_snake, snake_to_camel, snake_to_pascal
 
 import msgpack_lazer_api as m
 from pydantic import BaseModel
@@ -98,7 +98,7 @@ class MsgpackProtocol:
         elif issubclass(typ, datetime.datetime):
             return [v, 0]
         elif issubclass(typ, datetime.timedelta):
-            return int(v.total_seconds())
+            return int(v.total_seconds() * 10_000_000)
         elif isinstance(v, dict):
             return {
                 cls.serialize_msgpack(k): cls.serialize_msgpack(value)
@@ -216,8 +216,8 @@ class MsgpackProtocol:
         elif inspect.isclass(typ) and issubclass(typ, datetime.datetime):
             return v[0]
         elif inspect.isclass(typ) and issubclass(typ, datetime.timedelta):
-            return datetime.timedelta(seconds=int(v))
-        elif isinstance(v, list):
+            return datetime.timedelta(seconds=int(v / 10_000_000))
+        elif get_origin(typ) is list:
             return [cls.validate_object(item, get_args(typ)[0]) for item in v]
         elif inspect.isclass(typ) and issubclass(typ, Enum):
             list_ = list(typ)
@@ -300,10 +300,10 @@ class MsgpackProtocol:
 
 class JSONProtocol:
     @classmethod
-    def serialize_to_json(cls, v: Any, dict_key: bool = False):
+    def serialize_to_json(cls, v: Any, dict_key: bool = False, in_union: bool = False):
         typ = v.__class__
         if issubclass(typ, BaseModel):
-            return cls.serialize_model(v)
+            return cls.serialize_model(v, in_union)
         elif isinstance(v, dict):
             return {
                 cls.serialize_to_json(k, True): cls.serialize_to_json(value)
@@ -327,22 +327,28 @@ class JSONProtocol:
         return v
 
     @classmethod
-    def serialize_model(cls, v: BaseModel) -> dict[str, Any]:
+    def serialize_model(cls, v: BaseModel, in_union: bool = False) -> dict[str, Any]:
         d = {}
+        is_union = issubclass(v.__class__, SignalRUnionMessage)
         for field, info in v.__class__.model_fields.items():
             metadata = next(
                 (m for m in info.metadata if isinstance(m, SignalRMeta)), None
             )
             if metadata and metadata.json_ignore:
                 continue
-            d[
+            name = (
                 snake_to_camel(
                     field,
-                    metadata.use_upper_case if metadata else False,
                     metadata.use_abbr if metadata else True,
                 )
-            ] = cls.serialize_to_json(getattr(v, field))
-        if issubclass(v.__class__, SignalRUnionMessage):
+                if not is_union
+                else snake_to_pascal(
+                    field,
+                    metadata.use_abbr if metadata else True,
+                )
+            )
+            d[name] = cls.serialize_to_json(getattr(v, field), in_union=is_union)
+        if is_union and not in_union:
             return {
                 "$dtype": v.__class__.__name__,
                 "$value": d,
@@ -360,11 +366,12 @@ class JSONProtocol:
             )
             if metadata and metadata.json_ignore:
                 continue
-            value = v.get(
-                snake_to_camel(
-                    field, not from_union, metadata.use_abbr if metadata else True
-                )
+            name = (
+                snake_to_camel(field, metadata.use_abbr if metadata else True)
+                if not from_union
+                else snake_to_pascal(field, metadata.use_abbr if metadata else True)
             )
+            value = v.get(name)
             anno = typ.model_fields[field].annotation
             if anno is None:
                 d[field] = value
@@ -433,7 +440,7 @@ class JSONProtocol:
                 return datetime.timedelta(minutes=int(parts[0]), seconds=int(parts[1]))
             elif len(parts) == 1:
                 return datetime.timedelta(seconds=int(parts[0]))
-        elif isinstance(v, list):
+        elif get_origin(typ) is list:
             return [cls.validate_object(item, get_args(typ)[0]) for item in v]
         elif inspect.isclass(typ) and issubclass(typ, Enum):
             list_ = list(typ)

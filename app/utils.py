@@ -21,7 +21,7 @@ def camel_to_snake(name: str) -> str:
     return "".join(result)
 
 
-def snake_to_camel(name: str, lower_case: bool = True, use_abbr: bool = True) -> str:
+def snake_to_camel(name: str, use_abbr: bool = True) -> str:
     """Convert a snake_case string to camelCase."""
     if not name:
         return name
@@ -50,9 +50,43 @@ def snake_to_camel(name: str, lower_case: bool = True, use_abbr: bool = True) ->
         if part.lower() in abbreviations and use_abbr:
             result.append(part.upper())
         else:
-            if result or not lower_case:
+            if result:
                 result.append(part.capitalize())
             else:
                 result.append(part.lower())
+
+    return "".join(result)
+
+
+def snake_to_pascal(name: str, use_abbr: bool = True) -> str:
+    """Convert a snake_case string to PascalCase."""
+    if not name:
+        return name
+
+    parts = name.split("_")
+    if not parts:
+        return name
+
+    # 常见缩写词列表
+    abbreviations = {
+        "id",
+        "url",
+        "api",
+        "http",
+        "https",
+        "xml",
+        "json",
+        "css",
+        "html",
+        "sql",
+        "db",
+    }
+
+    result = []
+    for part in parts:
+        if part.lower() in abbreviations and use_abbr:
+            result.append(part.upper())
+        else:
+            result.append(part.capitalize())
 
     return "".join(result)
