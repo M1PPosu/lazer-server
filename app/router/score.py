@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import time
+
+from app.calculator import clamp
 from app.database import (
     Beatmap,
     Playlist,
@@ -9,7 +12,18 @@ from app.database import (
     ScoreTokenResp,
     User,
 )
-from app.database.score import get_leaderboard, process_score, process_user
+from app.database.playlist_best_score import (
+    PlaylistBestScore,
+    get_position,
+    process_playlist_best_score,
+)
+from app.database.score import (
+    MultiplayerScores,
+    ScoreAround,
+    get_leaderboard,
+    process_score,
+    process_user,
+)
 from app.dependencies.database import get_db, get_redis
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.user import get_current_user
@@ -32,6 +46,8 @@ from redis.asyncio import Redis
 from sqlalchemy.orm import joinedload
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
+
+READ_SCORE_TIMEOUT = 10
 
 
 async def submit_score(
@@ -337,4 +353,163 @@ async def submit_playlist_score(
         item.id,
         room_id,
     )
+    await process_playlist_best_score(
+        room_id,
+        playlist_id,
+        current_user.id,
+        score_resp.id,
+        score_resp.total_score,
+        session,
+        redis,
+    )
     return score_resp
+
+
+class IndexedScoreResp(MultiplayerScores):
+    total: int
+    user_score: ScoreResp | None = None
+
+
+@router.get(
+    "/rooms/{room_id}/playlist/{playlist_id}/scores", response_model=IndexedScoreResp
+)
+async def index_playlist_scores(
+    room_id: int,
+    playlist_id: int,
+    limit: int = 50,
+    cursor: int = Query(2000000, alias="cursor[total_score]"),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    limit = clamp(limit, 1, 50)
+
+    scores = (
+        await session.exec(
+            select(PlaylistBestScore)
+            .where(
+                PlaylistBestScore.playlist_id == playlist_id,
+                PlaylistBestScore.room_id == room_id,
+                PlaylistBestScore.total_score < cursor,
+            )
+            .order_by(col(PlaylistBestScore.total_score).desc())
+            .limit(limit + 1)
+        )
+    ).all()
+    has_more = len(scores) > limit
+    if has_more:
+        scores = scores[:-1]
+
+    user_score = None
+    score_resp = [await ScoreResp.from_db(session, score.score) for score in scores]
+    for score in score_resp:
+        score.position = await get_position(room_id, playlist_id, score.id, session)
+        if score.user_id == current_user.id:
+            user_score = score
+    resp = IndexedScoreResp(
+        scores=score_resp,
+        user_score=user_score,
+        total=len(scores),
+        params={
+            "limit": limit,
+        },
+    )
+    if has_more:
+        resp.cursor = {
+            "total_score": scores[-1].total_score,
+        }
+    return resp
+
+
+@router.get(
+    "/rooms/{room_id}/playlist/{playlist_id}/scores/{score_id}",
+    response_model=ScoreResp,
+)
+async def show_playlist_score(
+    room_id: int,
+    playlist_id: int,
+    score_id: int,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+):
+    start_time = time.time()
+    score_record = None
+    completed = False
+    while time.time() - start_time < READ_SCORE_TIMEOUT:
+        if score_record is None:
+            score_record = (
+                await session.exec(
+                    select(PlaylistBestScore).where(
+                        PlaylistBestScore.score_id == score_id,
+                        PlaylistBestScore.playlist_id == playlist_id,
+                        PlaylistBestScore.room_id == room_id,
+                    )
+                )
+            ).first()
+        if completed_players := await redis.get(
+            f"multiplayer:{room_id}:gameplay:players"
+        ):
+            completed = completed_players == "0"
+        if score_record and completed:
+            break
+    if not score_record:
+        raise HTTPException(status_code=404, detail="Score not found")
+    resp = await ScoreResp.from_db(session, score_record.score)
+    resp.position = await get_position(room_id, playlist_id, score_id, session)
+    if completed:
+        scores = (
+            await session.exec(
+                select(PlaylistBestScore).where(
+                    PlaylistBestScore.playlist_id == playlist_id,
+                    PlaylistBestScore.room_id == room_id,
+                )
+            )
+        ).all()
+        higher_scores = []
+        lower_scores = []
+        for score in scores:
+            if score.total_score > resp.total_score:
+                higher_scores.append(await ScoreResp.from_db(session, score.score))
+            elif score.total_score < resp.total_score:
+                lower_scores.append(await ScoreResp.from_db(session, score.score))
+        resp.scores_around = ScoreAround(
+            higher=MultiplayerScores(scores=higher_scores),
+            lower=MultiplayerScores(scores=lower_scores),
+        )
+
+    return resp
+
+
+@router.get(
+    "rooms/{room_id}/playlist/{playlist_id}/scores/users/{user_id}",
+    response_model=ScoreResp,
+)
+async def get_user_playlist_score(
+    room_id: int,
+    playlist_id: int,
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    score_record = None
+    start_time = time.time()
+    while time.time() - start_time < READ_SCORE_TIMEOUT:
+        score_record = (
+            await session.exec(
+                select(PlaylistBestScore).where(
+                    PlaylistBestScore.user_id == user_id,
+                    PlaylistBestScore.playlist_id == playlist_id,
+                    PlaylistBestScore.room_id == room_id,
+                )
+            )
+        ).first()
+        if score_record:
+            break
+    if not score_record:
+        raise HTTPException(status_code=404, detail="Score not found")
+
+    resp = await ScoreResp.from_db(session, score_record.score)
+    resp.position = await get_position(
+        room_id, playlist_id, score_record.score_id, session
+    )
+    return resp

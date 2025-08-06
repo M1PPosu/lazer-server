@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 
 class PlaylistBase(SQLModel, UTCBaseModel):
-    id: int = 0
+    id: int = Field(index=True)
     owner_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id")))
     ruleset_id: int = Field(ge=0, le=3)
     expired: bool = Field(default=False)

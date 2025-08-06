@@ -13,3 +13,10 @@ class UTCBaseModel(BaseModel):
                 v = v.replace(tzinfo=UTC)
             return v.astimezone(UTC).isoformat()
         return v
+
+
+Cursor = dict[str, int]
+
+
+class RespWithCursor(BaseModel):
+    cursor: Cursor | None = None

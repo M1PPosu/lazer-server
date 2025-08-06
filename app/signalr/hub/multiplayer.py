@@ -9,7 +9,7 @@ from app.database.beatmap import Beatmap
 from app.database.lazer_user import User
 from app.database.playlists import Playlist
 from app.database.relationship import Relationship, RelationshipType
-from app.dependencies.database import engine
+from app.dependencies.database import engine, get_redis
 from app.exception import InvokeException
 from app.log import logger
 from app.models.mods import APIMod
@@ -642,6 +642,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         if room.queue.current_item.expired:
             raise InvokeException("Current playlist item is expired")
         playing = False
+        played_user = 0
         for user in room.room.users:
             client = self.get_client_by_id(str(user.user_id))
             if client is None:
@@ -652,6 +653,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 MultiplayerUserState.LOADED,
             ):
                 playing = True
+                played_user += 1
                 await self.change_user_state(room, user, MultiplayerUserState.PLAYING)
                 await self.call_noblock(client, "GameplayStarted")
             elif user.state == MultiplayerUserState.WAITING_FOR_LOAD:
@@ -665,6 +667,13 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             room,
             (MultiplayerRoomState.PLAYING if playing else MultiplayerRoomState.OPEN),
         )
+        if playing:
+            redis = get_redis()
+            await redis.set(
+                f"multiplayer:{room.room.room_id}:gameplay:players",
+                played_user,
+                ex=3600,
+            )
 
     async def send_match_event(
         self, room: ServerMultiplayerRoom, event: MatchServerEvent

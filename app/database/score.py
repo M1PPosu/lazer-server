@@ -3,7 +3,7 @@ from collections.abc import Sequence
 from datetime import UTC, date, datetime
 import json
 import math
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from app.calculator import (
     calculate_pp,
@@ -14,7 +14,7 @@ from app.calculator import (
     clamp,
 )
 from app.database.team import TeamMember
-from app.models.model import UTCBaseModel
+from app.models.model import RespWithCursor, UTCBaseModel
 from app.models.mods import APIMod, mods_can_get_pp
 from app.models.score import (
     INT_TO_MODE,
@@ -88,6 +88,7 @@ class ScoreBase(AsyncAttrs, SQLModel, UTCBaseModel):
         default=0, sa_column=Column(BigInteger), exclude=True
     )
     type: str
+    beatmap_id: int = Field(index=True, foreign_key="beatmaps.id")
 
     # optional
     # TODO: current_user_attributes
@@ -99,7 +100,6 @@ class Score(ScoreBase, table=True):
     id: int | None = Field(
         default=None, sa_column=Column(BigInteger, autoincrement=True, primary_key=True)
     )
-    beatmap_id: int = Field(index=True, foreign_key="beatmaps.id")
     user_id: int = Field(
         default=None,
         sa_column=Column(
@@ -162,7 +162,8 @@ class ScoreResp(ScoreBase):
     maximum_statistics: ScoreStatistics | None = None
     rank_global: int | None = None
     rank_country: int | None = None
-    position: int = 1  # TODO
+    position: int | None = None
+    scores_around: "ScoreAround | None" = None
 
     @classmethod
     async def from_db(cls, session: AsyncSession, score: Score) -> "ScoreResp":
@@ -232,6 +233,16 @@ class ScoreResp(ScoreBase):
             or None
         )
         return s
+
+
+class MultiplayerScores(RespWithCursor):
+    scores: list[ScoreResp] = Field(default_factory=list)
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+class ScoreAround(SQLModel):
+    higher: MultiplayerScores | None = None
+    lower: MultiplayerScores | None = None
 
 
 async def get_best_id(session: AsyncSession, score_id: int) -> None:
