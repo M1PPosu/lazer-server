@@ -5,10 +5,11 @@ from app.models.beatmap import BeatmapRankStatus
 from app.models.model import UTCBaseModel
 from app.models.score import MODE_TO_INT, GameMode
 
+from .beatmap_playcounts import BeatmapPlaycounts
 from .beatmapset import Beatmapset, BeatmapsetResp
 
 from sqlalchemy import DECIMAL, Column, DateTime
-from sqlmodel import VARCHAR, Field, Relationship, SQLModel, select
+from sqlmodel import VARCHAR, Field, Relationship, SQLModel, col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 if TYPE_CHECKING:
@@ -58,8 +59,6 @@ class BeatmapBase(SQLModel, UTCBaseModel):
     deleted_at: datetime | None = Field(default=None, sa_column=Column(DateTime))
     hit_length: int = Field(default=0)
     last_updated: datetime = Field(sa_column=Column(DateTime))
-    passcount: int = Field(default=0)
-    playcount: int = Field(default=0)
 
 
 class Beatmap(BeatmapBase, table=True):
@@ -156,6 +155,8 @@ class BeatmapResp(BeatmapBase):
     mode_int: int
     ranked: int
     url: str = ""
+    playcount: int = 0
+    passcount: int = 0
 
     @classmethod
     async def from_db(
@@ -166,6 +167,8 @@ class BeatmapResp(BeatmapBase):
         session: AsyncSession | None = None,
         user: "User | None" = None,
     ) -> "BeatmapResp":
+        from .score import Score
+
         beatmap_ = beatmap.model_dump()
         if query_mode is not None and beatmap.mode != query_mode:
             beatmap_["convert"] = True
@@ -177,4 +180,22 @@ class BeatmapResp(BeatmapBase):
             beatmap_["beatmapset"] = await BeatmapsetResp.from_db(
                 beatmap.beatmapset, session=session, user=user
             )
+        if session:
+            beatmap_["playcount"] = (
+                await session.exec(
+                    select(func.count())
+                    .select_from(BeatmapPlaycounts)
+                    .where(BeatmapPlaycounts.beatmap_id == beatmap.id)
+                )
+            ).one()
+            beatmap_["passcount"] = (
+                await session.exec(
+                    select(func.count())
+                    .select_from(Score)
+                    .where(
+                        Score.beatmap_id == beatmap.id,
+                        col(Score.passed).is_(True),
+                    )
+                )
+            ).one()
         return cls.model_validate(beatmap_)

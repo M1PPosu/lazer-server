@@ -28,6 +28,7 @@ from app.models.score import (
 )
 
 from .beatmap import Beatmap, BeatmapResp
+from .beatmap_playcounts import process_beatmap_playcount
 from .beatmapset import BeatmapsetResp
 from .best_score import BestScore
 from .lazer_user import User, UserResp
@@ -601,6 +602,7 @@ async def process_user(
         statistics.hit_accuracy = acc_sum
     if add_to_db:
         session.add(mouthly_playcount)
+    await process_beatmap_playcount(session, user.id, score.beatmap_id)
     await session.commit()
     await session.refresh(user)
 

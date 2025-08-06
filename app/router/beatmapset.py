@@ -71,10 +71,10 @@ async def favourite_beatmapset(
         )
     ).first()
 
-    if action == "favourite" and existing_favourite:
-        raise HTTPException(status_code=400, detail="Already favourited")
-    elif action == "unfavourite" and not existing_favourite:
-        raise HTTPException(status_code=400, detail="Not favourited")
+    if (action == "favourite" and existing_favourite) or (
+        action == "unfavourite" and not existing_favourite
+    ):
+        return
 
     if action == "favourite":
         favourite = FavouriteBeatmapset(

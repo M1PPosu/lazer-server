@@ -4,6 +4,7 @@ from .beatmap import (
     Beatmap as Beatmap,
     BeatmapResp as BeatmapResp,
 )
+from .beatmap_playcounts import BeatmapPlaycounts, BeatmapPlaycountsResp
 from .beatmapset import (
     Beatmapset as Beatmapset,
     BeatmapsetResp as BeatmapsetResp,
@@ -37,6 +38,8 @@ from .user_account_history import (
 
 __all__ = [
     "Beatmap",
+    "BeatmapPlaycounts",
+    "BeatmapPlaycountsResp",
     "Beatmapset",
     "BeatmapsetResp",
     "BestScore",

@@ -217,7 +217,7 @@ class BeatmapsetResp(BeatmapsetBase):
 
         update = {
             "beatmaps": [
-                await BeatmapResp.from_db(beatmap, from_set=True)
+                await BeatmapResp.from_db(beatmap, from_set=True, session=session)
                 for beatmap in await beatmapset.awaitable_attrs.beatmaps
             ],
             "hype": BeatmapHype(
