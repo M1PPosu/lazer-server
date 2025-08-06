@@ -40,11 +40,14 @@ async def get_all_rooms(
                         room.room.host.user_id if room.room.host is not None else 0
                     ) != current_user.id:
                         continue
-        else:
-            if (
-                room.room.host.user_id if room.room.host is not None else 0
-            ) != current_user.id:
+            else:
                 continue
+        else:
+            if mode == "owned":
+                if (
+                    room.room.host.user_id if room.room.host is not None else 0
+                ) != current_user.id:
+                    continue
             if room.status != status:
                 continue
         resp_list.append(await RoomResp.from_hub(room))
