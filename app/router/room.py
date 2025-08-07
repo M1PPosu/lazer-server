@@ -37,10 +37,10 @@ async def get_all_rooms(
     rooms = MultiplayerHubs.rooms.values()
     resp_list: list[RoomResp] = []
     for room in rooms:
-        if category == "realtime" and room.category != "normal":
-            continue
-        elif category != room.category:
-            continue
+        # if category == "realtime" and room.category != "normal":
+        #     continue
+        # elif category != room.category and category != "":
+        #     continue
         resp_list.append(await RoomResp.from_hub(room))
     return resp_list
 
@@ -99,6 +99,6 @@ async def create_room(
         hub=MultiplayerHubs,
     )
     MultiplayerHubs.rooms[db_room.id] = server_room
-    created_room = APICreatedRoom.model_validate(db_room)
+    created_room = APICreatedRoom.model_validate(await RoomResp.from_db(db_room))
     created_room.error = ""
     return created_room

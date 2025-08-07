@@ -134,6 +134,7 @@ class PlaylistResp(PlaylistBase):
 
     @classmethod
     async def from_db(cls, playlist: Playlist) -> "PlaylistResp":
-        resp = cls.model_validate(playlist)
-        resp.beatmap = await BeatmapResp.from_db(playlist.beatmap)
+        data = playlist.model_dump()
+        data["beatmap"] = await BeatmapResp.from_db(playlist.beatmap, from_set=True)
+        resp = cls.model_validate(data)
         return resp
