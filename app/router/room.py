@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from time import timezone
 from typing import Literal
 
 from app.database.lazer_user import User
+from app.database.playlist_attempts import ItemAttemptsCount, ItemAttemptsResp
 from app.database.playlists import Playlist, PlaylistResp
 from app.database.room import Room, RoomBase, RoomResp
 from app.dependencies.database import get_db, get_redis
@@ -22,10 +22,10 @@ from app.signalr.hub import MultiplayerHubs
 from .api_router import router
 
 from fastapi import Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 from redis.asyncio import Redis
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
-from starlette.status import HTTP_417_EXPECTATION_FAILED
 
 
 @router.get("/rooms", tags=["rooms"], response_model=list[RoomResp])
@@ -144,3 +144,37 @@ async def add_user_to_room(room: int, user: int, db: AsyncSession = Depends(get_
         return resp
     else:
         raise HTTPException(404, "room not found0")
+
+
+class APILeaderboard(BaseModel):
+    leaderboard: list[ItemAttemptsResp] = Field(default_factory=list)
+    user_score: ItemAttemptsResp | None = None
+
+
+@router.get("/rooms/{room}/leaderboard", tags=["room"], response_model=APILeaderboard)
+async def get_room_leaderboard(
+    room: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    server_room = MultiplayerHubs.rooms[room]
+    if not server_room:
+        raise HTTPException(404, "Room not found")
+
+    aggs = await db.exec(
+        select(ItemAttemptsCount)
+        .where(ItemAttemptsCount.room_id == room)
+        .order_by(col(ItemAttemptsCount.total_score).desc())
+    )
+    aggs_resp = []
+    user_agg = None
+    for i, agg in enumerate(aggs):
+        resp = await ItemAttemptsResp.from_db(agg, db)
+        resp.position = i + 1
+        aggs_resp.append(resp)
+        if agg.user_id == current_user.id:
+            user_agg = resp
+    return APILeaderboard(
+        leaderboard=aggs_resp,
+        user_score=user_agg,
+    )

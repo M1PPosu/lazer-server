@@ -15,7 +15,7 @@ from .lazer_user import (
     User,
     UserResp,
 )
-from .playlist_attempts import ItemAttemptsCount
+from .playlist_attempts import ItemAttemptsCount, ItemAttemptsResp
 from .playlist_best_score import PlaylistBestScore
 from .playlists import Playlist, PlaylistResp
 from .pp_best_score import PPBestScore
@@ -50,6 +50,7 @@ __all__ = [
     "DailyChallengeStatsResp",
     "FavouriteBeatmapset",
     "ItemAttemptsCount",
+    "ItemAttemptsResp",
     "MultiplayerScores",
     "OAuthToken",
     "PPBestScore",

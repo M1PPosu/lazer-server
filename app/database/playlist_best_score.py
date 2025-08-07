@@ -32,6 +32,7 @@ class PlaylistBestScore(SQLModel, table=True):
     room_id: int = Field(foreign_key="rooms.id", index=True)
     playlist_id: int = Field(foreign_key="room_playlists.id", index=True)
     total_score: int = Field(default=0, sa_column=Column(BigInteger))
+    attempts: int = Field(default=0)  # playlist
 
     user: User = Relationship()
     score: "Score" = Relationship(
@@ -72,6 +73,7 @@ async def process_playlist_best_score(
     else:
         previous.score_id = score_id
         previous.total_score = total_score
+        previous.attempts += 1
     await session.commit()
     await redis.decr(f"multiplayer:{room_id}:gameplay:players")
 

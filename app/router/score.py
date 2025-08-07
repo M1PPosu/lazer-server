@@ -1,17 +1,20 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 import time
 
 from app.calculator import clamp
 from app.database import (
     Beatmap,
     Playlist,
+    Room,
     Score,
     ScoreResp,
     ScoreToken,
     ScoreTokenResp,
     User,
 )
+from app.database.playlist_attempts import ItemAttemptsCount
 from app.database.playlist_best_score import (
     PlaylistBestScore,
     get_position,
@@ -36,7 +39,6 @@ from app.models.score import (
     Rank,
     SoloScoreSubmissionInfo,
 )
-from app.signalr.hub import MultiplayerHubs
 
 from .api_router import router
 
@@ -278,9 +280,11 @@ async def create_playlist_score(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    room = MultiplayerHubs.rooms[room_id]
+    room = await session.get(Room, room_id)
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
+    if room.ended_at and room.ended_at < datetime.now(UTC):
+        raise HTTPException(status_code=400, detail="Room has ended")
     item = (
         await session.exec(
             select(Playlist).where(
@@ -301,7 +305,18 @@ async def create_playlist_score(
             raise HTTPException(
                 status_code=400, detail="Beatmap ID mismatch in playlist item"
             )
-    # TODO: max attempts
+    agg = await session.exec(
+        select(ItemAttemptsCount).where(
+            ItemAttemptsCount.room_id == room_id,
+            ItemAttemptsCount.user_id == current_user.id,
+        )
+    )
+    agg = agg.first()
+    if agg and room.max_attempts and agg.attempts >= room.max_attempts:
+        raise HTTPException(
+            status_code=422,
+            detail="You have reached the maximum attempts for this room",
+        )
     if item.expired:
         raise HTTPException(status_code=400, detail="Playlist item has expired")
     if item.played_at:
@@ -342,6 +357,8 @@ async def submit_playlist_score(
     ).first()
     if not item:
         raise HTTPException(status_code=404, detail="Playlist item not found")
+
+    user_id = current_user.id
     score_resp = await submit_score(
         info,
         item.beatmap_id,
@@ -356,12 +373,13 @@ async def submit_playlist_score(
     await process_playlist_best_score(
         room_id,
         playlist_id,
-        current_user.id,
+        user_id,
         score_resp.id,
         score_resp.total_score,
         session,
         redis,
     )
+    await ItemAttemptsCount.get_or_create(room_id, user_id, session)
     return score_resp
 
 

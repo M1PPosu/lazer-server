@@ -11,7 +11,6 @@ from app.models.room import (
 )
 
 from .lazer_user import User, UserResp
-from .playlist_attempts import ItemAttemptsCount
 from .playlists import Playlist, PlaylistResp
 
 from sqlmodel import (
@@ -67,13 +66,6 @@ class Room(RoomBase, table=True):
             "overlaps": "room",
         }
     )
-    # playlist_item_attempts: list["ItemAttemptsCount"] = Relationship(
-    #     sa_relationship_kwargs={
-    #         "lazy": "joined",
-    #         "cascade": "all, delete-orphan",
-    #         "primaryjoin": "ItemAttemptsCount.room_id == Room.id",
-    #     }
-    # )
 
 
 class RoomResp(RoomBase):
@@ -84,7 +76,6 @@ class RoomResp(RoomBase):
     playlist_item_stats: RoomPlaylistItemStats | None = None
     difficulty_range: RoomDifficultyRange | None = None
     current_playlist_item: PlaylistResp | None = None
-    playlist_item_attempts: list[ItemAttemptsCount] = []
 
     @classmethod
     async def from_db(cls, room: Room) -> "RoomResp":
@@ -112,7 +103,6 @@ class RoomResp(RoomBase):
         resp.playlist_item_stats = stats
         resp.difficulty_range = difficulty_range
         resp.current_playlist_item = resp.playlist[-1] if resp.playlist else None
-        # resp.playlist_item_attempts = room.playlist_item_attempts
 
         return resp
 
