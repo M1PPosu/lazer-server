@@ -103,7 +103,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 item = room.playlist[0]
                 item.owner_id = client.user_id
                 room.room_id = db_room.id
-                starts_at = db_room.starts_at
+                starts_at = db_room.starts_at or datetime.now(UTC)
                 await Playlist.add_to_db(item, db_room.id, session)
                 server_room = ServerMultiplayerRoom(
                     room=room,

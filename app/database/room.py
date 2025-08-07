@@ -29,7 +29,7 @@ class RoomBase(SQLModel):
     name: str = Field(index=True)
     category: RoomCategory = Field(default=RoomCategory.NORMAL, index=True)
     duration: int | None = Field(default=None)  # minutes
-    starts_at: datetime = Field(
+    starts_at: datetime | None = Field(
         sa_column=Column(
             DateTime(timezone=True),
         ),

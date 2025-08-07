@@ -335,6 +335,58 @@ class MultiplayerRoom(BaseModel):
     active_countdowns: list[MultiplayerCountdown] = Field(default_factory=list)
     channel_id: int
 
+    @classmethod
+    def from_db(cls, room) -> "MultiplayerRoom":
+        """
+        将 Room (数据库模型) 转换为 MultiplayerRoom (业务模型)
+        """
+
+        # 用户列表
+        users = [MultiplayerRoomUser(user_id=room.host_id)]
+        host_user = MultiplayerRoomUser(user_id=room.host_id)
+        # playlist 转换
+        playlist = []
+        if hasattr(room, "playlist"):
+            for item in room.playlist:
+                playlist.append(
+                    PlaylistItem(
+                        id=item.id,
+                        owner_id=item.owner_id,
+                        beatmap_id=item.beatmap_id,
+                        beatmap_checksum=item.beatmap.checksum if item.beatmap else "",
+                        ruleset_id=item.ruleset_id,
+                        required_mods=item.required_mods,
+                        allowed_mods=item.allowed_mods,
+                        expired=item.expired,
+                        playlist_order=item.playlist_order,
+                        played_at=item.played_at,
+                        star_rating=item.beatmap.difficulty_rating
+                        if item.beatmap is not None
+                        else 0.0,
+                        freestyle=item.freestyle,
+                    )
+                )
+
+        return cls(
+            room_id=room.id,
+            state=getattr(room, "state", MultiplayerRoomState.OPEN),
+            settings=MultiplayerRoomSettings(
+                name=room.name,
+                playlist_item_id=playlist[0].id if playlist else 0,
+                password=getattr(room, "password", ""),
+                match_type=room.type,
+                queue_mode=room.queue_mode,
+                auto_start_duration=timedelta(seconds=room.auto_start_duration),
+                auto_skip=room.auto_skip,
+            ),
+            users=users,
+            host=host_user,
+            match_state=None,
+            playlist=playlist,
+            active_countdowns=[],
+            channel_id=getattr(room, "channel_id", 0),
+        )
+
 
 class MultiplayerQueue:
     def __init__(self, room: "ServerMultiplayerRoom"):
