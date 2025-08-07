@@ -15,6 +15,7 @@ from .lazer_user import (
     User,
     UserResp,
 )
+from .multiplayer_event import MultiplayerEvent, MultiplayerEventResp
 from .playlist_attempts import ItemAttemptsCount, ItemAttemptsResp
 from .playlist_best_score import PlaylistBestScore
 from .playlists import Playlist, PlaylistResp
@@ -51,6 +52,8 @@ __all__ = [
     "FavouriteBeatmapset",
     "ItemAttemptsCount",
     "ItemAttemptsResp",
+    "MultiplayerEvent",
+    "MultiplayerEventResp",
     "MultiplayerScores",
     "OAuthToken",
     "PPBestScore",

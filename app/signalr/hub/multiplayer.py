@@ -7,6 +7,7 @@ from typing import override
 from app.database import Room
 from app.database.beatmap import Beatmap
 from app.database.lazer_user import User
+from app.database.multiplayer_event import MultiplayerEvent
 from app.database.playlists import Playlist
 from app.database.relationship import Relationship, RelationshipType
 from app.dependencies.database import engine, get_redis
@@ -20,6 +21,7 @@ from app.models.multiplayer_hub import (
     MatchRequest,
     MatchServerEvent,
     MatchStartCountdown,
+    MatchStartedEventDetail,
     MultiplayerClientState,
     MultiplayerRoom,
     MultiplayerRoomSettings,
@@ -49,11 +51,100 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 GAMEPLAY_LOAD_TIMEOUT = 30
 
 
+class MultiplayerEventLogger:
+    def __init__(self):
+        pass
+
+    async def log_event(self, event: MultiplayerEvent):
+        try:
+            async with AsyncSession(engine) as session:
+                session.add(event)
+                await session.commit()
+        except Exception as e:
+            logger.warning(f"Failed to log multiplayer room event to database: {e}")
+
+    async def room_created(self, room_id: int, user_id: int):
+        event = MultiplayerEvent(
+            room_id=room_id,
+            user_id=user_id,
+            event_type="room_created",
+        )
+        await self.log_event(event)
+
+    async def room_disbanded(self, room_id: int, user_id: int):
+        event = MultiplayerEvent(
+            room_id=room_id,
+            user_id=user_id,
+            event_type="room_disbanded",
+        )
+        await self.log_event(event)
+
+    async def player_joined(self, room_id: int, user_id: int):
+        event = MultiplayerEvent(
+            room_id=room_id,
+            user_id=user_id,
+            event_type="player_joined",
+        )
+        await self.log_event(event)
+
+    async def player_left(self, room_id: int, user_id: int):
+        event = MultiplayerEvent(
+            room_id=room_id,
+            user_id=user_id,
+            event_type="player_left",
+        )
+        await self.log_event(event)
+
+    async def player_kicked(self, room_id: int, user_id: int):
+        event = MultiplayerEvent(
+            room_id=room_id,
+            user_id=user_id,
+            event_type="player_kicked",
+        )
+        await self.log_event(event)
+
+    async def host_changed(self, room_id: int, user_id: int):
+        event = MultiplayerEvent(
+            room_id=room_id,
+            user_id=user_id,
+            event_type="host_changed",
+        )
+        await self.log_event(event)
+
+    async def game_started(
+        self, room_id: int, playlist_item_id: int, details: MatchStartedEventDetail
+    ):
+        event = MultiplayerEvent(
+            room_id=room_id,
+            playlist_item_id=playlist_item_id,
+            event_type="game_started",
+            event_detail=details,  # pyright: ignore[reportArgumentType]
+        )
+        await self.log_event(event)
+
+    async def game_aborted(self, room_id: int, playlist_item_id: int):
+        event = MultiplayerEvent(
+            room_id=room_id,
+            playlist_item_id=playlist_item_id,
+            event_type="game_aborted",
+        )
+        await self.log_event(event)
+
+    async def game_completed(self, room_id: int, playlist_item_id: int):
+        event = MultiplayerEvent(
+            room_id=room_id,
+            playlist_item_id=playlist_item_id,
+            event_type="game_completed",
+        )
+        await self.log_event(event)
+
+
 class MultiplayerHub(Hub[MultiplayerClientState]):
     @override
     def __init__(self):
         super().__init__()
         self.rooms: dict[int, ServerMultiplayerRoom] = {}
+        self.event_logger = MultiplayerEventLogger()
 
     @staticmethod
     def group_id(room: int) -> str:
@@ -113,6 +204,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 )
                 self.rooms[room.room_id] = server_room
                 await server_room.set_handler()
+                await self.event_logger.room_created(room.room_id, client.user_id)
                 return await self.JoinRoomWithPassword(
                     client, room.room_id, room.settings.password
                 )
@@ -143,6 +235,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         room.users.append(user)
         self.add_to_group(client, self.group_id(room_id))
         await server_room.match_type_handler.handle_join(user)
+        await self.event_logger.player_joined(room_id, user.user_id)
         return room
 
     async def ChangeBeatmapAvailability(
@@ -550,10 +643,12 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 if all(
                     u.state != MultiplayerUserState.PLAYING for u in room.room.users
                 ):
+                    any_user_finished_playing = False
                     for u in filter(
                         lambda u: u.state == MultiplayerUserState.FINISHED_PLAY,
                         room.room.users,
                     ):
+                        any_user_finished_playing = True
                         await self.change_user_state(
                             room, u, MultiplayerUserState.RESULTS
                         )
@@ -562,6 +657,16 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                         self.group_id(room.room.room_id),
                         "ResultsReady",
                     )
+                    if any_user_finished_playing:
+                        await self.event_logger.game_completed(
+                            room.room.room_id,
+                            room.queue.current_item.id,
+                        )
+                    else:
+                        await self.event_logger.game_aborted(
+                            room.room.room_id,
+                            room.queue.current_item.id,
+                        )
                     await room.queue.finish_current_item()
 
     async def change_room_state(
@@ -634,6 +739,11 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 time_remaining=timedelta(seconds=GAMEPLAY_LOAD_TIMEOUT)
             ),
             self.start_gameplay,
+        )
+        await self.event_logger.game_started(
+            room.room.room_id,
+            room.queue.current_item.id,
+            details=room.match_type_handler.get_details(),
         )
 
     async def start_gameplay(self, room: ServerMultiplayerRoom):
@@ -737,6 +847,10 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                     host_id=room.room.host.user_id,
                 )
             )
+        await self.event_logger.room_disbanded(
+            room.room.room_id,
+            room.room.host.user_id,
+        )
         del self.rooms[room.room.room_id]
 
     async def LeaveRoom(self, client: Client):
@@ -751,6 +865,10 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         if user is None:
             raise InvokeException("You are not in this room")
 
+        await self.event_logger.player_left(
+            room.room_id,
+            user.user_id,
+        )
         await self.make_user_leave(client, server_room, user)
 
     async def KickUser(self, client: Client, user_id: int):
@@ -772,6 +890,10 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         if user is None:
             raise InvokeException("User not found in this room")
 
+        await self.event_logger.player_kicked(
+            room.room_id,
+            user.user_id,
+        )
         target_client = self.get_client_by_id(str(user.user_id))
         if target_client is None:
             return
@@ -800,6 +922,10 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         new_host = next((u for u in room.users if u.user_id == user_id), None)
         if new_host is None:
             raise InvokeException("User not found in this room")
+        await self.event_logger.host_changed(
+            room.room_id,
+            new_host.user_id,
+        )
         await self.set_host(server_room, new_host)
 
     async def AbortGameplay(self, client: Client):

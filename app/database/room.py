@@ -98,7 +98,7 @@ class RoomResp(RoomBase):
             difficulty_range.max = max(
                 difficulty_range.max, playlist.beatmap.difficulty_rating
             )
-            resp.playlist.append(await PlaylistResp.from_db(playlist))
+            resp.playlist.append(await PlaylistResp.from_db(playlist, ["beatmap"]))
         stats.ruleset_ids = list(rulesets)
         resp.playlist_item_stats = stats
         resp.difficulty_range = difficulty_range

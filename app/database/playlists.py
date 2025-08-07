@@ -133,8 +133,11 @@ class PlaylistResp(PlaylistBase):
     beatmap: BeatmapResp | None = None
 
     @classmethod
-    async def from_db(cls, playlist: Playlist) -> "PlaylistResp":
+    async def from_db(
+        cls, playlist: Playlist, include: list[str] = []
+    ) -> "PlaylistResp":
         data = playlist.model_dump()
-        data["beatmap"] = await BeatmapResp.from_db(playlist.beatmap, from_set=True)
+        if "beatmap" in include:
+            data["beatmap"] = await BeatmapResp.from_db(playlist.beatmap, from_set=True)
         resp = cls.model_validate(data)
         return resp

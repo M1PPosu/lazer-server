@@ -6,7 +6,16 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import IntEnum
-from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal, cast, override
+from typing import (
+    TYPE_CHECKING,
+    Annotated,
+    Any,
+    ClassVar,
+    Literal,
+    TypedDict,
+    cast,
+    override,
+)
 
 from app.database.beatmap import Beatmap
 from app.dependencies.database import engine
@@ -705,6 +714,9 @@ class MatchTypeHandler(ABC):
     @abstractmethod
     async def handle_leave(self, user: MultiplayerRoomUser): ...
 
+    @abstractmethod
+    def get_details(self) -> MatchStartedEventDetail: ...
+
 
 class HeadToHeadHandler(MatchTypeHandler):
     @override
@@ -720,6 +732,11 @@ class HeadToHeadHandler(MatchTypeHandler):
 
     @override
     async def handle_leave(self, user: MultiplayerRoomUser): ...
+
+    @override
+    def get_details(self) -> MatchStartedEventDetail:
+        detail = MatchStartedEventDetail(room_type="head_to_head", team=None)
+        return detail
 
 
 class TeamVersusHandler(MatchTypeHandler):
@@ -779,6 +796,17 @@ class TeamVersusHandler(MatchTypeHandler):
 
     @override
     async def handle_leave(self, user: MultiplayerRoomUser): ...
+
+    @override
+    def get_details(self) -> MatchStartedEventDetail:
+        teams: dict[int, Literal["blue", "red"]] = {}
+        for user in self.room.room.users:
+            if user.match_state is not None and isinstance(
+                user.match_state, TeamVersusUserState
+            ):
+                teams[user.user_id] = "blue" if user.match_state.team_id == 1 else "red"
+        detail = MatchStartedEventDetail(room_type="team_versus", team=teams)
+        return detail
 
 
 MATCH_TYPE_HANDLERS = {
@@ -890,3 +918,8 @@ MatchServerEvent = CountdownStartedEvent | CountdownStoppedEvent
 class GameplayAbortReason(IntEnum):
     LOAD_TOOK_TOO_LONG = 0
     HOST_ABORTED = 1
+
+
+class MatchStartedEventDetail(TypedDict):
+    room_type: Literal["playlists", "head_to_head", "team_versus"]
+    team: dict[int, Literal["blue", "red"]] | None

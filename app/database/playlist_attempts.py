@@ -29,9 +29,7 @@ class ItemAttemptsCountBase(SQLModel):
 
 class ItemAttemptsCount(ItemAttemptsCountBase, table=True):
     __tablename__ = "item_attempts_count"  # pyright: ignore[reportAssignmentType]
-    id: int | None = Field(
-        default=None, foreign_key="room_playlists.db_id", primary_key=True
-    )
+    id: int | None = Field(default=None, primary_key=True)
 
     user: User = Relationship()
 
