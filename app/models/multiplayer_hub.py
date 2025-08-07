@@ -284,6 +284,8 @@ class PlaylistItem(BaseModel):
         copy = self.model_copy()
         copy.required_mods = list(self.required_mods)
         copy.allowed_mods = list(self.allowed_mods)
+        copy.expired = False
+        copy.played_at = None
         return copy
 
 
