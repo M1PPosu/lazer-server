@@ -102,3 +102,12 @@ async def create_room(
     created_room = APICreatedRoom.model_validate(await RoomResp.from_db(db_room))
     created_room.error = ""
     return created_room
+
+
+@router.get("/rooms/{room}", tags=["room"], response_model=RoomResp)
+async def get_room(
+    room: int,
+    db: AsyncSession = Depends(get_db),
+):
+    server_room = MultiplayerHubs.rooms[room]
+    return await RoomResp.from_hub(server_room)
