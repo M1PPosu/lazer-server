@@ -31,7 +31,10 @@ class MultiplayerEventBase(SQLModel, UTCBaseModel):
 
 class MultiplayerEvent(MultiplayerEventBase, table=True):
     __tablename__ = "multiplayer_events"  # pyright: ignore[reportAssignmentType]
-    id: int | None = Field(default=None, primary_key=True)
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, primary_key=True, autoincrement=True, index=True),
+    )
     room_id: int = Field(foreign_key="rooms.id", index=True)
     updated_at: datetime = Field(
         sa_column=Column(
