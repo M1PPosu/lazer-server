@@ -5,21 +5,27 @@ from time import timezone
 from typing import Literal
 
 from app.database.lazer_user import User
-from app.database.playlists import Playlist
+from app.database.playlists import Playlist, PlaylistResp
 from app.database.room import Room, RoomBase, RoomResp
 from app.dependencies.database import get_db, get_redis
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.user import get_current_user
 from app.fetcher import Fetcher
-from app.models.multiplayer_hub import MultiplayerRoom, ServerMultiplayerRoom
+from app.models.multiplayer_hub import (
+    MultiplayerRoom,
+    MultiplayerRoomUser,
+    ServerMultiplayerRoom,
+)
 from app.models.room import RoomStatus
 from app.signalr.hub import MultiplayerHubs
 
 from .api_router import router
 
-from fastapi import Depends, Query
+from fastapi import Depends, HTTPException, Query
 from redis.asyncio import Redis
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
+from starlette.status import HTTP_417_EXPECTATION_FAILED
 
 
 @router.get("/rooms", tags=["rooms"], response_model=list[RoomResp])
@@ -111,3 +117,30 @@ async def get_room(
 ):
     server_room = MultiplayerHubs.rooms[room]
     return await RoomResp.from_hub(server_room)
+
+
+@router.delete("/rooms/{room}", tags=["room"])
+async def delete_room(room: int, db: AsyncSession = Depends(get_db)):
+    db_room = (await db.exec(select(Room).where(Room.id == room))).first()
+    if db_room is None:
+        raise HTTPException(404, "Room not found")
+    else:
+        await db.delete(db_room)
+        return None
+
+
+@router.put("/rooms/{room}/users/{user}", tags=["room"])
+async def add_user_to_room(room: int, user: int, db: AsyncSession = Depends(get_db)):
+    server_room = MultiplayerHubs.rooms[room]
+    server_room.room.users.append(MultiplayerRoomUser(user_id=user))
+    db_room = (await db.exec(select(Room).where(Room.id == room))).first()
+    if db_room is not None:
+        db_room.participant_count += 1
+        await db.commit()
+        resp = await RoomResp.from_hub(server_room)
+        await db.refresh(db_room)
+        for item in db_room.playlist:
+            resp.playlist.append(await PlaylistResp.from_db(item))
+        return resp
+    else:
+        raise HTTPException(404, "room not found0")
