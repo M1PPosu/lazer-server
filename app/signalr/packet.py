@@ -242,7 +242,9 @@ class MsgpackProtocol:
             # except `X (Other Type) | None`
             if NoneType in args and v is None:
                 return None
-            if not all(issubclass(arg, SignalRUnionMessage) for arg in args):
+            if not all(
+                issubclass(arg, SignalRUnionMessage) or arg is NoneType for arg in args
+            ):
                 raise ValueError(
                     f"Cannot validate {v} to {typ}, "
                     "only SignalRUnionMessage subclasses are supported"
