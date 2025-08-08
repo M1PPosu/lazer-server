@@ -652,6 +652,7 @@ class MultiplayerQueue:
         ):
             assert self.room.host
             await self.add_item(self.current_item.clone(), self.room.host)
+        await self.update_current_item()
 
     async def update_queue_mode(self):
         if self.room.settings.queue_mode == QueueMode.HOST_ONLY and all(
