@@ -144,6 +144,19 @@ async def add_user_to_room(room: int, user: int, db: AsyncSession = Depends(get_
         raise HTTPException(404, "room not found0")
 
 
+@router.delete("/rooms/{room}/users/{user}", tags=["room"])
+async def remove_user_from_room(
+    room: int, user: int, db: AsyncSession = Depends(get_db)
+):
+    db_room = (await db.exec(select(Room).where(Room.id == room))).first()
+    if db_room is not None:
+        db_room.participant_count -= 1
+        await db.commit()
+        return None
+    else:
+        raise HTTPException(404, "Room not found")
+
+
 class APILeaderboard(BaseModel):
     leaderboard: list[ItemAttemptsResp] = Field(default_factory=list)
     user_score: ItemAttemptsResp | None = None
