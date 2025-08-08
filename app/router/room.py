@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from app.database.beatmap import Beatmap, BeatmapResp
@@ -42,8 +42,8 @@ async def get_all_rooms(
     resp_list: list[RoomResp] = []
     db_rooms = (await db.exec(select(Room).where(True))).unique().all()
     for room in db_rooms:
-        if room.ended_at is not None and room.ended_at > datetime.now(UTC):
-            resp_list.append(await RoomResp.from_db(room))
+        # if room.ends_at is not None and room.ends_at > datetime.now(UTC):
+        resp_list.append(await RoomResp.from_db(room))
     return resp_list
 
 
@@ -78,9 +78,9 @@ async def create_room(
     db_room = room.to_room()
     db_room.host_id = current_user.id if current_user.id else 1
     db_room.starts_at = datetime.now(UTC)
-    # db_room.ended_at = db_room.starts_at + timedelta(
-    #     minutes=db_room.duration if db_room.duration is not None else 0
-    # )
+    db_room.ends_at = db_room.starts_at + timedelta(
+        minutes=db_room.duration if db_room.duration is not None else 0
+    )
     db.add(db_room)
     await db.commit()
     await db.refresh(db_room)
@@ -134,6 +134,7 @@ async def add_user_to_room(room: int, user: int, db: AsyncSession = Depends(get_
     if db_room is not None:
         db_room.participant_count += 1
         await db.commit()
+        await db.refresh(db_room)
         resp = await RoomResp.from_db(db_room)
         await db.refresh(db_room)
         for item in db_room.playlist:

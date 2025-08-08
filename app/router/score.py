@@ -285,7 +285,10 @@ async def create_playlist_score(
     room = await session.get(Room, room_id)
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
-    if room.ended_at and room.ended_at < datetime.now(UTC):
+    db_room_time = (
+        room.ends_at.replace(tzinfo=UTC) if room.ends_at is not None else room.starts_at
+    )
+    if db_room_time and db_room_time < datetime.now(UTC):
         raise HTTPException(status_code=400, detail="Room has ended")
     item = (
         await session.exec(
