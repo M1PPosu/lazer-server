@@ -11,6 +11,7 @@ from app.database import Beatmap, User
 from app.database.score import Score
 from app.database.score_token import ScoreToken
 from app.dependencies.database import engine
+from app.dependencies.fetcher import get_fetcher
 from app.models.beatmap import BeatmapRankStatus
 from app.models.mods import mods_to_int
 from app.models.score import LegacyReplaySoloScoreInfo, ScoreStatistics
@@ -179,15 +180,13 @@ class SpectatorHub(Hub[StoreClientState]):
             return
         if state.beatmap_id is None or state.ruleset_id is None:
             return
+
+        fetcher = await get_fetcher()
         async with AsyncSession(engine) as session:
             async with session.begin():
-                beatmap = (
-                    await session.exec(
-                        select(Beatmap).where(Beatmap.id == state.beatmap_id)
-                    )
-                ).first()
-                if not beatmap:
-                    return
+                beatmap = await Beatmap.get_or_fetch(
+                    session, fetcher, bid=state.beatmap_id
+                )
                 user = (
                     await session.exec(select(User).where(User.id == user_id))
                 ).first()
@@ -237,16 +236,16 @@ class SpectatorHub(Hub[StoreClientState]):
         user_id = int(client.connection_id)
         store = self.get_or_create_state(client)
         score = store.score
-        assert store.beatmap_status is not None
-        assert store.state is not None
-        assert store.score is not None
-        if not score or not store.score_token:
+        if (
+            score is None
+            or store.score_token is None
+            or store.beatmap_status is None
+            or store.state is None
+        ):
             return
         if (
             BeatmapRankStatus.PENDING < store.beatmap_status <= BeatmapRankStatus.LOVED
-        ) and any(
-            k.is_hit() and v > 0 for k, v in store.score.score_info.statistics.items()
-        ):
+        ) and any(k.is_hit() and v > 0 for k, v in score.score_info.statistics.items()):
             await self._process_score(store, client)
         store.state = None
         store.beatmap_status = None

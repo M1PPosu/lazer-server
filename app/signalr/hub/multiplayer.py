@@ -11,6 +11,7 @@ from app.database.multiplayer_event import MultiplayerEvent
 from app.database.playlists import Playlist
 from app.database.relationship import Relationship, RelationshipType
 from app.dependencies.database import engine, get_redis
+from app.dependencies.fetcher import get_fetcher
 from app.exception import InvokeException
 from app.log import logger
 from app.models.mods import APIMod
@@ -44,8 +45,9 @@ from app.models.score import GameMode
 
 from .hub import Client, Hub
 
+from httpx import HTTPError
 from sqlalchemy import update
-from sqlmodel import col, select
+from sqlmodel import col, exists, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 GAMEPLAY_LOAD_TIMEOUT = 30
@@ -191,11 +193,25 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 session.add(db_room)
                 await session.commit()
                 await session.refresh(db_room)
+
                 item = room.playlist[0]
                 item.owner_id = client.user_id
                 room.room_id = db_room.id
                 starts_at = db_room.starts_at or datetime.now(UTC)
+                beatmap_exists = await session.exec(
+                    select(exists().where(col(Beatmap.id) == item.beatmap_id))
+                )
+                if not beatmap_exists.one():
+                    fetcher = await get_fetcher()
+                    try:
+                        resp = await fetcher.get_beatmap(item.beatmap_id)
+                        await Beatmap.from_resp(session, resp)
+                    except HTTPError:
+                        raise InvokeException(
+                            "Failed to fetch beatmap, please retry later"
+                        )
                 await Playlist.add_to_db(item, db_room.id, session)
+
                 server_room = ServerMultiplayerRoom(
                     room=room,
                     category=RoomCategory.NORMAL,
@@ -372,6 +388,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         )
 
     async def validate_styles(self, room: ServerMultiplayerRoom):
+        fetcher = await get_fetcher()
         if not room.queue.current_item.freestyle:
             for user in room.room.users:
                 await self.change_user_style(
@@ -381,9 +398,12 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                     user,
                 )
         async with AsyncSession(engine) as session:
-            beatmap = await session.get(Beatmap, room.queue.current_item.beatmap_id)
-            if beatmap is None:
-                raise InvokeException("Beatmap not found")
+            try:
+                beatmap = await Beatmap.get_or_fetch(
+                    session, fetcher, bid=room.queue.current_item.beatmap_id
+                )
+            except HTTPError:
+                raise InvokeException("Current item beatmap not found")
             beatmap_ids = (
                 await session.exec(
                     select(Beatmap.id, Beatmap.mode).where(

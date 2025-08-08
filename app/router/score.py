@@ -43,6 +43,7 @@ from app.models.score import (
 from .api_router import router
 
 from fastapi import Depends, Form, HTTPException, Query
+from httpx import HTTPError
 from pydantic import BaseModel
 from redis.asyncio import Redis
 from sqlalchemy.orm import joinedload
@@ -86,12 +87,11 @@ async def submit_score(
         if not score:
             raise HTTPException(status_code=404, detail="Score not found")
     else:
-        beatmap_status = (
-            await db.exec(select(Beatmap.beatmap_status).where(Beatmap.id == beatmap))
-        ).first()
-        if beatmap_status is None:
+        try:
+            db_beatmap = await Beatmap.get_or_fetch(db, fetcher, bid=beatmap)
+        except HTTPError:
             raise HTTPException(status_code=404, detail="Beatmap not found")
-        ranked = beatmap_status in {
+        ranked = db_beatmap.beatmap_status in {
             BeatmapRankStatus.RANKED,
             BeatmapRankStatus.APPROVED,
         }
