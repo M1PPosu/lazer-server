@@ -103,7 +103,7 @@ class ItemAttemptsResp(ItemAttemptsCountBase):
         session: AsyncSession,
         include: list[str] = [],
     ) -> "ItemAttemptsResp":
-        resp = cls.model_validate(item_attempts)
+        resp = cls.model_validate(item_attempts.model_dump())
         resp.user = await UserResp.from_db(
             item_attempts.user,
             session=session,
