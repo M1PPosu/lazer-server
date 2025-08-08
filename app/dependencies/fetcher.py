@@ -8,7 +8,7 @@ from app.log import logger
 fetcher: Fetcher | None = None
 
 
-def get_fetcher() -> Fetcher:
+async def get_fetcher() -> Fetcher:
     global fetcher
     if fetcher is None:
         fetcher = Fetcher(
@@ -18,15 +18,14 @@ def get_fetcher() -> Fetcher:
             settings.FETCHER_CALLBACK_URL,
         )
         redis = get_redis()
-        if redis:
-            access_token = redis.get(f"fetcher:access_token:{fetcher.client_id}")
-            if access_token:
-                fetcher.access_token = str(access_token)
-            refresh_token = redis.get(f"fetcher:refresh_token:{fetcher.client_id}")
-            if refresh_token:
-                fetcher.refresh_token = str(refresh_token)
-            if not fetcher.access_token or not fetcher.refresh_token:
-                logger.opt(colors=True).info(
-                    f"Login to initialize fetcher: <y>{fetcher.authorize_url}</y>"
-                )
+        access_token = await redis.get(f"fetcher:access_token:{fetcher.client_id}")
+        if access_token:
+            fetcher.access_token = str(access_token)
+        refresh_token = await redis.get(f"fetcher:refresh_token:{fetcher.client_id}")
+        if refresh_token:
+            fetcher.refresh_token = str(refresh_token)
+        if not fetcher.access_token or not fetcher.refresh_token:
+            logger.opt(colors=True).info(
+                f"Login to initialize fetcher: <y>{fetcher.authorize_url}</y>"
+            )
     return fetcher

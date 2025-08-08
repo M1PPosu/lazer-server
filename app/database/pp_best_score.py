@@ -1,14 +1,14 @@
 from typing import TYPE_CHECKING
 
-from app.models.score import GameMode, Rank
+from app.models.score import GameMode
 
 from .lazer_user import User
 
 from sqlmodel import (
-    JSON,
     BigInteger,
     Column,
     Field,
+    Float,
     ForeignKey,
     Relationship,
     SQLModel,
@@ -19,8 +19,8 @@ if TYPE_CHECKING:
     from .score import Score
 
 
-class BestScore(SQLModel, table=True):
-    __tablename__ = "total_score_best_scores"  # pyright: ignore[reportAssignmentType]
+class PPBestScore(SQLModel, table=True):
+    __tablename__ = "best_scores"  # pyright: ignore[reportAssignmentType]
     user_id: int = Field(
         sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True)
     )
@@ -29,18 +29,13 @@ class BestScore(SQLModel, table=True):
     )
     beatmap_id: int = Field(foreign_key="beatmaps.id", index=True)
     gamemode: GameMode = Field(index=True)
-    total_score: int = Field(default=0, sa_column=Column(BigInteger))
-    mods: list[str] = Field(
-        default_factory=list,
-        sa_column=Column(JSON),
+    pp: float = Field(
+        sa_column=Column(Float, default=0),
     )
-    rank: Rank
+    acc: float = Field(
+        sa_column=Column(Float, default=0),
+    )
 
     user: User = Relationship()
-    score: "Score" = Relationship(
-        sa_relationship_kwargs={
-            "foreign_keys": "[BestScore.score_id]",
-            "lazy": "joined",
-        }
-    )
+    score: "Score" = Relationship()
     beatmap: "Beatmap" = Relationship()

@@ -1,8 +1,7 @@
-﻿use crate::APIMod;
-use chrono::{DateTime, Utc};
-use pyo3::prelude::{PyAnyMethods, PyDictMethods, PyListMethods, PyStringMethods};
+﻿use chrono::{DateTime, Utc};
+use pyo3::prelude::{PyAnyMethods, PyDictMethods, PyListMethods, PyResult, PyStringMethods};
 use pyo3::types::{PyBool, PyBytes, PyDateTime, PyDict, PyFloat, PyInt, PyList, PyNone, PyString};
-use pyo3::{Bound, PyAny, PyRef, Python};
+use pyo3::{Bound, PyAny};
 use std::io::Write;
 
 fn write_list(buf: &mut Vec<u8>, obj: &Bound<'_, PyList>) {
@@ -61,19 +60,42 @@ fn write_hashmap(buf: &mut Vec<u8>, obj: &Bound<'_, PyDict>) {
     }
 }
 
-fn write_nil(buf: &mut Vec<u8>){
+fn write_nil(buf: &mut Vec<u8>) {
     rmp::encode::write_nil(buf).unwrap();
 }
 
-// https://github.com/ppy/osu/blob/3dced3/osu.Game/Online/API/ModSettingsDictionaryFormatter.cs
-fn write_api_mod(buf: &mut Vec<u8>, api_mod: PyRef<APIMod>) {
-    rmp::encode::write_array_len(buf, 2).unwrap();
-    rmp::encode::write_str(buf, &api_mod.acronym).unwrap();
-    rmp::encode::write_array_len(buf, api_mod.settings.len() as u32).unwrap();
-    for (k, v) in api_mod.settings.iter() {
-        rmp::encode::write_str(buf, k).unwrap();
-        Python::with_gil(|py| write_object(buf, &v.bind(py)));
+fn is_api_mod(dict: &Bound<'_, PyDict>) -> bool {
+    if let Ok(Some(acronym)) = dict.get_item("acronym") {
+        if let Ok(acronym_str) = acronym.extract::<String>() {
+            return acronym_str.len() == 2;
+        }
     }
+    false
+}
+
+// https://github.com/ppy/osu/blob/3dced3/osu.Game/Online/API/ModSettingsDictionaryFormatter.cs
+fn write_api_mod(buf: &mut Vec<u8>, api_mod: &Bound<'_, PyDict>) -> PyResult<()> {
+    let acronym = api_mod
+        .get_item("acronym")?
+        .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("APIMod missing 'acronym' field"))?;
+    let acronym_str = acronym.extract::<String>()?;
+
+    let settings = api_mod
+        .get_item("settings")?
+        .unwrap_or_else(|| PyDict::new(acronym.py()).into_any());
+    let settings_dict = settings.downcast::<PyDict>()?;
+
+    rmp::encode::write_array_len(buf, 2).unwrap();
+    rmp::encode::write_str(buf, &acronym_str).unwrap();
+    rmp::encode::write_array_len(buf, settings_dict.len() as u32).unwrap();
+
+    for (k, v) in settings_dict.iter() {
+        let key_str = k.extract::<String>()?;
+        rmp::encode::write_str(buf, &key_str).unwrap();
+        write_object(buf, &v);
+    }
+
+    Ok(())
 }
 
 fn write_datetime(buf: &mut Vec<u8>, obj: &Bound<'_, PyDateTime>) {
@@ -110,22 +132,24 @@ pub fn write_object(buf: &mut Vec<u8>, obj: &Bound<'_, PyAny>) {
         write_list(buf, list);
     } else if let Ok(string) = obj.downcast::<PyString>() {
         write_string(buf, string);
-    } else if let Ok(integer) = obj.downcast::<PyInt>() {
-        write_integer(buf, integer);
-    } else if let Ok(float) = obj.downcast::<PyFloat>() {
-        write_float(buf, float);
     } else if let Ok(boolean) = obj.downcast::<PyBool>() {
         write_bool(buf, boolean);
+    } else if let Ok(float) = obj.downcast::<PyFloat>() {
+        write_float(buf, float);
+    } else if let Ok(integer) = obj.downcast::<PyInt>() {
+        write_integer(buf, integer);
     } else if let Ok(bytes) = obj.downcast::<PyBytes>() {
         write_bin(buf, bytes);
     } else if let Ok(dict) = obj.downcast::<PyDict>() {
-        write_hashmap(buf, dict);
+        if is_api_mod(dict) {
+            write_api_mod(buf, dict).unwrap_or_else(|_| write_hashmap(buf, dict));
+        } else {
+            write_hashmap(buf, dict);
+        }
     } else if let Ok(_none) = obj.downcast::<PyNone>() {
         write_nil(buf);
     } else if let Ok(datetime) = obj.downcast::<PyDateTime>() {
         write_datetime(buf, datetime);
-    } else if let Ok(api_mod) = obj.extract::<PyRef<APIMod>>() {
-        write_api_mod(buf, api_mod);
     } else {
         panic!("Unsupported type");
     }

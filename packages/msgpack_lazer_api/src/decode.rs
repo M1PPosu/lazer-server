@@ -1,8 +1,6 @@
-use crate::APIMod;
 use chrono::{TimeZone, Utc};
 use pyo3::types::PyDict;
 use pyo3::{prelude::*, IntoPyObjectExt};
-use std::collections::HashMap;
 use std::io::Read;
 
 pub fn read_object(
@@ -13,6 +11,8 @@ pub fn read_object(
     match rmp::decode::read_marker(cursor) {
         Ok(marker) => match marker {
             rmp::Marker::Null => Ok(py.None()),
+            rmp::Marker::True => Ok(true.into_py_any(py)?),
+            rmp::Marker::False => Ok(false.into_py_any(py)?),
             rmp::Marker::FixPos(val) => Ok(val.into_pyobject(py)?.into_any().unbind()),
             rmp::Marker::FixNeg(val) => Ok(val.into_pyobject(py)?.into_any().unbind()),
             rmp::Marker::U8 => {
@@ -86,8 +86,6 @@ pub fn read_object(
                 cursor.read_exact(&mut data).map_err(to_py_err)?;
                 Ok(data.into_pyobject(py)?.into_any().unbind())
             }
-            rmp::Marker::True => Ok(true.into_py_any(py)?),
-            rmp::Marker::False => Ok(false.into_py_any(py)?),
             rmp::Marker::FixStr(len) => read_string(py, cursor, len as u32),
             rmp::Marker::Str8 => {
                 let mut buf = [0u8; 1];
@@ -206,13 +204,12 @@ fn read_array(
         let obj1 = read_object(py, cursor, false)?;
         if obj1.extract::<String>(py).map_or(false, |k| k.len() == 2) {
             let obj2 = read_object(py, cursor, true)?;
-            return Ok(APIMod {
-                acronym: obj1.extract::<String>(py)?,
-                settings: obj2.extract::<HashMap<String, PyObject>>(py)?,
-            }
-            .into_pyobject(py)?
-            .into_any()
-            .unbind());
+
+            let api_mod_dict = PyDict::new(py);
+            api_mod_dict.set_item("acronym", obj1)?;
+            api_mod_dict.set_item("settings", obj2)?;
+
+            return Ok(api_mod_dict.into_pyobject(py)?.into_any().unbind());
         } else {
             items.push(obj1);
             i += 1;

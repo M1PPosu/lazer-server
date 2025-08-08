@@ -1,0 +1,45 @@
+from datetime import UTC, datetime
+from enum import Enum
+
+from app.models.model import UTCBaseModel
+
+from sqlmodel import BigInteger, Column, Field, ForeignKey, Integer, SQLModel
+
+
+class UserAccountHistoryType(str, Enum):
+    NOTE = "note"
+    RESTRICTION = "restriction"
+    SLIENCE = "silence"
+    TOURNAMENT_BAN = "tournament_ban"
+
+
+class UserAccountHistoryBase(SQLModel, UTCBaseModel):
+    description: str | None = None
+    length: int
+    permanent: bool = False
+    timestamp: datetime = Field(default=datetime.now(UTC))
+    type: UserAccountHistoryType
+
+
+class UserAccountHistory(UserAccountHistoryBase, table=True):
+    __tablename__ = "user_account_history"  # pyright: ignore[reportAssignmentType]
+
+    id: int | None = Field(
+        sa_column=Column(
+            Integer,
+            autoincrement=True,
+            index=True,
+            primary_key=True,
+        )
+    )
+    user_id: int = Field(
+        sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True)
+    )
+
+
+class UserAccountHistoryResp(UserAccountHistoryBase):
+    id: int | None = None
+
+    @classmethod
+    def from_db(cls, db_model: UserAccountHistory) -> "UserAccountHistoryResp":
+        return cls.model_validate(db_model)

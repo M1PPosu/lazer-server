@@ -7,12 +7,13 @@ from app.models.score import MODE_TO_INT, GameMode
 from .beatmapset import Beatmapset, BeatmapsetResp
 
 from sqlalchemy import DECIMAL, Column, DateTime
-from sqlalchemy.orm import joinedload
 from sqlmodel import VARCHAR, Field, Relationship, SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 if TYPE_CHECKING:
     from app.fetcher import Fetcher
+
+    from .lazer_user import User
 
 
 class BeatmapOwner(SQLModel):
@@ -66,7 +67,9 @@ class Beatmap(BeatmapBase, table=True):
     beatmapset_id: int = Field(foreign_key="beatmapsets.id", index=True)
     beatmap_status: BeatmapRankStatus
     # optional
-    beatmapset: Beatmapset = Relationship(back_populates="beatmaps")
+    beatmapset: Beatmapset = Relationship(
+        back_populates="beatmaps", sa_relationship_kwargs={"lazy": "joined"}
+    )
 
     @property
     def can_ranked(self) -> bool:
@@ -87,13 +90,7 @@ class Beatmap(BeatmapBase, table=True):
         session.add(beatmap)
         await session.commit()
         beatmap = (
-            await session.exec(
-                select(Beatmap)
-                .options(
-                    joinedload(Beatmap.beatmapset).selectinload(Beatmapset.beatmaps)  # pyright: ignore[reportArgumentType]
-                )
-                .where(Beatmap.id == resp.id)
-            )
+            await session.exec(select(Beatmap).where(Beatmap.id == resp.id))
         ).first()
         assert beatmap is not None, "Beatmap should not be None after commit"
         return beatmap
@@ -131,12 +128,8 @@ class Beatmap(BeatmapBase, table=True):
     ) -> "Beatmap":
         beatmap = (
             await session.exec(
-                select(Beatmap)
-                .where(
+                select(Beatmap).where(
                     Beatmap.id == bid if bid is not None else Beatmap.checksum == md5
-                )
-                .options(
-                    joinedload(Beatmap.beatmapset).selectinload(Beatmapset.beatmaps)  # pyright: ignore[reportArgumentType]
                 )
             )
         ).first()
@@ -164,11 +157,13 @@ class BeatmapResp(BeatmapBase):
     url: str = ""
 
     @classmethod
-    def from_db(
+    async def from_db(
         cls,
         beatmap: Beatmap,
         query_mode: GameMode | None = None,
         from_set: bool = False,
+        session: AsyncSession | None = None,
+        user: "User | None" = None,
     ) -> "BeatmapResp":
         beatmap_ = beatmap.model_dump()
         if query_mode is not None and beatmap.mode != query_mode:
@@ -178,5 +173,7 @@ class BeatmapResp(BeatmapBase):
         beatmap_["ranked"] = beatmap.beatmap_status.value
         beatmap_["mode_int"] = MODE_TO_INT[beatmap.mode]
         if not from_set:
-            beatmap_["beatmapset"] = BeatmapsetResp.from_db(beatmap.beatmapset)
+            beatmap_["beatmapset"] = await BeatmapsetResp.from_db(
+                beatmap.beatmapset, session=session, user=user
+            )
         return cls.model_validate(beatmap_)
