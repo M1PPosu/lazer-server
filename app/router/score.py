@@ -104,6 +104,8 @@ async def submit_score(
             fetcher,
             db,
             redis,
+            item_id,
+            room_id,
         )
         await db.refresh(current_user)
         score_id = score.id
