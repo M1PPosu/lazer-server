@@ -204,8 +204,9 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 if not beatmap_exists.one():
                     fetcher = await get_fetcher()
                     try:
-                        resp = await fetcher.get_beatmap(item.beatmap_id)
-                        await Beatmap.from_resp(session, resp)
+                        await Beatmap.get_or_fetch(
+                            session, fetcher, bid=item.beatmap_id
+                        )
                     except HTTPError:
                         raise InvokeException(
                             "Failed to fetch beatmap, please retry later"
