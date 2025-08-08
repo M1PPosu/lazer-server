@@ -19,6 +19,7 @@ from typing import (
 
 from app.database.beatmap import Beatmap
 from app.dependencies.database import engine
+from app.dependencies.fetcher import get_fetcher
 from app.exception import InvokeException
 
 from .mods import APIMod
@@ -518,8 +519,11 @@ class MultiplayerQueue:
             raise InvokeException("Freestyle items cannot have allowed mods")
 
         async with AsyncSession(engine) as session:
+            fetcher = await get_fetcher()
             async with session:
-                beatmap = await session.get(Beatmap, item.beatmap_id)
+                beatmap = await Beatmap.get_or_fetch(
+                    session, fetcher, bid=item.beatmap_id
+                )
                 if beatmap is None:
                     raise InvokeException("Beatmap not found")
                 if item.beatmap_checksum != beatmap.checksum:
@@ -543,10 +547,11 @@ class MultiplayerQueue:
             raise InvokeException("Freestyle items cannot have allowed mods")
 
         async with AsyncSession(engine) as session:
+            fetcher = await get_fetcher()
             async with session:
-                beatmap = await session.get(Beatmap, item.beatmap_id)
-                if beatmap is None:
-                    raise InvokeException("Beatmap not found")
+                beatmap = await Beatmap.get_or_fetch(
+                    session, fetcher, bid=item.beatmap_id
+                )
                 if item.beatmap_checksum != beatmap.checksum:
                     raise InvokeException("Checksum mismatch")
 

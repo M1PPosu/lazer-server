@@ -211,7 +211,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                         raise InvokeException(
                             "Failed to fetch beatmap, please retry later"
                         )
-                await Playlist.add_to_db(item, db_room.id, session)
+                await Playlist.add_to_db(item, room.room_id, session)
 
                 server_room = ServerMultiplayerRoom(
                     room=room,
