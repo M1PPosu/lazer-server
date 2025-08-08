@@ -35,7 +35,7 @@ class RoomBase(SQLModel, UTCBaseModel):
         ),
         default=datetime.now(UTC),
     )
-    ended_at: datetime | None = Field(
+    ends_at: datetime | None = Field(
         sa_column=Column(
             DateTime(timezone=True),
         ),
