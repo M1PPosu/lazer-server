@@ -61,8 +61,7 @@ class ItemAttemptsCount(ItemAttemptsCountBase, table=True):
         self.pp = sum(score.score.pp for score in playlist_scores)
         self.completed = len(playlist_scores)
         self.accuracy = (
-            sum(score.score.accuracy * score.attempts for score in playlist_scores)
-            / self.completed
+            sum(score.score.accuracy for score in playlist_scores) / self.completed
             if self.completed > 0
             else 0.0
         )
@@ -111,4 +110,5 @@ class ItemAttemptsResp(ItemAttemptsCountBase):
         )
         if "position" in include:
             resp.position = await item_attempts.get_position(session)
+        # resp.accuracy *= 100
         return resp

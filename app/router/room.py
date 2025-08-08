@@ -169,6 +169,7 @@ async def get_room_leaderboard(
     for i, agg in enumerate(aggs):
         resp = await ItemAttemptsResp.from_db(agg, db)
         resp.position = i + 1
+        # resp.accuracy *= 100
         aggs_resp.append(resp)
         if agg.user_id == current_user.id:
             user_agg = resp
