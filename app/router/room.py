@@ -32,7 +32,7 @@ async def get_all_rooms(
     mode: Literal["open", "ended", "participated", "owned", None] = Query(
         default="open"
     ),  # TODO: 对房间根据状态进行筛选
-    category: str = Query(default="realtime"),  # TODO
+    category: str | None = Query(None),  # TODO
     status: RoomStatus | None = Query(None),
     db: AsyncSession = Depends(get_db),
     fetcher: Fetcher = Depends(get_fetcher),
@@ -42,8 +42,15 @@ async def get_all_rooms(
     resp_list: list[RoomResp] = []
     db_rooms = (await db.exec(select(Room).where(True))).unique().all()
     for room in db_rooms:
-        # if room.ends_at is not None and room.ends_at > datetime.now(UTC):
-        resp_list.append(await RoomResp.from_db(room))
+        if category == "realtime":
+            if room.id in MultiplayerHubs.rooms:
+                resp_list.append(await RoomResp.from_db(room))
+        elif category is not None:
+            if category == room.category:
+                resp_list.append(await RoomResp.from_db(room))
+        else:
+            if room.id not in MultiplayerHubs.rooms:
+                resp_list.append(await RoomResp.from_db(room))
     return resp_list
 
 
