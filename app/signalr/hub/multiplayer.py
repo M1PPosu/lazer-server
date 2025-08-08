@@ -858,7 +858,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 .where(col(Room.id) == room.room.room_id)
                 .values(
                     name=room.room.settings.name,
-                    ended_at=datetime.now(UTC),
+                    ends_at=datetime.now(UTC),
                     type=room.room.settings.match_type,
                     queue_mode=room.room.settings.queue_mode,
                     auto_skip=room.room.settings.auto_skip,
