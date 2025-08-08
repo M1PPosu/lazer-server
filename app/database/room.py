@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 
+from app.models.model import UTCBaseModel
 from app.models.multiplayer_hub import ServerMultiplayerRoom
 from app.models.room import (
     MatchType,
@@ -24,7 +25,7 @@ from sqlmodel import (
 )
 
 
-class RoomBase(SQLModel):
+class RoomBase(SQLModel, UTCBaseModel):
     name: str = Field(index=True)
     category: RoomCategory = Field(default=RoomCategory.NORMAL, index=True)
     duration: int | None = Field(default=None)  # minutes

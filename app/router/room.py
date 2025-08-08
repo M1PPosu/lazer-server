@@ -15,11 +15,6 @@ from app.dependencies.database import get_db, get_redis
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.user import get_current_user
 from app.fetcher import Fetcher
-from app.models.multiplayer_hub import (
-    MultiplayerRoom,
-    MultiplayerRoomUser,
-    ServerMultiplayerRoom,
-)
 from app.models.room import RoomStatus
 from app.signalr.hub import MultiplayerHubs
 
@@ -44,14 +39,11 @@ async def get_all_rooms(
     redis: Redis = Depends(get_redis),
     current_user: User = Depends(get_current_user),
 ):
-    rooms = MultiplayerHubs.rooms.values()
     resp_list: list[RoomResp] = []
-    for room in rooms:
-        # if category == "realtime" and room.category != "normal":
-        #     continue
-        # elif category != room.category and category != "":
-        #     continue
-        resp_list.append(await RoomResp.from_hub(room))
+    db_rooms = (await db.exec(select(Room).where(True))).unique().all()
+    for room in db_rooms:
+        if room.ended_at is not None and room.ended_at > datetime.now(UTC):
+            resp_list.append(await RoomResp.from_db(room))
     return resp_list
 
 
@@ -85,6 +77,10 @@ async def create_room(
     user_id = current_user.id
     db_room = room.to_room()
     db_room.host_id = current_user.id if current_user.id else 1
+    db_room.starts_at = datetime.now(UTC)
+    # db_room.ended_at = db_room.starts_at + timedelta(
+    #     minutes=db_room.duration if db_room.duration is not None else 0
+    # )
     db.add(db_room)
     await db.commit()
     await db.refresh(db_room)
@@ -102,13 +98,7 @@ async def create_room(
         playlist.append(item)
         await db.refresh(db_room)
     db_room.playlist = playlist
-    server_room = ServerMultiplayerRoom(
-        room=MultiplayerRoom.from_db(db_room),
-        category=db_room.category,
-        start_at=datetime.now(UTC),
-        hub=MultiplayerHubs,
-    )
-    MultiplayerHubs.rooms[db_room.id] = server_room
+    await db.refresh(db_room)
     created_room = APICreatedRoom.model_validate(await RoomResp.from_db(db_room))
     created_room.error = ""
     return created_room
@@ -117,10 +107,15 @@ async def create_room(
 @router.get("/rooms/{room}", tags=["room"], response_model=RoomResp)
 async def get_room(
     room: int,
+    category: str = Query(default=""),
     db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
 ):
-    server_room = MultiplayerHubs.rooms[room]
-    return await RoomResp.from_hub(server_room)
+    # 直接从db获取信息，毕竟都一样
+    db_room = (await db.exec(select(Room).where(Room.id == room))).first()
+    if db_room is None:
+        raise HTTPException(404, "Room not found")
+    return await RoomResp.from_db(db_room)
 
 
 @router.delete("/rooms/{room}", tags=["room"])
@@ -135,13 +130,11 @@ async def delete_room(room: int, db: AsyncSession = Depends(get_db)):
 
 @router.put("/rooms/{room}/users/{user}", tags=["room"])
 async def add_user_to_room(room: int, user: int, db: AsyncSession = Depends(get_db)):
-    server_room = MultiplayerHubs.rooms[room]
-    server_room.room.users.append(MultiplayerRoomUser(user_id=user))
     db_room = (await db.exec(select(Room).where(Room.id == room))).first()
     if db_room is not None:
         db_room.participant_count += 1
         await db.commit()
-        resp = await RoomResp.from_hub(server_room)
+        resp = await RoomResp.from_db(db_room)
         await db.refresh(db_room)
         for item in db_room.playlist:
             resp.playlist.append(await PlaylistResp.from_db(item, ["beatmap"]))
@@ -161,8 +154,8 @@ async def get_room_leaderboard(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    server_room = MultiplayerHubs.rooms[room]
-    if not server_room:
+    db_room = (await db.exec(select(Room).where(Room.id == room))).first()
+    if db_room is None:
         raise HTTPException(404, "Room not found")
 
     aggs = await db.exec(
