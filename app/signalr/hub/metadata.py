@@ -6,12 +6,19 @@ from datetime import UTC, datetime
 from typing import override
 
 from app.database import Relationship, RelationshipType, User
+from app.database.room import Room
 from app.dependencies.database import engine, get_redis
-from app.models.metadata_hub import MetadataClientState, OnlineStatus, UserActivity
+from app.models.metadata_hub import (
+    DailyChallengeInfo,
+    MetadataClientState,
+    OnlineStatus,
+    UserActivity,
+)
+from app.models.room import RoomCategory
 
 from .hub import Client, Hub
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 ONLINE_PRESENCE_WATCHERS_GROUP = "metadata:online-presence-watchers"
@@ -107,6 +114,23 @@ class MetadataHub(Hub[MetadataClientState]):
                             )
                         )
                 await asyncio.gather(*tasks)
+
+                daily_challenge_room = (
+                    await session.exec(
+                        select(Room).where(
+                            col(Room.ends_at) > datetime.now(UTC),
+                            Room.category == RoomCategory.DAILY_CHALLENGE,
+                        )
+                    )
+                ).first()
+                if daily_challenge_room:
+                    await self.call_noblock(
+                        client,
+                        "DailyChallengeUpdated",
+                        DailyChallengeInfo(
+                            room_id=daily_challenge_room.id,
+                        ),
+                    )
         redis = get_redis()
         await redis.set(f"metadata:online:{user_id}", "")
 

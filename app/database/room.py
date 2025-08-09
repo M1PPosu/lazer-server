@@ -160,3 +160,18 @@ class RoomResp(RoomBase):
             participant_count=len(room.users),
         )
         return resp
+
+
+class APIUploadedRoom(RoomBase):
+    def to_room(self) -> Room:
+        """
+        将 APIUploadedRoom 转换为 Room 对象，playlist 字段需单独处理。
+        """
+        room_dict = self.model_dump()
+        room_dict.pop("playlist", None)
+        # host_id 已在字段中
+        return Room(**room_dict)
+
+    id: int | None
+    host_id: int | None = None
+    playlist: list[Playlist] = Field(default_factory=list)

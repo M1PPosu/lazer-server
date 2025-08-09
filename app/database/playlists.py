@@ -138,6 +138,6 @@ class PlaylistResp(PlaylistBase):
     ) -> "PlaylistResp":
         data = playlist.model_dump()
         if "beatmap" in include:
-            data["beatmap"] = await BeatmapResp.from_db(playlist.beatmap, from_set=True)
+            data["beatmap"] = await BeatmapResp.from_db(playlist.beatmap)
         resp = cls.model_validate(data)
         return resp

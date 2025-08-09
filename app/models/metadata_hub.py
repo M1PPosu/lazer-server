@@ -123,3 +123,7 @@ class OnlineStatus(IntEnum):
     OFFLINE = 0  # 隐身
     DO_NOT_DISTURB = 1
     ONLINE = 2
+
+
+class DailyChallengeInfo(BaseModel):
+    room_id: int

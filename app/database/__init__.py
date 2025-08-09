@@ -25,7 +25,7 @@ from .playlist_best_score import PlaylistBestScore
 from .playlists import Playlist, PlaylistResp
 from .pp_best_score import PPBestScore
 from .relationship import Relationship, RelationshipResp, RelationshipType
-from .room import Room, RoomResp
+from .room import APIUploadedRoom, Room, RoomResp
 from .room_participated_user import RoomParticipatedUser
 from .score import (
     MultiplayerScores,
@@ -48,6 +48,7 @@ from .user_account_history import (
 )
 
 __all__ = [
+    "APIUploadedRoom",
     "Beatmap",
     "Beatmapset",
     "BeatmapsetResp",

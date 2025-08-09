@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Literal
 
 from app.database.beatmap import Beatmap, BeatmapResp
@@ -8,13 +8,14 @@ from app.database.beatmapset import BeatmapsetResp
 from app.database.lazer_user import User, UserResp
 from app.database.multiplayer_event import MultiplayerEvent, MultiplayerEventResp
 from app.database.playlist_attempts import ItemAttemptsCount, ItemAttemptsResp
-from app.database.playlists import Playlist, PlaylistBase, PlaylistResp
-from app.database.room import Room, RoomBase, RoomResp
+from app.database.playlists import Playlist, PlaylistResp
+from app.database.room import APIUploadedRoom, Room, RoomResp
 from app.database.room_participated_user import RoomParticipatedUser
 from app.database.score import Score
 from app.dependencies.database import get_db, get_redis
 from app.dependencies.user import get_current_user
 from app.models.room import RoomCategory, RoomStatus
+from app.service.room import create_playlist_room_from_api
 from app.signalr.hub import MultiplayerHubs
 
 from .api_router import router
@@ -92,21 +93,6 @@ class APICreatedRoom(RoomResp):
     error: str = ""
 
 
-class APIUploadedRoom(RoomBase):
-    def to_room(self) -> Room:
-        """
-        将 APIUploadedRoom 转换为 Room 对象，playlist 字段需单独处理。
-        """
-        room_dict = self.model_dump()
-        room_dict.pop("playlist", None)
-        # host_id 已在字段中
-        return Room(**room_dict)
-
-    id: int | None
-    host_id: int | None = None
-    playlist: list[PlaylistBase] = Field(default_factory=list)
-
-
 async def _participate_room(
     room_id: int, user_id: int, db_room: Room, session: AsyncSession
 ):
@@ -137,27 +123,11 @@ async def create_room(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # db_room = Room.from_resp(room)
-    await db.refresh(current_user)
     user_id = current_user.id
-    db_room = room.to_room()
-    db_room.host_id = current_user.id if current_user.id else 1
-    db_room.starts_at = datetime.now(UTC)
-    db_room.ends_at = db_room.starts_at + timedelta(
-        minutes=db_room.duration if db_room.duration is not None else 0
-    )
-    db.add(db_room)
-    await db.commit()
-    await db.refresh(db_room)
+    db_room = await create_playlist_room_from_api(db, room, user_id)
     await _participate_room(db_room.id, user_id, db_room, db)
-
-    for item in room.playlist:
-        item.id = await Playlist.get_next_id_for_room(db_room.id, db)
-        item.room_id = db_room.id
-        item.owner_id = user_id if user_id else 1
-        db.add(item)
-    await db.commit()
-    await db.refresh(db_room)
+    # await db.commit()
+    # await db.refresh(db_room)
     created_room = APICreatedRoom.model_validate(await RoomResp.from_db(db_room, db))
     created_room.error = ""
     return created_room

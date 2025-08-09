@@ -6,6 +6,7 @@ from datetime import datetime
 from app.config import settings
 from app.dependencies.database import create_tables, engine, redis_client
 from app.dependencies.fetcher import get_fetcher
+from app.dependencies.scheduler import init_scheduler, stop_scheduler
 from app.router import (
     api_router,
     auth_router,
@@ -21,8 +22,10 @@ async def lifespan(app: FastAPI):
     # on startup
     await create_tables()
     await get_fetcher()  # 初始化 fetcher
+    init_scheduler()
     # on shutdown
     yield
+    stop_scheduler()
     await engine.dispose()
     await redis_client.aclose()
 

@@ -32,6 +32,7 @@ from app.dependencies.fetcher import get_fetcher
 from app.dependencies.user import get_current_user
 from app.fetcher import Fetcher
 from app.models.beatmap import BeatmapRankStatus
+from app.models.room import RoomCategory
 from app.models.score import (
     INT_TO_MODE,
     GameMode,
@@ -402,6 +403,10 @@ async def index_playlist_scores(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
+    room = await session.get(Room, room_id)
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+
     limit = clamp(limit, 1, 50)
 
     scores = (
@@ -426,6 +431,12 @@ async def index_playlist_scores(
         score.position = await get_position(room_id, playlist_id, score.id, session)
         if score.user_id == current_user.id:
             user_score = score
+
+    if room.category == RoomCategory.DAILY_CHALLENGE:
+        score_resp = [s for s in score_resp if s.passed]
+        if user_score and not user_score.passed:
+            user_score = None
+
     resp = IndexedScoreResp(
         scores=score_resp,
         user_score=user_score,
