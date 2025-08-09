@@ -38,3 +38,7 @@ async def create_tables():
 # Redis 依赖
 def get_redis():
     return redis_client
+
+
+def get_redis_pubsub(channel: str | None = None):
+    return redis_client.pubsub(ignore_subscribe_messages=True, channel=channel)
