@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 
+from app.database.playlist_attempts import PlaylistAggregateScore
 from app.models.model import UTCBaseModel
 from app.models.multiplayer_hub import ServerMultiplayerRoom
 from app.models.room import (
@@ -23,6 +24,7 @@ from sqlmodel import (
     Relationship,
     SQLModel,
 )
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 class RoomBase(SQLModel, UTCBaseModel):
@@ -77,9 +79,16 @@ class RoomResp(RoomBase):
     playlist_item_stats: RoomPlaylistItemStats | None = None
     difficulty_range: RoomDifficultyRange | None = None
     current_playlist_item: PlaylistResp | None = None
+    current_user_score: PlaylistAggregateScore | None = None
 
     @classmethod
-    async def from_db(cls, room: Room) -> "RoomResp":
+    async def from_db(
+        cls,
+        room: Room,
+        include: list[str] = [],
+        session: AsyncSession | None = None,
+        user: User | None = None,
+    ) -> "RoomResp":
         resp = cls.model_validate(room.model_dump())
 
         stats = RoomPlaylistItemStats(count_active=0, count_total=0)
@@ -105,6 +114,10 @@ class RoomResp(RoomBase):
         resp.difficulty_range = difficulty_range
         resp.current_playlist_item = resp.playlist[-1] if resp.playlist else None
 
+        if "current_user_score" in include and user and session:
+            resp.current_user_score = await PlaylistAggregateScore.from_db(
+                room.id, user.id, session
+            )
         return resp
 
     @classmethod

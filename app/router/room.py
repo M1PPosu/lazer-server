@@ -116,13 +116,17 @@ async def get_room(
     room: int,
     category: str = Query(default=""),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     redis: Redis = Depends(get_redis),
 ):
     # 直接从db获取信息，毕竟都一样
     db_room = (await db.exec(select(Room).where(Room.id == room))).first()
     if db_room is None:
         raise HTTPException(404, "Room not found")
-    return await RoomResp.from_db(db_room)
+    resp = await RoomResp.from_db(
+        db_room, include=["current_user_score"], session=db, user=current_user
+    )
+    return resp
 
 
 @router.delete("/rooms/{room}", tags=["room"])

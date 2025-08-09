@@ -1,6 +1,7 @@
 from .lazer_user import User, UserResp
 from .playlist_best_score import PlaylistBestScore
 
+from pydantic import BaseModel
 from sqlmodel import (
     BigInteger,
     Column,
@@ -112,3 +113,39 @@ class ItemAttemptsResp(ItemAttemptsCountBase):
             resp.position = await item_attempts.get_position(session)
         # resp.accuracy *= 100
         return resp
+
+
+class ItemAttemptsCountForItem(BaseModel):
+    id: int
+    attempts: int
+    passed: bool
+
+
+class PlaylistAggregateScore(BaseModel):
+    playlist_item_attempts: list[ItemAttemptsCountForItem] = Field(default_factory=list)
+
+    @classmethod
+    async def from_db(
+        cls,
+        room_id: int,
+        user_id: int,
+        session: AsyncSession,
+    ) -> "PlaylistAggregateScore":
+        playlist_scores = (
+            await session.exec(
+                select(PlaylistBestScore).where(
+                    PlaylistBestScore.room_id == room_id,
+                    PlaylistBestScore.user_id == user_id,
+                )
+            )
+        ).all()
+        playlist_item_attempts = []
+        for score in playlist_scores:
+            playlist_item_attempts.append(
+                ItemAttemptsCountForItem(
+                    id=score.playlist_id,
+                    attempts=score.attempts,
+                    passed=score.score.passed,
+                )
+            )
+        return cls(playlist_item_attempts=playlist_item_attempts)

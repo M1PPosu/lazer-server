@@ -62,20 +62,21 @@ async def process_playlist_best_score(
         )
     ).first()
     if previous is None:
-        score = PlaylistBestScore(
+        previous = PlaylistBestScore(
             user_id=user_id,
             score_id=score_id,
             room_id=room_id,
             playlist_id=playlist_id,
             total_score=total_score,
         )
-        session.add(score)
-    else:
+        session.add(previous)
+    elif not previous.score.passed or previous.total_score < total_score:
         previous.score_id = score_id
         previous.total_score = total_score
-        previous.attempts += 1
+    previous.attempts += 1
     await session.commit()
-    await redis.decr(f"multiplayer:{room_id}:gameplay:players")
+    if await redis.exists(f"multiplayer:{room_id}:gameplay:players"):
+        await redis.decr(f"multiplayer:{room_id}:gameplay:players")
 
 
 async def get_position(
