@@ -29,9 +29,7 @@ class BestScore(SQLModel, table=True):
     )
     beatmap_id: int = Field(foreign_key="beatmaps.id", index=True)
     gamemode: GameMode = Field(index=True)
-    total_score: int = Field(
-        default=0, sa_column=Column(BigInteger, ForeignKey("scores.total_score"))
-    )
+    total_score: int = Field(default=0, sa_column=Column(BigInteger))
     mods: list[str] = Field(
         default_factory=list,
         sa_column=Column(JSON),

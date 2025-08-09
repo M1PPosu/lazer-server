@@ -38,3 +38,7 @@ async def create_tables():
 # Redis 依赖
 def get_redis():
     return redis_client
+
+
+def get_redis_pubsub():
+    return redis_client.pubsub()

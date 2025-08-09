@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import datetime
 from enum import IntEnum
-from typing import Any
+from typing import Annotated, Any
 
 from app.models.beatmap import BeatmapRankStatus
 from app.models.mods import APIMod
@@ -89,9 +89,9 @@ class LegacyReplayFrame(BaseModel):
     mouse_y: float | None = None
     button_state: int
 
-    header: FrameHeader | None = Field(
-        default=None, metadata=[SignalRMeta(member_ignore=True)]
-    )
+    header: Annotated[
+        FrameHeader | None, Field(default=None), SignalRMeta(member_ignore=True)
+    ]
 
 
 class FrameDataBundle(BaseModel):

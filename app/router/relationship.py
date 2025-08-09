@@ -96,9 +96,7 @@ async def add_relationship(
             )
         ).first()
         assert relationship, "Relationship should exist after commit"
-        return AddFriendResp(
-            user_relation=await RelationshipResp.from_db(db, relationship)
-        )
+        return await RelationshipResp.from_db(db, relationship)
 
 
 @router.delete("/friends/{target}", tags=["relationship"])

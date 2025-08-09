@@ -6,7 +6,7 @@ import time
 from typing import Literal
 import uuid
 
-from app.database import User
+from app.database import User as DBUser
 from app.dependencies import get_current_user
 from app.dependencies.database import get_db
 from app.dependencies.user import get_current_user_by_token
@@ -25,7 +25,7 @@ router = APIRouter()
 async def negotiate(
     hub: Literal["spectator", "multiplayer", "metadata"],
     negotiate_version: int = Query(1, alias="negotiateVersion"),
-    user: User = Depends(get_current_user),
+    user: DBUser = Depends(get_current_user),
 ):
     connectionId = str(user.id)
     connectionToken = f"{connectionId}:{uuid.uuid4()}"

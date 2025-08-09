@@ -16,10 +16,22 @@ from .lazer_user import (
     User,
     UserResp,
 )
+from .multiplayer_event import MultiplayerEvent, MultiplayerEventResp
+from .playlist_attempts import (
+    ItemAttemptsCount,
+    ItemAttemptsResp,
+    PlaylistAggregateScore,
+)
+from .playlist_best_score import PlaylistBestScore
+from .playlists import Playlist, PlaylistResp
 from .pp_best_score import PPBestScore
 from .relationship import Relationship, RelationshipResp, RelationshipType
+from .room import APIUploadedRoom, Room, RoomResp
+from .room_participated_user import RoomParticipatedUser
 from .score import (
+    MultiplayerScores,
     Score,
+    ScoreAround,
     ScoreBase,
     ScoreResp,
     ScoreStatistics,
@@ -37,6 +49,7 @@ from .user_account_history import (
 )
 
 __all__ = [
+    "APIUploadedRoom",
     "Beatmap",
     "BeatmapPlaycounts",
     "BeatmapPlaycountsResp",
@@ -46,12 +59,25 @@ __all__ = [
     "DailyChallengeStats",
     "DailyChallengeStatsResp",
     "FavouriteBeatmapset",
+    "ItemAttemptsCount",
+    "ItemAttemptsResp",
+    "MultiplayerEvent",
+    "MultiplayerEventResp",
+    "MultiplayerScores",
     "OAuthToken",
     "PPBestScore",
+    "Playlist",
+    "PlaylistAggregateScore",
+    "PlaylistBestScore",
+    "PlaylistResp",
     "Relationship",
     "RelationshipResp",
     "RelationshipType",
+    "Room",
+    "RoomParticipatedUser",
+    "RoomResp",
     "Score",
+    "ScoreAround",
     "ScoreBase",
     "ScoreResp",
     "ScoreStatistics",

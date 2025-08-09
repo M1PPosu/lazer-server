@@ -8,7 +8,7 @@ from app.path import STATIC_DIR
 
 class APIMod(TypedDict):
     acronym: str
-    settings: NotRequired[dict[str, bool | float | str]]
+    settings: NotRequired[dict[str, bool | float | str | int]]
 
 
 # https://github.com/ppy/osu-api/wiki#mods

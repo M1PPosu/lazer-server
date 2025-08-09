@@ -6,9 +6,9 @@ import time
 from typing import Any
 
 from app.config import settings
+from app.exception import InvokeException
 from app.log import logger
 from app.models.signalr import UserState
-from app.signalr.exception import InvokeException
 from app.signalr.packet import (
     ClosePacket,
     CompletionPacket,

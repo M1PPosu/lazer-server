@@ -2,7 +2,6 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from app.models.beatmap import BeatmapRankStatus
-from app.models.model import UTCBaseModel
 from app.models.score import MODE_TO_INT, GameMode
 
 from .beatmap_playcounts import BeatmapPlaycounts
@@ -23,7 +22,7 @@ class BeatmapOwner(SQLModel):
     username: str
 
 
-class BeatmapBase(SQLModel, UTCBaseModel):
+class BeatmapBase(SQLModel):
     # Beatmap
     url: str
     mode: GameMode
@@ -63,7 +62,7 @@ class BeatmapBase(SQLModel, UTCBaseModel):
 
 class Beatmap(BeatmapBase, table=True):
     __tablename__ = "beatmaps"  # pyright: ignore[reportAssignmentType]
-    id: int | None = Field(default=None, primary_key=True, index=True)
+    id: int = Field(primary_key=True, index=True)
     beatmapset_id: int = Field(foreign_key="beatmapsets.id", index=True)
     beatmap_status: BeatmapRankStatus
     # optional

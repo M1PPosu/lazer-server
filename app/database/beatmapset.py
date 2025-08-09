@@ -2,7 +2,6 @@ from datetime import datetime
 from typing import TYPE_CHECKING, TypedDict, cast
 
 from app.models.beatmap import BeatmapRankStatus, Genre, Language
-from app.models.model import UTCBaseModel
 from app.models.score import GameMode
 
 from .lazer_user import BASE_INCLUDES, User, UserResp
@@ -14,6 +13,8 @@ from sqlmodel import Field, Relationship, SQLModel, col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 if TYPE_CHECKING:
+    from app.fetcher import Fetcher
+
     from .beatmap import Beatmap, BeatmapResp
     from .favourite_beatmapset import FavouriteBeatmapset
 
@@ -87,7 +88,7 @@ class BeatmapTranslationText(BaseModel):
     id: int | None = None
 
 
-class BeatmapsetBase(SQLModel, UTCBaseModel):
+class BeatmapsetBase(SQLModel):
     # Beatmapset
     artist: str = Field(index=True)
     artist_unicode: str = Field(index=True)
@@ -184,6 +185,16 @@ class Beatmapset(AsyncAttrs, BeatmapsetBase, table=True):
         session.add(beatmapset)
         await session.commit()
         await Beatmap.from_resp_batch(session, resp.beatmaps, from_=from_)
+        return beatmapset
+
+    @classmethod
+    async def get_or_fetch(
+        cls, session: AsyncSession, fetcher: "Fetcher", sid: int
+    ) -> "Beatmapset":
+        beatmapset = await session.get(Beatmapset, sid)
+        if not beatmapset:
+            resp = await fetcher.get_beatmapset(sid)
+            beatmapset = await cls.from_resp(session, resp)
         return beatmapset
 
 

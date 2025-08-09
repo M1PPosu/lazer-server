@@ -74,9 +74,10 @@ class BatchGetResp(BaseModel):
 @router.get("/beatmaps", tags=["beatmap"], response_model=BatchGetResp)
 @router.get("/beatmaps/", tags=["beatmap"], response_model=BatchGetResp)
 async def batch_get_beatmaps(
-    b_ids: list[int] = Query(alias="id", default_factory=list),
+    b_ids: list[int] = Query(alias="ids[]", default_factory=list),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    fetcher: Fetcher = Depends(get_fetcher),
 ):
     if not b_ids:
         # select 50 beatmaps by last_updated
@@ -86,9 +87,27 @@ async def batch_get_beatmaps(
             )
         ).all()
     else:
-        beatmaps = (
-            await db.exec(select(Beatmap).where(col(Beatmap.id).in_(b_ids)).limit(50))
-        ).all()
+        beatmaps = list(
+            (
+                await db.exec(
+                    select(Beatmap).where(col(Beatmap.id).in_(b_ids)).limit(50)
+                )
+            ).all()
+        )
+        not_found_beatmaps = [
+            bid for bid in b_ids if bid not in [bm.id for bm in beatmaps]
+        ]
+        beatmaps.extend(
+            beatmap
+            for beatmap in await asyncio.gather(
+                *[
+                    Beatmap.get_or_fetch(db, fetcher, bid=bid)
+                    for bid in not_found_beatmaps
+                ],
+                return_exceptions=True,
+            )
+            if isinstance(beatmap, Beatmap)
+        )
 
     return BatchGetResp(
         beatmaps=[

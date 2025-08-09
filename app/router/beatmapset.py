@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from app.database import Beatmapset, BeatmapsetResp, FavouriteBeatmapset, User
+from app.database import Beatmap, Beatmapset, BeatmapsetResp, FavouriteBeatmapset, User
 from app.dependencies.database import get_db
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.user import get_current_user
@@ -12,9 +12,23 @@ from .api_router import router
 
 from fastapi import Depends, Form, HTTPException, Query
 from fastapi.responses import RedirectResponse
-from httpx import HTTPStatusError
+from httpx import HTTPError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
+
+
+@router.get("/beatmapsets/lookup", tags=["beatmapset"], response_model=BeatmapsetResp)
+async def lookup_beatmapset(
+    beatmap_id: int = Query(),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    fetcher: Fetcher = Depends(get_fetcher),
+):
+    beatmap = await Beatmap.get_or_fetch(db, fetcher, bid=beatmap_id)
+    resp = await BeatmapsetResp.from_db(
+        beatmap.beatmapset, session=db, user=current_user
+    )
+    return resp
 
 
 @router.get("/beatmapsets/{sid}", tags=["beatmapset"], response_model=BeatmapsetResp)
@@ -24,18 +38,13 @@ async def get_beatmapset(
     db: AsyncSession = Depends(get_db),
     fetcher: Fetcher = Depends(get_fetcher),
 ):
-    beatmapset = (await db.exec(select(Beatmapset).where(Beatmapset.id == sid))).first()
-    if not beatmapset:
-        try:
-            resp = await fetcher.get_beatmapset(sid)
-            await Beatmapset.from_resp(db, resp)
-        except HTTPStatusError:
-            raise HTTPException(status_code=404, detail="Beatmapset not found")
-    else:
-        resp = await BeatmapsetResp.from_db(
+    try:
+        beatmapset = await Beatmapset.get_or_fetch(db, fetcher, sid)
+        return await BeatmapsetResp.from_db(
             beatmapset, session=db, include=["recent_favourites"], user=current_user
         )
-    return resp
+    except HTTPError:
+        raise HTTPException(status_code=404, detail="Beatmapset not found")
 
 
 @router.get("/beatmapsets/{beatmapset}/download", tags=["beatmapset"])

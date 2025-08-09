@@ -3,7 +3,7 @@ from collections.abc import Sequence
 from datetime import UTC, date, datetime
 import json
 import math
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from app.calculator import (
     calculate_pp,
@@ -14,7 +14,7 @@ from app.calculator import (
     clamp,
 )
 from app.database.team import TeamMember
-from app.models.model import UTCBaseModel
+from app.models.model import RespWithCursor, UTCBaseModel
 from app.models.mods import APIMod, mods_can_get_pp
 from app.models.score import (
     INT_TO_MODE,
@@ -89,10 +89,11 @@ class ScoreBase(AsyncAttrs, SQLModel, UTCBaseModel):
         default=0, sa_column=Column(BigInteger), exclude=True
     )
     type: str
+    beatmap_id: int = Field(index=True, foreign_key="beatmaps.id")
 
     # optional
     # TODO: current_user_attributes
-    position: int | None = Field(default=None)  # multiplayer
+    # position: int | None = Field(default=None)  # multiplayer
 
 
 class Score(ScoreBase, table=True):
@@ -100,7 +101,6 @@ class Score(ScoreBase, table=True):
     id: int | None = Field(
         default=None, sa_column=Column(BigInteger, autoincrement=True, primary_key=True)
     )
-    beatmap_id: int = Field(index=True, foreign_key="beatmaps.id")
     user_id: int = Field(
         default=None,
         sa_column=Column(
@@ -163,6 +163,8 @@ class ScoreResp(ScoreBase):
     maximum_statistics: ScoreStatistics | None = None
     rank_global: int | None = None
     rank_country: int | None = None
+    position: int | None = None
+    scores_around: "ScoreAround | None" = None
 
     @classmethod
     async def from_db(cls, session: AsyncSession, score: Score) -> "ScoreResp":
@@ -232,6 +234,16 @@ class ScoreResp(ScoreBase):
             or None
         )
         return s
+
+
+class MultiplayerScores(RespWithCursor):
+    scores: list[ScoreResp] = Field(default_factory=list)
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+class ScoreAround(SQLModel):
+    higher: MultiplayerScores | None = None
+    lower: MultiplayerScores | None = None
 
 
 async def get_best_id(session: AsyncSession, score_id: int) -> None:
@@ -329,6 +341,10 @@ async def get_leaderboard(
         self_query = (
             select(BestScore)
             .where(BestScore.user_id == user.id)
+            .where(
+                col(BestScore.beatmap_id) == beatmap,
+                col(BestScore.gamemode) == mode,
+            )
             .order_by(col(BestScore.total_score).desc())
             .limit(1)
         )
@@ -616,6 +632,8 @@ async def process_score(
     fetcher: "Fetcher",
     session: AsyncSession,
     redis: Redis,
+    item_id: int | None = None,
+    room_id: int | None = None,
 ) -> Score:
     assert user.id
     can_get_pp = info.passed and ranked and mods_can_get_pp(info.ruleset_id, info.mods)
@@ -647,6 +665,8 @@ async def process_score(
         nsmall_tick_hit=info.statistics.get(HitResult.SMALL_TICK_HIT, 0),
         nlarge_tick_hit=info.statistics.get(HitResult.LARGE_TICK_HIT, 0),
         nslider_tail_hit=info.statistics.get(HitResult.SLIDER_TAIL_HIT, 0),
+        playlist_item_id=item_id,
+        room_id=room_id,
     )
     if can_get_pp:
         beatmap_raw = await fetcher.get_or_fetch_beatmap_raw(redis, beatmap_id)
@@ -678,4 +698,5 @@ async def process_score(
             await session.refresh(score)
     await session.refresh(score_token)
     await session.refresh(user)
+    await redis.publish("score:processed", score.id)
     return score

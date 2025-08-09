@@ -1,7 +1,6 @@
 # OAuth 相关模型
 from __future__ import annotations
 
-from typing import List
 from pydantic import BaseModel
 
 
@@ -39,18 +38,21 @@ class OAuthErrorResponse(BaseModel):
 
 class RegistrationErrorResponse(BaseModel):
     """注册错误响应模型"""
+
     form_error: dict
 
 
 class UserRegistrationErrors(BaseModel):
     """用户注册错误模型"""
-    username: List[str] = []
-    user_email: List[str] = []
-    password: List[str] = []
+
+    username: list[str] = []
+    user_email: list[str] = []
+    password: list[str] = []
 
 
 class RegistrationRequestErrors(BaseModel):
     """注册请求错误模型"""
+
     message: str | None = None
     redirect: str | None = None
     user: UserRegistrationErrors | None = None
