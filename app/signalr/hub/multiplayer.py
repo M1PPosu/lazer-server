@@ -181,7 +181,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             async with session:
                 db_room = Room(
                     name=room.settings.name,
-                    category=RoomCategory.NORMAL,
+                    category=RoomCategory.REALTIME,
                     type=room.settings.match_type,
                     queue_mode=room.settings.queue_mode,
                     auto_skip=room.settings.auto_skip,

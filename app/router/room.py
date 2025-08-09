@@ -13,10 +13,8 @@ from app.database.room import Room, RoomBase, RoomResp
 from app.database.room_participated_user import RoomParticipatedUser
 from app.database.score import Score
 from app.dependencies.database import get_db, get_redis
-from app.dependencies.fetcher import get_fetcher
 from app.dependencies.user import get_current_user
-from app.fetcher import Fetcher
-from app.models.room import RoomStatus
+from app.models.room import RoomCategory, RoomStatus
 from app.signalr.hub import MultiplayerHubs
 
 from .api_router import router
@@ -24,7 +22,7 @@ from .api_router import router
 from fastapi import Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from redis.asyncio import Redis
-from sqlmodel import col, select
+from sqlmodel import col, exists, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
@@ -32,26 +30,57 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 async def get_all_rooms(
     mode: Literal["open", "ended", "participated", "owned", None] = Query(
         default="open"
-    ),  # TODO: 对房间根据状态进行筛选
-    category: str | None = Query(None),  # TODO
+    ),
+    category: RoomCategory = Query(RoomCategory.NORMAL),
     status: RoomStatus | None = Query(None),
     db: AsyncSession = Depends(get_db),
-    fetcher: Fetcher = Depends(get_fetcher),
-    redis: Redis = Depends(get_redis),
     current_user: User = Depends(get_current_user),
 ):
     resp_list: list[RoomResp] = []
     db_rooms = (await db.exec(select(Room).where(True))).unique().all()
+    now = datetime.now(UTC)
     for room in db_rooms:
-        if category == "realtime":
-            if room.id in MultiplayerHubs.rooms:
-                resp_list.append(await RoomResp.from_db(room, db))
-        elif category is not None:
-            if category == room.category:
-                resp_list.append(await RoomResp.from_db(room, db))
-        else:
-            if room.id not in MultiplayerHubs.rooms:
-                resp_list.append(await RoomResp.from_db(room, db))
+        if category == RoomCategory.REALTIME and room.id not in MultiplayerHubs.rooms:
+            continue
+        elif category != RoomCategory.REALTIME and category != room.category:
+            continue
+
+        if status is not None and room.status != status:
+            continue
+
+        if (
+            mode == "open"
+            and room.ends_at is not None
+            and room.ends_at.replace(tzinfo=UTC) < now
+        ):
+            continue
+        if (
+            mode == "participated"
+            and not (
+                await db.exec(
+                    select(exists()).where(
+                        RoomParticipatedUser.room_id == room.id,
+                        RoomParticipatedUser.user_id == current_user.id,
+                    )
+                )
+            ).first()
+        ):
+            continue
+        if mode == "owned" and room.host_id != current_user.id:
+            continue
+        if mode == "ended" and (
+            room.ends_at is None
+            or room.ends_at.replace(tzinfo=UTC) < (now - timedelta(days=30))
+        ):
+            continue
+
+        resp = await RoomResp.from_db(room, db)
+        if category == RoomCategory.REALTIME:
+            resp.has_password = bool(
+                MultiplayerHubs.rooms[room.id].room.settings.password.strip()
+            )
+        resp_list.append(resp)
+
     return resp_list
 
 
@@ -167,6 +196,7 @@ async def add_user_to_room(room: int, user: int, db: AsyncSession = Depends(get_
         await db.commit()
         await db.refresh(db_room)
         resp = await RoomResp.from_db(db_room, db)
+
         return resp
     else:
         raise HTTPException(404, "room not found0")

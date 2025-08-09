@@ -76,7 +76,7 @@ class Room(AsyncAttrs, RoomBase, table=True):
 
 class RoomResp(RoomBase):
     id: int
-    password: str | None = None
+    has_password: bool = False
     host: UserResp | None = None
     playlist: list[PlaylistResp] = []
     playlist_item_stats: RoomPlaylistItemStats | None = None

@@ -10,6 +10,7 @@ class RoomCategory(str, Enum):
     SPOTLIGHT = "spotlight"
     FEATURED_ARTIST = "featured_artist"
     DAILY_CHALLENGE = "daily_challenge"
+    REALTIME = "realtime"
 
 
 class MatchType(str, Enum):
