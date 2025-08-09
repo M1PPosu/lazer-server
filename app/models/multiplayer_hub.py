@@ -467,9 +467,6 @@ class MultiplayerQueue:
                         ordered_active_items.extend(current_set)
 
                     is_first_set = False
-
-                for idx, item in enumerate(ordered_active_items):
-                    item.playlist_order = idx
             case _:
                 ordered_active_items = sorted(
                     (item for item in self.room.playlist if not item.expired),
