@@ -47,7 +47,7 @@ async def daily_challenge_job():
 
     today = datetime.now(UTC).date()
     redis = get_redis()
-    key = f"daily_challenge:{today.year}-{today.month}-{today.day}"
+    key = f"daily_challenge:{today}"
     if not await redis.exists(key):
         return
     try:
