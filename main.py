@@ -13,6 +13,7 @@ from app.router import (
     fetcher_router,
     signalr_router,
 )
+from app.service.daily_challenge import daily_challenge_job
 
 from fastapi import FastAPI
 
@@ -23,6 +24,7 @@ async def lifespan(app: FastAPI):
     await create_tables()
     await get_fetcher()  # 初始化 fetcher
     init_scheduler()
+    await daily_challenge_job()
     # on shutdown
     yield
     stop_scheduler()

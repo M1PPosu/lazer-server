@@ -14,6 +14,7 @@ from app.models.room import RoomCategory
 
 from .room import create_playlist_room
 
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
@@ -50,6 +51,18 @@ async def daily_challenge_job():
     key = f"daily_challenge:{today}"
     if not await redis.exists(key):
         return
+    async with AsyncSession(engine) as session:
+        room = (
+            await session.exec(
+                select(Room).where(
+                    Room.category == RoomCategory.DAILY_CHALLENGE,
+                    col(Room.ends_at) > datetime.now(UTC),
+                )
+            )
+        ).first()
+        if room:
+            return
+
     try:
         beatmap = await redis.hget(key, "beatmap")  # pyright: ignore[reportGeneralTypeIssues]
         ruleset_id = await redis.hget(key, "ruleset_id")  # pyright: ignore[reportGeneralTypeIssues]
