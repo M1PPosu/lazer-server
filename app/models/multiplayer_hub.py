@@ -875,7 +875,7 @@ class ServerMultiplayerRoom:
             await self.stop_countdown(countdown)
 
         if countdown.is_exclusive:
-            await self.stop_all_countdowns()
+            await self.stop_all_countdowns(countdown.__class__)
         countdown.id = await self.get_next_countdown_id()
         info = CountdownInfo(countdown)
         self.room.active_countdowns.append(info.countdown)
@@ -895,12 +895,10 @@ class ServerMultiplayerRoom:
         if info.task is not None and not info.task.done():
             info.task.cancel()
 
-    async def stop_all_countdowns(self):
+    async def stop_all_countdowns(self, typ: type[MultiplayerCountdown]):
         for countdown in list(self._tracked_countdown.values()):
-            await self.stop_countdown(countdown.countdown)
-
-        self._tracked_countdown.clear()
-        self.room.active_countdowns.clear()
+            if isinstance(countdown.countdown, typ):
+                await self.stop_countdown(countdown.countdown)
 
 
 class _MatchServerEvent(SignalRUnionMessage): ...

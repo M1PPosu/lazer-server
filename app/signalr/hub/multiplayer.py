@@ -276,11 +276,31 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                     participated_user.left_at = None
                     participated_user.joined_at = datetime.now(UTC)
 
-                room = await session.get(Room, room_id)
-                if room is None:
+                db_room = await session.get(Room, room_id)
+                if db_room is None:
                     raise InvokeException("Room does not exist in database")
-                room.participant_count += 1
+                db_room.participant_count += 1
         return room
+
+    async def change_beatmap_availability(
+        self,
+        room_id: int,
+        user: MultiplayerRoomUser,
+        beatmap_availability: BeatmapAvailability,
+    ):
+        availability = user.availability
+        if (
+            availability.state == beatmap_availability.state
+            and availability.download_progress == beatmap_availability.download_progress
+        ):
+            return
+        user.availability = beatmap_availability
+        await self.broadcast_group_call(
+            self.group_id(room_id),
+            "UserBeatmapAvailabilityChanged",
+            user.user_id,
+            beatmap_availability,
+        )
 
     async def ChangeBeatmapAvailability(
         self, client: Client, beatmap_availability: BeatmapAvailability
@@ -295,19 +315,10 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         user = next((u for u in room.users if u.user_id == client.user_id), None)
         if user is None:
             raise InvokeException("You are not in this room")
-
-        availability = user.availability
-        if (
-            availability.state == beatmap_availability.state
-            and availability.download_progress == beatmap_availability.download_progress
-        ):
-            return
-        user.availability = beatmap_availability
-        await self.broadcast_group_call(
-            self.group_id(store.room_id),
-            "UserBeatmapAvailabilityChanged",
-            user.user_id,
-            (beatmap_availability),
+        await self.change_beatmap_availability(
+            room.room_id,
+            user,
+            beatmap_availability,
         )
 
     async def AddPlaylistItem(self, client: Client, item: PlaylistItem):
@@ -365,17 +376,19 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         )
 
     async def setting_changed(self, room: ServerMultiplayerRoom, beatmap_changed: bool):
+        await self.validate_styles(room)
+        await self.unready_all_users(room, beatmap_changed)
         await self.broadcast_group_call(
             self.group_id(room.room.room_id),
             "SettingsChanged",
-            (room.room.settings),
+            room.room.settings,
         )
 
     async def playlist_added(self, room: ServerMultiplayerRoom, item: PlaylistItem):
         await self.broadcast_group_call(
             self.group_id(room.room.room_id),
             "PlaylistItemAdded",
-            (item),
+            item,
         )
 
     async def playlist_removed(self, room: ServerMultiplayerRoom, item_id: int):
@@ -388,10 +401,13 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
     async def playlist_changed(
         self, room: ServerMultiplayerRoom, item: PlaylistItem, beatmap_changed: bool
     ):
+        if item.id == room.room.settings.playlist_item_id:
+            await self.validate_styles(room)
+            await self.unready_all_users(room, beatmap_changed)
         await self.broadcast_group_call(
             self.group_id(room.room.room_id),
             "PlaylistItemChanged",
-            (item),
+            item,
         )
 
     async def ChangeUserStyle(
@@ -1066,6 +1082,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         )
 
     async def ChangeSettings(self, client: Client, settings: MultiplayerRoomSettings):
+        print(settings)
         store = self.get_or_create_state(client)
         if store.room_id == 0:
             raise InvokeException("You are not in a room")
@@ -1202,3 +1219,30 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             room.room_id,
             room.settings.password,
         )
+
+    async def unready_all_users(
+        self, room: ServerMultiplayerRoom, reset_beatmap_availability: bool
+    ):
+        await asyncio.gather(
+            *[
+                self.change_user_state(
+                    room,
+                    user,
+                    MultiplayerUserState.IDLE,
+                )
+                for user in room.room.users
+                if user.state == MultiplayerUserState.READY
+            ]
+        )
+        if reset_beatmap_availability:
+            await asyncio.gather(
+                *[
+                    self.change_beatmap_availability(
+                        room.room.room_id,
+                        user,
+                        BeatmapAvailability(state=DownloadState.UNKNOWN),
+                    )
+                    for user in room.room.users
+                ]
+            )
+        await room.stop_all_countdowns(MatchStartCountdown)
