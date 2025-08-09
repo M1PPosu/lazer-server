@@ -67,7 +67,7 @@ class Room(AsyncAttrs, RoomBase, table=True):
     host: User = Relationship()
     playlist: list[Playlist] = Relationship(
         sa_relationship_kwargs={
-            "lazy": "joined",
+            "lazy": "selectin",
             "cascade": "all, delete-orphan",
             "overlaps": "room",
         }

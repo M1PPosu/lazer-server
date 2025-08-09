@@ -8,7 +8,7 @@ from app.database.beatmapset import BeatmapsetResp
 from app.database.lazer_user import User, UserResp
 from app.database.multiplayer_event import MultiplayerEvent, MultiplayerEventResp
 from app.database.playlist_attempts import ItemAttemptsCount, ItemAttemptsResp
-from app.database.playlists import Playlist, PlaylistResp
+from app.database.playlists import Playlist, PlaylistBase, PlaylistResp
 from app.database.room import Room, RoomBase, RoomResp
 from app.database.room_participated_user import RoomParticipatedUser
 from app.database.score import Score
@@ -71,7 +71,7 @@ class APIUploadedRoom(RoomBase):
 
     id: int | None
     host_id: int | None = None
-    playlist: list[Playlist]
+    playlist: list[PlaylistBase] = Field(default_factory=list)
 
 
 async def _participate_room(
@@ -118,19 +118,12 @@ async def create_room(
     await db.refresh(db_room)
     await _participate_room(db_room.id, user_id, db_room, db)
 
-    playlist: list[Playlist] = []
-    # 处理 APIUploadedRoom 里的 playlist 字段
     for item in room.playlist:
-        # 确保 room_id 正确赋值
         item.id = await Playlist.get_next_id_for_room(db_room.id, db)
         item.room_id = db_room.id
         item.owner_id = user_id if user_id else 1
         db.add(item)
-        await db.commit()
-        await db.refresh(item)
-        playlist.append(item)
-        await db.refresh(db_room)
-    db_room.playlist = playlist
+    await db.commit()
     await db.refresh(db_room)
     created_room = APICreatedRoom.model_validate(await RoomResp.from_db(db_room, db))
     created_room.error = ""
@@ -174,9 +167,6 @@ async def add_user_to_room(room: int, user: int, db: AsyncSession = Depends(get_
         await db.commit()
         await db.refresh(db_room)
         resp = await RoomResp.from_db(db_room, db)
-        await db.refresh(db_room)
-        for item in db_room.playlist:
-            resp.playlist.append(await PlaylistResp.from_db(item, ["beatmap"]))
         return resp
     else:
         raise HTTPException(404, "room not found0")
