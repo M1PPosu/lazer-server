@@ -19,7 +19,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 async def create_daily_challenge_room(
-    beatmap: int, ruleset_id: int, required_mods: list[APIMod] = []
+    beatmap: int, ruleset_id: int, duration: int, required_mods: list[APIMod] = []
 ) -> Room:
     async with AsyncSession(engine) as session:
         today = datetime.now(UTC).date()
@@ -38,7 +38,7 @@ async def create_daily_challenge_room(
                 )
             ],
             category=RoomCategory.DAILY_CHALLENGE,
-            duration=24 * 60 - 2,  # remain 2 minute to apply new daily challenge
+            duration=duration,
         )
 
 
@@ -46,9 +46,9 @@ async def create_daily_challenge_room(
 async def daily_challenge_job():
     from app.signalr.hub import MetadataHubs
 
-    today = datetime.now(UTC).date()
+    now = datetime.now(UTC)
     redis = get_redis()
-    key = f"daily_challenge:{today}"
+    key = f"daily_challenge:{now.date()}"
     if not await redis.exists(key):
         return
     async with AsyncSession(engine) as session:
@@ -70,7 +70,7 @@ async def daily_challenge_job():
 
         if beatmap is None or ruleset_id is None:
             logger.warning(
-                f"[DailyChallenge] Missing required data for daily challenge {today}."
+                f"[DailyChallenge] Missing required data for daily challenge {now}."
                 " Will try again in 5 minutes."
             )
             get_scheduler().add_job(
@@ -87,10 +87,14 @@ async def daily_challenge_job():
         if required_mods:
             mods_list = json.loads(required_mods)
 
+        next_day = (now + timedelta(days=1)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
         room = await create_daily_challenge_room(
             beatmap=beatmap_int,
             ruleset_id=ruleset_id_int,
             required_mods=mods_list,
+            duration=int((next_day - now - timedelta(minutes=2)).total_seconds() / 60),
         )
         await MetadataHubs.broadcast_call(
             "DailyChallengeUpdated", DailyChallengeInfo(room_id=room.id)
