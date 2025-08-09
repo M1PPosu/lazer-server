@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 
 from app.database.playlist_attempts import PlaylistAggregateScore
+from app.database.room_participated_user import RoomParticipatedUser
 from app.models.model import UTCBaseModel
 from app.models.multiplayer_hub import ServerMultiplayerRoom
 from app.models.room import (
@@ -15,6 +16,7 @@ from app.models.room import (
 from .lazer_user import User, UserResp
 from .playlists import Playlist, PlaylistResp
 
+from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlmodel import (
     BigInteger,
     Column,
@@ -23,6 +25,8 @@ from sqlmodel import (
     ForeignKey,
     Relationship,
     SQLModel,
+    col,
+    select,
 )
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -51,10 +55,9 @@ class RoomBase(SQLModel, UTCBaseModel):
     auto_start_duration: int
     status: RoomStatus
     # TODO: channel_id
-    # recent_participants: list[User]
 
 
-class Room(RoomBase, table=True):
+class Room(AsyncAttrs, RoomBase, table=True):
     __tablename__ = "rooms"  # pyright: ignore[reportAssignmentType]
     id: int = Field(default=None, primary_key=True, index=True)
     host_id: int = Field(
@@ -80,13 +83,14 @@ class RoomResp(RoomBase):
     difficulty_range: RoomDifficultyRange | None = None
     current_playlist_item: PlaylistResp | None = None
     current_user_score: PlaylistAggregateScore | None = None
+    recent_participants: list[UserResp] = Field(default_factory=list)
 
     @classmethod
     async def from_db(
         cls,
         room: Room,
+        session: AsyncSession,
         include: list[str] = [],
-        session: AsyncSession | None = None,
         user: User | None = None,
     ) -> "RoomResp":
         resp = cls.model_validate(room.model_dump())
@@ -113,8 +117,27 @@ class RoomResp(RoomBase):
         resp.playlist_item_stats = stats
         resp.difficulty_range = difficulty_range
         resp.current_playlist_item = resp.playlist[-1] if resp.playlist else None
-
-        if "current_user_score" in include and user and session:
+        resp.recent_participants = []
+        for recent_participant in await session.exec(
+            select(RoomParticipatedUser)
+            .where(
+                RoomParticipatedUser.room_id == room.id,
+                col(RoomParticipatedUser.left_at).is_(None),
+            )
+            .limit(8)
+            .order_by(col(RoomParticipatedUser.joined_at).desc())
+        ):
+            resp.recent_participants.append(
+                await UserResp.from_db(
+                    await recent_participant.awaitable_attrs.user,
+                    session,
+                    include=["statistics"],
+                )
+            )
+        resp.host = await UserResp.from_db(
+            await room.awaitable_attrs.host, session, include=["statistics"]
+        )
+        if "current_user_score" in include and user:
             resp.current_user_score = await PlaylistAggregateScore.from_db(
                 room.id, user.id, session
             )

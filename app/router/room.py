@@ -10,6 +10,7 @@ from app.database.multiplayer_event import MultiplayerEvent, MultiplayerEventRes
 from app.database.playlist_attempts import ItemAttemptsCount, ItemAttemptsResp
 from app.database.playlists import Playlist, PlaylistResp
 from app.database.room import Room, RoomBase, RoomResp
+from app.database.room_participated_user import RoomParticipatedUser
 from app.database.score import Score
 from app.dependencies.database import get_db, get_redis
 from app.dependencies.fetcher import get_fetcher
@@ -44,13 +45,13 @@ async def get_all_rooms(
     for room in db_rooms:
         if category == "realtime":
             if room.id in MultiplayerHubs.rooms:
-                resp_list.append(await RoomResp.from_db(room))
+                resp_list.append(await RoomResp.from_db(room, db))
         elif category is not None:
             if category == room.category:
-                resp_list.append(await RoomResp.from_db(room))
+                resp_list.append(await RoomResp.from_db(room, db))
         else:
             if room.id not in MultiplayerHubs.rooms:
-                resp_list.append(await RoomResp.from_db(room))
+                resp_list.append(await RoomResp.from_db(room, db))
     return resp_list
 
 
@@ -73,6 +74,30 @@ class APIUploadedRoom(RoomBase):
     playlist: list[Playlist]
 
 
+async def _participate_room(
+    room_id: int, user_id: int, db_room: Room, session: AsyncSession
+):
+    participated_user = (
+        await session.exec(
+            select(RoomParticipatedUser).where(
+                RoomParticipatedUser.room_id == room_id,
+                RoomParticipatedUser.user_id == user_id,
+            )
+        )
+    ).first()
+    if participated_user is None:
+        participated_user = RoomParticipatedUser(
+            room_id=room_id,
+            user_id=user_id,
+            joined_at=datetime.now(UTC),
+        )
+        session.add(participated_user)
+    else:
+        participated_user.left_at = None
+        participated_user.joined_at = datetime.now(UTC)
+    db_room.participant_count += 1
+
+
 @router.post("/rooms", tags=["room"], response_model=APICreatedRoom)
 async def create_room(
     room: APIUploadedRoom,
@@ -91,6 +116,7 @@ async def create_room(
     db.add(db_room)
     await db.commit()
     await db.refresh(db_room)
+    await _participate_room(db_room.id, user_id, db_room, db)
 
     playlist: list[Playlist] = []
     # 处理 APIUploadedRoom 里的 playlist 字段
@@ -106,7 +132,7 @@ async def create_room(
         await db.refresh(db_room)
     db_room.playlist = playlist
     await db.refresh(db_room)
-    created_room = APICreatedRoom.model_validate(await RoomResp.from_db(db_room))
+    created_room = APICreatedRoom.model_validate(await RoomResp.from_db(db_room, db))
     created_room.error = ""
     return created_room
 
@@ -143,10 +169,10 @@ async def delete_room(room: int, db: AsyncSession = Depends(get_db)):
 async def add_user_to_room(room: int, user: int, db: AsyncSession = Depends(get_db)):
     db_room = (await db.exec(select(Room).where(Room.id == room))).first()
     if db_room is not None:
-        db_room.participant_count += 1
+        await _participate_room(room, user, db_room, db)
         await db.commit()
         await db.refresh(db_room)
-        resp = await RoomResp.from_db(db_room)
+        resp = await RoomResp.from_db(db_room, db)
         await db.refresh(db_room)
         for item in db_room.playlist:
             resp.playlist.append(await PlaylistResp.from_db(item, ["beatmap"]))
@@ -161,6 +187,16 @@ async def remove_user_from_room(
 ):
     db_room = (await db.exec(select(Room).where(Room.id == room))).first()
     if db_room is not None:
+        participated_user = (
+            await db.exec(
+                select(RoomParticipatedUser).where(
+                    RoomParticipatedUser.room_id == room,
+                    RoomParticipatedUser.user_id == user,
+                )
+            )
+        ).first()
+        if participated_user is not None:
+            participated_user.left_at = datetime.now(UTC)
         db_room.participant_count -= 1
         await db.commit()
         return None
@@ -286,7 +322,7 @@ async def get_room_events(
         room = (await db.exec(select(Room).where(Room.id == room_id))).first()
         if room is None:
             raise HTTPException(404, "Room not found")
-        room_resp = await RoomResp.from_db(room)
+        room_resp = await RoomResp.from_db(room, db)
 
     users = await db.exec(select(User).where(col(User.id).in_(user_ids)))
     user_resps = [await UserResp.from_db(user, db) for user in users]

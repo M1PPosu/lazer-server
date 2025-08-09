@@ -26,6 +26,7 @@ from .playlists import Playlist, PlaylistResp
 from .pp_best_score import PPBestScore
 from .relationship import Relationship, RelationshipResp, RelationshipType
 from .room import Room, RoomResp
+from .room_participated_user import RoomParticipatedUser
 from .score import (
     MultiplayerScores,
     Score,
@@ -69,6 +70,7 @@ __all__ = [
     "RelationshipResp",
     "RelationshipType",
     "Room",
+    "RoomParticipatedUser",
     "RoomResp",
     "Score",
     "ScoreAround",

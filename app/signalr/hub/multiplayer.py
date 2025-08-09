@@ -10,6 +10,7 @@ from app.database.lazer_user import User
 from app.database.multiplayer_event import MultiplayerEvent
 from app.database.playlists import Playlist
 from app.database.relationship import Relationship, RelationshipType
+from app.database.room_participated_user import RoomParticipatedUser
 from app.dependencies.database import engine, get_redis
 from app.dependencies.fetcher import get_fetcher
 from app.exception import InvokeException
@@ -253,6 +254,32 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         self.add_to_group(client, self.group_id(room_id))
         await server_room.match_type_handler.handle_join(user)
         await self.event_logger.player_joined(room_id, user.user_id)
+
+        async with AsyncSession(engine) as session:
+            async with session.begin():
+                if (
+                    participated_user := (
+                        await session.exec(
+                            select(RoomParticipatedUser).where(
+                                RoomParticipatedUser.room_id == room_id,
+                                RoomParticipatedUser.user_id == client.user_id,
+                            )
+                        )
+                    ).first()
+                ) is None:
+                    participated_user = RoomParticipatedUser(
+                        room_id=room_id,
+                        user_id=client.user_id,
+                    )
+                    session.add(participated_user)
+                else:
+                    participated_user.left_at = None
+                    participated_user.joined_at = datetime.now(UTC)
+
+                room = await session.get(Room, room_id)
+                if room is None:
+                    raise InvokeException("Room does not exist in database")
+                room.participant_count += 1
         return room
 
     async def ChangeBeatmapAvailability(
@@ -845,6 +872,24 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             await self.broadcast_group_call(
                 self.group_id(room.room.room_id), "UserLeft", user
             )
+
+        async with AsyncSession(engine) as session:
+            async with session.begin():
+                participated_user = (
+                    await session.exec(
+                        select(RoomParticipatedUser).where(
+                            RoomParticipatedUser.room_id == room.room.room_id,
+                            RoomParticipatedUser.user_id == user.user_id,
+                        )
+                    )
+                ).first()
+                if participated_user is not None:
+                    participated_user.left_at = datetime.now(UTC)
+
+                db_room = await session.get(Room, room.room.room_id)
+                if db_room is None:
+                    raise InvokeException("Room does not exist in database")
+                db_room.participant_count -= 1
 
         target_store = self.state.get(user.user_id)
         if target_store:
