@@ -22,6 +22,7 @@ from .api_router import router
 from fastapi import Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from redis.asyncio import Redis
+from sqlalchemy.sql.elements import ColumnElement
 from sqlmodel import col, exists, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -37,48 +38,51 @@ async def get_all_rooms(
     current_user: User = Depends(get_current_user),
 ):
     resp_list: list[RoomResp] = []
-    db_rooms = (await db.exec(select(Room).where(True))).unique().all()
+    where_clauses: list[ColumnElement[bool]] = [col(Room.category) == category]
     now = datetime.now(UTC)
-    for room in db_rooms:
-        if category == RoomCategory.REALTIME and room.id not in MultiplayerHubs.rooms:
-            continue
-        elif category != RoomCategory.REALTIME and category != room.category:
-            continue
+    if status is not None:
+        where_clauses.append(col(Room.status) == status)
+    if mode == "open":
+        where_clauses.append(
+            (col(Room.ends_at).is_(None))
+            | (col(Room.ends_at) > now.replace(tzinfo=UTC))
+        )
+        if category == RoomCategory.REALTIME:
+            where_clauses.append(col(Room.id).in_(MultiplayerHubs.rooms.keys()))
+    if mode == "participated":
+        where_clauses.append(
+            exists().where(
+                col(RoomParticipatedUser.room_id) == Room.id,
+                col(RoomParticipatedUser.user_id) == current_user.id,
+            )
+        )
+    if mode == "owned":
+        where_clauses.append(col(Room.host_id) == current_user.id)
+    if mode == "ended":
+        where_clauses.append(
+            (col(Room.ends_at).is_not(None))
+            & (col(Room.ends_at) < now.replace(tzinfo=UTC))
+        )
 
-        if status is not None and room.status != status:
-            continue
-
-        if (
-            mode == "open"
-            and room.ends_at is not None
-            and room.ends_at.replace(tzinfo=UTC) < now
-        ):
-            continue
-        if (
-            mode == "participated"
-            and not (
-                await db.exec(
-                    select(exists()).where(
-                        RoomParticipatedUser.room_id == room.id,
-                        RoomParticipatedUser.user_id == current_user.id,
-                    )
+    db_rooms = (
+        (
+            await db.exec(
+                select(Room).where(
+                    *where_clauses,
                 )
-            ).first()
-        ):
-            continue
-        if mode == "owned" and room.host_id != current_user.id:
-            continue
-        if mode == "ended" and (
-            room.ends_at is None
-            or room.ends_at.replace(tzinfo=UTC) < (now - timedelta(days=30))
-        ):
-            continue
+            )
+        )
+        .unique()
+        .all()
+    )
 
+    for room in db_rooms:
         resp = await RoomResp.from_db(room, db)
         if category == RoomCategory.REALTIME:
             resp.has_password = bool(
                 MultiplayerHubs.rooms[room.id].room.settings.password.strip()
             )
+            resp.category = RoomCategory.NORMAL
         resp_list.append(resp)
 
     return resp_list
