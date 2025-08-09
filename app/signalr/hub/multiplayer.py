@@ -1082,7 +1082,6 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         )
 
     async def ChangeSettings(self, client: Client, settings: MultiplayerRoomSettings):
-        print(settings)
         store = self.get_or_create_state(client)
         if store.room_id == 0:
             raise InvokeException("You are not in a room")

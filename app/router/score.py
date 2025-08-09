@@ -464,9 +464,13 @@ async def show_playlist_score(
     session: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
 ):
+    room = await session.get(Room, room_id)
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+
     start_time = time.time()
     score_record = None
-    completed = False
+    completed = room.category != RoomCategory.REALTIME
     while time.time() - start_time < READ_SCORE_TIMEOUT:
         if score_record is None:
             score_record = (

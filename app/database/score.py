@@ -696,4 +696,5 @@ async def process_score(
             await session.refresh(score)
     await session.refresh(score_token)
     await session.refresh(user)
+    await redis.publish("score:processed", score.id)
     return score
