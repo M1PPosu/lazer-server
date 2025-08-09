@@ -161,7 +161,8 @@ async def delete_room(room: int, db: AsyncSession = Depends(get_db)):
     if db_room is None:
         raise HTTPException(404, "Room not found")
     else:
-        await db.delete(db_room)
+        db_room.ends_at = datetime.now(UTC)
+        await db.commit()
         return None
 
 
