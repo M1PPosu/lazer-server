@@ -15,7 +15,12 @@ from app.calculator import (
 )
 from app.config import settings
 from app.database.team import TeamMember
-from app.models.model import RespWithCursor, UTCBaseModel
+from app.models.model import (
+    CurrentUserAttributes,
+    PinAttributes,
+    RespWithCursor,
+    UTCBaseModel,
+)
 from app.models.mods import APIMod, mods_can_get_pp
 from app.models.score import (
     INT_TO_MODE,
@@ -122,6 +127,7 @@ class Score(ScoreBase, table=True):
     nslider_tail_hit: int | None = Field(default=None, exclude=True)
     nsmall_tick_hit: int | None = Field(default=None, exclude=True)
     gamemode: GameMode = Field(index=True)
+    pinned_order: int = Field(default=0, exclude=True)
 
     # optional
     beatmap: Beatmap = Relationship()
@@ -166,6 +172,7 @@ class ScoreResp(ScoreBase):
     rank_country: int | None = None
     position: int | None = None
     scores_around: "ScoreAround | None" = None
+    current_user_attributes: CurrentUserAttributes | None = None
 
     @classmethod
     async def from_db(cls, session: AsyncSession, score: Score) -> "ScoreResp":
@@ -233,6 +240,9 @@ class ScoreResp(ScoreBase):
                 type=LeaderboardType.COUNTRY,
             )
             or None
+        )
+        s.current_user_attributes = CurrentUserAttributes(
+            pin=PinAttributes(is_pinned=bool(score.pinned_order), score_id=score.id)
         )
         return s
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from app.database import (
     BeatmapPlaycounts,
     BeatmapPlaycountsResp,
@@ -8,6 +10,7 @@ from app.database import (
     UserResp,
 )
 from app.database.lazer_user import SEARCH_INCLUDED
+from app.database.score import Score, ScoreResp
 from app.dependencies.database import get_db
 from app.dependencies.user import get_current_user
 from app.models.score import GameMode
@@ -17,7 +20,7 @@ from .api_router import router
 
 from fastapi import Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlmodel import select
+from sqlmodel import false, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel.sql.expression import col
 
@@ -130,3 +133,52 @@ async def get_user_beatmapsets(
         raise HTTPException(400, detail="Invalid beatmapset type")
 
     return resp
+
+
+@router.get("/users/{user}/scores/{type}", response_model=list[ScoreResp])
+async def get_user_scores(
+    user: int,
+    type: Literal["best", "recent", "firsts", "pinned"],
+    legacy_only: bool = Query(False),
+    include_fails: bool = Query(False),
+    mode: GameMode | None = None,
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    session: AsyncSession = Depends(get_db),
+):
+    db_user = await session.get(User, user)
+    if not db_user:
+        raise HTTPException(404, detail="User not found")
+
+    gamemode = mode or db_user.playmode
+    order_by = None
+    where_clause = (
+        (col(Score.user_id) == db_user.id)
+        & (col(Score.gamemode) == gamemode)
+        & (col(Score.passed).is_(True))
+    )
+    if type == "pinned":
+        where_clause &= Score.pinned_order > 0
+        order_by = col(Score.pinned_order).asc()
+    else:
+        # TODO
+        where_clause &= false()
+
+    scores = (
+        await session.exec(
+            select(Score)
+            .where(where_clause)
+            .order_by(order_by)
+            .limit(limit)
+            .offset(offset)
+        )
+    ).all()
+    if not scores:
+        return []
+    return [
+        await ScoreResp.from_db(
+            session,
+            score,
+        )
+        for score in scores
+    ]

@@ -43,12 +43,12 @@ from app.models.score import (
 
 from .api_router import router
 
-from fastapi import Depends, Form, HTTPException, Query
+from fastapi import Body, Depends, Form, HTTPException, Query
 from httpx import HTTPError
 from pydantic import BaseModel
 from redis.asyncio import Redis
 from sqlalchemy.orm import joinedload
-from sqlmodel import col, select
+from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 READ_SCORE_TIMEOUT = 10
@@ -548,3 +548,158 @@ async def get_user_playlist_score(
         room_id, playlist_id, score_record.score_id, session
     )
     return resp
+
+
+@router.put("/score-pins/{score}", status_code=204)
+async def pin_score(
+    score: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    score_record = (
+        await db.exec(
+            select(Score).where(
+                Score.id == score,
+                Score.user_id == current_user.id,
+                col(Score.passed).is_(True),
+            )
+        )
+    ).first()
+    if not score_record:
+        raise HTTPException(status_code=404, detail="Score not found")
+
+    if score_record.pinned_order > 0:
+        return
+
+    next_order = (
+        (
+            await db.exec(
+                select(func.max(Score.pinned_order)).where(
+                    Score.user_id == current_user.id,
+                    Score.gamemode == score_record.gamemode,
+                )
+            )
+        ).first()
+        or 0
+    ) + 1
+    score_record.pinned_order = next_order
+    await db.commit()
+
+
+@router.delete("/score-pins/{score}", status_code=204)
+async def unpin_score(
+    score: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    score_record = (
+        await db.exec(
+            select(Score).where(Score.id == score, Score.user_id == current_user.id)
+        )
+    ).first()
+    if not score_record:
+        raise HTTPException(status_code=404, detail="Score not found")
+
+    if score_record.pinned_order == 0:
+        return
+    changed_score = (
+        await db.exec(
+            select(Score).where(
+                Score.user_id == current_user.id,
+                Score.pinned_order > score_record.pinned_order,
+                Score.gamemode == score_record.gamemode,
+            )
+        )
+    ).all()
+    for s in changed_score:
+        s.pinned_order -= 1
+    await db.commit()
+
+
+@router.post("/score-pins/{score}/reorder", status_code=204)
+async def reorder_score_pin(
+    score: int,
+    after_score_id: int | None = Body(default=None),
+    before_score_id: int | None = Body(default=None),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    score_record = (
+        await db.exec(
+            select(Score).where(Score.id == score, Score.user_id == current_user.id)
+        )
+    ).first()
+    if not score_record:
+        raise HTTPException(status_code=404, detail="Score not found")
+
+    if score_record.pinned_order == 0:
+        raise HTTPException(status_code=400, detail="Score is not pinned")
+
+    if (after_score_id is None) == (before_score_id is None):
+        raise HTTPException(
+            status_code=400,
+            detail="Either after_score_id or before_score_id "
+            "must be provided (but not both)",
+        )
+
+    all_pinned_scores = (
+        await db.exec(
+            select(Score)
+            .where(
+                Score.user_id == current_user.id,
+                Score.pinned_order > 0,
+                Score.gamemode == score_record.gamemode,
+            )
+            .order_by(col(Score.pinned_order))
+        )
+    ).all()
+
+    target_order = None
+    reference_score_id = after_score_id or before_score_id
+
+    reference_score = next(
+        (s for s in all_pinned_scores if s.id == reference_score_id), None
+    )
+    if not reference_score:
+        detail = "After score not found" if after_score_id else "Before score not found"
+        raise HTTPException(status_code=404, detail=detail)
+
+    if after_score_id:
+        target_order = reference_score.pinned_order + 1
+    else:
+        target_order = reference_score.pinned_order
+
+    current_order = score_record.pinned_order
+
+    if current_order == target_order:
+        return
+
+    updates = []
+
+    if current_order < target_order:
+        for s in all_pinned_scores:
+            if current_order < s.pinned_order <= target_order and s.id != score:
+                updates.append((s.id, s.pinned_order - 1))
+        if after_score_id:
+            final_target = (
+                target_order - 1 if target_order > current_order else target_order
+            )
+        else:
+            final_target = target_order
+    else:
+        for s in all_pinned_scores:
+            if target_order <= s.pinned_order < current_order and s.id != score:
+                updates.append((s.id, s.pinned_order + 1))
+        final_target = target_order
+
+    for score_id, new_order in updates:
+        await db.exec(select(Score).where(Score.id == score_id))
+        score_to_update = (
+            await db.exec(select(Score).where(Score.id == score_id))
+        ).first()
+        if score_to_update:
+            score_to_update.pinned_order = new_order
+
+    score_record.pinned_order = final_target
+
+    await db.commit()
