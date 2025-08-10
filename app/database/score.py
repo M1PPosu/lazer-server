@@ -485,12 +485,13 @@ async def get_user_best_pp_in_beatmap(
 async def get_user_best_pp(
     session: AsyncSession,
     user: int,
+    mode: GameMode,
     limit: int = 200,
 ) -> Sequence[PPBestScore]:
     return (
         await session.exec(
             select(PPBestScore)
-            .where(PPBestScore.user_id == user)
+            .where(PPBestScore.user_id == user, PPBestScore.gamemode == mode)
             .order_by(col(PPBestScore.pp).desc())
             .limit(limit)
         )
@@ -612,7 +613,7 @@ async def process_user(
     )
 
     if score.passed and ranked:
-        best_pp_scores = await get_user_best_pp(session, user.id)
+        best_pp_scores = await get_user_best_pp(session, user.id, score.gamemode)
         pp_sum = 0.0
         acc_sum = 0.0
         for i, bp in enumerate(best_pp_scores):
