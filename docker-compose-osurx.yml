@@ -2,6 +2,8 @@ version: '3.8'
 
 services:
   app:
+    # or use
+    # image: mingxuangame/osu-lazer-api-osurx:latest
     build:
       context: .
       dockerfile: Dockerfile-osurx
