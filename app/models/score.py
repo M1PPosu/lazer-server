@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Literal, TypedDict
+from typing import TYPE_CHECKING, Literal, TypedDict
 
 from .mods import API_MODS, APIMod, init_mods
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
-import rosu_pp_py as rosu
+
+if TYPE_CHECKING:
+    import rosu_pp_py as rosu
 
 
 class GameMode(str, Enum):
@@ -15,7 +17,9 @@ class GameMode(str, Enum):
     FRUITS = "fruits"
     MANIA = "mania"
 
-    def to_rosu(self) -> rosu.GameMode:
+    def to_rosu(self) -> "rosu.GameMode":
+        import rosu_pp_py as rosu
+
         return {
             GameMode.OSU: rosu.GameMode.Osu,
             GameMode.TAIKO: rosu.GameMode.Taiko,

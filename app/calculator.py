@@ -7,7 +7,15 @@ from app.models.beatmap import BeatmapAttributes
 from app.models.mods import APIMod
 from app.models.score import GameMode
 
-import rosu_pp_py as rosu
+try:
+    import rosu_pp_py as rosu
+except ImportError:
+    raise ImportError(
+        "rosu-pp-py is not installed. "
+        "Please install it.\n"
+        "   Official: uv add rosu-pp-py\n"
+        "   ppy-sb: uv add git+https://github.com/ppy-sb/rosu-pp-py.git"
+    )
 
 if TYPE_CHECKING:
     from app.database.score import Score
@@ -51,8 +59,6 @@ def calculate_pp(
 ) -> float:
     map = rosu.Beatmap(content=beatmap)
     map.convert(score.gamemode.to_rosu(), score.mods)  # pyright: ignore[reportArgumentType]
-    if map.is_suspicious():
-        return 0.0
     perf = rosu.Performance(
         mods=score.mods,
         lazer=True,
@@ -67,7 +73,6 @@ def calculate_pp(
         n100=score.n100,
         n50=score.n50,
         misses=score.nmiss,
-        hitresult_priority=rosu.HitResultPriority.Fastest,
     )
     attrs = perf.calculate(map)
     return attrs.pp
