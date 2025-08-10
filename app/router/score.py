@@ -95,6 +95,7 @@ async def submit_score(
         ranked = (
             db_beatmap.beatmap_status.has_pp() | settings.enable_all_beatmap_leaderboard
         )
+        beatmap_length = db_beatmap.total_length
         score = await process_score(
             current_user,
             beatmap,
@@ -110,7 +111,7 @@ async def submit_score(
         await db.refresh(current_user)
         score_id = score.id
         score_token.score_id = score_id
-        await process_user(db, current_user, score, ranked)
+        await process_user(db, current_user, score, beatmap_length, ranked)
         score = (await db.exec(select(Score).where(Score.id == score_id))).first()
         assert score is not None
     return await ScoreResp.from_db(db, score)

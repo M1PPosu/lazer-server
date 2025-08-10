@@ -509,7 +509,7 @@ async def get_user_best_pp(
 
 
 async def process_user(
-    session: AsyncSession, user: User, score: Score, ranked: bool = False
+    session: AsyncSession, user: User, score: Score, length: int, ranked: bool = False
 ):
     assert user.id
     assert score.id
@@ -613,7 +613,7 @@ async def process_user(
             )
     statistics.play_count += 1
     mouthly_playcount.playcount += 1
-    statistics.play_time += int((score.ended_at - score.started_at).total_seconds())
+    statistics.play_time += length
     statistics.count_100 += score.n100 + score.nkatu
     statistics.count_300 += score.n300 + score.ngeki
     statistics.count_50 += score.n50
