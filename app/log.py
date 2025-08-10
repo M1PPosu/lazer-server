@@ -120,10 +120,10 @@ logger.add(
     format=(
         "<green>{time:YYYY-MM-DD HH:mm:ss}</green> [<level>{level}</level>] | {message}"
     ),
-    level=settings.LOG_LEVEL,
-    diagnose=settings.DEBUG,
+    level=settings.log_level,
+    diagnose=settings.debug,
 )
-logging.basicConfig(handlers=[InterceptHandler()], level=settings.LOG_LEVEL, force=True)
+logging.basicConfig(handlers=[InterceptHandler()], level=settings.log_level, force=True)
 
 uvicorn_loggers = [
     "uvicorn",

@@ -57,9 +57,9 @@ if __name__ == "__main__":
 
     uvicorn.run(
         "main:app",
-        host=settings.HOST,
-        port=settings.PORT,
-        reload=settings.DEBUG,
+        host=settings.host,
+        port=settings.port,
+        reload=settings.debug,
         log_config=None,  # 禁用uvicorn默认日志配置
         access_log=True,  # 启用访问日志
     )

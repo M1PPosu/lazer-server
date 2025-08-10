@@ -74,7 +74,7 @@ class Client:
         while True:
             try:
                 await self.send_packet(PingPacket())
-                await asyncio.sleep(settings.SIGNALR_PING_INTERVAL)
+                await asyncio.sleep(settings.signalr_ping_interval)
             except WebSocketDisconnect:
                 break
             except Exception as e:
@@ -131,7 +131,7 @@ class Hub[TState: UserState]:
         if connection_token in self.waited_clients:
             if (
                 self.waited_clients[connection_token]
-                < time.time() - settings.SIGNALR_NEGOTIATE_TIMEOUT
+                < time.time() - settings.signalr_negotiate_timeout
             ):
                 raise TimeoutError(f"Connection {connection_id} has waited too long.")
             del self.waited_clients[connection_token]

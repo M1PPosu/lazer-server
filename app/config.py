@@ -1,51 +1,50 @@
 from __future__ import annotations
 
-import os
+from typing import Annotated, Any
 
-from dotenv import load_dotenv
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
-load_dotenv()
 
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
-class Settings:
     # 数据库设置
-    DATABASE_URL: str = os.getenv(
-        "DATABASE_URL", "mysql+aiomysql://root:password@127.0.0.1:3306/osu_api"
-    )
-    REDIS_URL: str = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
+    database_url: str = "mysql+aiomysql://root:password@127.0.0.1:3306/osu_api"
+    redis_url: str = "redis://127.0.0.1:6379/0"
 
     # JWT 设置
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-here")
-    ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(
-        os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440")
-    )
+    secret_key: str = Field(default="your-secret-key-here", alias="jwt_secret_key")
+    algorithm: str = "HS256"
+    access_token_expire_minutes: int = 1440
 
     # OAuth 设置
-    OSU_CLIENT_ID: str = os.getenv("OSU_CLIENT_ID", "5")
-    OSU_CLIENT_SECRET: str = os.getenv(
-        "OSU_CLIENT_SECRET", "FGc9GAtyHzeQDshWP5Ah7dega8hJACAJpQtw6OXk"
-    )
+    osu_client_id: str = "5"
+    osu_client_secret: str = "FGc9GAtyHzeQDshWP5Ah7dega8hJACAJpQtw6OXk"
 
     # 服务器设置
-    HOST: str = os.getenv("HOST", "0.0.0.0")
-    PORT: int = int(os.getenv("PORT", "8000"))
-    DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
+    host: str = "0.0.0.0"
+    port: int = 8000
+    debug: bool = False
 
     # SignalR 设置
-    SIGNALR_NEGOTIATE_TIMEOUT: int = int(os.getenv("SIGNALR_NEGOTIATE_TIMEOUT", "30"))
-    SIGNALR_PING_INTERVAL: int = int(os.getenv("SIGNALR_PING_INTERVAL", "15"))
+    signalr_negotiate_timeout: int = 30
+    signalr_ping_interval: int = 15
 
     # Fetcher 设置
-    FETCHER_CLIENT_ID: str = os.getenv("FETCHER_CLIENT_ID", "")
-    FETCHER_CLIENT_SECRET: str = os.getenv("FETCHER_CLIENT_SECRET", "")
-    FETCHER_SCOPES: list[str] = os.getenv("FETCHER_SCOPES", "public").split(",")
-    FETCHER_CALLBACK_URL: str = os.getenv(
-        "FETCHER_CALLBACK_URL", "http://localhost:8000/fetcher/callback"
-    )
+    fetcher_client_id: str = ""
+    fetcher_client_secret: str = ""
+    fetcher_scopes: Annotated[list[str], NoDecode] = ["public"]
+    fetcher_callback_url: str = "http://localhost:8000/fetcher/callback"
 
     # 日志设置
-    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").upper()
+    log_level: str = "INFO"
+
+    @field_validator("fetcher_scopes", mode="before")
+    def validate_fetcher_scopes(cls, v: Any) -> list[str]:
+        if isinstance(v, str):
+            return v.split(",")
+        return v
 
 
 settings = Settings()

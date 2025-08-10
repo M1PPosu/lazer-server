@@ -12,10 +12,10 @@ async def get_fetcher() -> Fetcher:
     global fetcher
     if fetcher is None:
         fetcher = Fetcher(
-            settings.FETCHER_CLIENT_ID,
-            settings.FETCHER_CLIENT_SECRET,
-            settings.FETCHER_SCOPES,
-            settings.FETCHER_CALLBACK_URL,
+            settings.fetcher_client_id,
+            settings.fetcher_client_secret,
+            settings.fetcher_scopes,
+            settings.fetcher_callback_url,
         )
         redis = get_redis()
         access_token = await redis.get(f"fetcher:access_token:{fetcher.client_id}")

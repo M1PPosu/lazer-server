@@ -18,10 +18,10 @@ def json_serializer(value):
 
 
 # 数据库引擎
-engine = create_async_engine(settings.DATABASE_URL, json_serializer=json_serializer)
+engine = create_async_engine(settings.database_url, json_serializer=json_serializer)
 
 # Redis 连接
-redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+redis_client = redis.from_url(settings.redis_url, decode_responses=True)
 
 
 # 数据库依赖

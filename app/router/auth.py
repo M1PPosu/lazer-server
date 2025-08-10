@@ -199,8 +199,8 @@ async def oauth_token(
     """OAuth 令牌端点"""
     # 验证客户端凭据
     if (
-        client_id != settings.OSU_CLIENT_ID
-        or client_secret != settings.OSU_CLIENT_SECRET
+        client_id != settings.osu_client_id
+        or client_secret != settings.osu_client_secret
     ):
         return create_oauth_error_response(
             error="invalid_client",
@@ -242,7 +242,7 @@ async def oauth_token(
             )
 
         # 生成令牌
-        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
         access_token = create_access_token(
             data={"sub": str(user.id)}, expires_delta=access_token_expires
         )
@@ -255,13 +255,13 @@ async def oauth_token(
             user.id,
             access_token,
             refresh_token_str,
-            settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            settings.access_token_expire_minutes * 60,
         )
 
         return TokenResponse(
             access_token=access_token,
             token_type="Bearer",
-            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            expires_in=settings.access_token_expire_minutes * 60,
             refresh_token=refresh_token_str,
             scope=scope,
         )
@@ -295,7 +295,7 @@ async def oauth_token(
             )
 
         # 生成新的访问令牌
-        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
         access_token = create_access_token(
             data={"sub": str(token_record.user_id)}, expires_delta=access_token_expires
         )
@@ -307,13 +307,13 @@ async def oauth_token(
             token_record.user_id,
             access_token,
             new_refresh_token,
-            settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            settings.access_token_expire_minutes * 60,
         )
 
         return TokenResponse(
             access_token=access_token,
             token_type="Bearer",
-            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            expires_in=settings.access_token_expire_minutes * 60,
             refresh_token=new_refresh_token,
             scope=scope,
         )

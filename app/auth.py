@@ -125,12 +125,12 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
         expire = datetime.utcnow() + expires_delta
     else:
         expire = datetime.utcnow() + timedelta(
-            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
+            minutes=settings.access_token_expire_minutes
         )
 
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(
-        to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM
+        to_encode, settings.secret_key, algorithm=settings.algorithm
     )
     return encoded_jwt
 
@@ -146,7 +146,7 @@ def verify_token(token: str) -> dict | None:
     """验证访问令牌"""
     try:
         payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+            token, settings.secret_key, algorithms=[settings.algorithm]
         )
         return payload
     except JWTError:
