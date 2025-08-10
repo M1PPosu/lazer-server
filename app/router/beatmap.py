@@ -108,6 +108,8 @@ async def batch_get_beatmaps(
             )
             if isinstance(beatmap, Beatmap)
         )
+        for beatmap in beatmaps:
+            await db.refresh(beatmap)
 
     return BatchGetResp(
         beatmaps=[

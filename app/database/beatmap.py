@@ -158,7 +158,7 @@ class BeatmapResp(BeatmapBase):
         from .score import Score
 
         beatmap_ = beatmap.model_dump()
-        beatmap_status = beatmap_["beatmap_status"]
+        beatmap_status = beatmap.beatmap_status
         if query_mode is not None and beatmap.mode != query_mode:
             beatmap_["convert"] = True
         beatmap_["is_scoreable"] = beatmap_status.has_leaderboard()
