@@ -2,6 +2,7 @@ from .lazer_user import User, UserResp
 from .playlist_best_score import PlaylistBestScore
 
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlmodel import (
     BigInteger,
     Column,
@@ -28,7 +29,7 @@ class ItemAttemptsCountBase(SQLModel):
     total_score: int = 0
 
 
-class ItemAttemptsCount(ItemAttemptsCountBase, table=True):
+class ItemAttemptsCount(AsyncAttrs, ItemAttemptsCountBase, table=True):
     __tablename__ = "item_attempts_count"  # pyright: ignore[reportAssignmentType]
     id: int | None = Field(default=None, primary_key=True)
 
@@ -105,7 +106,7 @@ class ItemAttemptsResp(ItemAttemptsCountBase):
     ) -> "ItemAttemptsResp":
         resp = cls.model_validate(item_attempts.model_dump())
         resp.user = await UserResp.from_db(
-            item_attempts.user,
+            await item_attempts.awaitable_attrs.user,
             session=session,
             include=["statistics", "team", "daily_challenge_user_stats"],
         )
