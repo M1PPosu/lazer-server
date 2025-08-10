@@ -6,22 +6,10 @@
 
 - **OAuth 2.0 认证**: 支持密码流和刷新令牌流
 - **用户数据管理**: 完整的用户信息、统计数据、成就等
-- **多游戏模式支持**: osu!, taiko, fruits, mania
+- **多游戏模式支持**: osu! (osu!rx, osu!ap), taiko, fruits, mania
 - **数据库持久化**: MySQL 存储用户数据
 - **缓存支持**: Redis 缓存令牌和会话信息
 - **容器化部署**: Docker 和 Docker Compose 支持
-
-## API 端点
-
-### 认证端点
-- `POST /oauth/token` - OAuth 令牌获取/刷新
-
-### 用户端点
-- `GET /api/v2/me/{ruleset}` - 获取当前用户信息
-
-### 其他端点
-- `GET /` - 根端点
-- `GET /health` - 健康检查
 
 ## 快速开始
 
@@ -29,183 +17,97 @@
 
 1. 克隆项目
 ```bash
-git clone <repository-url>
+git clone https://github.com/GooGuTeam/osu_lazer_api.git
 cd osu_lazer_api
 ```
 
-2. 启动服务
+2. 创建 `.env` 文件
+
+请参考下方的服务器配置修改 .env 文件
+
 ```bash
-docker-compose up -d
+cp .env.example .env
 ```
 
-3. 创建示例数据
+3. 启动服务
 ```bash
-docker-compose exec api python create_sample_data.py
+# 标准服务器
+docker-compose -f docker-compose.yml up -d
+# 启用 osu!RX 和 osu!AP 模式 （偏偏要上班 pp 算法）
+docker-compose -f docker-compose-osurx.yml up -d
 ```
 
-4. 测试 API
-```bash
-# 获取访问令牌
-curl -X POST http://localhost:8000/oauth/token \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=password&username=Googujiang&password=password123&client_id=5&client_secret=FGc9GAtyHzeQDshWP5Ah7dega8hJACAJpQtw6OXk&scope=*"
+4. 通过游戏连接服务器
 
-# 使用令牌获取用户信息
-curl -X GET http://localhost:8000/api/v2/me/osu \
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
-```
-
-### 本地开发
-
-1. 安装依赖
-```bash
-pip install -r requirements.txt
-```
-
-2. 配置环境变量
-```bash
-# 复制服务器配置文件
-cp .env .env.local
-
-# 复制客户端配置文件（用于测试脚本）
-cp .env.client .env.client.local
-```
-
-3. 启动 MySQL 和 Redis
-```bash
-# 使用 Docker
-docker run -d --name mysql -e MYSQL_ROOT_PASSWORD=password -e MYSQL_DATABASE=osu_api -p 3306:3306 mysql:8.0
-docker run -d --name redis -p 6379:6379 redis:7-alpine
-```
-
-4. 创建示例数据
-```bash
-python create_sample_data.py
-```
-
-5. 启动应用
-```bash
-uvicorn main:app --reload
-```
-
-6. 测试 API
-```bash
-# 使用测试脚本（会自动加载 .env 文件）
-python test_api.py
-
-# 或使用原始示例脚本
-python osu_api_example.py
-```
-
-## 项目结构
-
-```
-osu_lazer_api/
-├── app/
-│   ├── __init__.py
-│   ├── models.py          # Pydantic 数据模型
-│   ├── database.py        # SQLAlchemy 数据库模型
-│   ├── config.py          # 配置设置
-│   ├── dependencies.py    # 依赖注入
-│   ├── auth.py           # 认证和令牌管理
-│   └── utils.py          # 工具函数
-├── main.py               # FastAPI 应用主文件
-├── create_sample_data.py # 示例数据创建脚本
-├── requirements.txt      # Python 依赖
-├── .env                 # 环境变量配置
-├── docker-compose.yml   # Docker Compose 配置
-├── Dockerfile          # Docker 镜像配置
-└── README.md           # 项目说明
-```
-
-## 示例用户
-
-创建示例数据后，您可以使用以下凭据进行测试：
-
-- **用户名**: `Googujiang`
-- **密码**: `password123`
-- **用户ID**: `15651670`
+使用[自定义的 osu!lazer 客户端](https://github.com/GooGuTeam/osu)，或者使用 [LazerAuthlibInjection](https://github.com/MingxuanGame/LazerAuthlibInjection)，修改服务器设置为服务器的 IP
 
 ## 环境变量配置
 
-项目包含两个环境配置文件：
-
-### 服务器配置 (`.env`)
-用于配置 FastAPI 服务器的运行参数：
-
+### 数据库设置
 | 变量名 | 描述 | 默认值 |
 |--------|------|--------|
-| `DATABASE_URL` | MySQL 数据库连接字符串 | `mysql+pymysql://root:password@localhost:3306/osu_api` |
-| `REDIS_URL` | Redis 连接字符串 | `redis://localhost:6379/0` |
-| `SECRET_KEY` | JWT 签名密钥 | `your-secret-key-here` |
+| `MYSQL_HOST` | MySQL 主机地址 | `localhost` |
+| `MYSQL_PORT` | MySQL 端口 | `3306` |
+| `MYSQL_DATABASE` | MySQL 数据库名 | `osu_api` |
+| `MYSQL_USER` | MySQL 用户名 | `osu_api` |
+| `MYSQL_PASSWORD` | MySQL 密码 | `password` |
+| `MYSQL_ROOT_PASSWORD` | MySQL root 密码 | `password` |
+| `REDIS_URL` | Redis 连接字符串 | `redis://127.0.0.1:6379/0` |
+
+### JWT 设置
+| 变量名 | 描述 | 默认值 |
+|--------|------|--------|
+| `JWT_SECRET_KEY` | JWT 签名密钥 | `your_jwt_secret_here` |
+| `ALGORITHM` | JWT 算法 | `HS256` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | 访问令牌过期时间（分钟） | `1440` |
-| `OSU_CLIENT_ID` | OAuth 客户端 ID | `5` |
-| `OSU_CLIENT_SECRET` | OAuth 客户端密钥 | `FGc9GAtyHzeQDshWP5Ah7dega8hJACAJpQtw6OXk` |
+
+### 服务器设置
+| 变量名 | 描述 | 默认值 |
+|--------|------|--------|
 | `HOST` | 服务器监听地址 | `0.0.0.0` |
 | `PORT` | 服务器监听端口 | `8000` |
-| `DEBUG` | 调试模式 | `True` |
+| `DEBUG` | 调试模式 | `false` |
 
-### 客户端配置 (`.env.client`)
-用于配置客户端脚本的 API 连接参数：
-
+### OAuth 设置
 | 变量名 | 描述 | 默认值 |
 |--------|------|--------|
 | `OSU_CLIENT_ID` | OAuth 客户端 ID | `5` |
 | `OSU_CLIENT_SECRET` | OAuth 客户端密钥 | `FGc9GAtyHzeQDshWP5Ah7dega8hJACAJpQtw6OXk` |
-| `OSU_API_URL` | API 服务器地址 | `http://localhost:8000` |
+
+### SignalR 服务器设置
+| 变量名 | 描述 | 默认值 |
+|--------|------|--------|
+| `SIGNALR_NEGOTIATE_TIMEOUT` | SignalR 协商超时时间（秒） | `30` |
+| `SIGNALR_PING_INTERVAL` | SignalR ping 间隔（秒） | `15` |
+
+### Fetcher 设置
+
+Fetcher 用于从 osu! 官方 API 获取数据，使用 osu! 官方 API 的 OAuth 2.0 认证
+
+| 变量名 | 描述 | 默认值 |
+|--------|------|--------|
+| `FETCHER_CLIENT_ID` | Fetcher 客户端 ID | `""` |
+| `FETCHER_CLIENT_SECRET` | Fetcher 客户端密钥 | `""` |
+| `FETCHER_SCOPES` | Fetcher 权限范围 | `public` |
+| `FETCHER_CALLBACK_URL` | Fetcher 回调 URL | `http://localhost:8000/fetcher/callback` |
+
+### 日志设置
+| 变量名 | 描述 | 默认值 |
+|--------|------|--------|
+| `LOG_LEVEL` | 日志级别 | `INFO` |
+
+### 游戏设置
+| 变量名 | 描述 | 默认值 |
+|--------|------|--------|
+| `ENABLE_OSU_RX` | 启用 osu!RX 统计数据 | `false` |
+| `ENABLE_OSU_AP` | 启用 osu!AP 统计数据 | `false` |
+| `ENABLE_ALL_MODS_PP` | 启用所有 Mod 的 PP 计算 | `false` |
+| `ENABLE_SUPPORTER_FOR_ALL_USERS` | 启用所有新注册用户的支持者状态 | `false` |
+| `ENABLE_ALL_BEATMAP_LEADERBOARD` | 启用所有谱面的排行榜 | `false` |
 
 > **注意**: 在生产环境中，请务必更改默认的密钥和密码！
 
-## API 使用示例
-
-### 获取访问令牌
-
-```bash
-curl -X POST http://localhost:8000/oauth/token \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=password&username=Googujiang&password=password123&client_id=5&client_secret=FGc9GAtyHzeQDshWP5Ah7dega8hJACAJpQtw6OXk&scope=*"
-```
-
-响应：
-```json
-{
-  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
-  "token_type": "Bearer",
-  "expires_in": 86400,
-  "refresh_token": "abc123...",
-  "scope": "*"
-}
-```
-
-### 获取用户信息
-
-```bash
-curl -X GET http://localhost:8000/api/v2/me/osu \
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
-```
-
-### 刷新令牌
-
-```bash
-curl -X POST http://localhost:8000/oauth/token \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=refresh_token&refresh_token=YOUR_REFRESH_TOKEN&client_id=5&client_secret=FGc9GAtyHzeQDshWP5Ah7dega8hJACAJpQtw6OXk"
-```
-
-## 开发
-
-### 添加新用户
-
-您可以通过修改 `create_sample_data.py` 文件来添加更多示例用户，或者扩展 API 来支持用户注册功能。
-
-### 扩展功能
-
-- 添加更多 API 端点（排行榜、谱面信息等）
-- 实现实时功能（WebSocket）
-- 添加管理面板
-- 实现数据导入/导出功能
-
-### 迁移数据库
+### 更新数据库
 
 参考[数据库迁移指南](./MIGRATE_GUIDE.md)
 
