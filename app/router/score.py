@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 import time
 
 from app.calculator import clamp
+from app.config import settings
 from app.database import (
     Beatmap,
     Playlist,
@@ -31,7 +32,6 @@ from app.dependencies.database import get_db, get_redis
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.user import get_current_user
 from app.fetcher import Fetcher
-from app.models.beatmap import BeatmapRankStatus
 from app.models.room import RoomCategory
 from app.models.score import (
     INT_TO_MODE,
@@ -92,10 +92,9 @@ async def submit_score(
             db_beatmap = await Beatmap.get_or_fetch(db, fetcher, bid=beatmap)
         except HTTPError:
             raise HTTPException(status_code=404, detail="Beatmap not found")
-        ranked = db_beatmap.beatmap_status in {
-            BeatmapRankStatus.RANKED,
-            BeatmapRankStatus.APPROVED,
-        }
+        ranked = (
+            db_beatmap.beatmap_status.has_pp() | settings.enable_all_beatmap_leaderboard
+        )
         score = await process_score(
             current_user,
             beatmap,

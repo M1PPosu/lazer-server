@@ -159,14 +159,22 @@ async def register_user(
             country_code="CN",  # 默认国家
             join_date=datetime.now(UTC),
             last_visit=datetime.now(UTC),
+            is_supporter=settings.enable_supporter_for_all_users,
+            support_level=int(settings.enable_supporter_for_all_users),
         )
         db.add(new_user)
         await db.commit()
         await db.refresh(new_user)
         assert new_user.id is not None, "New user ID should not be None"
-        for i in GameMode:
+        for i in [GameMode.OSU, GameMode.TAIKO, GameMode.FRUITS, GameMode.MANIA]:
             statistics = UserStatistics(mode=i, user_id=new_user.id)
             db.add(statistics)
+        if settings.enable_osu_rx:
+            statistics_rx = UserStatistics(mode=GameMode.OSURX, user_id=new_user.id)
+            db.add(statistics_rx)
+        if settings.enable_osu_ap:
+            statistics_ap = UserStatistics(mode=GameMode.OSUAP, user_id=new_user.id)
+            db.add(statistics_ap)
         daily_challenge_user_stats = DailyChallengeStats(user_id=new_user.id)
         db.add(daily_challenge_user_stats)
         await db.commit()

@@ -14,6 +14,20 @@ class BeatmapRankStatus(IntEnum):
     QUALIFIED = 3
     LOVED = 4
 
+    def has_leaderboard(self) -> bool:
+        return self in {
+            BeatmapRankStatus.RANKED,
+            BeatmapRankStatus.APPROVED,
+            BeatmapRankStatus.QUALIFIED,
+            BeatmapRankStatus.LOVED,
+        }
+
+    def has_pp(self) -> bool:
+        return self in {
+            BeatmapRankStatus.RANKED,
+            BeatmapRankStatus.APPROVED,
+        }
+
 
 class Genre(IntEnum):
     ANY = 0

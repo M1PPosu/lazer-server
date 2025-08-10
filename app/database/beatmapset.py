@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, NotRequired, TypedDict
 
+from app.config import settings
 from app.models.beatmap import BeatmapRankStatus, Genre, Language
 from app.models.score import GameMode
 
@@ -228,11 +229,21 @@ class BeatmapsetResp(BeatmapsetBase):
                 required=beatmapset.nominations_required,
                 current=beatmapset.nominations_current,
             ),
-            "status": beatmapset.beatmap_status.name.lower(),
-            "ranked": beatmapset.beatmap_status.value,
-            "is_scoreable": beatmapset.beatmap_status > BeatmapRankStatus.PENDING,
+            "is_scoreable": beatmapset.beatmap_status.has_leaderboard(),
             **beatmapset.model_dump(),
         }
+
+        beatmap_status = beatmapset.beatmap_status
+        if (
+            settings.enable_all_beatmap_leaderboard
+            and not beatmap_status.has_leaderboard()
+        ):
+            update["status"] = BeatmapRankStatus.APPROVED.name.lower()
+            update["ranked"] = BeatmapRankStatus.APPROVED.value
+        else:
+            update["status"] = beatmap_status.name.lower()
+            update["ranked"] = beatmap_status.value
+
         if session and user:
             existing_favourite = (
                 await session.exec(

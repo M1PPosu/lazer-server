@@ -7,12 +7,12 @@ import struct
 import time
 from typing import override
 
+from app.config import settings
 from app.database import Beatmap, User
 from app.database.score import Score
 from app.database.score_token import ScoreToken
 from app.dependencies.database import engine
 from app.dependencies.fetcher import get_fetcher
-from app.models.beatmap import BeatmapRankStatus
 from app.models.mods import mods_to_int
 from app.models.score import LegacyReplaySoloScoreInfo, ScoreStatistics
 from app.models.spectator_hub import (
@@ -244,7 +244,8 @@ class SpectatorHub(Hub[StoreClientState]):
         ):
             return
         if (
-            BeatmapRankStatus.PENDING < store.beatmap_status <= BeatmapRankStatus.LOVED
+            settings.enable_all_beatmap_leaderboard
+            and store.beatmap_status.has_leaderboard()
         ) and any(k.is_hit() and v > 0 for k, v in score.score_info.statistics.items()):
             await self._process_score(store, client)
         store.state = None

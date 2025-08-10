@@ -13,6 +13,7 @@ from app.calculator import (
     calculate_weighted_pp,
     clamp,
 )
+from app.config import settings
 from app.database.team import TeamMember
 from app.models.model import RespWithCursor, UTCBaseModel
 from app.models.mods import APIMod, mods_can_get_pp
@@ -324,6 +325,13 @@ async def get_leaderboard(
     user: User | None = None,
     limit: int = 50,
 ) -> tuple[list[Score], Score | None]:
+    is_rx = "RX" in (mods or [])
+    is_ap = "AP" in (mods or [])
+    if settings.enable_osu_rx and is_rx:
+        mode = GameMode.OSURX
+    elif settings.enable_osu_ap and is_ap:
+        mode = GameMode.OSUAP
+
     wheres = await _score_where(type, beatmap, mode, mods, user)
     if wheres is None:
         return [], None
@@ -637,6 +645,14 @@ async def process_score(
 ) -> Score:
     assert user.id
     can_get_pp = info.passed and ranked and mods_can_get_pp(info.ruleset_id, info.mods)
+    acronyms = [mod["acronym"] for mod in info.mods]
+    is_rx = "RX" in acronyms
+    is_ap = "AP" in acronyms
+    gamemode = INT_TO_MODE[info.ruleset_id]
+    if settings.enable_osu_rx and is_rx and gamemode == GameMode.OSU:
+        gamemode = GameMode.OSURX
+    elif settings.enable_osu_ap and is_ap and gamemode == GameMode.OSU:
+        gamemode = GameMode.OSUAP
     score = Score(
         accuracy=info.accuracy,
         max_combo=info.max_combo,
@@ -648,7 +664,7 @@ async def process_score(
         total_score_without_mods=info.total_score_without_mods,
         beatmap_id=beatmap_id,
         ended_at=datetime.now(UTC),
-        gamemode=INT_TO_MODE[info.ruleset_id],
+        gamemode=gamemode,
         started_at=score_token.created_at,
         user_id=user.id,
         preserve=info.passed,

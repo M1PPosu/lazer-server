@@ -4,6 +4,7 @@ from copy import deepcopy
 import json
 from typing import Literal, NotRequired, TypedDict
 
+from app.config import settings as app_settings
 from app.path import STATIC_DIR
 
 
@@ -155,8 +156,15 @@ for i in range(4, 10):
 
 
 def mods_can_get_pp(ruleset_id: int, mods: list[APIMod]) -> bool:
+    if app_settings.enable_all_mods_pp:
+        return True
     ranked_mods = RANKED_MODS[ruleset_id]
     for mod in mods:
+        if app_settings.enable_osu_rx and mod["acronym"] == "RX" and ruleset_id == 0:
+            continue
+        if app_settings.enable_osu_ap and mod["acronym"] == "AP" and ruleset_id == 0:
+            continue
+
         mod["settings"] = mod.get("settings", {})
         if (settings := ranked_mods.get(mod["acronym"])) is None:
             return False

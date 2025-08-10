@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from app.config import settings
 from app.models.beatmap import BeatmapRankStatus
 from app.models.score import MODE_TO_INT, GameMode
 
@@ -61,10 +62,6 @@ class Beatmap(BeatmapBase, table=True):
     beatmapset: Beatmapset = Relationship(
         back_populates="beatmaps", sa_relationship_kwargs={"lazy": "joined"}
     )
-
-    @property
-    def can_ranked(self) -> bool:
-        return self.beatmap_status > BeatmapRankStatus.PENDING
 
     @classmethod
     async def from_resp(cls, session: AsyncSession, resp: "BeatmapResp") -> "Beatmap":
@@ -160,12 +157,20 @@ class BeatmapResp(BeatmapBase):
     ) -> "BeatmapResp":
         from .score import Score
 
+        beatmap_status = beatmap.beatmap_status
         beatmap_ = beatmap.model_dump()
         if query_mode is not None and beatmap.mode != query_mode:
             beatmap_["convert"] = True
-        beatmap_["is_scoreable"] = beatmap.beatmap_status > BeatmapRankStatus.PENDING
-        beatmap_["status"] = beatmap.beatmap_status.name.lower()
-        beatmap_["ranked"] = beatmap.beatmap_status.value
+        beatmap_["is_scoreable"] = beatmap_status.has_leaderboard()
+        if (
+            settings.enable_all_beatmap_leaderboard
+            and not beatmap_status.has_leaderboard()
+        ):
+            beatmap_["ranked"] = BeatmapRankStatus.APPROVED.value
+            beatmap_["status"] = BeatmapRankStatus.APPROVED.name.lower()
+        else:
+            beatmap_["status"] = beatmap_status.name.lower()
+            beatmap_["ranked"] = beatmap_status.value
         beatmap_["mode_int"] = MODE_TO_INT[beatmap.mode]
         if not from_set:
             beatmap_["beatmapset"] = await BeatmapsetResp.from_db(

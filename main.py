@@ -14,6 +14,7 @@ from app.router import (
     signalr_router,
 )
 from app.service.daily_challenge import daily_challenge_job
+from app.service.osu_rx_statistics import create_rx_statistics
 
 from fastapi import FastAPI
 
@@ -21,6 +22,7 @@ from fastapi import FastAPI
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # on startup
+    await create_rx_statistics()
     await get_fetcher()  # 初始化 fetcher
     init_scheduler()
     await daily_challenge_job()

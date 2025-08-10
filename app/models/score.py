@@ -16,6 +16,8 @@ class GameMode(str, Enum):
     TAIKO = "taiko"
     FRUITS = "fruits"
     MANIA = "mania"
+    OSURX = "osurx"
+    OSUAP = "osuap"
 
     def to_rosu(self) -> "rosu.GameMode":
         import rosu_pp_py as rosu
@@ -25,6 +27,8 @@ class GameMode(str, Enum):
             GameMode.TAIKO: rosu.GameMode.Taiko,
             GameMode.FRUITS: rosu.GameMode.Catch,
             GameMode.MANIA: rosu.GameMode.Mania,
+            GameMode.OSURX: rosu.GameMode.Osu,
+            GameMode.OSUAP: rosu.GameMode.Osu,
         }[self]
 
 
@@ -33,8 +37,11 @@ MODE_TO_INT = {
     GameMode.TAIKO: 1,
     GameMode.FRUITS: 2,
     GameMode.MANIA: 3,
+    GameMode.OSURX: 0,
+    GameMode.OSUAP: 0,
 }
 INT_TO_MODE = {v: k for k, v in MODE_TO_INT.items()}
+INT_TO_MODE[0] = GameMode.OSU
 
 
 class Rank(str, Enum):

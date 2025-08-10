@@ -40,6 +40,13 @@ class Settings(BaseSettings):
     # 日志设置
     log_level: str = "INFO"
 
+    # 游戏设置
+    enable_osu_rx: bool = False
+    enable_osu_ap: bool = False
+    enable_all_mods_pp: bool = False
+    enable_supporter_for_all_users: bool = False
+    enable_all_beatmap_leaderboard: bool = False
+
     @field_validator("fetcher_scopes", mode="before")
     def validate_fetcher_scopes(cls, v: Any) -> list[str]:
         if isinstance(v, str):
