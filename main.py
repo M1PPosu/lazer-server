@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 
 from app.config import settings
-from app.dependencies.database import create_tables, engine, redis_client
+from app.dependencies.database import engine, redis_client
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.scheduler import init_scheduler, stop_scheduler
 from app.router import (
@@ -21,7 +21,6 @@ from fastapi import FastAPI
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # on startup
-    await create_tables()
     await get_fetcher()  # 初始化 fetcher
     init_scheduler()
     await daily_challenge_job()

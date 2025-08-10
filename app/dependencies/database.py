@@ -30,11 +30,6 @@ async def get_db():
         yield session
 
 
-async def create_tables():
-    async with engine.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.create_all)
-
-
 # Redis 依赖
 def get_redis():
     return redis_client
