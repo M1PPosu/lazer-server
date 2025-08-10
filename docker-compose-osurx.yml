@@ -4,14 +4,19 @@ services:
   app:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: osu_api_server
+      dockerfile: Dockerfile-osurx
+    container_name: osu_api_server_osurx
     ports:
       - "8000:8000"
     environment:
       - MYSQL_HOST=mysql
       - MYSQL_PORT=3306
       - REDIS_URL=redis://redis:6379/0
+      - ENABLE_OSU_RX=true
+      - ENABLE_OSU_AP=true
+      - ENABLE_ALL_MODS_PP=true
+      - ENABLE_SUPPORTER_FOR_ALL_USERS=true
+      - ENABLE_ALL_BEATMAP_LEADERBOARD=true
     env_file:
       - .env
     depends_on:
@@ -28,7 +33,7 @@ services:
 
   mysql:
     image: mysql:8.0
-    container_name: osu_api_mysql
+    container_name: osu_api_mysql_osurx
     environment:
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
       - MYSQL_DATABASE=${MYSQL_DATABASE}
@@ -49,7 +54,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: osu_api_redis
+    container_name: osu_api_redis_osurx
     volumes:
       - redis_data:/data
     healthcheck:

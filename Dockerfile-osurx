@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
     default-libmysqlclient-dev \
     curl \
     netcat-openbsd \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -22,7 +23,7 @@ COPY packages/ ./packages/
 
 RUN uv sync --frozen --no-dev
 
-RUN uv pip install rosu-pp-py
+RUN uv pip install git+https://github.com/ppy-sb/rosu-pp-py.git
 
 COPY . .
 

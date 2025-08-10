@@ -10,8 +10,17 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     # 数据库设置
-    database_url: str = "mysql+aiomysql://root:password@127.0.0.1:3306/osu_api"
+    mysql_host: str = "localhost"
+    mysql_port: int = 3306
+    mysql_database: str = "osu_api"
+    mysql_user: str = "osu_api"
+    mysql_password: str = "password"
+    mysql_root_password: str = "password"
     redis_url: str = "redis://127.0.0.1:6379/0"
+
+    @property
+    def database_url(self) -> str:
+        return f"mysql+aiomysql://{self.mysql_user}:{self.mysql_password}@{self.mysql_host}:{self.mysql_port}/{self.mysql_database}"
 
     # JWT 设置
     secret_key: str = Field(default="your-secret-key-here", alias="jwt_secret_key")
