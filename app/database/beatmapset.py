@@ -10,7 +10,7 @@ from .lazer_user import BASE_INCLUDES, User, UserResp
 from pydantic import BaseModel
 from sqlalchemy import JSON, Column, DateTime, Text
 from sqlalchemy.ext.asyncio import AsyncAttrs
-from sqlmodel import Field, Relationship, SQLModel, col, func, select
+from sqlmodel import Field, Relationship, SQLModel, col, exists, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 if TYPE_CHECKING:
@@ -161,8 +161,11 @@ class Beatmapset(AsyncAttrs, BeatmapsetBase, table=True):
                 "download_disabled": resp.availability.download_disabled or False,
             }
         )
-        session.add(beatmapset)
-        await session.commit()
+        if not (
+            await session.exec(select(exists()).where(Beatmapset.id == resp.id))
+        ).first():
+            session.add(beatmapset)
+            await session.commit()
         await Beatmap.from_resp_batch(session, resp.beatmaps, from_=from_)
         return beatmapset
 
