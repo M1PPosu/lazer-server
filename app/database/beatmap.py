@@ -7,7 +7,7 @@ from app.models.score import MODE_TO_INT, GameMode
 from .beatmap_playcounts import BeatmapPlaycounts
 from .beatmapset import Beatmapset, BeatmapsetResp
 
-from sqlalchemy import DECIMAL, Column, DateTime
+from sqlalchemy import Column, DateTime
 from sqlmodel import VARCHAR, Field, Relationship, SQLModel, col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -27,9 +27,7 @@ class BeatmapBase(SQLModel):
     url: str
     mode: GameMode
     beatmapset_id: int = Field(foreign_key="beatmapsets.id", index=True)
-    difficulty_rating: float = Field(
-        default=0.0, sa_column=Column(DECIMAL(precision=10, scale=6))
-    )
+    difficulty_rating: float = Field(default=0.0)
     total_length: int
     user_id: int
     version: str
@@ -41,17 +39,11 @@ class BeatmapBase(SQLModel):
     # TODO: failtimes, owners
 
     # BeatmapExtended
-    ar: float = Field(default=0.0, sa_column=Column(DECIMAL(precision=10, scale=2)))
-    cs: float = Field(default=0.0, sa_column=Column(DECIMAL(precision=10, scale=2)))
-    drain: float = Field(
-        default=0.0,
-        sa_column=Column(DECIMAL(precision=10, scale=2)),
-    )  # hp
-    accuracy: float = Field(
-        default=0.0,
-        sa_column=Column(DECIMAL(precision=10, scale=2)),
-    )  # od
-    bpm: float = Field(default=0.0, sa_column=Column(DECIMAL(precision=10, scale=2)))
+    ar: float = Field(default=0.0)
+    cs: float = Field(default=0.0)
+    drain: float = Field(default=0.0)  # hp
+    accuracy: float = Field(default=0.0)  # od
+    bpm: float = Field(default=0.0)
     count_circles: int = Field(default=0)
     count_sliders: int = Field(default=0)
     count_spinners: int = Field(default=0)

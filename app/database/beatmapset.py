@@ -1,13 +1,13 @@
 from datetime import datetime
-from typing import TYPE_CHECKING, TypedDict, cast
+from typing import TYPE_CHECKING, NotRequired, TypedDict
 
 from app.models.beatmap import BeatmapRankStatus, Genre, Language
 from app.models.score import GameMode
 
 from .lazer_user import BASE_INCLUDES, User, UserResp
 
-from pydantic import BaseModel, model_serializer
-from sqlalchemy import DECIMAL, JSON, Column, DateTime, Text
+from pydantic import BaseModel
+from sqlalchemy import JSON, Column, DateTime, Text
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlmodel import Field, Relationship, SQLModel, col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -19,41 +19,19 @@ if TYPE_CHECKING:
     from .favourite_beatmapset import FavouriteBeatmapset
 
 
-class BeatmapCovers(SQLModel):
-    cover: str
-    card: str
-    list: str
-    slimcover: str
-    cover_2_x: str | None = Field(default=None, alias="cover@2x")
-    card_2_x: str | None = Field(default=None, alias="card@2x")
-    list_2_x: str | None = Field(default=None, alias="list@2x")
-    slimcover_2_x: str | None = Field(default=None, alias="slimcover@2x")
-
-    @model_serializer
-    def _(self) -> dict[str, str | None]:
-        self = cast(dict[str, str | None] | BeatmapCovers, self)
-        if isinstance(self, dict):
-            return {
-                "cover": self["cover"],
-                "card": self["card"],
-                "list": self["list"],
-                "slimcover": self["slimcover"],
-                "cover@2x": self.get("cover@2x"),
-                "card@2x": self.get("card@2x"),
-                "list@2x": self.get("list@2x"),
-                "slimcover@2x": self.get("slimcover@2x"),
-            }
-        else:
-            return {
-                "cover": self.cover,
-                "card": self.card,
-                "list": self.list,
-                "slimcover": self.slimcover,
-                "cover@2x": self.cover_2_x,
-                "card@2x": self.card_2_x,
-                "list@2x": self.list_2_x,
-                "slimcover@2x": self.slimcover_2_x,
-            }
+BeatmapCovers = TypedDict(
+    "BeatmapCovers",
+    {
+        "cover": str,
+        "card": str,
+        "list": str,
+        "slimcover": str,
+        "cover@2x": NotRequired[str | None],
+        "card@2x": NotRequired[str | None],
+        "list@2x": NotRequired[str | None],
+        "slimcover@2x": NotRequired[str | None],
+    },
+)
 
 
 class BeatmapHype(BaseModel):
@@ -75,12 +53,12 @@ class BeatmapNomination(TypedDict):
     beatmapset_id: int
     reset: bool
     user_id: int
-    rulesets: list[GameMode] | None
+    rulesets: NotRequired[list[GameMode] | None]
 
 
-class BeatmapDescription(SQLModel):
-    bbcode: str | None = None
-    description: str | None = None
+class BeatmapDescription(TypedDict):
+    bbcode: NotRequired[str | None]
+    description: NotRequired[str | None]
 
 
 class BeatmapTranslationText(BaseModel):
@@ -122,7 +100,7 @@ class BeatmapsetBase(SQLModel):
     track_id: int | None = Field(default=None)  # feature artist?
 
     # BeatmapsetExtended
-    bpm: float = Field(default=0.0, sa_column=Column(DECIMAL(10, 2)))
+    bpm: float = Field(default=0.0)
     can_be_hyped: bool = Field(default=False)
     discussion_locked: bool = Field(default=False)
     last_updated: datetime = Field(sa_column=Column(DateTime))

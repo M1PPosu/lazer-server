@@ -528,9 +528,7 @@ class MultiplayerQueue:
 
                 item.validate_playlist_item_mods()
                 item.owner_id = user.user_id
-                item.star_rating = float(
-                    beatmap.difficulty_rating
-                )  # FIXME: beatmap use decimal
+                item.star_rating = beatmap.difficulty_rating
                 await Playlist.add_to_db(item, self.room.room_id, session)
                 self.room.playlist.append(item)
         await self.hub.playlist_added(self.server_room, item)
