@@ -183,7 +183,7 @@ class BeatmapsetResp(BeatmapsetBase):
     discussion_enabled: bool = True
     status: str
     ranked: int
-    legacy_thread_url: str = ""
+    legacy_thread_url: str | None = ""
     is_scoreable: bool
     hype: BeatmapHype | None = None
     availability: BeatmapAvailability
