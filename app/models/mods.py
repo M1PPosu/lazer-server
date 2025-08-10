@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 from typing import Literal, NotRequired, TypedDict
 
@@ -129,10 +130,10 @@ COMMON_CONFIG: dict[str, dict] = {
 }
 
 RANKED_MODS: dict[int, dict[str, dict]] = {
-    0: COMMON_CONFIG,
-    1: COMMON_CONFIG,
-    2: COMMON_CONFIG,
-    3: COMMON_CONFIG,
+    0: deepcopy(COMMON_CONFIG),
+    1: deepcopy(COMMON_CONFIG),
+    2: deepcopy(COMMON_CONFIG),
+    3: deepcopy(COMMON_CONFIG),
 }
 # osu
 RANKED_MODS[0]["HD"]["only_fade_approach_circles"] = False
