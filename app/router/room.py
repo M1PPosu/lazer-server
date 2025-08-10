@@ -80,8 +80,11 @@ async def get_all_rooms(
     for room in db_rooms:
         resp = await RoomResp.from_db(room, db)
         if category == RoomCategory.REALTIME:
-            resp.has_password = bool(
-                MultiplayerHubs.rooms[room.id].room.settings.password.strip()
+            mp_room = MultiplayerHubs.rooms.get(room.id)
+            resp.has_password = (
+                bool(mp_room.room.settings.password.strip())
+                if mp_room is not None
+                else False
             )
             resp.category = RoomCategory.NORMAL
         resp_list.append(resp)
