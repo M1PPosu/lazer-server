@@ -20,7 +20,7 @@ from app.models.user import BeatmapsetType
 
 from .api_router import router
 
-from fastapi import Depends, HTTPException, Query
+from fastapi import Depends, HTTPException, Query, Security
 from pydantic import BaseModel
 from sqlmodel import exists, false, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -36,6 +36,7 @@ class BatchUserResponse(BaseModel):
 @router.get("/users/lookup/", response_model=BatchUserResponse)
 async def get_users(
     user_ids: list[int] = Query(default_factory=list, alias="ids[]"),
+    current_user: User = Security(get_current_user, scopes=["public"]),
     include_variant_statistics: bool = Query(default=False),  # TODO: future use
     session: AsyncSession = Depends(get_db),
 ):
@@ -64,6 +65,7 @@ async def get_user_info(
     user: str,
     ruleset: GameMode | None = None,
     session: AsyncSession = Depends(get_db),
+    current_user: User = Security(get_current_user, scopes=["public"]),
 ):
     searched_user = (
         await session.exec(
@@ -91,7 +93,7 @@ async def get_user_info(
 async def get_user_beatmapsets(
     user_id: int,
     type: BeatmapsetType,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["public"]),
     session: AsyncSession = Depends(get_db),
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
@@ -147,6 +149,7 @@ async def get_user_scores(
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_db),
+    current_user: User = Security(get_current_user, scopes=["public"]),
 ):
     db_user = await session.get(User, user)
     if not db_user:

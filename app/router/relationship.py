@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from app.database import User as DBUser
-from app.database.relationship import Relationship, RelationshipResp, RelationshipType
+from app.database import Relationship, RelationshipResp, RelationshipType, User
 from app.dependencies.database import get_db
 from app.dependencies.user import get_current_user
 
 from .api_router import router
 
-from fastapi import Depends, HTTPException, Query, Request
+from fastapi import Depends, HTTPException, Query, Request, Security
 from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -17,7 +16,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 @router.get("/blocks", tags=["relationship"], response_model=list[RelationshipResp])
 async def get_relationship(
     request: Request,
-    current_user: DBUser = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["friends.read"]),
     db: AsyncSession = Depends(get_db),
 ):
     relationship_type = (
@@ -43,7 +42,7 @@ class AddFriendResp(BaseModel):
 async def add_relationship(
     request: Request,
     target: int = Query(),
-    current_user: DBUser = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["*"]),
     db: AsyncSession = Depends(get_db),
 ):
     relationship_type = (
@@ -106,7 +105,7 @@ async def add_relationship(
 async def delete_relationship(
     request: Request,
     target: int,
-    current_user: DBUser = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["*"]),
     db: AsyncSession = Depends(get_db),
 ):
     relationship_type = (

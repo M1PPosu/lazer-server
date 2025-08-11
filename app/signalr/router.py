@@ -9,13 +9,13 @@ import uuid
 from app.database import User as DBUser
 from app.dependencies import get_current_user
 from app.dependencies.database import get_db
-from app.dependencies.user import get_current_user_by_token
 from app.models.signalr import NegotiateResponse, Transport
 
 from .hub import Hubs
 from .packet import PROTOCOLS, SEP
 
-from fastapi import APIRouter, Depends, Header, Query, WebSocket
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, WebSocket
+from fastapi.security import SecurityScopes
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 router = APIRouter()
@@ -55,9 +55,15 @@ async def connect(
     if id not in hub_:
         await websocket.close(code=1008)
         return
-    if (user := await get_current_user_by_token(token, db)) is None or str(
-        user.id
-    ) != user_id:
+    try:
+        if (
+            user := await get_current_user(
+                SecurityScopes(scopes=["*"]), db, token_pw=token
+            )
+        ) is None or str(user.id) != user_id:
+            await websocket.close(code=1008)
+            return
+    except HTTPException:
         await websocket.close(code=1008)
         return
     await websocket.accept()

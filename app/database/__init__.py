@@ -1,5 +1,5 @@
 from .achievement import UserAchievement, UserAchievementResp
-from .auth import OAuthToken
+from .auth import OAuthClient, OAuthToken
 from .beatmap import (
     Beatmap as Beatmap,
     BeatmapResp as BeatmapResp,
@@ -71,6 +71,7 @@ __all__ = [
     "MultiplayerEvent",
     "MultiplayerEventResp",
     "MultiplayerScores",
+    "OAuthClient",
     "OAuthToken",
     "PPBestScore",
     "Playlist",

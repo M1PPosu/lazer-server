@@ -20,7 +20,7 @@ from app.signalr.hub import MultiplayerHubs
 
 from .api_router import router
 
-from fastapi import Depends, HTTPException, Query
+from fastapi import Depends, HTTPException, Query, Security
 from pydantic import BaseModel, Field
 from redis.asyncio import Redis
 from sqlalchemy.sql.elements import ColumnElement
@@ -36,7 +36,7 @@ async def get_all_rooms(
     category: RoomCategory = Query(RoomCategory.NORMAL),
     status: RoomStatus | None = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["public"]),
 ):
     resp_list: list[RoomResp] = []
     where_clauses: list[ColumnElement[bool]] = [col(Room.category) == category]
@@ -124,7 +124,7 @@ async def _participate_room(
 async def create_room(
     room: APIUploadedRoom,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["*"]),
 ):
     user_id = current_user.id
     db_room = await create_playlist_room_from_api(db, room, user_id)
@@ -141,7 +141,7 @@ async def get_room(
     room: int,
     category: str = Query(default=""),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["*"]),
     redis: Redis = Depends(get_redis),
 ):
     # 直接从db获取信息，毕竟都一样
@@ -155,7 +155,11 @@ async def get_room(
 
 
 @router.delete("/rooms/{room}", tags=["room"])
-async def delete_room(room: int, db: AsyncSession = Depends(get_db)):
+async def delete_room(
+    room: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Security(get_current_user, scopes=["*"]),
+):
     db_room = (await db.exec(select(Room).where(Room.id == room))).first()
     if db_room is None:
         raise HTTPException(404, "Room not found")
@@ -166,7 +170,12 @@ async def delete_room(room: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.put("/rooms/{room}/users/{user}", tags=["room"])
-async def add_user_to_room(room: int, user: int, db: AsyncSession = Depends(get_db)):
+async def add_user_to_room(
+    room: int,
+    user: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Security(get_current_user, scopes=["*"]),
+):
     db_room = (await db.exec(select(Room).where(Room.id == room))).first()
     if db_room is not None:
         await _participate_room(room, user, db_room, db)
@@ -181,7 +190,10 @@ async def add_user_to_room(room: int, user: int, db: AsyncSession = Depends(get_
 
 @router.delete("/rooms/{room}/users/{user}", tags=["room"])
 async def remove_user_from_room(
-    room: int, user: int, db: AsyncSession = Depends(get_db)
+    room: int,
+    user: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Security(get_current_user, scopes=["*"]),
 ):
     db_room = (await db.exec(select(Room).where(Room.id == room))).first()
     if db_room is not None:
@@ -211,7 +223,7 @@ class APILeaderboard(BaseModel):
 async def get_room_leaderboard(
     room: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["public"]),
 ):
     db_room = (await db.exec(select(Room).where(Room.id == room))).first()
     if db_room is None:
@@ -253,7 +265,7 @@ class RoomEvents(BaseModel):
 async def get_room_events(
     room_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["public"]),
     limit: int = Query(100, ge=1, le=1000),
     after: int | None = Query(None, ge=0),
     before: int | None = Query(None, ge=0),

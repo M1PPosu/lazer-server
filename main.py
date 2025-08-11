@@ -7,6 +7,7 @@ from app.config import settings
 from app.dependencies.database import engine, redis_client
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.scheduler import init_scheduler, stop_scheduler
+from app.log import logger
 from app.router import (
     api_router,
     auth_router,
@@ -52,9 +53,19 @@ async def health_check():
     return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
 
 
-if __name__ == "__main__":
-    from app.log import logger  # noqa: F401
+if settings.secret_key == "your_jwt_secret_here":
+    logger.warning(
+        "jwt_secret_key is unset. Your server is unsafe. "
+        "Use this command to generate: openssl rand -hex 32"
+    )
+if settings.osu_web_client_secret == "your_osu_web_client_secret_here":
+    logger.warning(
+        "osu_web_client_secret is unset. Your server is unsafe. "
+        "Use this command to generate: openssl rand -hex 40"
+    )
 
+
+if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(

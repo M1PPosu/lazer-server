@@ -23,13 +23,15 @@ class Settings(BaseSettings):
         return f"mysql+aiomysql://{self.mysql_user}:{self.mysql_password}@{self.mysql_host}:{self.mysql_port}/{self.mysql_database}"
 
     # JWT 设置
-    secret_key: str = Field(default="your-secret-key-here", alias="jwt_secret_key")
+    secret_key: str = Field(default="your_jwt_secret_here", alias="jwt_secret_key")
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 1440
 
     # OAuth 设置
-    osu_client_id: str = "5"
+    osu_client_id: int = 5
     osu_client_secret: str = "FGc9GAtyHzeQDshWP5Ah7dega8hJACAJpQtw6OXk"
+    osu_web_client_id: int = 6
+    osu_web_client_secret: str = "your_osu_web_client_secret_here"
 
     # 服务器设置
     host: str = "0.0.0.0"

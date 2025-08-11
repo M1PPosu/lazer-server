@@ -73,6 +73,8 @@ docker-compose -f docker-compose-osurx.yml up -d
 |--------|------|--------|
 | `OSU_CLIENT_ID` | OAuth 客户端 ID | `5` |
 | `OSU_CLIENT_SECRET` | OAuth 客户端密钥 | `FGc9GAtyHzeQDshWP5Ah7dega8hJACAJpQtw6OXk` |
+| `OSU_WEB_CLIENT_ID` | Web OAuth 客户端 ID | `6` |
+| `OSU_WEB_CLIENT_SECRET` | Web OAuth 客户端密钥 | `your_osu_web_client_secret_here`
 
 ### SignalR 服务器设置
 | 变量名 | 描述 | 默认值 |

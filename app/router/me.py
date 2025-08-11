@@ -8,7 +8,7 @@ from app.models.score import GameMode
 
 from .api_router import router
 
-from fastapi import Depends
+from fastapi import Depends, Security
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
@@ -16,7 +16,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 @router.get("/me/", response_model=UserResp)
 async def get_user_info_default(
     ruleset: GameMode | None = None,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["identify"]),
     session: AsyncSession = Depends(get_db),
 ):
     return await UserResp.from_db(

@@ -46,7 +46,7 @@ from app.path import REPLAY_DIR
 
 from .api_router import router
 
-from fastapi import Body, Depends, Form, HTTPException, Query
+from fastapi import Body, Depends, Form, HTTPException, Query, Security
 from fastapi.responses import FileResponse
 from httpx import HTTPError
 from pydantic import BaseModel
@@ -135,7 +135,7 @@ async def get_beatmap_scores(
     legacy_only: bool = Query(None),  # TODO:加入对这个参数的查询
     mods: list[str] = Query(default_factory=set, alias="mods[]"),
     type: LeaderboardType = Query(LeaderboardType.GLOBAL),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["public"]),
     db: AsyncSession = Depends(get_db),
     limit: int = Query(50, ge=1, le=200),
 ):
@@ -170,7 +170,7 @@ async def get_user_beatmap_score(
     legacy_only: bool = Query(None),
     mode: str = Query(None),
     mods: str = Query(None),  # TODO:添加mods筛选
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["public"]),
     db: AsyncSession = Depends(get_db),
 ):
     if legacy_only:
@@ -211,7 +211,7 @@ async def get_user_all_beatmap_scores(
     user: int,
     legacy_only: bool = Query(None),
     ruleset: str = Query(None),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["public"]),
     db: AsyncSession = Depends(get_db),
 ):
     if legacy_only:
@@ -241,7 +241,7 @@ async def create_solo_score(
     version_hash: str = Form(""),
     beatmap_hash: str = Form(),
     ruleset_id: int = Form(..., ge=0, le=3),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["*"]),
     db: AsyncSession = Depends(get_db),
 ):
     assert current_user.id
@@ -266,7 +266,7 @@ async def submit_solo_score(
     beatmap: int,
     token: int,
     info: SoloScoreSubmissionInfo,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["*"]),
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
     fetcher=Depends(get_fetcher),
@@ -284,7 +284,7 @@ async def create_playlist_score(
     beatmap_hash: str = Form(),
     ruleset_id: int = Form(..., ge=0, le=3),
     version_hash: str = Form(""),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["*"]),
     session: AsyncSession = Depends(get_db),
 ):
     room = await session.get(Room, room_id)
@@ -351,7 +351,7 @@ async def submit_playlist_score(
     playlist_id: int,
     token: int,
     info: SoloScoreSubmissionInfo,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["*"]),
     session: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
     fetcher: Fetcher = Depends(get_fetcher),
@@ -404,7 +404,7 @@ async def index_playlist_scores(
     playlist_id: int,
     limit: int = 50,
     cursor: int = Query(2000000, alias="cursor[total_score]"),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["public"]),
     session: AsyncSession = Depends(get_db),
 ):
     room = await session.get(Room, room_id)
@@ -464,7 +464,7 @@ async def show_playlist_score(
     room_id: int,
     playlist_id: int,
     score_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["*"]),
     session: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
 ):
@@ -528,7 +528,7 @@ async def get_user_playlist_score(
     room_id: int,
     playlist_id: int,
     user_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["*"]),
     session: AsyncSession = Depends(get_db),
 ):
     score_record = None
@@ -558,7 +558,7 @@ async def get_user_playlist_score(
 @router.put("/score-pins/{score}", status_code=204)
 async def pin_score(
     score: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["*"]),
     db: AsyncSession = Depends(get_db),
 ):
     score_record = (
@@ -594,7 +594,7 @@ async def pin_score(
 @router.delete("/score-pins/{score}", status_code=204)
 async def unpin_score(
     score: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["*"]),
     db: AsyncSession = Depends(get_db),
 ):
     score_record = (
@@ -626,7 +626,7 @@ async def reorder_score_pin(
     score: int,
     after_score_id: int | None = Body(default=None),
     before_score_id: int | None = Body(default=None),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["*"]),
     db: AsyncSession = Depends(get_db),
 ):
     score_record = (
@@ -713,7 +713,7 @@ async def reorder_score_pin(
 @router.get("/scores/{score_id}/download")
 async def download_score_replay(
     score_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["public"]),
     db: AsyncSession = Depends(get_db),
 ):
     score = (await db.exec(select(Score).where(Score.id == score_id))).first()

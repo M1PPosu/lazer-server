@@ -19,7 +19,7 @@ from app.models.score import (
 
 from .api_router import router
 
-from fastapi import Depends, HTTPException, Query
+from fastapi import Depends, HTTPException, Query, Security
 from httpx import HTTPError, HTTPStatusError
 from pydantic import BaseModel
 from redis.asyncio import Redis
@@ -33,7 +33,7 @@ async def lookup_beatmap(
     id: int | None = Query(default=None, alias="id"),
     md5: str | None = Query(default=None, alias="checksum"),
     filename: str | None = Query(default=None, alias="filename"),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["public"]),
     db: AsyncSession = Depends(get_db),
     fetcher: Fetcher = Depends(get_fetcher),
 ):
@@ -56,7 +56,7 @@ async def lookup_beatmap(
 @router.get("/beatmaps/{bid}", tags=["beatmap"], response_model=BeatmapResp)
 async def get_beatmap(
     bid: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["public"]),
     db: AsyncSession = Depends(get_db),
     fetcher: Fetcher = Depends(get_fetcher),
 ):
@@ -75,7 +75,7 @@ class BatchGetResp(BaseModel):
 @router.get("/beatmaps/", tags=["beatmap"], response_model=BatchGetResp)
 async def batch_get_beatmaps(
     b_ids: list[int] = Query(alias="ids[]", default_factory=list),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["public"]),
     db: AsyncSession = Depends(get_db),
     fetcher: Fetcher = Depends(get_fetcher),
 ):
@@ -126,7 +126,7 @@ async def batch_get_beatmaps(
 )
 async def get_beatmap_attributes(
     beatmap: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["public"]),
     mods: list[str] = Query(default_factory=list),
     ruleset: GameMode | None = Query(default=None),
     ruleset_id: int | None = Query(default=None),

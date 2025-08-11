@@ -10,7 +10,7 @@ from app.fetcher import Fetcher
 
 from .api_router import router
 
-from fastapi import Depends, Form, HTTPException, Query
+from fastapi import Depends, Form, HTTPException, Query, Security
 from fastapi.responses import RedirectResponse
 from httpx import HTTPError
 from sqlmodel import select
@@ -20,7 +20,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 @router.get("/beatmapsets/lookup", tags=["beatmapset"], response_model=BeatmapsetResp)
 async def lookup_beatmapset(
     beatmap_id: int = Query(),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["public"]),
     db: AsyncSession = Depends(get_db),
     fetcher: Fetcher = Depends(get_fetcher),
 ):
@@ -34,7 +34,7 @@ async def lookup_beatmapset(
 @router.get("/beatmapsets/{sid}", tags=["beatmapset"], response_model=BeatmapsetResp)
 async def get_beatmapset(
     sid: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["public"]),
     db: AsyncSession = Depends(get_db),
     fetcher: Fetcher = Depends(get_fetcher),
 ):
@@ -51,7 +51,7 @@ async def get_beatmapset(
 async def download_beatmapset(
     beatmapset: int,
     no_video: bool = Query(True, alias="noVideo"),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["*"]),
 ):
     if current_user.country_code == "CN":
         return RedirectResponse(
@@ -68,7 +68,7 @@ async def download_beatmapset(
 async def favourite_beatmapset(
     beatmapset: int,
     action: Literal["favourite", "unfavourite"] = Form(),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Security(get_current_user, scopes=["*"]),
     db: AsyncSession = Depends(get_db),
 ):
     existing_favourite = (
