@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
     debug: bool = False
+    private_api_secret: str = "your_private_api_secret_here"
 
     # SignalR 设置
     signalr_negotiate_timeout: int = 30

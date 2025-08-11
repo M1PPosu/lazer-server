@@ -12,6 +12,7 @@ from app.router import (
     api_v2_router,
     auth_router,
     fetcher_router,
+    private_router,
     signalr_router,
 )
 from app.service.daily_challenge import daily_challenge_job
@@ -39,6 +40,7 @@ app.include_router(api_v2_router)
 app.include_router(signalr_router)
 app.include_router(fetcher_router)
 app.include_router(auth_router)
+app.include_router(private_router)
 
 
 @app.get("/")
@@ -62,6 +64,11 @@ if settings.osu_web_client_secret == "your_osu_web_client_secret_here":
     logger.warning(
         "osu_web_client_secret is unset. Your server is unsafe. "
         "Use this command to generate: openssl rand -hex 40"
+    )
+if settings.private_api_secret == "your_private_api_secret_here":
+    logger.warning(
+        "private_api_secret is unset. Your server is unsafe. "
+        "Use this command to generate: openssl rand -hex 32"
     )
 
 if __name__ == "__main__":

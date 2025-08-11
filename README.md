@@ -67,6 +67,7 @@ docker-compose -f docker-compose-osurx.yml up -d
 | `HOST` | 服务器监听地址 | `0.0.0.0` |
 | `PORT` | 服务器监听端口 | `8000` |
 | `DEBUG` | 调试模式 | `false` |
+| `PRIVATE_API_SECRET` | 私有 API 密钥，用于前后端 API 调用 | `your_private_api_secret_here` |
 
 ### OAuth 设置
 | 变量名 | 描述 | 默认值 |
