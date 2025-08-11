@@ -99,6 +99,16 @@ class Hub[TState: UserState]:
                 return client
         return default
 
+    def get_before_clients(self, id: str, current_token: str) -> list[Client]:
+        clients = []
+        for client in self.clients.values():
+            if client.connection_id != id:
+                continue
+            if client.connection_token == current_token:
+                continue
+            clients.append(client)
+        return clients
+
     @abstractmethod
     def create_state(self, client: Client) -> TState:
         raise NotImplementedError
@@ -116,6 +126,11 @@ class Hub[TState: UserState]:
     def remove_from_group(self, client: Client, group_id: str) -> None:
         if group_id in self.groups:
             self.groups[group_id].discard(client)
+
+    async def kick_client(self, client: Client) -> None:
+        await self.call_noblock(client, "DisconnectRequested")
+        await client.send_packet(ClosePacket(allow_reconnect=False))
+        await client.connection.close(code=1000, reason="Disconnected by server")
 
     async def add_client(
         self,

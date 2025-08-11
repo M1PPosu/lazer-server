@@ -98,6 +98,11 @@ async def connect(
     if error or not client:
         await websocket.close(code=1008)
         return
+
+    connected_clients = hub_.get_before_clients(user_id, id)
+    for connected_client in connected_clients:
+        await hub_.kick_client(connected_client)
+
     await hub_.clean_state(client, False)
     task = asyncio.create_task(hub_.on_connect(client))
     hub_.tasks.add(task)
