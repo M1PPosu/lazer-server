@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from app.database import (
@@ -10,6 +11,7 @@ from app.database import (
     UserResp,
 )
 from app.database.lazer_user import SEARCH_INCLUDED
+from app.database.pp_best_score import PPBestScore
 from app.database.score import Score, ScoreResp
 from app.dependencies.database import get_db
 from app.dependencies.user import get_current_user
@@ -20,7 +22,7 @@ from .api_router import router
 
 from fastapi import Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlmodel import false, select
+from sqlmodel import exists, false, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel.sql.expression import col
 
@@ -152,15 +154,19 @@ async def get_user_scores(
 
     gamemode = mode or db_user.playmode
     order_by = None
-    where_clause = (
-        (col(Score.user_id) == db_user.id)
-        & (col(Score.gamemode) == gamemode)
-        & (col(Score.passed).is_(True))
+    where_clause = (col(Score.user_id) == db_user.id) & (
+        col(Score.gamemode) == gamemode
     )
+    if not include_fails:
+        where_clause &= col(Score.passed).is_(True)
     if type == "pinned":
         where_clause &= Score.pinned_order > 0
         order_by = col(Score.pinned_order).asc()
-    else:
+    elif type == "best":
+        where_clause &= exists().where(col(PPBestScore.score_id) == Score.id)
+    elif type == "recent":
+        where_clause &= Score.ended_at > datetime.now(UTC) - timedelta(hours=24)
+    elif type == "firsts":
         # TODO
         where_clause &= false()
 

@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, NotRequired, TypedDict
 
 from app.models.model import UTCBaseModel
@@ -6,6 +6,7 @@ from app.models.score import GameMode
 from app.models.user import Country, Page, RankHistory
 
 from .achievement import UserAchievement, UserAchievementResp
+from .beatmap_playcounts import BeatmapPlaycounts
 from .daily_challenge import DailyChallengeStats, DailyChallengeStatsResp
 from .monthly_playcounts import MonthlyPlaycounts, MonthlyPlaycountsResp
 from .statistics import UserStatistics, UserStatisticsResp
@@ -21,6 +22,7 @@ from sqlmodel import (
     Field,
     Relationship,
     SQLModel,
+    col,
     func,
     select,
 )
@@ -164,7 +166,7 @@ class UserResp(UserBase):
     is_online: bool = False
     groups: list = []  # TODO
     country: Country = Field(default_factory=lambda: Country(code="CN", name="China"))
-    favourite_beatmapset_count: int = 0  # TODO
+    favourite_beatmapset_count: int = 0
     graveyard_beatmapset_count: int = 0  # TODO
     guest_beatmapset_count: int = 0  # TODO
     loved_beatmapset_count: int = 0  # TODO
@@ -176,9 +178,10 @@ class UserResp(UserBase):
     follower_count: int = 0
     friends: list["RelationshipResp"] | None = None
     scores_best_count: int = 0
-    scores_first_count: int = 0
+    scores_first_count: int = 0  # TODO
     scores_recent_count: int = 0
     scores_pinned_count: int = 0
+    beatmap_playcounts_count: int = 0
     account_history: list[UserAccountHistoryResp] = []
     active_tournament_banners: list[dict] = []  # TODO
     kudosu: Kudosu = Field(default_factory=lambda: Kudosu(available=0, total=0))  # TODO
@@ -207,7 +210,11 @@ class UserResp(UserBase):
         from app.dependencies.database import get_redis
 
         from .best_score import BestScore
+        from .favourite_beatmapset import FavouriteBeatmapset
         from .relationship import Relationship, RelationshipResp, RelationshipType
+        from .score import Score
+
+        ruleset = ruleset or obj.playmode
 
         u = cls.model_validate(obj.model_dump())
         u.id = obj.id
@@ -275,7 +282,7 @@ class UserResp(UserBase):
         if "statistics" in include:
             current_stattistics = None
             for i in await obj.awaitable_attrs.statistics:
-                if i.mode == (ruleset or obj.playmode):
+                if i.mode == ruleset:
                     current_stattistics = i
                     break
             u.statistics = (
@@ -301,6 +308,58 @@ class UserResp(UserBase):
                 UserAchievementResp.from_db(ua)
                 for ua in await obj.awaitable_attrs.achievement
             ]
+
+        u.favourite_beatmapset_count = (
+            await session.exec(
+                select(func.count())
+                .select_from(FavouriteBeatmapset)
+                .where(FavouriteBeatmapset.user_id == obj.id)
+            )
+        ).one()
+        u.scores_pinned_count = (
+            await session.exec(
+                select(func.count())
+                .select_from(Score)
+                .where(
+                    Score.user_id == obj.id,
+                    Score.pinned_order > 0,
+                    Score.gamemode == ruleset,
+                    col(Score.passed).is_(True),
+                )
+            )
+        ).one()
+        u.scores_best_count = (
+            await session.exec(
+                select(func.count())
+                .select_from(BestScore)
+                .where(
+                    BestScore.user_id == obj.id,
+                    BestScore.gamemode == ruleset,
+                )
+                .limit(200)
+            )
+        ).one()
+        u.scores_recent_count = (
+            await session.exec(
+                select(func.count())
+                .select_from(Score)
+                .where(
+                    Score.user_id == obj.id,
+                    Score.gamemode == ruleset,
+                    col(Score.passed).is_(True),
+                    Score.ended_at > datetime.now(UTC) - timedelta(hours=24),
+                )
+            )
+        ).one()
+        u.beatmap_playcounts_count = (
+            await session.exec(
+                select(func.count())
+                .select_from(BeatmapPlaycounts)
+                .where(
+                    BeatmapPlaycounts.user_id == obj.id,
+                )
+            )
+        ).one()
 
         return u
 
