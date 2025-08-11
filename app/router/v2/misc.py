@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 
 from app.config import settings
 
-from .api_router import router
+from .router import router
 
 from pydantic import BaseModel
 

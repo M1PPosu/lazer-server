@@ -8,7 +8,7 @@ from app.dependencies.fetcher import get_fetcher
 from app.dependencies.user import get_current_user
 from app.fetcher import Fetcher
 
-from .api_router import router
+from .router import router
 
 from fastapi import Depends, Form, HTTPException, Query, Security
 from fastapi.responses import RedirectResponse

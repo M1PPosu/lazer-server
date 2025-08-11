@@ -44,7 +44,7 @@ from app.models.score import (
 )
 from app.path import REPLAY_DIR
 
-from .api_router import router
+from .router import router
 
 from fastapi import Body, Depends, Form, HTTPException, Query, Security
 from fastapi.responses import FileResponse

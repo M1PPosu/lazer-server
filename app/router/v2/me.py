@@ -6,7 +6,7 @@ from app.dependencies import get_current_user
 from app.dependencies.database import get_db
 from app.models.score import GameMode
 
-from .api_router import router
+from .router import router
 
 from fastapi import Depends, Security
 from sqlmodel.ext.asyncio.session import AsyncSession

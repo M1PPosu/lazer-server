@@ -4,7 +4,7 @@ from app.database import Relationship, RelationshipResp, RelationshipType, User
 from app.dependencies.database import get_db
 from app.dependencies.user import get_current_user
 
-from .api_router import router
+from .router import router
 
 from fastapi import Depends, HTTPException, Query, Request, Security
 from pydantic import BaseModel

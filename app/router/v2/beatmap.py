@@ -17,7 +17,7 @@ from app.models.score import (
     GameMode,
 )
 
-from .api_router import router
+from .router import router
 
 from fastapi import Depends, HTTPException, Query, Security
 from httpx import HTTPError, HTTPStatusError

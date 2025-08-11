@@ -18,7 +18,7 @@ from app.dependencies.user import get_current_user
 from app.models.score import GameMode
 from app.models.user import BeatmapsetType
 
-from .api_router import router
+from .router import router
 
 from fastapi import Depends, HTTPException, Query, Security
 from pydantic import BaseModel

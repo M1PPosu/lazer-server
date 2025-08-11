@@ -18,7 +18,7 @@ from app.models.room import RoomCategory, RoomStatus
 from app.service.room import create_playlist_room_from_api
 from app.signalr.hub import MultiplayerHubs
 
-from .api_router import router
+from .router import router
 
 from fastapi import Depends, HTTPException, Query, Security
 from pydantic import BaseModel, Field

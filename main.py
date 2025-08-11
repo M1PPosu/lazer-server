@@ -9,7 +9,7 @@ from app.dependencies.fetcher import get_fetcher
 from app.dependencies.scheduler import init_scheduler, stop_scheduler
 from app.log import logger
 from app.router import (
-    api_router,
+    api_v2_router,
     auth_router,
     fetcher_router,
     signalr_router,
@@ -35,9 +35,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="osu! API 模拟服务器", version="1.0.0", lifespan=lifespan)
-app.include_router(api_router, prefix="/api/v2")
-app.include_router(signalr_router, prefix="/signalr")
-app.include_router(fetcher_router, prefix="/fetcher")
+app.include_router(api_v2_router)
+app.include_router(signalr_router)
+app.include_router(fetcher_router)
 app.include_router(auth_router)
 
 
@@ -63,7 +63,6 @@ if settings.osu_web_client_secret == "your_osu_web_client_secret_here":
         "osu_web_client_secret is unset. Your server is unsafe. "
         "Use this command to generate: openssl rand -hex 40"
     )
-
 
 if __name__ == "__main__":
     import uvicorn

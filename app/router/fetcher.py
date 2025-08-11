@@ -5,7 +5,7 @@ from app.fetcher import Fetcher
 
 from fastapi import APIRouter, Depends
 
-fetcher_router = APIRouter()
+fetcher_router = APIRouter(prefix="/fetcher", tags=["fetcher"])
 
 
 @fetcher_router.get("/callback")
