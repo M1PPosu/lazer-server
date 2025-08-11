@@ -136,7 +136,9 @@ def save_replay(
     data.extend(struct.pack("<i", len(compressed)))
     data.extend(compressed)
 
-    replay_path = REPLAY_DIR / f"lazer-{score.type}-{username}-{score.id}.osr"
+    replay_path = (
+        REPLAY_DIR / f"{score.id}_{score.beatmap_id}_{score.user_id}_lazer_replay.osr"
+    )
     replay_path.write_bytes(data)
 
 

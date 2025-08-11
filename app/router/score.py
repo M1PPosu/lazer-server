@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 import time
 
 from app.calculator import clamp
@@ -15,12 +15,14 @@ from app.database import (
     ScoreTokenResp,
     User,
 )
+from app.database.counts import ReplayWatchedCount
 from app.database.playlist_attempts import ItemAttemptsCount
 from app.database.playlist_best_score import (
     PlaylistBestScore,
     get_position,
     process_playlist_best_score,
 )
+from app.database.relationship import Relationship, RelationshipType
 from app.database.score import (
     MultiplayerScores,
     ScoreAround,
@@ -40,15 +42,17 @@ from app.models.score import (
     Rank,
     SoloScoreSubmissionInfo,
 )
+from app.path import REPLAY_DIR
 
 from .api_router import router
 
 from fastapi import Body, Depends, Form, HTTPException, Query
+from fastapi.responses import FileResponse
 from httpx import HTTPError
 from pydantic import BaseModel
 from redis.asyncio import Redis
 from sqlalchemy.orm import joinedload
-from sqlmodel import col, func, select
+from sqlmodel import col, exists, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 READ_SCORE_TIMEOUT = 10
@@ -704,3 +708,54 @@ async def reorder_score_pin(
     score_record.pinned_order = final_target
 
     await db.commit()
+
+
+@router.get("/scores/{score_id}/download")
+async def download_score_replay(
+    score_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    score = (await db.exec(select(Score).where(Score.id == score_id))).first()
+    if not score:
+        raise HTTPException(status_code=404, detail="Score not found")
+
+    filename = f"{score.id}_{score.beatmap_id}_{score.user_id}_lazer_replay.osr"
+    path = REPLAY_DIR / filename
+
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Replay file not found")
+
+    is_friend = (
+        score.user_id == current_user.id
+        or (
+            await db.exec(
+                select(exists()).where(
+                    Relationship.user_id == current_user.id,
+                    Relationship.target_id == score.user_id,
+                    Relationship.type == RelationshipType.FOLLOW,
+                )
+            )
+        ).first()
+    )
+    if not is_friend:
+        replay_watched_count = (
+            await db.exec(
+                select(ReplayWatchedCount).where(
+                    ReplayWatchedCount.user_id == score.user_id,
+                    ReplayWatchedCount.year == date.today().year,
+                    ReplayWatchedCount.month == date.today().month,
+                )
+            )
+        ).first()
+        if replay_watched_count is None:
+            replay_watched_count = ReplayWatchedCount(
+                user_id=score.user_id, year=date.today().year, month=date.today().month
+            )
+            db.add(replay_watched_count)
+        replay_watched_count.count += 1
+        await db.commit()
+
+    return FileResponse(
+        path=path, filename=filename, media_type="application/x-osu-replay"
+    )

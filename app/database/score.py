@@ -37,8 +37,8 @@ from .beatmap import Beatmap, BeatmapResp
 from .beatmap_playcounts import process_beatmap_playcount
 from .beatmapset import BeatmapsetResp
 from .best_score import BestScore
+from .counts import MonthlyPlaycounts
 from .lazer_user import User, UserResp
-from .monthly_playcounts import MonthlyPlaycounts
 from .pp_best_score import PPBestScore
 from .relationship import (
     Relationship as DBRelationship,
@@ -612,7 +612,7 @@ async def process_user(
                 )
             )
     statistics.play_count += 1
-    mouthly_playcount.playcount += 1
+    mouthly_playcount.count += 1
     statistics.play_time += length
     statistics.count_100 += score.n100 + score.nkatu
     statistics.count_300 += score.n300 + score.ngeki

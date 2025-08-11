@@ -7,8 +7,8 @@ from app.models.user import Country, Page, RankHistory
 
 from .achievement import UserAchievement, UserAchievementResp
 from .beatmap_playcounts import BeatmapPlaycounts
+from .counts import CountResp, MonthlyPlaycounts, ReplayWatchedCount
 from .daily_challenge import DailyChallengeStats, DailyChallengeStatsResp
-from .monthly_playcounts import MonthlyPlaycounts, MonthlyPlaycountsResp
 from .statistics import UserStatistics, UserStatisticsResp
 from .team import Team, TeamMember
 from .user_account_history import UserAccountHistory, UserAccountHistoryResp
@@ -76,7 +76,6 @@ class UserBase(UTCBaseModel, SQLModel):
     username: str = Field(max_length=32, unique=True, index=True)
     page: Page = Field(sa_column=Column(JSON), default=Page(html="", raw=""))
     previous_usernames: list[str] = Field(default_factory=list, sa_column=Column(JSON))
-    # TODO: replays_watched_counts
     support_level: int = 0
     badges: list[Badge] = Field(default_factory=list, sa_column=Column(JSON))
 
@@ -146,6 +145,9 @@ class User(AsyncAttrs, UserBase, table=True):
         back_populates="user"
     )
     monthly_playcounts: list[MonthlyPlaycounts] = Relationship(back_populates="user")
+    replays_watched_counts: list[ReplayWatchedCount] = Relationship(
+        back_populates="user"
+    )
     favourite_beatmapsets: list["FavouriteBeatmapset"] = Relationship(
         back_populates="user"
     )
@@ -185,7 +187,8 @@ class UserResp(UserBase):
     account_history: list[UserAccountHistoryResp] = []
     active_tournament_banners: list[dict] = []  # TODO
     kudosu: Kudosu = Field(default_factory=lambda: Kudosu(available=0, total=0))  # TODO
-    monthly_playcounts: list[MonthlyPlaycountsResp] = Field(default_factory=list)
+    monthly_playcounts: list[CountResp] = Field(default_factory=list)
+    replay_watched_counts: list[CountResp] = Field(default_factory=list)
     unread_pm_count: int = 0  # TODO
     rank_history: RankHistory | None = None  # TODO
     rank_highest: RankHighest | None = None  # TODO
@@ -299,8 +302,14 @@ class UserResp(UserBase):
 
         if "monthly_playcounts" in include:
             u.monthly_playcounts = [
-                MonthlyPlaycountsResp.from_db(pc)
+                CountResp.from_db(pc)
                 for pc in await obj.awaitable_attrs.monthly_playcounts
+            ]
+
+        if "replays_watched_counts" in include:
+            u.replay_watched_counts = [
+                CountResp.from_db(rwc)
+                for rwc in await obj.awaitable_attrs.replays_watched_counts
             ]
 
         if "achievements" in include:
@@ -373,6 +382,7 @@ ALL_INCLUDED = [
     "statistics_rulesets",
     "achievements",
     "monthly_playcounts",
+    "replays_watched_counts",
 ]
 
 
@@ -383,6 +393,7 @@ SEARCH_INCLUDED = [
     "statistics_rulesets",
     "achievements",
     "monthly_playcounts",
+    "replays_watched_counts",
 ]
 
 BASE_INCLUDES = [

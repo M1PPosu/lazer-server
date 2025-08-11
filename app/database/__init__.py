@@ -10,6 +10,11 @@ from .beatmapset import (
     BeatmapsetResp as BeatmapsetResp,
 )
 from .best_score import BestScore
+from .counts import (
+    CountResp,
+    MonthlyPlaycounts,
+    ReplayWatchedCount,
+)
 from .daily_challenge import DailyChallengeStats, DailyChallengeStatsResp
 from .favourite_beatmapset import FavouriteBeatmapset
 from .lazer_user import (
@@ -56,11 +61,13 @@ __all__ = [
     "Beatmapset",
     "BeatmapsetResp",
     "BestScore",
+    "CountResp",
     "DailyChallengeStats",
     "DailyChallengeStatsResp",
     "FavouriteBeatmapset",
     "ItemAttemptsCount",
     "ItemAttemptsResp",
+    "MonthlyPlaycounts",
     "MultiplayerEvent",
     "MultiplayerEventResp",
     "MultiplayerScores",
@@ -73,6 +80,7 @@ __all__ = [
     "Relationship",
     "RelationshipResp",
     "RelationshipType",
+    "ReplayWatchedCount",
     "Room",
     "RoomParticipatedUser",
     "RoomResp",
