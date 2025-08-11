@@ -164,8 +164,10 @@ async def get_user_scores(
         order_by = col(Score.pinned_order).asc()
     elif type == "best":
         where_clause &= exists().where(col(PPBestScore.score_id) == Score.id)
+        order_by = col(Score.pp).desc()
     elif type == "recent":
         where_clause &= Score.ended_at > datetime.now(UTC) - timedelta(hours=24)
+        order_by = col(Score.ended_at).desc()
     elif type == "firsts":
         # TODO
         where_clause &= false()
