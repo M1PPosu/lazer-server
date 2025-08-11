@@ -5,7 +5,7 @@ from app.signalr import signalr_router as signalr_router
 from .auth import router as auth_router
 from .fetcher import fetcher_router as fetcher_router
 from .private import private_router as private_router
-from .v2 import api_v2_router as api_v2_router
+from .v2.router import router as api_v2_router
 
 __all__ = [
     "api_v2_router",
