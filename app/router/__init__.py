@@ -6,6 +6,7 @@ from . import (  # pyright: ignore[reportUnusedImport]  # noqa: F401
     beatmap,
     beatmapset,
     me,
+    misc,
     relationship,
     room,
     score,
