@@ -1,9 +1,36 @@
 from __future__ import annotations
 
+from enum import Enum
 from typing import Annotated, Any
 
-from pydantic import Field, field_validator
+from pydantic import Field, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+
+class AWSS3StorageSettings(BaseSettings):
+    s3_access_key_id: str
+    s3_secret_access_key: str
+    s3_bucket_name: str
+    s3_region_name: str
+    s3_public_url_base: str | None = None
+
+
+class CloudflareR2Settings(BaseSettings):
+    r2_account_id: str
+    r2_access_key_id: str
+    r2_secret_access_key: str
+    r2_bucket_name: str
+    r2_public_url_base: str | None = None
+
+
+class LocalStorageSettings(BaseSettings):
+    local_storage_path: str = "./storage"
+
+
+class StorageServiceType(str, Enum):
+    LOCAL = "local"
+    CLOUDFLARE_R2 = "r2"
+    AWS_S3 = "s3"
 
 
 class Settings(BaseSettings):
@@ -60,10 +87,42 @@ class Settings(BaseSettings):
     enable_all_beatmap_leaderboard: bool = False
     seasonal_backgrounds: list[str] = []
 
+    # 存储设置
+    storage_service: StorageServiceType = StorageServiceType.LOCAL
+    storage_settings: (
+        LocalStorageSettings | CloudflareR2Settings | AWSS3StorageSettings
+    ) = LocalStorageSettings()
+
     @field_validator("fetcher_scopes", mode="before")
     def validate_fetcher_scopes(cls, v: Any) -> list[str]:
         if isinstance(v, str):
             return v.split(",")
+        return v
+
+    @field_validator("storage_settings", mode="after")
+    def validate_storage_settings(
+        cls,
+        v: LocalStorageSettings | CloudflareR2Settings | AWSS3StorageSettings,
+        info: ValidationInfo,
+    ) -> LocalStorageSettings | CloudflareR2Settings | AWSS3StorageSettings:
+        if info.data.get("storage_service") == StorageServiceType.CLOUDFLARE_R2:
+            if not isinstance(v, CloudflareR2Settings):
+                raise ValueError(
+                    "When storage_service is 'r2', "
+                    "storage_settings must be CloudflareR2Settings"
+                )
+        elif info.data.get("storage_service") == StorageServiceType.LOCAL:
+            if not isinstance(v, LocalStorageSettings):
+                raise ValueError(
+                    "When storage_service is 'local', "
+                    "storage_settings must be LocalStorageSettings"
+                )
+        elif info.data.get("storage_service") == StorageServiceType.AWS_S3:
+            if not isinstance(v, AWSS3StorageSettings):
+                raise ValueError(
+                    "When storage_service is 's3', "
+                    "storage_settings must be AWSS3StorageSettings"
+                )
         return v
 
 

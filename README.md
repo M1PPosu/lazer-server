@@ -9,6 +9,7 @@
 - **多游戏模式支持**: osu! (osu!rx, osu!ap), taiko, fruits, mania
 - **数据库持久化**: MySQL 存储用户数据
 - **缓存支持**: Redis 缓存令牌和会话信息
+- **多种存储后端**: 支持本地存储、Cloudflare R2、AWS S3
 - **容器化部署**: Docker 和 Docker Compose 支持
 
 ## 快速开始
@@ -108,6 +109,52 @@ Fetcher 用于从 osu! 官方 API 获取数据，使用 osu! 官方 API 的 OAut
 | `ENABLE_SUPPORTER_FOR_ALL_USERS` | 启用所有新注册用户的支持者状态 | `false` |
 | `ENABLE_ALL_BEATMAP_LEADERBOARD` | 启用所有谱面的排行榜 | `false` |
 | `SEASONAL_BACKGROUNDS` | 季节背景图 URL 列表 | `[]` |
+
+### 存储服务设置
+
+用于存储回放文件、头像等静态资源。
+
+| 变量名 | 描述 | 默认值 |
+|--------|------|--------|
+| `STORAGE_SERVICE` | 存储服务类型：`local`、`r2`、`s3` | `local` |
+| `STORAGE_SETTINGS` | 存储服务配置 (JSON 格式)，配置见下 | `{"local_storage_path": "./storage"}` |
+
+## 存储服务配置
+
+### 本地存储 (推荐用于开发环境)
+
+本地存储将文件保存在服务器的本地文件系统中，适合开发和小规模部署。
+
+```bash
+STORAGE_SERVICE="local"
+STORAGE_SETTINGS='{"local_storage_path": "./storage"}'
+```
+
+### Cloudflare R2 存储 (推荐用于生产环境)
+
+```bash
+STORAGE_SERVICE="r2"
+STORAGE_SETTINGS='{
+  "r2_account_id": "your_cloudflare_account_id",
+  "r2_access_key_id": "your_r2_access_key_id",
+  "r2_secret_access_key": "your_r2_secret_access_key",
+  "r2_bucket_name": "your_bucket_name",
+  "r2_public_url_base": "https://your-custom-domain.com"
+}'
+```
+
+### AWS S3 存储
+
+```bash
+STORAGE_SERVICE="s3"
+STORAGE_SETTINGS='{
+  "s3_access_key_id": "your_aws_access_key_id",
+  "s3_secret_access_key": "your_aws_secret_access_key",
+  "s3_bucket_name": "your_s3_bucket_name",
+  "s3_region_name": "us-east-1",
+  "s3_public_url_base": "https://your-custom-domain.com"
+}'
+```
 
 > **注意**: 在生产环境中，请务必更改默认的密钥和密码！
 

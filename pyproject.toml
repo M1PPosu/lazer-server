@@ -5,6 +5,8 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "aioboto3>=15.0.0",
+    "aiofiles>=24.1.0",
     "aiomysql>=0.2.0",
     "alembic>=1.12.1",
     "apscheduler>=3.11.0",
@@ -104,4 +106,5 @@ dev = [
     "maturin>=1.9.2",
     "pre-commit>=4.2.0",
     "ruff>=0.12.4",
+    "types-aioboto3[aioboto3,essential]>=15.0.0",
 ]
