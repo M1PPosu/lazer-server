@@ -10,6 +10,7 @@ from app.database import (
     User,
     UserResp,
 )
+from app.database.events import EventResp
 from app.database.lazer_user import SEARCH_INCLUDED
 from app.database.pp_best_score import PPBestScore
 from app.database.score import Score, ScoreResp
@@ -258,3 +259,21 @@ async def get_user_scores(
         )
         for score in scores
     ]
+
+
+@router.get(
+    "/users/{user}/recent_activity", tags=["用户"], response_model=list[EventResp]
+)
+async def get_user_events(
+    user: int,
+    limit: int | None = Query(None),
+    offset: str | None = Query(None),  # TODO: 搞清楚并且添加这个奇怪的分页偏移
+    session: AsyncSession = Depends(get_db),
+):
+    db_user = await session.get(User, user)
+    if db_user is None:
+        raise HTTPException(404, "User Not found")
+    events = await db_user.awaitable_attrs.events
+    if limit is not None:
+        events = events[:limit]
+    return [EventResp(**event.model_dump()).merge_payload() for event in events]
