@@ -12,6 +12,7 @@ from app.router import (
     api_v2_router,
     auth_router,
     fetcher_router,
+    file_router,
     private_router,
     signalr_router,
 )
@@ -38,19 +39,20 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="osu! API 模拟服务器", version="1.0.0", lifespan=lifespan)
 
+app.include_router(api_v2_router)
+app.include_router(signalr_router)
+app.include_router(fetcher_router)
+app.include_router(file_router)
+app.include_router(auth_router)
+app.include_router(private_router)
 # CORS 配置
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[str(settings.server_url)],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.include_router(api_v2_router)
-app.include_router(signalr_router)
-app.include_router(fetcher_router)
-app.include_router(auth_router)
-app.include_router(private_router)
 
 
 @app.get("/")

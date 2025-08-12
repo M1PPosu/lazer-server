@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from app.config import settings
+
 from .base import StorageService
 
 import aiofiles
@@ -75,4 +77,4 @@ class LocalStorageService(StorageService):
         return full_path.exists() and full_path.is_file()
 
     async def get_file_url(self, file_path: str) -> str:
-        return str(self.storage_path / file_path)
+        return f"{settings.server_url}file/{file_path.lstrip('/')}"

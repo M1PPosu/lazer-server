@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Annotated, Any
 
-from pydantic import Field, ValidationInfo, field_validator
+from pydantic import Field, HttpUrl, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -65,6 +65,7 @@ class Settings(BaseSettings):
     port: int = 8000
     debug: bool = False
     private_api_secret: str = "your_private_api_secret_here"
+    server_url: HttpUrl = HttpUrl("http://localhost:8000")
 
     # SignalR 设置
     signalr_negotiate_timeout: int = 30
@@ -74,7 +75,10 @@ class Settings(BaseSettings):
     fetcher_client_id: str = ""
     fetcher_client_secret: str = ""
     fetcher_scopes: Annotated[list[str], NoDecode] = ["public"]
-    fetcher_callback_url: str = "http://localhost:8000/fetcher/callback"
+
+    @property
+    def fetcher_callback_url(self) -> str:
+        return f"{self.server_url}fetcher/callback"
 
     # 日志设置
     log_level: str = "INFO"
