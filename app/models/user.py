@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
+from typing import NotRequired, TypedDict
 
 from .model import UTCBaseModel
 
@@ -83,9 +84,9 @@ class RankHistory(BaseModel):
     data: list[int]
 
 
-class Page(BaseModel):
-    html: str = ""
-    raw: str = ""
+class Page(TypedDict):
+    html: NotRequired[str]
+    raw: NotRequired[str]
 
 
 class BeatmapsetType(str, Enum):

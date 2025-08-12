@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 from typing import Literal, NotRequired, TypedDict
 
+from app.config import settings as app_settings
 from app.path import STATIC_DIR
 
 
 class APIMod(TypedDict):
     acronym: str
-    settings: NotRequired[dict[str, bool | float | str]]
+    settings: NotRequired[dict[str, bool | float | str | int]]
 
 
 # https://github.com/ppy/osu-api/wiki#mods
@@ -129,10 +131,10 @@ COMMON_CONFIG: dict[str, dict] = {
 }
 
 RANKED_MODS: dict[int, dict[str, dict]] = {
-    0: COMMON_CONFIG,
-    1: COMMON_CONFIG,
-    2: COMMON_CONFIG,
-    3: COMMON_CONFIG,
+    0: deepcopy(COMMON_CONFIG),
+    1: deepcopy(COMMON_CONFIG),
+    2: deepcopy(COMMON_CONFIG),
+    3: deepcopy(COMMON_CONFIG),
 }
 # osu
 RANKED_MODS[0]["HD"]["only_fade_approach_circles"] = False
@@ -154,8 +156,15 @@ for i in range(4, 10):
 
 
 def mods_can_get_pp(ruleset_id: int, mods: list[APIMod]) -> bool:
+    if app_settings.enable_all_mods_pp:
+        return True
     ranked_mods = RANKED_MODS[ruleset_id]
     for mod in mods:
+        if app_settings.enable_osu_rx and mod["acronym"] == "RX" and ruleset_id == 0:
+            continue
+        if app_settings.enable_osu_ap and mod["acronym"] == "AP" and ruleset_id == 0:
+            continue
+
         mod["settings"] = mod.get("settings", {})
         if (settings := ranked_mods.get(mod["acronym"])) is None:
             return False

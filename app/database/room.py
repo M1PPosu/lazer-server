@@ -1,6 +1,177 @@
-from sqlmodel import Field, SQLModel
+from datetime import UTC, datetime
+
+from app.database.playlist_attempts import PlaylistAggregateScore
+from app.database.room_participated_user import RoomParticipatedUser
+from app.models.model import UTCBaseModel
+from app.models.multiplayer_hub import ServerMultiplayerRoom
+from app.models.room import (
+    MatchType,
+    QueueMode,
+    RoomCategory,
+    RoomDifficultyRange,
+    RoomPlaylistItemStats,
+    RoomStatus,
+)
+
+from .lazer_user import User, UserResp
+from .playlists import Playlist, PlaylistResp
+
+from sqlalchemy.ext.asyncio import AsyncAttrs
+from sqlmodel import (
+    BigInteger,
+    Column,
+    DateTime,
+    Field,
+    ForeignKey,
+    Relationship,
+    SQLModel,
+    col,
+    select,
+)
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 
-class RoomIndex(SQLModel, table=True):
-    __tablename__ = "mp_room_index"  # pyright: ignore[reportAssignmentType]
-    id: int | None = Field(default=None, primary_key=True, index=True)  # pyright: ignore[reportCallIssue]
+class RoomBase(SQLModel, UTCBaseModel):
+    name: str = Field(index=True)
+    category: RoomCategory = Field(default=RoomCategory.NORMAL, index=True)
+    duration: int | None = Field(default=None)  # minutes
+    starts_at: datetime | None = Field(
+        sa_column=Column(
+            DateTime(timezone=True),
+        ),
+        default=datetime.now(UTC),
+    )
+    ends_at: datetime | None = Field(
+        sa_column=Column(
+            DateTime(timezone=True),
+        ),
+        default=None,
+    )
+    participant_count: int = Field(default=0)
+    max_attempts: int | None = Field(default=None)  # playlists
+    type: MatchType
+    queue_mode: QueueMode
+    auto_skip: bool
+    auto_start_duration: int
+    status: RoomStatus
+    # TODO: channel_id
+
+
+class Room(AsyncAttrs, RoomBase, table=True):
+    __tablename__ = "rooms"  # pyright: ignore[reportAssignmentType]
+    id: int = Field(default=None, primary_key=True, index=True)
+    host_id: int = Field(
+        sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True)
+    )
+
+    host: User = Relationship()
+    playlist: list[Playlist] = Relationship(
+        sa_relationship_kwargs={
+            "lazy": "selectin",
+            "cascade": "all, delete-orphan",
+            "overlaps": "room",
+        }
+    )
+
+
+class RoomResp(RoomBase):
+    id: int
+    has_password: bool = False
+    host: UserResp | None = None
+    playlist: list[PlaylistResp] = []
+    playlist_item_stats: RoomPlaylistItemStats | None = None
+    difficulty_range: RoomDifficultyRange | None = None
+    current_playlist_item: PlaylistResp | None = None
+    current_user_score: PlaylistAggregateScore | None = None
+    recent_participants: list[UserResp] = Field(default_factory=list)
+
+    @classmethod
+    async def from_db(
+        cls,
+        room: Room,
+        session: AsyncSession,
+        include: list[str] = [],
+        user: User | None = None,
+    ) -> "RoomResp":
+        resp = cls.model_validate(room.model_dump())
+
+        stats = RoomPlaylistItemStats(count_active=0, count_total=0)
+        difficulty_range = RoomDifficultyRange(
+            min=0,
+            max=0,
+        )
+        rulesets = set()
+        for playlist in room.playlist:
+            stats.count_total += 1
+            if not playlist.expired:
+                stats.count_active += 1
+            rulesets.add(playlist.ruleset_id)
+            difficulty_range.min = min(
+                difficulty_range.min, playlist.beatmap.difficulty_rating
+            )
+            difficulty_range.max = max(
+                difficulty_range.max, playlist.beatmap.difficulty_rating
+            )
+            resp.playlist.append(await PlaylistResp.from_db(playlist, ["beatmap"]))
+        stats.ruleset_ids = list(rulesets)
+        resp.playlist_item_stats = stats
+        resp.difficulty_range = difficulty_range
+        resp.current_playlist_item = resp.playlist[-1] if resp.playlist else None
+        resp.recent_participants = []
+        for recent_participant in await session.exec(
+            select(RoomParticipatedUser)
+            .where(
+                RoomParticipatedUser.room_id == room.id,
+                col(RoomParticipatedUser.left_at).is_(None),
+            )
+            .limit(8)
+            .order_by(col(RoomParticipatedUser.joined_at).desc())
+        ):
+            resp.recent_participants.append(
+                await UserResp.from_db(
+                    await recent_participant.awaitable_attrs.user,
+                    session,
+                    include=["statistics"],
+                )
+            )
+        resp.host = await UserResp.from_db(
+            await room.awaitable_attrs.host, session, include=["statistics"]
+        )
+        if "current_user_score" in include and user:
+            resp.current_user_score = await PlaylistAggregateScore.from_db(
+                room.id, user.id, session
+            )
+        return resp
+
+    @classmethod
+    async def from_hub(cls, server_room: ServerMultiplayerRoom) -> "RoomResp":
+        room = server_room.room
+        resp = cls(
+            id=room.room_id,
+            name=room.settings.name,
+            type=room.settings.match_type,
+            queue_mode=room.settings.queue_mode,
+            auto_skip=room.settings.auto_skip,
+            auto_start_duration=int(room.settings.auto_start_duration.total_seconds()),
+            status=server_room.status,
+            category=server_room.category,
+            # duration = room.settings.duration,
+            starts_at=server_room.start_at,
+            participant_count=len(room.users),
+        )
+        return resp
+
+
+class APIUploadedRoom(RoomBase):
+    def to_room(self) -> Room:
+        """
+        将 APIUploadedRoom 转换为 Room 对象，playlist 字段需单独处理。
+        """
+        room_dict = self.model_dump()
+        room_dict.pop("playlist", None)
+        # host_id 已在字段中
+        return Room(**room_dict)
+
+    id: int | None
+    host_id: int | None = None
+    playlist: list[Playlist] = Field(default_factory=list)

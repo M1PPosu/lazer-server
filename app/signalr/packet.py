@@ -15,7 +15,7 @@ from typing import (
 )
 
 from app.models.signalr import SignalRMeta, SignalRUnionMessage
-from app.utils import camel_to_snake, snake_to_camel
+from app.utils import camel_to_snake, snake_to_camel, snake_to_pascal
 
 import msgpack_lazer_api as m
 from pydantic import BaseModel
@@ -97,6 +97,8 @@ class MsgpackProtocol:
             return [cls.serialize_msgpack(item) for item in v]
         elif issubclass(typ, datetime.datetime):
             return [v, 0]
+        elif issubclass(typ, datetime.timedelta):
+            return int(v.total_seconds() * 10_000_000)
         elif isinstance(v, dict):
             return {
                 cls.serialize_msgpack(k): cls.serialize_msgpack(value)
@@ -126,15 +128,19 @@ class MsgpackProtocol:
     def process_object(v: Any, typ: type[BaseModel]) -> Any:
         if isinstance(v, list):
             d = {}
-            for i, f in enumerate(typ.model_fields.items()):
-                field, info = f
-                if info.exclude:
+            i = 0
+            for field, info in typ.model_fields.items():
+                metadata = next(
+                    (m for m in info.metadata if isinstance(m, SignalRMeta)), None
+                )
+                if metadata and metadata.member_ignore:
                     continue
                 anno = info.annotation
                 if anno is None:
                     d[camel_to_snake(field)] = v[i]
-                    continue
-                d[field] = MsgpackProtocol.validate_object(v[i], anno)
+                else:
+                    d[field] = MsgpackProtocol.validate_object(v[i], anno)
+                i += 1
             return d
         return v
 
@@ -209,7 +215,9 @@ class MsgpackProtocol:
             return typ.model_validate(obj=cls.process_object(v, typ))
         elif inspect.isclass(typ) and issubclass(typ, datetime.datetime):
             return v[0]
-        elif isinstance(v, list):
+        elif inspect.isclass(typ) and issubclass(typ, datetime.timedelta):
+            return datetime.timedelta(seconds=int(v / 10_000_000))
+        elif get_origin(typ) is list:
             return [cls.validate_object(item, get_args(typ)[0]) for item in v]
         elif inspect.isclass(typ) and issubclass(typ, Enum):
             list_ = list(typ)
@@ -234,7 +242,9 @@ class MsgpackProtocol:
             # except `X (Other Type) | None`
             if NoneType in args and v is None:
                 return None
-            if not all(issubclass(arg, SignalRUnionMessage) for arg in args):
+            if not all(
+                issubclass(arg, SignalRUnionMessage) or arg is NoneType for arg in args
+            ):
                 raise ValueError(
                     f"Cannot validate {v} to {typ}, "
                     "only SignalRUnionMessage subclasses are supported"
@@ -292,36 +302,55 @@ class MsgpackProtocol:
 
 class JSONProtocol:
     @classmethod
-    def serialize_to_json(cls, v: Any):
+    def serialize_to_json(cls, v: Any, dict_key: bool = False, in_union: bool = False):
         typ = v.__class__
         if issubclass(typ, BaseModel):
-            return cls.serialize_model(v)
+            return cls.serialize_model(v, in_union)
         elif isinstance(v, dict):
             return {
-                cls.serialize_to_json(k): cls.serialize_to_json(value)
+                cls.serialize_to_json(k, True): cls.serialize_to_json(value)
                 for k, value in v.items()
             }
         elif isinstance(v, list):
             return [cls.serialize_to_json(item) for item in v]
         elif isinstance(v, datetime.datetime):
             return v.isoformat()
-        elif isinstance(v, Enum):
+        elif isinstance(v, datetime.timedelta):
+            # d.hh:mm:ss
+            total_seconds = int(v.total_seconds())
+            hours, remainder = divmod(total_seconds, 3600)
+            minutes, seconds = divmod(remainder, 60)
+            return f"{hours:02}:{minutes:02}:{seconds:02}"
+        elif isinstance(v, Enum) and dict_key:
             return v.value
+        elif isinstance(v, Enum):
+            list_ = list(typ)
+            return list_.index(v)
         return v
 
     @classmethod
-    def serialize_model(cls, v: BaseModel) -> dict[str, Any]:
+    def serialize_model(cls, v: BaseModel, in_union: bool = False) -> dict[str, Any]:
         d = {}
+        is_union = issubclass(v.__class__, SignalRUnionMessage)
         for field, info in v.__class__.model_fields.items():
             metadata = next(
                 (m for m in info.metadata if isinstance(m, SignalRMeta)), None
             )
             if metadata and metadata.json_ignore:
                 continue
-            d[snake_to_camel(field, metadata.use_upper_case if metadata else False)] = (
-                cls.serialize_to_json(getattr(v, field))
+            name = (
+                snake_to_camel(
+                    field,
+                    metadata.use_abbr if metadata else True,
+                )
+                if not is_union
+                else snake_to_pascal(
+                    field,
+                    metadata.use_abbr if metadata else True,
+                )
             )
-        if issubclass(v.__class__, SignalRUnionMessage):
+            d[name] = cls.serialize_to_json(getattr(v, field), in_union=is_union)
+        if is_union and not in_union:
             return {
                 "$dtype": v.__class__.__name__,
                 "$value": d,
@@ -339,7 +368,12 @@ class JSONProtocol:
             )
             if metadata and metadata.json_ignore:
                 continue
-            value = v.get(snake_to_camel(field, not from_union))
+            name = (
+                snake_to_camel(field, metadata.use_abbr if metadata else True)
+                if not from_union
+                else snake_to_pascal(field, metadata.use_abbr if metadata else True)
+            )
+            value = v.get(name)
             anno = typ.model_fields[field].annotation
             if anno is None:
                 d[field] = value
@@ -397,7 +431,18 @@ class JSONProtocol:
             return typ.model_validate(JSONProtocol.process_object(v, typ, from_union))
         elif inspect.isclass(typ) and issubclass(typ, datetime.datetime):
             return datetime.datetime.fromisoformat(v)
-        elif isinstance(v, list):
+        elif inspect.isclass(typ) and issubclass(typ, datetime.timedelta):
+            # d.hh:mm:ss
+            parts = v.split(":")
+            if len(parts) == 3:
+                return datetime.timedelta(
+                    hours=int(parts[0]), minutes=int(parts[1]), seconds=int(parts[2])
+                )
+            elif len(parts) == 2:
+                return datetime.timedelta(minutes=int(parts[0]), seconds=int(parts[1]))
+            elif len(parts) == 1:
+                return datetime.timedelta(seconds=int(parts[0]))
+        elif get_origin(typ) is list:
             return [cls.validate_object(item, get_args(typ)[0]) for item in v]
         elif inspect.isclass(typ) and issubclass(typ, Enum):
             list_ = list(typ)

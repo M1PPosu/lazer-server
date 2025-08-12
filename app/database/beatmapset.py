@@ -1,58 +1,38 @@
 from datetime import datetime
-from typing import TYPE_CHECKING, TypedDict, cast
+from typing import TYPE_CHECKING, NotRequired, TypedDict
 
+from app.config import settings
 from app.models.beatmap import BeatmapRankStatus, Genre, Language
-from app.models.model import UTCBaseModel
 from app.models.score import GameMode
 
 from .lazer_user import BASE_INCLUDES, User, UserResp
 
-from pydantic import BaseModel, model_serializer
-from sqlalchemy import DECIMAL, JSON, Column, DateTime, Text
+from pydantic import BaseModel
+from sqlalchemy import JSON, Column, DateTime, Text
 from sqlalchemy.ext.asyncio import AsyncAttrs
-from sqlmodel import Field, Relationship, SQLModel, col, func, select
+from sqlmodel import Field, Relationship, SQLModel, col, exists, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 if TYPE_CHECKING:
+    from app.fetcher import Fetcher
+
     from .beatmap import Beatmap, BeatmapResp
     from .favourite_beatmapset import FavouriteBeatmapset
 
 
-class BeatmapCovers(SQLModel):
-    cover: str
-    card: str
-    list: str
-    slimcover: str
-    cover_2_x: str | None = Field(default=None, alias="cover@2x")
-    card_2_x: str | None = Field(default=None, alias="card@2x")
-    list_2_x: str | None = Field(default=None, alias="list@2x")
-    slimcover_2_x: str | None = Field(default=None, alias="slimcover@2x")
-
-    @model_serializer
-    def _(self) -> dict[str, str | None]:
-        self = cast(dict[str, str | None] | BeatmapCovers, self)
-        if isinstance(self, dict):
-            return {
-                "cover": self["cover"],
-                "card": self["card"],
-                "list": self["list"],
-                "slimcover": self["slimcover"],
-                "cover@2x": self.get("cover@2x"),
-                "card@2x": self.get("card@2x"),
-                "list@2x": self.get("list@2x"),
-                "slimcover@2x": self.get("slimcover@2x"),
-            }
-        else:
-            return {
-                "cover": self.cover,
-                "card": self.card,
-                "list": self.list,
-                "slimcover": self.slimcover,
-                "cover@2x": self.cover_2_x,
-                "card@2x": self.card_2_x,
-                "list@2x": self.list_2_x,
-                "slimcover@2x": self.slimcover_2_x,
-            }
+BeatmapCovers = TypedDict(
+    "BeatmapCovers",
+    {
+        "cover": str,
+        "card": str,
+        "list": str,
+        "slimcover": str,
+        "cover@2x": NotRequired[str | None],
+        "card@2x": NotRequired[str | None],
+        "list@2x": NotRequired[str | None],
+        "slimcover@2x": NotRequired[str | None],
+    },
+)
 
 
 class BeatmapHype(BaseModel):
@@ -74,12 +54,12 @@ class BeatmapNomination(TypedDict):
     beatmapset_id: int
     reset: bool
     user_id: int
-    rulesets: list[GameMode] | None
+    rulesets: NotRequired[list[GameMode] | None]
 
 
-class BeatmapDescription(SQLModel):
-    bbcode: str | None = None
-    description: str | None = None
+class BeatmapDescription(TypedDict):
+    bbcode: NotRequired[str | None]
+    description: NotRequired[str | None]
 
 
 class BeatmapTranslationText(BaseModel):
@@ -87,7 +67,7 @@ class BeatmapTranslationText(BaseModel):
     id: int | None = None
 
 
-class BeatmapsetBase(SQLModel, UTCBaseModel):
+class BeatmapsetBase(SQLModel):
     # Beatmapset
     artist: str = Field(index=True)
     artist_unicode: str = Field(index=True)
@@ -121,7 +101,7 @@ class BeatmapsetBase(SQLModel, UTCBaseModel):
     track_id: int | None = Field(default=None)  # feature artist?
 
     # BeatmapsetExtended
-    bpm: float = Field(default=0.0, sa_column=Column(DECIMAL(10, 2)))
+    bpm: float = Field(default=0.0)
     can_be_hyped: bool = Field(default=False)
     discussion_locked: bool = Field(default=False)
     last_updated: datetime = Field(sa_column=Column(DateTime))
@@ -181,9 +161,22 @@ class Beatmapset(AsyncAttrs, BeatmapsetBase, table=True):
                 "download_disabled": resp.availability.download_disabled or False,
             }
         )
-        session.add(beatmapset)
-        await session.commit()
+        if not (
+            await session.exec(select(exists()).where(Beatmapset.id == resp.id))
+        ).first():
+            session.add(beatmapset)
+            await session.commit()
         await Beatmap.from_resp_batch(session, resp.beatmaps, from_=from_)
+        return beatmapset
+
+    @classmethod
+    async def get_or_fetch(
+        cls, session: AsyncSession, fetcher: "Fetcher", sid: int
+    ) -> "Beatmapset":
+        beatmapset = await session.get(Beatmapset, sid)
+        if not beatmapset:
+            resp = await fetcher.get_beatmapset(sid)
+            beatmapset = await cls.from_resp(session, resp)
         return beatmapset
 
 
@@ -193,7 +186,7 @@ class BeatmapsetResp(BeatmapsetBase):
     discussion_enabled: bool = True
     status: str
     ranked: int
-    legacy_thread_url: str = ""
+    legacy_thread_url: str | None = ""
     is_scoreable: bool
     hype: BeatmapHype | None = None
     availability: BeatmapAvailability
@@ -239,11 +232,21 @@ class BeatmapsetResp(BeatmapsetBase):
                 required=beatmapset.nominations_required,
                 current=beatmapset.nominations_current,
             ),
-            "status": beatmapset.beatmap_status.name.lower(),
-            "ranked": beatmapset.beatmap_status.value,
-            "is_scoreable": beatmapset.beatmap_status > BeatmapRankStatus.PENDING,
+            "is_scoreable": beatmapset.beatmap_status.has_leaderboard(),
             **beatmapset.model_dump(),
         }
+
+        beatmap_status = beatmapset.beatmap_status
+        if (
+            settings.enable_all_beatmap_leaderboard
+            and not beatmap_status.has_leaderboard()
+        ):
+            update["status"] = BeatmapRankStatus.APPROVED.name.lower()
+            update["ranked"] = BeatmapRankStatus.APPROVED.value
+        else:
+            update["status"] = beatmap_status.name.lower()
+            update["ranked"] = beatmap_status.value
+
         if session and user:
             existing_favourite = (
                 await session.exec(

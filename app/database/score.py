@@ -3,7 +3,7 @@ from collections.abc import Sequence
 from datetime import UTC, date, datetime
 import json
 import math
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from app.calculator import (
     calculate_pp,
@@ -13,8 +13,14 @@ from app.calculator import (
     calculate_weighted_pp,
     clamp,
 )
+from app.config import settings
 from app.database.team import TeamMember
-from app.models.model import UTCBaseModel
+from app.models.model import (
+    CurrentUserAttributes,
+    PinAttributes,
+    RespWithCursor,
+    UTCBaseModel,
+)
 from app.models.mods import APIMod, mods_can_get_pp
 from app.models.score import (
     INT_TO_MODE,
@@ -31,8 +37,8 @@ from .beatmap import Beatmap, BeatmapResp
 from .beatmap_playcounts import process_beatmap_playcount
 from .beatmapset import BeatmapsetResp
 from .best_score import BestScore
+from .counts import MonthlyPlaycounts
 from .lazer_user import User, UserResp
-from .monthly_playcounts import MonthlyPlaycounts
 from .pp_best_score import PPBestScore
 from .relationship import (
     Relationship as DBRelationship,
@@ -89,10 +95,11 @@ class ScoreBase(AsyncAttrs, SQLModel, UTCBaseModel):
         default=0, sa_column=Column(BigInteger), exclude=True
     )
     type: str
+    beatmap_id: int = Field(index=True, foreign_key="beatmaps.id")
 
     # optional
     # TODO: current_user_attributes
-    position: int | None = Field(default=None)  # multiplayer
+    # position: int | None = Field(default=None)  # multiplayer
 
 
 class Score(ScoreBase, table=True):
@@ -100,7 +107,6 @@ class Score(ScoreBase, table=True):
     id: int | None = Field(
         default=None, sa_column=Column(BigInteger, autoincrement=True, primary_key=True)
     )
-    beatmap_id: int = Field(index=True, foreign_key="beatmaps.id")
     user_id: int = Field(
         default=None,
         sa_column=Column(
@@ -121,6 +127,7 @@ class Score(ScoreBase, table=True):
     nslider_tail_hit: int | None = Field(default=None, exclude=True)
     nsmall_tick_hit: int | None = Field(default=None, exclude=True)
     gamemode: GameMode = Field(index=True)
+    pinned_order: int = Field(default=0, exclude=True)
 
     # optional
     beatmap: Beatmap = Relationship()
@@ -163,6 +170,9 @@ class ScoreResp(ScoreBase):
     maximum_statistics: ScoreStatistics | None = None
     rank_global: int | None = None
     rank_country: int | None = None
+    position: int | None = None
+    scores_around: "ScoreAround | None" = None
+    current_user_attributes: CurrentUserAttributes | None = None
 
     @classmethod
     async def from_db(cls, session: AsyncSession, score: Score) -> "ScoreResp":
@@ -231,7 +241,20 @@ class ScoreResp(ScoreBase):
             )
             or None
         )
+        s.current_user_attributes = CurrentUserAttributes(
+            pin=PinAttributes(is_pinned=bool(score.pinned_order), score_id=score.id)
+        )
         return s
+
+
+class MultiplayerScores(RespWithCursor):
+    scores: list[ScoreResp] = Field(default_factory=list)
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+class ScoreAround(SQLModel):
+    higher: MultiplayerScores | None = None
+    lower: MultiplayerScores | None = None
 
 
 async def get_best_id(session: AsyncSession, score_id: int) -> None:
@@ -312,6 +335,13 @@ async def get_leaderboard(
     user: User | None = None,
     limit: int = 50,
 ) -> tuple[list[Score], Score | None]:
+    is_rx = "RX" in (mods or [])
+    is_ap = "AP" in (mods or [])
+    if settings.enable_osu_rx and is_rx:
+        mode = GameMode.OSURX
+    elif settings.enable_osu_ap and is_ap:
+        mode = GameMode.OSUAP
+
     wheres = await _score_where(type, beatmap, mode, mods, user)
     if wheres is None:
         return [], None
@@ -329,6 +359,10 @@ async def get_leaderboard(
         self_query = (
             select(BestScore)
             .where(BestScore.user_id == user.id)
+            .where(
+                col(BestScore.beatmap_id) == beatmap,
+                col(BestScore.gamemode) == mode,
+            )
             .order_by(col(BestScore.total_score).desc())
             .limit(1)
         )
@@ -461,12 +495,13 @@ async def get_user_best_pp_in_beatmap(
 async def get_user_best_pp(
     session: AsyncSession,
     user: int,
+    mode: GameMode,
     limit: int = 200,
 ) -> Sequence[PPBestScore]:
     return (
         await session.exec(
             select(PPBestScore)
-            .where(PPBestScore.user_id == user)
+            .where(PPBestScore.user_id == user, PPBestScore.gamemode == mode)
             .order_by(col(PPBestScore.pp).desc())
             .limit(limit)
         )
@@ -474,7 +509,7 @@ async def get_user_best_pp(
 
 
 async def process_user(
-    session: AsyncSession, user: User, score: Score, ranked: bool = False
+    session: AsyncSession, user: User, score: Score, length: int, ranked: bool = False
 ):
     assert user.id
     assert score.id
@@ -577,8 +612,8 @@ async def process_user(
                 )
             )
     statistics.play_count += 1
-    mouthly_playcount.playcount += 1
-    statistics.play_time += int((score.ended_at - score.started_at).total_seconds())
+    mouthly_playcount.count += 1
+    statistics.play_time += length
     statistics.count_100 += score.n100 + score.nkatu
     statistics.count_300 += score.n300 + score.ngeki
     statistics.count_50 += score.n50
@@ -588,7 +623,7 @@ async def process_user(
     )
 
     if score.passed and ranked:
-        best_pp_scores = await get_user_best_pp(session, user.id)
+        best_pp_scores = await get_user_best_pp(session, user.id, score.gamemode)
         pp_sum = 0.0
         acc_sum = 0.0
         for i, bp in enumerate(best_pp_scores):
@@ -616,9 +651,19 @@ async def process_score(
     fetcher: "Fetcher",
     session: AsyncSession,
     redis: Redis,
+    item_id: int | None = None,
+    room_id: int | None = None,
 ) -> Score:
     assert user.id
     can_get_pp = info.passed and ranked and mods_can_get_pp(info.ruleset_id, info.mods)
+    acronyms = [mod["acronym"] for mod in info.mods]
+    is_rx = "RX" in acronyms
+    is_ap = "AP" in acronyms
+    gamemode = INT_TO_MODE[info.ruleset_id]
+    if settings.enable_osu_rx and is_rx and gamemode == GameMode.OSU:
+        gamemode = GameMode.OSURX
+    elif settings.enable_osu_ap and is_ap and gamemode == GameMode.OSU:
+        gamemode = GameMode.OSUAP
     score = Score(
         accuracy=info.accuracy,
         max_combo=info.max_combo,
@@ -630,7 +675,7 @@ async def process_score(
         total_score_without_mods=info.total_score_without_mods,
         beatmap_id=beatmap_id,
         ended_at=datetime.now(UTC),
-        gamemode=INT_TO_MODE[info.ruleset_id],
+        gamemode=gamemode,
         started_at=score_token.created_at,
         user_id=user.id,
         preserve=info.passed,
@@ -647,6 +692,8 @@ async def process_score(
         nsmall_tick_hit=info.statistics.get(HitResult.SMALL_TICK_HIT, 0),
         nlarge_tick_hit=info.statistics.get(HitResult.LARGE_TICK_HIT, 0),
         nslider_tail_hit=info.statistics.get(HitResult.SLIDER_TAIL_HIT, 0),
+        playlist_item_id=item_id,
+        room_id=room_id,
     )
     if can_get_pp:
         beatmap_raw = await fetcher.get_or_fetch_beatmap_raw(redis, beatmap_id)
@@ -678,4 +725,5 @@ async def process_score(
             await session.refresh(score)
     await session.refresh(score_token)
     await session.refresh(user)
+    await redis.publish("score:processed", score.id)
     return score

@@ -1,28 +1,48 @@
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
-
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS builder
 WORKDIR /app
-ENV UV_PROJECT_ENVIRONMENT=syncvenv
 
-# 安装系统依赖
-RUN apt-get update && apt-get install -y \
-    gcc \
-    pkg-config \
-    default-libmysqlclient-dev \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update \
+ && apt-get install -y gcc pkg-config default-libmysqlclient-dev \
+ && rm -rf /var/lib/apt/lists/* \
+ && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 
-# 复制依赖文件
-COPY uv.lock .
-COPY pyproject.toml .
-COPY requirements.txt .
+ENV PATH="/root/.cargo/bin:${PATH}" \
+    PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 UV_PROJECT_ENVIRONMENT=/app/.venv
 
-# 安装Python依赖
-RUN pip install -r requirements.txt
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV UV_PROJECT_ENVIRONMENT=/app/.venv
 
-# 复制应用代码
+COPY pyproject.toml uv.lock ./
+COPY packages/ ./packages/
+
+RUN uv sync --frozen --no-dev
+RUN uv pip install rosu-pp-py
+
 COPY . .
 
-# 暴露端口
+# ---
+
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+WORKDIR /app
+
+RUN apt-get update \
+ && apt-get install -y curl netcat-openbsd \
+ && rm -rf /var/lib/apt/lists/*
+
+ENV PATH="/app/.venv/bin:${PATH}" \
+    PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
+
+COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder /app /app
+
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+
 EXPOSE 8000
 
-# 启动命令
-CMD ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+CMD ["uv", "run", "--no-sync", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,0 +1,48 @@
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS builder
+WORKDIR /app
+
+RUN apt-get update \
+ && apt-get install -y gcc pkg-config default-libmysqlclient-dev git \
+ && rm -rf /var/lib/apt/lists/* \
+ && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+ENV PATH="/root/.cargo/bin:${PATH}" \
+    PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 UV_PROJECT_ENVIRONMENT=/app/.venv
+
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV UV_PROJECT_ENVIRONMENT=/app/.venv
+
+COPY pyproject.toml uv.lock ./
+COPY packages/ ./packages/
+
+RUN uv sync --frozen --no-dev
+RUN uv pip install git+https://github.com/ppy-sb/rosu-pp-py.git
+
+COPY . .
+
+# ---
+
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+WORKDIR /app
+
+RUN apt-get update \
+ && apt-get install -y curl netcat-openbsd \
+ && rm -rf /var/lib/apt/lists/*
+
+ENV PATH="/app/.venv/bin:${PATH}" \
+    PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
+
+COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder /app /app
+
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+CMD ["uv", "run", "--no-sync", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

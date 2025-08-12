@@ -3,9 +3,11 @@ from __future__ import annotations
 from enum import IntEnum
 from typing import ClassVar, Literal
 
-from app.models.signalr import SignalRMeta, SignalRUnionMessage, UserState
+from app.models.signalr import SignalRUnionMessage, UserState
 
 from pydantic import BaseModel, Field
+
+TOTAL_SCORE_DISTRIBUTION_BINS = 13
 
 
 class _UserActivity(SignalRUnionMessage): ...
@@ -96,16 +98,14 @@ UserActivity = (
     | ModdingBeatmap
     | TestingBeatmap
     | InDailyChallengeLobby
+    | PlayingDailyChallenge
 )
 
 
 class UserPresence(BaseModel):
-    activity: UserActivity | None = Field(
-        default=None, metadata=SignalRMeta(use_upper_case=True)
-    )
-    status: OnlineStatus | None = Field(
-        default=None, metadata=SignalRMeta(use_upper_case=True)
-    )
+    activity: UserActivity | None = None
+
+    status: OnlineStatus | None = None
 
     @property
     def pushable(self) -> bool:
@@ -126,3 +126,34 @@ class OnlineStatus(IntEnum):
     OFFLINE = 0  # 隐身
     DO_NOT_DISTURB = 1
     ONLINE = 2
+
+
+class DailyChallengeInfo(BaseModel):
+    room_id: int
+
+
+class MultiplayerPlaylistItemStats(BaseModel):
+    playlist_item_id: int = 0
+    total_score_distribution: list[int] = Field(
+        default_factory=list,
+        min_length=TOTAL_SCORE_DISTRIBUTION_BINS,
+        max_length=TOTAL_SCORE_DISTRIBUTION_BINS,
+    )
+    cumulative_score: int = 0
+    last_processed_score_id: int = 0
+
+
+class MultiplayerRoomStats(BaseModel):
+    room_id: int
+    playlist_item_stats: dict[int, MultiplayerPlaylistItemStats] = Field(
+        default_factory=dict
+    )
+
+
+class MultiplayerRoomScoreSetEvent(BaseModel):
+    room_id: int
+    playlist_item_id: int
+    score_id: int
+    user_id: int
+    total_score: int
+    new_rank: int | None = None

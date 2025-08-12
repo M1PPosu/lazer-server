@@ -5,8 +5,11 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "aioboto3>=15.0.0",
+    "aiofiles>=24.1.0",
     "aiomysql>=0.2.0",
     "alembic>=1.12.1",
+    "apscheduler>=3.11.0",
     "bcrypt>=4.1.2",
     "cryptography>=41.0.7",
     "fastapi>=0.104.1",
@@ -14,12 +17,13 @@ dependencies = [
     "loguru>=0.7.3",
     "msgpack-lazer-api",
     "passlib[bcrypt]>=1.7.4",
+    "pillow>=11.3.0",
+    "pydantic-settings>=2.10.1",
     "pydantic[email]>=2.5.0",
     "python-dotenv>=1.0.0",
     "python-jose[cryptography]>=3.3.0",
     "python-multipart>=0.0.6",
     "redis>=5.0.1",
-    "rosu-pp-py>=3.1.0",
     "sqlalchemy>=2.0.23",
     "sqlmodel>=0.0.24",
     "uvicorn[standard]>=0.24.0",
@@ -103,4 +107,5 @@ dev = [
     "maturin>=1.9.2",
     "pre-commit>=4.2.0",
     "ruff>=0.12.4",
+    "types-aioboto3[aioboto3,essential]>=15.0.0",
 ]

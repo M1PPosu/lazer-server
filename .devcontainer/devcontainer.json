@@ -4,6 +4,13 @@
   "service": "devcontainer",
   "shutdownAction": "stopCompose",
   "workspaceFolder": "/workspaces/osu_lazer_api",
+  "containerEnv": {
+    "MYSQL_DATABASE": "osu_api",
+    "MYSQL_USER": "osu_user",
+    "MYSQL_PASSWORD": "osu_password",
+    "MYSQL_HOST": "mysql",
+    "MYSQL_PORT": "3306"
+  },
   "customizations": {
     "vscode": {
       "extensions": [
@@ -66,6 +73,6 @@
     3306,
     6379
   ],
-  "postCreateCommand": "uv sync --dev && uv run pre-commit install && cd packages/msgpack_lazer_api && cargo check",
+  "postCreateCommand": "uv sync --dev && uv pip install rosu-pp-py && uv run alembic upgrade head && uv run pre-commit install && cd packages/msgpack_lazer_api && cargo check",
   "remoteUser": "vscode"
 }

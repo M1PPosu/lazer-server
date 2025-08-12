@@ -1,14 +1,14 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from app.config import settings
 from app.models.beatmap import BeatmapRankStatus
-from app.models.model import UTCBaseModel
 from app.models.score import MODE_TO_INT, GameMode
 
 from .beatmap_playcounts import BeatmapPlaycounts
 from .beatmapset import Beatmapset, BeatmapsetResp
 
-from sqlalchemy import DECIMAL, Column, DateTime
+from sqlalchemy import Column, DateTime
 from sqlmodel import VARCHAR, Field, Relationship, SQLModel, col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -23,14 +23,12 @@ class BeatmapOwner(SQLModel):
     username: str
 
 
-class BeatmapBase(SQLModel, UTCBaseModel):
+class BeatmapBase(SQLModel):
     # Beatmap
     url: str
     mode: GameMode
     beatmapset_id: int = Field(foreign_key="beatmapsets.id", index=True)
-    difficulty_rating: float = Field(
-        default=0.0, sa_column=Column(DECIMAL(precision=10, scale=6))
-    )
+    difficulty_rating: float = Field(default=0.0)
     total_length: int
     user_id: int
     version: str
@@ -42,17 +40,11 @@ class BeatmapBase(SQLModel, UTCBaseModel):
     # TODO: failtimes, owners
 
     # BeatmapExtended
-    ar: float = Field(default=0.0, sa_column=Column(DECIMAL(precision=10, scale=2)))
-    cs: float = Field(default=0.0, sa_column=Column(DECIMAL(precision=10, scale=2)))
-    drain: float = Field(
-        default=0.0,
-        sa_column=Column(DECIMAL(precision=10, scale=2)),
-    )  # hp
-    accuracy: float = Field(
-        default=0.0,
-        sa_column=Column(DECIMAL(precision=10, scale=2)),
-    )  # od
-    bpm: float = Field(default=0.0, sa_column=Column(DECIMAL(precision=10, scale=2)))
+    ar: float = Field(default=0.0)
+    cs: float = Field(default=0.0)
+    drain: float = Field(default=0.0)  # hp
+    accuracy: float = Field(default=0.0)  # od
+    bpm: float = Field(default=0.0)
     count_circles: int = Field(default=0)
     count_sliders: int = Field(default=0)
     count_spinners: int = Field(default=0)
@@ -63,17 +55,13 @@ class BeatmapBase(SQLModel, UTCBaseModel):
 
 class Beatmap(BeatmapBase, table=True):
     __tablename__ = "beatmaps"  # pyright: ignore[reportAssignmentType]
-    id: int | None = Field(default=None, primary_key=True, index=True)
+    id: int = Field(primary_key=True, index=True)
     beatmapset_id: int = Field(foreign_key="beatmapsets.id", index=True)
     beatmap_status: BeatmapRankStatus
     # optional
     beatmapset: Beatmapset = Relationship(
         back_populates="beatmaps", sa_relationship_kwargs={"lazy": "joined"}
     )
-
-    @property
-    def can_ranked(self) -> bool:
-        return self.beatmap_status > BeatmapRankStatus.PENDING
 
     @classmethod
     async def from_resp(cls, session: AsyncSession, resp: "BeatmapResp") -> "Beatmap":
@@ -170,11 +158,19 @@ class BeatmapResp(BeatmapBase):
         from .score import Score
 
         beatmap_ = beatmap.model_dump()
+        beatmap_status = beatmap.beatmap_status
         if query_mode is not None and beatmap.mode != query_mode:
             beatmap_["convert"] = True
-        beatmap_["is_scoreable"] = beatmap.beatmap_status > BeatmapRankStatus.PENDING
-        beatmap_["status"] = beatmap.beatmap_status.name.lower()
-        beatmap_["ranked"] = beatmap.beatmap_status.value
+        beatmap_["is_scoreable"] = beatmap_status.has_leaderboard()
+        if (
+            settings.enable_all_beatmap_leaderboard
+            and not beatmap_status.has_leaderboard()
+        ):
+            beatmap_["ranked"] = BeatmapRankStatus.APPROVED.value
+            beatmap_["status"] = BeatmapRankStatus.APPROVED.name.lower()
+        else:
+            beatmap_["status"] = beatmap_status.name.lower()
+            beatmap_["ranked"] = beatmap_status.value
         beatmap_["mode_int"] = MODE_TO_INT[beatmap.mode]
         if not from_set:
             beatmap_["beatmapset"] = await BeatmapsetResp.from_db(

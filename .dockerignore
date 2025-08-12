@@ -1,0 +1,5 @@
+.venv/
+.ruff_cache/
+.vscode/
+storage/
+replays/

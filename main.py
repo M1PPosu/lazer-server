@@ -4,29 +4,55 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 
 from app.config import settings
-from app.dependencies.database import create_tables, engine, redis_client
+from app.dependencies.database import engine, redis_client
 from app.dependencies.fetcher import get_fetcher
-from app.router import api_router, auth_router, fetcher_router, signalr_router
+from app.dependencies.scheduler import init_scheduler, stop_scheduler
+from app.log import logger
+from app.router import (
+    api_v2_router,
+    auth_router,
+    fetcher_router,
+    file_router,
+    private_router,
+    signalr_router,
+)
+from app.service.daily_challenge import daily_challenge_job
+from app.service.osu_rx_statistics import create_rx_statistics
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # on startup
-    await create_tables()
+    await create_rx_statistics()
     await get_fetcher()  # 初始化 fetcher
+    init_scheduler()
+    await daily_challenge_job()
     # on shutdown
     yield
+    stop_scheduler()
     await engine.dispose()
     await redis_client.aclose()
 
 
 app = FastAPI(title="osu! API 模拟服务器", version="1.0.0", lifespan=lifespan)
-app.include_router(api_router, prefix="/api/v2")
-app.include_router(signalr_router, prefix="/signalr")
-app.include_router(fetcher_router, prefix="/fetcher")
+
+app.include_router(api_v2_router)
+app.include_router(signalr_router)
+app.include_router(fetcher_router)
+app.include_router(file_router)
 app.include_router(auth_router)
+app.include_router(private_router)
+# CORS 配置
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[str(settings.server_url)],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/")
@@ -41,114 +67,30 @@ async def health_check():
     return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
 
 
-# @app.get("/api/v2/friends")
-# async def get_friends():
-#     return JSONResponse(
-#         content=[
-#             {
-#                 "id": 123456,
-#                 "username": "BestFriend",
-#                 "is_online": True,
-#                 "is_supporter": False,
-#                 "country": {"code": "US", "name": "United States"},
-#             }
-#         ]
-#     )
-
-
-# @app.get("/api/v2/notifications")
-# async def get_notifications():
-#     return JSONResponse(content={"notifications": [], "unread_count": 0})
-
-
-# @app.post("/api/v2/chat/ack")
-# async def chat_ack():
-#     return JSONResponse(content={"status": "ok"})
-
-
-# @app.get("/api/v2/users/{user_id}/{mode}")
-# async def get_user_mode(user_id: int, mode: str):
-#     return JSONResponse(
-#         content={
-#             "id": user_id,
-#             "username": "测试测试测",
-#             "statistics": {
-#                 "level": {"current": 97, "progress": 96},
-#                 "pp": 114514,
-#                 "global_rank": 666,
-#                 "country_rank": 1,
-#                 "hit_accuracy": 100,
-#             },
-#             "country": {"code": "JP", "name": "Japan"},
-#         }
-#     )
-
-
-# @app.get("/api/v2/me")
-# async def get_me():
-#     return JSONResponse(
-#         content={
-#             "id": 15651670,
-#             "username": "Googujiang",
-#             "is_online": True,
-#             "country": {"code": "JP", "name": "Japan"},
-#             "statistics": {
-#                 "level": {"current": 97, "progress": 96},
-#                 "pp": 2826.26,
-#                 "global_rank": 298026,
-#                 "country_rank": 11220,
-#                 "hit_accuracy": 95.7168,
-#             },
-#         }
-#     )
-
-
-# @app.post("/signalr/metadata/negotiate")
-# async def metadata_negotiate(negotiateVersion: int = 1):
-#     return JSONResponse(
-#         content={
-#             "connectionId": "abc123",
-#             "availableTransports": [
-#                 {"transport": "WebSockets", "transferFormats": ["Text", "Binary"]}
-#             ],
-#         }
-#     )
-
-
-# @app.post("/signalr/spectator/negotiate")
-# async def spectator_negotiate(negotiateVersion: int = 1):
-#     return JSONResponse(
-#         content={
-#             "connectionId": "spec456",
-#             "availableTransports": [
-#                 {"transport": "WebSockets", "transferFormats": ["Text", "Binary"]}
-#             ],
-#         }
-#     )
-
-
-# @app.post("/signalr/multiplayer/negotiate")
-# async def multiplayer_negotiate(negotiateVersion: int = 1):
-#     return JSONResponse(
-#         content={
-#             "connectionId": "multi789",
-#             "availableTransports": [
-#                 {"transport": "WebSockets", "transferFormats": ["Text", "Binary"]}
-#             ],
-#         }
-#     )
-
+if settings.secret_key == "your_jwt_secret_here":
+    logger.warning(
+        "jwt_secret_key is unset. Your server is unsafe. "
+        "Use this command to generate: openssl rand -hex 32"
+    )
+if settings.osu_web_client_secret == "your_osu_web_client_secret_here":
+    logger.warning(
+        "osu_web_client_secret is unset. Your server is unsafe. "
+        "Use this command to generate: openssl rand -hex 40"
+    )
+if settings.private_api_secret == "your_private_api_secret_here":
+    logger.warning(
+        "private_api_secret is unset. Your server is unsafe. "
+        "Use this command to generate: openssl rand -hex 32"
+    )
 
 if __name__ == "__main__":
-    from app.log import logger  # noqa: F401
-
     import uvicorn
 
     uvicorn.run(
         "main:app",
-        host=settings.HOST,
-        port=settings.PORT,
-        reload=settings.DEBUG,
+        host=settings.host,
+        port=settings.port,
+        reload=settings.debug,
         log_config=None,  # 禁用uvicorn默认日志配置
         access_log=True,  # 启用访问日志
     )

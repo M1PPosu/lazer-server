@@ -6,26 +6,26 @@ import time
 from typing import Literal
 import uuid
 
-from app.database import User
+from app.database import User as DBUser
 from app.dependencies import get_current_user
 from app.dependencies.database import get_db
-from app.dependencies.user import get_current_user_by_token
 from app.models.signalr import NegotiateResponse, Transport
 
 from .hub import Hubs
 from .packet import PROTOCOLS, SEP
 
-from fastapi import APIRouter, Depends, Header, Query, WebSocket
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, WebSocket
+from fastapi.security import SecurityScopes
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-router = APIRouter()
+router = APIRouter(prefix="/signalr", tags=["SignalR"])
 
 
 @router.post("/{hub}/negotiate", response_model=NegotiateResponse)
 async def negotiate(
     hub: Literal["spectator", "multiplayer", "metadata"],
     negotiate_version: int = Query(1, alias="negotiateVersion"),
-    user: User = Depends(get_current_user),
+    user: DBUser = Depends(get_current_user),
 ):
     connectionId = str(user.id)
     connectionToken = f"{connectionId}:{uuid.uuid4()}"
@@ -55,9 +55,15 @@ async def connect(
     if id not in hub_:
         await websocket.close(code=1008)
         return
-    if (user := await get_current_user_by_token(token, db)) is None or str(
-        user.id
-    ) != user_id:
+    try:
+        if (
+            user := await get_current_user(
+                SecurityScopes(scopes=["*"]), db, token_pw=token
+            )
+        ) is None or str(user.id) != user_id:
+            await websocket.close(code=1008)
+            return
+    except HTTPException:
         await websocket.close(code=1008)
         return
     await websocket.accept()
@@ -92,6 +98,11 @@ async def connect(
     if error or not client:
         await websocket.close(code=1008)
         return
+
+    connected_clients = hub_.get_before_clients(user_id, id)
+    for connected_client in connected_clients:
+        await hub_.kick_client(connected_client)
+
     await hub_.clean_state(client, False)
     task = asyncio.create_task(hub_.on_connect(client))
     hub_.tasks.add(task)

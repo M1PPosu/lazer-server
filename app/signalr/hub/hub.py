@@ -6,9 +6,9 @@ import time
 from typing import Any
 
 from app.config import settings
+from app.exception import InvokeException
 from app.log import logger
 from app.models.signalr import UserState
-from app.signalr.exception import InvokeException
 from app.signalr.packet import (
     ClosePacket,
     CompletionPacket,
@@ -74,7 +74,7 @@ class Client:
         while True:
             try:
                 await self.send_packet(PingPacket())
-                await asyncio.sleep(settings.SIGNALR_PING_INTERVAL)
+                await asyncio.sleep(settings.signalr_ping_interval)
             except WebSocketDisconnect:
                 break
             except Exception as e:
@@ -99,6 +99,16 @@ class Hub[TState: UserState]:
                 return client
         return default
 
+    def get_before_clients(self, id: str, current_token: str) -> list[Client]:
+        clients = []
+        for client in self.clients.values():
+            if client.connection_id != id:
+                continue
+            if client.connection_token == current_token:
+                continue
+            clients.append(client)
+        return clients
+
     @abstractmethod
     def create_state(self, client: Client) -> TState:
         raise NotImplementedError
@@ -117,6 +127,11 @@ class Hub[TState: UserState]:
         if group_id in self.groups:
             self.groups[group_id].discard(client)
 
+    async def kick_client(self, client: Client) -> None:
+        await self.call_noblock(client, "DisconnectRequested")
+        await client.send_packet(ClosePacket(allow_reconnect=False))
+        await client.connection.close(code=1000, reason="Disconnected by server")
+
     async def add_client(
         self,
         connection_id: str,
@@ -131,7 +146,7 @@ class Hub[TState: UserState]:
         if connection_token in self.waited_clients:
             if (
                 self.waited_clients[connection_token]
-                < time.time() - settings.SIGNALR_NEGOTIATE_TIMEOUT
+                < time.time() - settings.signalr_negotiate_timeout
             ):
                 raise TimeoutError(f"Connection {connection_id} has waited too long.")
             del self.waited_clients[connection_token]

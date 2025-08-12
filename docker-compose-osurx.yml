@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  app:
+    # or use
+    # image: mingxuangame/osu-lazer-api-osurx:latest
+    build:
+      context: .
+      dockerfile: Dockerfile-osurx
+    container_name: osu_api_server_osurx
+    ports:
+      - "8000:8000"
+    environment:
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - REDIS_URL=redis://redis:6379/0
+      - ENABLE_OSU_RX=true
+      - ENABLE_OSU_AP=true
+      - ENABLE_ALL_MODS_PP=true
+      - ENABLE_SUPPORTER_FOR_ALL_USERS=true
+      - ENABLE_ALL_BEATMAP_LEADERBOARD=true
+    env_file:
+      - .env
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./replays:/app/replays
+      - ./static:/app/static
+    restart: unless-stopped
+    networks:
+      - osu-network
+
+  mysql:
+    image: mysql:8.0
+    container_name: osu_api_mysql_osurx
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+      interval: 10s
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - osu-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: osu_api_redis_osurx
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      timeout: 5s
+      retries: 5
+      interval: 10s
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - osu-network
+    command: redis-server --appendonly yes
+
+volumes:
+  mysql_data:
+  redis_data:
+
+networks:
+  osu-network:
+    driver: bridge

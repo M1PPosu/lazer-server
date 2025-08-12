@@ -5,8 +5,6 @@ from app.log import logger
 
 from ._base import BaseFetcher
 
-from httpx import AsyncClient
-
 
 class BeatmapFetcher(BaseFetcher):
     async def get_beatmap(
@@ -21,11 +19,10 @@ class BeatmapFetcher(BaseFetcher):
         logger.opt(colors=True).debug(
             f"<blue>[BeatmapFetcher]</blue> get_beatmap: <y>{params}</y>"
         )
-        async with AsyncClient() as client:
-            response = await client.get(
+
+        return BeatmapResp.model_validate(
+            await self.request_api(
                 "https://osu.ppy.sh/api/v2/beatmaps/lookup",
-                headers=self.header,
                 params=params,
             )
-            response.raise_for_status()
-            return BeatmapResp.model_validate(response.json())
+        )
