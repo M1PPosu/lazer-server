@@ -19,8 +19,9 @@ from app.router import (
 from app.service.daily_challenge import daily_challenge_job
 from app.service.osu_rx_statistics import create_rx_statistics
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 
 @asynccontextmanager
@@ -65,6 +66,13 @@ async def root():
 async def health_check():
     """健康检查端点"""
     return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    if request.url.path.startswith("/api/v2"):
+        return JSONResponse(status_code=exc.status_code, content={"error": exc.detail})
+    raise exc
 
 
 if settings.secret_key == "your_jwt_secret_here":
