@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, WebSocket
 from fastapi.security import SecurityScopes
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-router = APIRouter(prefix="/signalr", tags=["SignalR"])
+router = APIRouter(prefix="/signalr", include_in_schema=False)
 
 
 @router.post("/{hub}/negotiate", response_model=NegotiateResponse)

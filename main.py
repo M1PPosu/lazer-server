@@ -38,7 +38,12 @@ async def lifespan(app: FastAPI):
     await redis_client.aclose()
 
 
-app = FastAPI(title="osu! API 模拟服务器", version="1.0.0", lifespan=lifespan)
+app = FastAPI(
+    title="osu! API 模拟服务器",
+    version="1.0.0",
+    lifespan=lifespan,
+    summary="osu! API 模拟服务器，支持 osu! API v2 和 osu!lazer 的绝大部分功能。官方文档：https://osu.ppy.sh/docs/index.html",
+)
 
 app.include_router(api_v2_router)
 app.include_router(signalr_router)
@@ -56,13 +61,13 @@ app.add_middleware(
 )
 
 
-@app.get("/")
+@app.get("/", include_in_schema=False)
 async def root():
     """根端点"""
     return {"message": "osu! API 模拟服务器正在运行"}
 
 
-@app.get("/health")
+@app.get("/health", include_in_schema=False)
 async def health_check():
     """健康检查端点"""
     return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}

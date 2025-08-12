@@ -105,15 +105,17 @@ def validate_password(password: str) -> list[str]:
 router = APIRouter(tags=["osu! OAuth 认证"])
 
 
-@router.post("/users")
+@router.post(
+    "/users",
+    name="注册用户",
+    description="用户注册接口",
+)
 async def register_user(
-    user_username: str = Form(..., alias="user[username]"),
-    user_email: str = Form(..., alias="user[user_email]"),
-    user_password: str = Form(..., alias="user[password]"),
+    user_username: str = Form(..., alias="user[username]", description="用户名"),
+    user_email: str = Form(..., alias="user[user_email]", description="电子邮箱"),
+    user_password: str = Form(..., alias="user[password]", description="密码"),
     db: AsyncSession = Depends(get_db),
 ):
-    """用户注册接口 - 匹配 osu! 客户端的注册请求"""
-
     username_errors = validate_username(user_username)
     email_errors = validate_email(user_email)
     password_errors = validate_password(user_password)
@@ -197,22 +199,28 @@ async def register_user(
         )
 
 
-@router.post("/oauth/token", response_model=TokenResponse)
+@router.post(
+    "/oauth/token",
+    response_model=TokenResponse,
+    name="获取访问令牌",
+    description="OAuth 令牌端点，支持密码、刷新令牌和授权码三种授权方式。",
+)
 async def oauth_token(
     grant_type: Literal[
         "authorization_code", "refresh_token", "password", "client_credentials"
-    ] = Form(...),
-    client_id: int = Form(...),
-    client_secret: str = Form(...),
-    code: str | None = Form(None),
-    scope: str = Form("*"),
-    username: str | None = Form(None),
-    password: str | None = Form(None),
-    refresh_token: str | None = Form(None),
+    ] = Form(..., description="授权类型：密码/刷新令牌/授权码/客户端凭证"),
+    client_id: int = Form(..., description="客户端 ID"),
+    client_secret: str = Form(..., description="客户端密钥"),
+    code: str | None = Form(None, description="授权码（仅授权码模式需要）"),
+    scope: str = Form("*", description="权限范围（空格分隔，默认为 '*'）"),
+    username: str | None = Form(None, description="用户名（仅密码模式需要）"),
+    password: str | None = Form(None, description="密码（仅密码模式需要）"),
+    refresh_token: str | None = Form(
+        None, description="刷新令牌（仅刷新令牌模式需要）"
+    ),
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
 ):
-    """OAuth 令牌端点"""
     scopes = scope.split(" ")
 
     client = (

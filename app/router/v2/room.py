@@ -20,7 +20,7 @@ from app.signalr.hub import MultiplayerHubs
 
 from .router import router
 
-from fastapi import Depends, HTTPException, Query, Security
+from fastapi import Depends, HTTPException, Path, Query, Security
 from pydantic import BaseModel, Field
 from redis.asyncio import Redis
 from sqlalchemy.sql.elements import ColumnElement
@@ -28,13 +28,29 @@ from sqlmodel import col, exists, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
-@router.get("/rooms", tags=["rooms"], response_model=list[RoomResp])
+@router.get(
+    "/rooms",
+    tags=["房间"],
+    response_model=list[RoomResp],
+    name="获取房间列表",
+    description="获取房间列表。支持按状态/模式筛选",
+)
 async def get_all_rooms(
     mode: Literal["open", "ended", "participated", "owned", None] = Query(
-        default="open"
+        default="open",
+        description=(
+            "房间模式：open 当前开放 / ended 已经结束 / "
+            "participated 参与过 / owned 自己创建的房间"
+        ),
     ),
-    category: RoomCategory = Query(RoomCategory.NORMAL),
-    status: RoomStatus | None = Query(None),
+    category: RoomCategory = Query(
+        RoomCategory.NORMAL,
+        description=(
+            "房间分类：NORMAL 普通歌单模式房间 / REALTIME 多人游戏房间"
+            " / DAILY_CHALLENGE 每日挑战"
+        ),
+    ),
+    status: RoomStatus | None = Query(None, description="房间状态（可选）"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Security(get_current_user, scopes=["public"]),
 ):
@@ -93,6 +109,9 @@ async def get_all_rooms(
 
 
 class APICreatedRoom(RoomResp):
+    """创建房间返回模型，继承 RoomResp。额外字段:
+    - error: 错误信息（为空表示成功）。"""
+
     error: str = ""
 
 
@@ -120,32 +139,48 @@ async def _participate_room(
     db_room.participant_count += 1
 
 
-@router.post("/rooms", tags=["room"], response_model=APICreatedRoom)
+@router.post(
+    "/rooms",
+    tags=["房间"],
+    response_model=APICreatedRoom,
+    name="创建房间",
+    description="**客户端专属**\n创建一个新的房间。",
+)
 async def create_room(
     room: APIUploadedRoom,
     db: AsyncSession = Depends(get_db),
     current_user: User = Security(get_current_user, scopes=["*"]),
 ):
+    assert current_user.id is not None
     user_id = current_user.id
     db_room = await create_playlist_room_from_api(db, room, user_id)
     await _participate_room(db_room.id, user_id, db_room, db)
-    # await db.commit()
-    # await db.refresh(db_room)
     created_room = APICreatedRoom.model_validate(await RoomResp.from_db(db_room, db))
     created_room.error = ""
     return created_room
 
 
-@router.get("/rooms/{room}", tags=["room"], response_model=RoomResp)
+@router.get(
+    "/rooms/{room_id}",
+    tags=["房间"],
+    response_model=RoomResp,
+    name="获取房间详情",
+    description="获取单个房间详情。",
+)
 async def get_room(
-    room: int,
-    category: str = Query(default=""),
+    room_id: int = Path(..., description="房间 ID"),
+    category: str = Query(
+        default="",
+        description=(
+            "房间分类：NORMAL 普通歌单模式房间 / REALTIME 多人游戏房间"
+            " / DAILY_CHALLENGE 每日挑战 (可选)"
+        ),
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: User = Security(get_current_user, scopes=["*"]),
     redis: Redis = Depends(get_redis),
 ):
-    # 直接从db获取信息，毕竟都一样
-    db_room = (await db.exec(select(Room).where(Room.id == room))).first()
+    db_room = (await db.exec(select(Room).where(Room.id == room_id))).first()
     if db_room is None:
         raise HTTPException(404, "Room not found")
     resp = await RoomResp.from_db(
@@ -154,13 +189,18 @@ async def get_room(
     return resp
 
 
-@router.delete("/rooms/{room}", tags=["room"])
+@router.delete(
+    "/rooms/{room_id}",
+    tags=["房间"],
+    name="结束房间",
+    description="**客户端专属**\n结束歌单模式房间。",
+)
 async def delete_room(
-    room: int,
+    room_id: int = Path(..., description="房间 ID"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Security(get_current_user, scopes=["*"]),
 ):
-    db_room = (await db.exec(select(Room).where(Room.id == room))).first()
+    db_room = (await db.exec(select(Room).where(Room.id == room_id))).first()
     if db_room is None:
         raise HTTPException(404, "Room not found")
     else:
@@ -169,39 +209,48 @@ async def delete_room(
         return None
 
 
-@router.put("/rooms/{room}/users/{user}", tags=["room"])
+@router.put(
+    "/rooms/{room_id}/users/{user_id}",
+    tags=["房间"],
+    name="加入房间",
+    description="**客户端专属**\n加入指定歌单模式房间。",
+)
 async def add_user_to_room(
-    room: int,
-    user: int,
+    room_id: int = Path(..., description="房间 ID"),
+    user_id: int = Path(..., description="用户 ID"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Security(get_current_user, scopes=["*"]),
 ):
-    db_room = (await db.exec(select(Room).where(Room.id == room))).first()
+    db_room = (await db.exec(select(Room).where(Room.id == room_id))).first()
     if db_room is not None:
-        await _participate_room(room, user, db_room, db)
+        await _participate_room(room_id, user_id, db_room, db)
         await db.commit()
         await db.refresh(db_room)
         resp = await RoomResp.from_db(db_room, db)
-
         return resp
     else:
         raise HTTPException(404, "room not found0")
 
 
-@router.delete("/rooms/{room}/users/{user}", tags=["room"])
+@router.delete(
+    "/rooms/{room_id}/users/{user_id}",
+    tags=["房间"],
+    name="离开房间",
+    description="**客户端专属**\n离开指定歌单模式房间。",
+)
 async def remove_user_from_room(
-    room: int,
-    user: int,
+    room_id: int = Path(..., description="房间 ID"),
+    user_id: int = Path(..., description="用户 ID"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Security(get_current_user, scopes=["*"]),
 ):
-    db_room = (await db.exec(select(Room).where(Room.id == room))).first()
+    db_room = (await db.exec(select(Room).where(Room.id == room_id))).first()
     if db_room is not None:
         participated_user = (
             await db.exec(
                 select(RoomParticipatedUser).where(
-                    RoomParticipatedUser.room_id == room,
-                    RoomParticipatedUser.user_id == user,
+                    RoomParticipatedUser.room_id == room_id,
+                    RoomParticipatedUser.user_id == user_id,
                 )
             )
         ).first()
@@ -215,23 +264,32 @@ async def remove_user_from_room(
 
 
 class APILeaderboard(BaseModel):
+    """房间全局排行榜返回模型。
+    - leaderboard: 用户游玩统计（尝试次数/分数等）。
+    - user_score: 当前用户对应统计。"""
+
     leaderboard: list[ItemAttemptsResp] = Field(default_factory=list)
     user_score: ItemAttemptsResp | None = None
 
 
-@router.get("/rooms/{room}/leaderboard", tags=["room"], response_model=APILeaderboard)
+@router.get(
+    "/rooms/{room_id}/leaderboard",
+    tags=["房间"],
+    response_model=APILeaderboard,
+    name="获取房间排行榜",
+    description="获取房间内累计得分排行榜。",
+)
 async def get_room_leaderboard(
-    room: int,
+    room_id: int = Path(..., description="房间 ID"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Security(get_current_user, scopes=["public"]),
 ):
-    db_room = (await db.exec(select(Room).where(Room.id == room))).first()
+    db_room = (await db.exec(select(Room).where(Room.id == room_id))).first()
     if db_room is None:
         raise HTTPException(404, "Room not found")
-
     aggs = await db.exec(
         select(ItemAttemptsCount)
-        .where(ItemAttemptsCount.room_id == room)
+        .where(ItemAttemptsCount.room_id == room_id)
         .order_by(col(ItemAttemptsCount.total_score).desc())
     )
     aggs_resp = []
@@ -239,7 +297,6 @@ async def get_room_leaderboard(
     for i, agg in enumerate(aggs):
         resp = await ItemAttemptsResp.from_db(agg, db)
         resp.position = i + 1
-        # resp.accuracy *= 100
         aggs_resp.append(resp)
         if agg.user_id == current_user.id:
             user_agg = resp
@@ -250,6 +307,16 @@ async def get_room_leaderboard(
 
 
 class RoomEvents(BaseModel):
+    """房间事件流返回模型。
+    - beatmaps: 本次结果涉及的谱面列表。
+    - beatmapsets: 谱面集映射。
+    - current_playlist_item_id: 当前游玩列表（项目）项 ID。
+    - events: 事件列表。
+    - first_event_id / last_event_id: 事件范围。
+    - playlist_items: 房间游玩列表（项目）详情。
+    - room: 房间详情。
+    - user: 关联用户列表。"""
+
     beatmaps: list[BeatmapResp] = Field(default_factory=list)
     beatmapsets: dict[int, BeatmapsetResp] = Field(default_factory=dict)
     current_playlist_item_id: int = 0
@@ -261,14 +328,20 @@ class RoomEvents(BaseModel):
     user: list[UserResp] = Field(default_factory=list)
 
 
-@router.get("/rooms/{room_id}/events", response_model=RoomEvents, tags=["room"])
+@router.get(
+    "/rooms/{room_id}/events",
+    response_model=RoomEvents,
+    tags=["房间"],
+    name="获取房间事件",
+    description="获取房间事件列表 （倒序，可按 after / before 进行范围截取）。",
+)
 async def get_room_events(
-    room_id: int,
+    room_id: int = Path(..., description="房间 ID"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Security(get_current_user, scopes=["public"]),
-    limit: int = Query(100, ge=1, le=1000),
-    after: int | None = Query(None, ge=0),
-    before: int | None = Query(None, ge=0),
+    limit: int = Query(100, ge=1, le=1000, description="返回条数 (1-1000)"),
+    after: int | None = Query(None, ge=0, description="仅包含大于该事件 ID 的事件"),
+    before: int | None = Query(None, ge=0, description="仅包含小于该事件 ID 的事件"),
 ):
     events = (
         await db.exec(
@@ -294,10 +367,8 @@ async def get_room_events(
     current_playlist_item_id = 0
     for event in events:
         event_resps.append(MultiplayerEventResp.from_db(event))
-
         if event.user_id:
             user_ids.add(event.user_id)
-
         if event.playlist_item_id is not None and (
             playitem := (
                 await db.exec(
@@ -320,7 +391,6 @@ async def get_room_events(
             for score in scores:
                 user_ids.add(score.user_id)
                 beatmap_ids.add(score.beatmap_id)
-
         assert event.id is not None
         first_event_id = min(first_event_id, event.id)
         last_event_id = max(last_event_id, event.id)

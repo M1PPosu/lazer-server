@@ -6,7 +6,7 @@ from app.storage import LocalStorageService, StorageService
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 
-file_router = APIRouter(prefix="/file")
+file_router = APIRouter(prefix="/file", include_in_schema=False)
 
 
 @file_router.get("/{path:path}")

@@ -6,14 +6,26 @@ from app.dependencies.user import get_current_user
 
 from .router import router
 
-from fastapi import Depends, HTTPException, Query, Request, Security
+from fastapi import Depends, HTTPException, Path, Query, Request, Security
 from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
-@router.get("/friends", tags=["relationship"], response_model=list[RelationshipResp])
-@router.get("/blocks", tags=["relationship"], response_model=list[RelationshipResp])
+@router.get(
+    "/friends",
+    tags=["用户关系"],
+    response_model=list[RelationshipResp],
+    name="获取好友列表",
+    description="获取当前用户的好友列表。",
+)
+@router.get(
+    "/blocks",
+    tags=["用户关系"],
+    response_model=list[RelationshipResp],
+    name="获取屏蔽列表",
+    description="获取当前用户的屏蔽用户列表。",
+)
 async def get_relationship(
     request: Request,
     current_user: User = Security(get_current_user, scopes=["friends.read"]),
@@ -34,17 +46,33 @@ async def get_relationship(
 
 
 class AddFriendResp(BaseModel):
+    """添加好友/屏蔽 返回模型。
+
+    - user_relation: 新的或更新后的关系对象。"""
+
     user_relation: RelationshipResp
 
 
-@router.post("/friends", tags=["relationship"], response_model=AddFriendResp)
-@router.post("/blocks", tags=["relationship"])
+@router.post(
+    "/friends",
+    tags=["用户关系"],
+    response_model=AddFriendResp,
+    name="添加或更新好友关系",
+    description="**客户端专属**\n添加或更新与目标用户的好友关系。",
+)
+@router.post(
+    "/blocks",
+    tags=["用户关系"],
+    name="添加或更新屏蔽关系",
+    description="**客户端专属**\n添加或更新与目标用户的屏蔽关系。",
+)
 async def add_relationship(
     request: Request,
-    target: int = Query(),
+    target: int = Query(description="目标用户 ID"),
     current_user: User = Security(get_current_user, scopes=["*"]),
     db: AsyncSession = Depends(get_db),
 ):
+    assert current_user.id is not None
     relationship_type = (
         RelationshipType.FOLLOW
         if request.url.path.endswith("/friends")
@@ -100,11 +128,21 @@ async def add_relationship(
         )
 
 
-@router.delete("/friends/{target}", tags=["relationship"])
-@router.delete("/blocks/{target}", tags=["relationship"])
+@router.delete(
+    "/friends/{target}",
+    tags=["用户关系"],
+    name="取消好友关系",
+    description="**客户端专属**\n删除与目标用户的好友关系。",
+)
+@router.delete(
+    "/blocks/{target}",
+    tags=["用户关系"],
+    name="取消屏蔽关系",
+    description="**客户端专属**\n删除与目标用户的屏蔽关系。",
+)
 async def delete_relationship(
     request: Request,
-    target: int,
+    target: int = Path(..., description="目标用户 ID"),
     current_user: User = Security(get_current_user, scopes=["*"]),
     db: AsyncSession = Depends(get_db),
 ):
