@@ -159,7 +159,7 @@ class ScoreResp(ScoreBase):
     is_perfect_combo: bool = False
     legacy_perfect: bool = False
     legacy_total_score: int = 0  # FIXME
-    processed: bool = False  # solo_score
+    processed: bool = True  # solo_score
     weight: float = 0.0
     best_id: int | None = None
     ruleset_id: int | None = None
