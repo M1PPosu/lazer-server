@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-import base64
 import hashlib
 from io import BytesIO
 
 from app.database.lazer_user import User
 from app.dependencies.database import get_db
 from app.dependencies.storage import get_storage_service
+from app.dependencies.user import get_current_user
 from app.storage.base import StorageService
 
 from .router import router
 
-from fastapi import Body, Depends, HTTPException
+from fastapi import Depends, File, HTTPException, Security
 from PIL import Image
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -21,8 +21,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
     name="上传头像",
 )
 async def upload_avatar(
-    file: str = Body(..., description="Base64 编码的图片数据"),
-    user_id: int = Body(..., description="用户 ID"),
+    content: bytes = File(...),
+    current_user: User = Security(get_current_user, scopes=["*"]),
     storage: StorageService = Depends(get_storage_service),
     session: AsyncSession = Depends(get_db),
 ):
@@ -38,11 +38,6 @@ async def upload_avatar(
     返回:
     - 头像 URL 和文件哈希值
     """
-    content = base64.b64decode(file)
-
-    user = await session.get(User, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
 
     # check file
     if len(content) > 5 * 1024 * 1024:  # 5MB limit
@@ -58,11 +53,11 @@ async def upload_avatar(
             )
 
     filehash = hashlib.sha256(content).hexdigest()
-    storage_path = f"avatars/{user_id}_{filehash}.png"
+    storage_path = f"avatars/{current_user.id}_{filehash}.png"
     if not await storage.is_exists(storage_path):
         await storage.write_file(storage_path, content)
     url = await storage.get_file_url(storage_path)
-    user.avatar_url = url
+    current_user.avatar_url = url
     await session.commit()
 
     return {

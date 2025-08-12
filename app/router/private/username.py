@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from app.database.lazer_user import User
 from app.dependencies.database import get_db
+from app.dependencies.user import get_current_user
 
 from .router import router
 
-from fastapi import Body, Depends, HTTPException
+from fastapi import Body, Depends, HTTPException, Security
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -15,10 +16,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
     name="修改用户名",
 )
 async def user_rename(
-    user_id: int = Body(..., description="要修改名称的用户 ID"),
     new_name: str = Body(..., description="新的用户名"),
     session: AsyncSession = Depends(get_db),
-    # currentUser: User = Depends(get_current_user)
+    current_user: User = Security(get_current_user, scopes=["*"]),
 ):
     """修改用户名
 
@@ -31,9 +31,6 @@ async def user_rename(
     返回:
     - 成功: None
     """
-    current_user = (await session.exec(select(User).where(User.id == user_id))).first()
-    if current_user is None:
-        raise HTTPException(404, "User not found")
     samename_user = (
         await session.exec(select(User).where(User.username == new_name))
     ).first()

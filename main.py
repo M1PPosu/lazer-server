@@ -45,9 +45,6 @@ desc = (
     "osu! API 模拟服务器，支持 osu! API v2 和 osu!lazer 的绝大部分功能。\n\n"
     "官方文档：[osu!web 文档](https://osu.ppy.sh/docs/index.html)"
 )
-if settings.debug:
-    desc += "\n\n私有 API 签名机制：[GitHub](https://github.com/GooGuTeam/osu_lazer_api/wiki/%E7%A7%81%E6%9C%89-API-%E7%AD%BE%E5%90%8D%E9%AA%8C%E8%AF%81%E6%9C%BA%E5%88%B6)"
-
 app = FastAPI(
     title="osu! API 模拟服务器",
     version="1.0.0",
@@ -109,11 +106,6 @@ if settings.osu_web_client_secret == "your_osu_web_client_secret_here":
     logger.warning(
         "osu_web_client_secret is unset. Your server is unsafe. "
         "Use this command to generate: openssl rand -hex 40"
-    )
-if settings.private_api_secret == "your_private_api_secret_here":
-    logger.warning(
-        "private_api_secret is unset. Your server is unsafe. "
-        "Use this command to generate: openssl rand -hex 32"
     )
 
 if __name__ == "__main__":

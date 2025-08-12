@@ -64,7 +64,6 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
     debug: bool = False
-    private_api_secret: str = "your_private_api_secret_here"
     cors_urls: list[HttpUrl] = []
     server_url: HttpUrl = HttpUrl("http://localhost:8000")
     frontend_url: HttpUrl | None = None

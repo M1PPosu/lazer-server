@@ -71,7 +71,6 @@ docker-compose -f docker-compose-osurx.yml up -d
 | `SERVER_URL` | 服务器 URL | `http://localhost:8000` |
 | `CORS_URLS` | 额外的 CORS 允许的域名列表 (JSON 格式) | `[]` |
 | `FRONTEND_URL` | 前端 URL，当访问从游戏打开的 URL 时会重定向到这个 URL，为空表示不重定向 | `` |
-| `PRIVATE_API_SECRET` | 私有 API 密钥，用于前后端 API 调用 | `your_private_api_secret_here` |
 
 ### OAuth 设置
 | 变量名 | 描述 | 默认值 |
