@@ -44,7 +44,7 @@ async def get_users(
     user_ids: list[int] = Query(
         default_factory=list, alias="ids[]", description="要查询的用户 ID 列表"
     ),
-    current_user: User = Security(get_current_user, scopes=["public"]),
+    # current_user: User = Security(get_current_user, scopes=["public"]),
     include_variant_statistics: bool = Query(
         default=False, description="是否包含各模式的统计信息"
     ),  # TODO: future use
@@ -79,7 +79,7 @@ async def get_user_info_ruleset(
     user_id: str = Path(description="用户 ID 或用户名"),
     ruleset: GameMode | None = Path(description="指定 ruleset"),
     session: AsyncSession = Depends(get_db),
-    current_user: User = Security(get_current_user, scopes=["public"]),
+    # current_user: User = Security(get_current_user, scopes=["public"]),
 ):
     searched_user = (
         await session.exec(
@@ -111,7 +111,7 @@ async def get_user_info_ruleset(
 async def get_user_info(
     user_id: str = Path(description="用户 ID 或用户名"),
     session: AsyncSession = Depends(get_db),
-    current_user: User = Security(get_current_user, scopes=["public"]),
+    # current_user: User = Security(get_current_user, scopes=["public"]),
 ):
     searched_user = (
         await session.exec(
@@ -146,6 +146,10 @@ async def get_user_beatmapsets(
     limit: int = Query(100, ge=1, le=1000, description="返回条数 (1-1000)"),
     offset: int = Query(0, ge=0, description="偏移量"),
 ):
+    user = await session.get(User, user_id)
+    if not user:
+        raise HTTPException(404, detail="User not found")
+
     if type in {
         BeatmapsetType.GRAVEYARD,
         BeatmapsetType.GUEST,
@@ -164,7 +168,7 @@ async def get_user_beatmapsets(
         favourites = await user.awaitable_attrs.favourite_beatmapsets
         resp = [
             await BeatmapsetResp.from_db(
-                favourite.beatmapset, session=session, user=current_user
+                favourite.beatmapset, session=session, user=user
             )
             for favourite in favourites
         ]
