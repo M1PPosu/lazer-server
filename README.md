@@ -68,6 +68,7 @@ docker-compose -f docker-compose-osurx.yml up -d
 | `HOST` | 服务器监听地址 | `0.0.0.0` |
 | `PORT` | 服务器监听端口 | `8000` |
 | `DEBUG` | 调试模式 | `false` |
+| `SERVER_URL` | 服务器 URL | `http://localhost:8000` |
 | `PRIVATE_API_SECRET` | 私有 API 密钥，用于前后端 API 调用 | `your_private_api_secret_here` |
 
 ### OAuth 设置
@@ -93,7 +94,6 @@ Fetcher 用于从 osu! 官方 API 获取数据，使用 osu! 官方 API 的 OAut
 | `FETCHER_CLIENT_ID` | Fetcher 客户端 ID | `""` |
 | `FETCHER_CLIENT_SECRET` | Fetcher 客户端密钥 | `""` |
 | `FETCHER_SCOPES` | Fetcher 权限范围 | `public` |
-| `FETCHER_CALLBACK_URL` | Fetcher 回调 URL | `http://localhost:8000/fetcher/callback` |
 
 ### 日志设置
 | 变量名 | 描述 | 默认值 |
