@@ -33,7 +33,7 @@ from app.database.score import (
 from app.dependencies.database import get_db, get_redis
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.storage import get_storage_service
-from app.dependencies.user import get_current_user
+from app.dependencies.user import get_client_user, get_current_user
 from app.fetcher import Fetcher
 from app.models.room import RoomCategory
 from app.models.score import (
@@ -263,7 +263,7 @@ async def create_solo_score(
     version_hash: str = Form("", description="游戏版本哈希"),
     beatmap_hash: str = Form(description="谱面文件哈希"),
     ruleset_id: int = Form(..., ge=0, le=3, description="ruleset 数字 ID (0-3)"),
-    current_user: User = Security(get_current_user, scopes=["*"]),
+    current_user: User = Security(get_client_user),
     db: AsyncSession = Depends(get_db),
 ):
     assert current_user.id is not None
@@ -290,7 +290,7 @@ async def submit_solo_score(
     beatmap_id: int = Path(description="谱面 ID"),
     token: int = Path(description="成绩令牌 ID"),
     info: SoloScoreSubmissionInfo = Body(description="成绩提交信息"),
-    current_user: User = Security(get_current_user, scopes=["*"]),
+    current_user: User = Security(get_client_user),
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
     fetcher=Depends(get_fetcher),
@@ -313,7 +313,7 @@ async def create_playlist_score(
     beatmap_hash: str = Form(description="游戏版本哈希"),
     ruleset_id: int = Form(..., ge=0, le=3, description="ruleset 数字 ID (0-3)"),
     version_hash: str = Form("", description="谱面版本哈希"),
-    current_user: User = Security(get_current_user, scopes=["*"]),
+    current_user: User = Security(get_client_user),
     session: AsyncSession = Depends(get_db),
 ):
     assert current_user.id is not None
@@ -386,7 +386,7 @@ async def submit_playlist_score(
     playlist_id: int,
     token: int,
     info: SoloScoreSubmissionInfo,
-    current_user: User = Security(get_current_user, scopes=["*"]),
+    current_user: User = Security(get_client_user),
     session: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
     fetcher: Fetcher = Depends(get_fetcher),
@@ -509,7 +509,7 @@ async def show_playlist_score(
     room_id: int,
     playlist_id: int,
     score_id: int,
-    current_user: User = Security(get_current_user, scopes=["*"]),
+    current_user: User = Security(get_client_user),
     session: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
 ):
@@ -580,7 +580,7 @@ async def get_user_playlist_score(
     room_id: int,
     playlist_id: int,
     user_id: int,
-    current_user: User = Security(get_current_user, scopes=["*"]),
+    current_user: User = Security(get_client_user),
     session: AsyncSession = Depends(get_db),
 ):
     score_record = None
@@ -616,7 +616,7 @@ async def get_user_playlist_score(
 )
 async def pin_score(
     score_id: int = Path(description="成绩 ID"),
-    current_user: User = Security(get_current_user, scopes=["*"]),
+    current_user: User = Security(get_client_user),
     db: AsyncSession = Depends(get_db),
 ):
     score_record = (
@@ -658,7 +658,7 @@ async def pin_score(
 )
 async def unpin_score(
     score_id: int = Path(description="成绩 ID"),
-    current_user: User = Security(get_current_user, scopes=["*"]),
+    current_user: User = Security(get_client_user),
     db: AsyncSession = Depends(get_db),
 ):
     score_record = (
@@ -699,7 +699,7 @@ async def reorder_score_pin(
     score_id: int = Path(description="成绩 ID"),
     after_score_id: int | None = Body(default=None, description="放在该成绩之后"),
     before_score_id: int | None = Body(default=None, description="放在该成绩之前"),
-    current_user: User = Security(get_current_user, scopes=["*"]),
+    current_user: User = Security(get_client_user),
     db: AsyncSession = Depends(get_db),
 ):
     score_record = (

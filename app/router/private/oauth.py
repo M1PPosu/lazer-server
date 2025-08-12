@@ -5,7 +5,7 @@ import secrets
 from app.database.auth import OAuthClient, OAuthToken
 from app.database.lazer_user import User
 from app.dependencies.database import get_db, get_redis
-from app.dependencies.user import get_current_user
+from app.dependencies.user import get_client_user
 
 from .router import router
 
@@ -24,7 +24,7 @@ async def create_oauth_app(
     name: str = Body(..., max_length=100, description="应用程序名称"),
     description: str = Body("", description="应用程序描述"),
     redirect_uris: list[str] = Body(..., description="允许的重定向 URI 列表"),
-    current_user: User = Security(get_current_user, scopes=["*"]),
+    current_user: User = Security(get_client_user),
     session: AsyncSession = Depends(get_db),
 ):
     result = await session.execute(  # pyright: ignore[reportDeprecated]
@@ -62,7 +62,7 @@ async def create_oauth_app(
 async def get_oauth_app(
     client_id: int,
     session: AsyncSession = Depends(get_db),
-    current_user: User = Security(get_current_user, scopes=["*"]),
+    current_user: User = Security(get_client_user),
 ):
     oauth_app = await session.get(OAuthClient, client_id)
     if not oauth_app:
@@ -82,7 +82,7 @@ async def get_oauth_app(
 )
 async def get_user_oauth_apps(
     session: AsyncSession = Depends(get_db),
-    current_user: User = Security(get_current_user, scopes=["*"]),
+    current_user: User = Security(get_client_user),
 ):
     oauth_apps = await session.exec(
         select(OAuthClient).where(OAuthClient.owner_id == current_user.id)
@@ -107,7 +107,7 @@ async def get_user_oauth_apps(
 async def delete_oauth_app(
     client_id: int,
     session: AsyncSession = Depends(get_db),
-    current_user: User = Security(get_current_user, scopes=["*"]),
+    current_user: User = Security(get_client_user),
 ):
     oauth_client = await session.get(OAuthClient, client_id)
     if not oauth_client:
@@ -138,7 +138,7 @@ async def update_oauth_app(
     description: str = Body("", description="应用程序新描述"),
     redirect_uris: list[str] = Body(..., description="新的重定向 URI 列表"),
     session: AsyncSession = Depends(get_db),
-    current_user: User = Security(get_current_user, scopes=["*"]),
+    current_user: User = Security(get_client_user),
 ):
     oauth_client = await session.get(OAuthClient, client_id)
     if not oauth_client:
@@ -170,7 +170,7 @@ async def update_oauth_app(
 async def refresh_secret(
     client_id: int,
     session: AsyncSession = Depends(get_db),
-    current_user: User = Security(get_current_user, scopes=["*"]),
+    current_user: User = Security(get_client_user),
 ):
     oauth_client = await session.get(OAuthClient, client_id)
     if not oauth_client:
@@ -204,7 +204,7 @@ async def refresh_secret(
 )
 async def generate_oauth_code(
     client_id: int,
-    current_user: User = Security(get_current_user, scopes=["*"]),
+    current_user: User = Security(get_client_user),
     redirect_uri: str = Body(..., description="授权后重定向的 URI"),
     scopes: list[str] = Body(..., description="请求的权限范围列表"),
     session: AsyncSession = Depends(get_db),

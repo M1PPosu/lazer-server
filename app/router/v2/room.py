@@ -13,7 +13,7 @@ from app.database.room import APIUploadedRoom, Room, RoomResp
 from app.database.room_participated_user import RoomParticipatedUser
 from app.database.score import Score
 from app.dependencies.database import get_db, get_redis
-from app.dependencies.user import get_current_user
+from app.dependencies.user import get_client_user, get_current_user
 from app.models.room import RoomCategory, RoomStatus
 from app.service.room import create_playlist_room_from_api
 from app.signalr.hub import MultiplayerHubs
@@ -149,7 +149,7 @@ async def _participate_room(
 async def create_room(
     room: APIUploadedRoom,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Security(get_current_user, scopes=["*"]),
+    current_user: User = Security(get_client_user),
 ):
     assert current_user.id is not None
     user_id = current_user.id
@@ -177,7 +177,7 @@ async def get_room(
         ),
     ),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Security(get_current_user, scopes=["*"]),
+    current_user: User = Security(get_client_user),
     redis: Redis = Depends(get_redis),
 ):
     db_room = (await db.exec(select(Room).where(Room.id == room_id))).first()
@@ -198,7 +198,7 @@ async def get_room(
 async def delete_room(
     room_id: int = Path(..., description="房间 ID"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Security(get_current_user, scopes=["*"]),
+    current_user: User = Security(get_client_user),
 ):
     db_room = (await db.exec(select(Room).where(Room.id == room_id))).first()
     if db_room is None:
@@ -219,7 +219,7 @@ async def add_user_to_room(
     room_id: int = Path(..., description="房间 ID"),
     user_id: int = Path(..., description="用户 ID"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Security(get_current_user, scopes=["*"]),
+    current_user: User = Security(get_client_user),
 ):
     db_room = (await db.exec(select(Room).where(Room.id == room_id))).first()
     if db_room is not None:
@@ -242,7 +242,7 @@ async def remove_user_from_room(
     room_id: int = Path(..., description="房间 ID"),
     user_id: int = Path(..., description="用户 ID"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Security(get_current_user, scopes=["*"]),
+    current_user: User = Security(get_client_user),
 ):
     db_room = (await db.exec(select(Room).where(Room.id == room_id))).first()
     if db_room is not None:

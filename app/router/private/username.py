@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from app.database.lazer_user import User
 from app.dependencies.database import get_db
-from app.dependencies.user import get_current_user
+from app.dependencies.user import get_client_user
 
 from .router import router
 
@@ -18,7 +18,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 async def user_rename(
     new_name: str = Body(..., description="新的用户名"),
     session: AsyncSession = Depends(get_db),
-    current_user: User = Security(get_current_user, scopes=["*"]),
+    current_user: User = Security(get_client_user),
 ):
     """修改用户名
 

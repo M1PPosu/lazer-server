@@ -6,7 +6,7 @@ from io import BytesIO
 from app.database.lazer_user import User
 from app.dependencies.database import get_db
 from app.dependencies.storage import get_storage_service
-from app.dependencies.user import get_current_user
+from app.dependencies.user import get_client_user
 from app.storage.base import StorageService
 
 from .router import router
@@ -22,7 +22,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 )
 async def upload_avatar(
     content: bytes = File(...),
-    current_user: User = Security(get_current_user, scopes=["*"]),
+    current_user: User = Security(get_client_user),
     storage: StorageService = Depends(get_storage_service),
     session: AsyncSession = Depends(get_db),
 ):

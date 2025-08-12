@@ -23,28 +23,43 @@ security = HTTPBearer()
 
 oauth2_password = OAuth2PasswordBearer(
     tokenUrl="oauth/token",
-    scopes={"*": "Allows access to all scopes."},
+    refreshUrl="oauth/token",
+    scopes={"*": "允许访问全部 API。"},
+    description="osu!lazer 或网页客户端密码登录认证，具有全部权限",
+    scheme_name="Password Grant",
 )
 
 oauth2_code = OAuth2AuthorizationCodeBearer(
     authorizationUrl="oauth/authorize",
     tokenUrl="oauth/token",
+    refreshUrl="oauth/token",
     scopes={
-        "chat.read": "Allows read chat messages on a user's behalf.",
-        "chat.write": "Allows sending chat messages on a user's behalf.",
-        "chat.write_manage": (
-            "Allows joining and leaving chat channels on a user's behalf."
-        ),
-        "delegate": (
-            "Allows acting as the owner of a client; "
-            "only available for Client Credentials Grant."
-        ),
-        "forum.write": "Allows creating and editing forum posts on a user's behalf.",
-        "friends.read": "Allows reading of the user's friend list.",
-        "identify": "Allows reading of the public profile of the user (/me).",
-        "public": "Allows reading of publicly available data on behalf of the user.",
+        "chat.read": "允许代表用户读取聊天消息。",
+        "chat.write": "允许代表用户发送聊天消息。",
+        "chat.write_manage": ("允许代表用户加入和离开聊天频道。"),
+        "delegate": ("允许作为客户端的所有者进行操作；仅适用于客户端凭证授权。"),
+        "forum.write": "允许代表用户创建和编辑论坛帖子。",
+        "friends.read": "允许读取用户的好友列表。",
+        "identify": "允许读取用户的公开资料 (/me)。",
+        "public": "允许代表用户读取公开数据。",
     },
+    description="osu! OAuth 认证 （授权码认证）",
+    scheme_name="Authorization Code Grant",
 )
+
+
+async def get_client_user(
+    token: Annotated[str, Depends(oauth2_password)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    token_record = await get_token_by_access_token(db, token)
+    if not token_record:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    user = (await db.exec(select(User).where(User.id == token_record.user_id))).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    return user
 
 
 async def get_current_user(
@@ -67,11 +82,7 @@ async def get_current_user(
         settings.osu_web_client_id,
     )
 
-    if security_scopes.scopes == ["*"]:
-        # client/web only
-        if not token_pw or not is_client:
-            raise HTTPException(status_code=401, detail="Not authenticated")
-    elif not is_client:
+    if not is_client:
         for scope in security_scopes.scopes:
             if scope not in token_record.scope.split(","):
                 raise HTTPException(

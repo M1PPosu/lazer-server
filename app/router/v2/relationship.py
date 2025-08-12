@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from app.database import Relationship, RelationshipResp, RelationshipType, User
 from app.dependencies.database import get_db
-from app.dependencies.user import get_current_user
+from app.dependencies.user import get_client_user, get_current_user
 
 from .router import router
 
@@ -69,7 +69,7 @@ class AddFriendResp(BaseModel):
 async def add_relationship(
     request: Request,
     target: int = Query(description="目标用户 ID"),
-    current_user: User = Security(get_current_user, scopes=["*"]),
+    current_user: User = Security(get_client_user),
     db: AsyncSession = Depends(get_db),
 ):
     assert current_user.id is not None
@@ -143,7 +143,7 @@ async def add_relationship(
 async def delete_relationship(
     request: Request,
     target: int = Path(..., description="目标用户 ID"),
-    current_user: User = Security(get_current_user, scopes=["*"]),
+    current_user: User = Security(get_client_user),
     db: AsyncSession = Depends(get_db),
 ):
     relationship_type = (

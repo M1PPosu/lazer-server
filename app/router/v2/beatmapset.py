@@ -5,7 +5,7 @@ from typing import Literal
 from app.database import Beatmap, Beatmapset, BeatmapsetResp, FavouriteBeatmapset, User
 from app.dependencies.database import get_db
 from app.dependencies.fetcher import get_fetcher
-from app.dependencies.user import get_current_user
+from app.dependencies.user import get_client_user, get_current_user
 from app.fetcher import Fetcher
 
 from .router import router
@@ -68,7 +68,7 @@ async def get_beatmapset(
 async def download_beatmapset(
     beatmapset_id: int = Path(..., description="谱面集 ID"),
     no_video: bool = Query(True, alias="noVideo", description="是否下载无视频版本"),
-    current_user: User = Security(get_current_user, scopes=["*"]),
+    current_user: User = Security(get_client_user),
 ):
     if current_user.country_code == "CN":
         return RedirectResponse(
@@ -92,7 +92,7 @@ async def favourite_beatmapset(
     action: Literal["favourite", "unfavourite"] = Form(
         description="操作类型：favourite 收藏 / unfavourite 取消收藏"
     ),
-    current_user: User = Security(get_current_user, scopes=["*"]),
+    current_user: User = Security(get_client_user),
     db: AsyncSession = Depends(get_db),
 ):
     assert current_user.id is not None
