@@ -13,12 +13,16 @@ from sqlmodel import select, text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
-@router.post("/oauth-app/create", tags=["OAuth"])
+@router.post(
+    "/oauth-app/create",
+    name="创建 OAuth 应用",
+    description="创建一个新的 OAuth 应用程序，并生成客户端 ID 和密钥",
+)
 async def create_oauth_app(
-    name: str = Body(..., max_length=100),
-    description: str = Body(""),
-    redirect_uris: list[str] = Body(...),
-    owner_id: int = Body(...),
+    name: str = Body(..., max_length=100, description="应用程序名称"),
+    description: str = Body("", description="应用程序描述"),
+    redirect_uris: list[str] = Body(..., description="允许的重定向 URI 列表"),
+    owner_id: int = Body(..., description="应用程序所有者的用户 ID"),
     session: AsyncSession = Depends(get_db),
 ):
     result = await session.execute(  # pyright: ignore[reportDeprecated]
@@ -48,8 +52,15 @@ async def create_oauth_app(
     }
 
 
-@router.get("/oauth-apps/{client_id}", tags=["OAuth"])
-async def get_oauth_app(client_id: int, session: AsyncSession = Depends(get_db)):
+@router.get(
+    "/oauth-apps/{client_id}",
+    name="获取 OAuth 应用信息",
+    description="通过客户端 ID 获取 OAuth 应用的详细信息",
+)
+async def get_oauth_app(
+    client_id: int,
+    session: AsyncSession = Depends(get_db),
+):
     oauth_app = await session.get(OAuthClient, client_id)
     if not oauth_app:
         raise HTTPException(status_code=404, detail="OAuth app not found")
@@ -61,8 +72,15 @@ async def get_oauth_app(client_id: int, session: AsyncSession = Depends(get_db))
     }
 
 
-@router.get("/oauth-apps/user/{owner_id}", tags=["OAuth"])
-async def get_user_oauth_apps(owner_id: int, session: AsyncSession = Depends(get_db)):
+@router.get(
+    "/oauth-apps/user/{owner_id}",
+    name="获取用户的 OAuth 应用列表",
+    description="获取指定用户创建的所有 OAuth 应用程序",
+)
+async def get_user_oauth_apps(
+    owner_id: int,
+    session: AsyncSession = Depends(get_db),
+):
     oauth_apps = await session.exec(
         select(OAuthClient).where(OAuthClient.owner_id == owner_id)
     )
@@ -77,7 +95,12 @@ async def get_user_oauth_apps(owner_id: int, session: AsyncSession = Depends(get
     ]
 
 
-@router.delete("/oauth-app/{client_id}", tags=["OAuth"], status_code=204)
+@router.delete(
+    "/oauth-app/{client_id}",
+    status_code=204,
+    name="删除 OAuth 应用",
+    description="删除指定的 OAuth 应用程序及其关联的所有令牌",
+)
 async def delete_oauth_app(
     client_id: int,
     session: AsyncSession = Depends(get_db),
@@ -96,12 +119,16 @@ async def delete_oauth_app(
     await session.commit()
 
 
-@router.patch("/oauth-app/{client_id}", tags=["OAuth"])
+@router.patch(
+    "/oauth-app/{client_id}",
+    name="更新 OAuth 应用",
+    description="更新指定 OAuth 应用的名称、描述和重定向 URI",
+)
 async def update_oauth_app(
     client_id: int,
-    name: str = Body(..., max_length=100),
-    description: str = Body(""),
-    redirect_uris: list[str] = Body(...),
+    name: str = Body(..., max_length=100, description="应用程序新名称"),
+    description: str = Body("", description="应用程序新描述"),
+    redirect_uris: list[str] = Body(..., description="新的重定向 URI 列表"),
     session: AsyncSession = Depends(get_db),
 ):
     oauth_client = await session.get(OAuthClient, client_id)
@@ -122,7 +149,11 @@ async def update_oauth_app(
     }
 
 
-@router.post("/oauth-app/{client_id}/refresh", tags=["OAuth"])
+@router.post(
+    "/oauth-app/{client_id}/refresh",
+    name="刷新 OAuth 密钥",
+    description="为指定的 OAuth 应用生成新的客户端密钥，并使所有现有的令牌失效",
+)
 async def refresh_secret(
     client_id: int,
     session: AsyncSession = Depends(get_db),
@@ -148,12 +179,16 @@ async def refresh_secret(
     }
 
 
-@router.post("/oauth-app/{client_id}/code")
+@router.post(
+    "/oauth-app/{client_id}/code",
+    name="生成 OAuth 授权码",
+    description="为特定用户和 OAuth 应用生成授权码，用于授权码授权流程",
+)
 async def generate_oauth_code(
     client_id: int,
-    user_id: int = Body(...),
-    redirect_uri: str = Body(...),
-    scopes: list[str] = Body(...),
+    user_id: int = Body(..., description="授权用户的 ID"),
+    redirect_uri: str = Body(..., description="授权后重定向的 URI"),
+    scopes: list[str] = Body(..., description="请求的权限范围列表"),
     session: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
 ):
@@ -172,3 +207,9 @@ async def generate_oauth_code(
         mapping={"user_id": user_id, "scopes": ",".join(scopes)},
     )
     await redis.expire(f"oauth:code:{client_id}:{code}", 300)
+
+    return {
+        "code": code,
+        "redirect_uri": redirect_uri,
+        "expires_in": 300,
+    }

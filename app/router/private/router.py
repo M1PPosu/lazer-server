@@ -35,5 +35,6 @@ async def verify_signature(
 router = APIRouter(
     prefix="/api/private",
     dependencies=[Depends(verify_signature)],
-    include_in_schema=False,
+    include_in_schema=settings.debug,
+    tags=["私有 API"],
 )

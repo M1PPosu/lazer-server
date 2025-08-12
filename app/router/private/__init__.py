@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from . import avatar  # noqa: F401
+from . import avatar, oauth, username  # noqa: F401
 from .router import router as private_router
 
 __all__ = [

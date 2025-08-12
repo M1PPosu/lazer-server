@@ -16,13 +16,28 @@ from PIL import Image
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
-@router.post("/avatar/upload", tags=["avatar"])
+@router.post(
+    "/avatar/upload",
+    name="上传头像",
+)
 async def upload_avatar(
-    file: str = Body(...),
-    user_id: int = Body(...),
+    file: str = Body(..., description="Base64 编码的图片数据"),
+    user_id: int = Body(..., description="用户 ID"),
     storage: StorageService = Depends(get_storage_service),
     session: AsyncSession = Depends(get_db),
 ):
+    """上传用户头像
+
+    接收 Base64 编码的图片数据，验证图片格式和大小后存储到头像目录，并更新用户的头像 URL
+
+    限制条件:
+    - 支持的图片格式: PNG、JPEG、GIF
+    - 最大文件大小: 5MB
+    - 最大图片尺寸: 256x256 像素
+
+    返回:
+    - 头像 URL 和文件哈希值
+    """
     content = base64.b64decode(file)
 
     user = await session.get(User, user_id)
