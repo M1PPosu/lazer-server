@@ -848,6 +848,8 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 played_user,
                 ex=3600,
             )
+        else:
+            await room.queue.finish_current_item()
 
     async def send_match_event(
         self, room: ServerMultiplayerRoom, event: MatchServerEvent

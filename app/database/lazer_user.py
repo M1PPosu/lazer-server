@@ -4,12 +4,13 @@ from typing import TYPE_CHECKING, NotRequired, TypedDict
 from app.database.events import Event
 from app.models.model import UTCBaseModel
 from app.models.score import GameMode
-from app.models.user import Country, Page, RankHistory
+from app.models.user import Country, Page
 
 from .achievement import UserAchievement, UserAchievementResp
 from .beatmap_playcounts import BeatmapPlaycounts
 from .counts import CountResp, MonthlyPlaycounts, ReplayWatchedCount
 from .daily_challenge import DailyChallengeStats, DailyChallengeStatsResp
+from .rank_history import RankHistory, RankHistoryResp, RankTop
 from .statistics import UserStatistics, UserStatisticsResp
 from .team import Team, TeamMember
 from .user_account_history import UserAccountHistory, UserAccountHistoryResp
@@ -152,6 +153,10 @@ class User(AsyncAttrs, UserBase, table=True):
     favourite_beatmapsets: list["FavouriteBeatmapset"] = Relationship(
         back_populates="user"
     )
+    rank_history: list[RankHistory] = Relationship(
+        back_populates="user",
+    )
+
     events: list["Event"] = Relationship(back_populates="user")
     email: str = Field(max_length=254, unique=True, index=True, exclude=True)
     priv: int = Field(default=1, exclude=True)
@@ -191,8 +196,8 @@ class UserResp(UserBase):
     monthly_playcounts: list[CountResp] = Field(default_factory=list)
     replay_watched_counts: list[CountResp] = Field(default_factory=list)
     unread_pm_count: int = 0  # TODO
-    rank_history: RankHistory | None = None  # TODO
-    rank_highest: RankHighest | None = None  # TODO
+    rank_history: RankHistoryResp | None = None
+    rank_highest: RankHighest | None = None
     statistics: UserStatisticsResp | None = None
     statistics_rulesets: dict[str, UserStatisticsResp] | None = None
     user_achievements: list[UserAchievementResp] = Field(default_factory=list)
@@ -290,14 +295,18 @@ class UserResp(UserBase):
                     current_stattistics = i
                     break
             u.statistics = (
-                UserStatisticsResp.from_db(current_stattistics)
+                await UserStatisticsResp.from_db(
+                    current_stattistics, session, obj.country_code
+                )
                 if current_stattistics
                 else None
             )
 
         if "statistics_rulesets" in include:
             u.statistics_rulesets = {
-                i.mode.value: UserStatisticsResp.from_db(i)
+                i.mode.value: await UserStatisticsResp.from_db(
+                    i, session, obj.country_code
+                )
                 for i in await obj.awaitable_attrs.statistics
             }
 
@@ -318,6 +327,27 @@ class UserResp(UserBase):
                 UserAchievementResp.from_db(ua)
                 for ua in await obj.awaitable_attrs.achievement
             ]
+        if "rank_history" in include:
+            rank_history = await RankHistoryResp.from_db(session, obj.id, ruleset)
+            if len(rank_history.data) != 0:
+                u.rank_history = rank_history
+
+            rank_top = (
+                await session.exec(
+                    select(RankTop).where(
+                        RankTop.user_id == obj.id, RankTop.mode == ruleset
+                    )
+                )
+            ).first()
+            if rank_top:
+                u.rank_highest = (
+                    RankHighest(
+                        rank=rank_top.rank,
+                        updated_at=datetime.combine(rank_top.date, datetime.min.time()),
+                    )
+                    if rank_top
+                    else None
+                )
 
         u.favourite_beatmapset_count = (
             await session.exec(
@@ -384,6 +414,7 @@ ALL_INCLUDED = [
     "achievements",
     "monthly_playcounts",
     "replays_watched_counts",
+    "rank_history",
 ]
 
 
@@ -395,6 +426,7 @@ SEARCH_INCLUDED = [
     "achievements",
     "monthly_playcounts",
     "replays_watched_counts",
+    "rank_history",
 ]
 
 BASE_INCLUDES = [

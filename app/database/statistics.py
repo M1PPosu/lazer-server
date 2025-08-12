@@ -1,6 +1,9 @@
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from app.models.score import GameMode
+
+from .rank_history import RankHistory
 
 from sqlmodel import (
     BigInteger,
@@ -9,23 +12,24 @@ from sqlmodel import (
     ForeignKey,
     Relationship,
     SQLModel,
+    col,
+    func,
+    select,
 )
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 if TYPE_CHECKING:
     from .lazer_user import User
 
 
 class UserStatisticsBase(SQLModel):
-    mode: GameMode
+    mode: GameMode = Field(index=True)
     count_100: int = Field(default=0, sa_column=Column(BigInteger))
     count_300: int = Field(default=0, sa_column=Column(BigInteger))
     count_50: int = Field(default=0, sa_column=Column(BigInteger))
     count_miss: int = Field(default=0, sa_column=Column(BigInteger))
 
-    global_rank: int | None = Field(default=None)
-    country_rank: int | None = Field(default=None)
-
-    pp: float = Field(default=0.0)
+    pp: float = Field(default=0.0, index=True)
     ranked_score: int = Field(default=0)
     hit_accuracy: float = Field(default=0.00)
     total_score: int = Field(default=0, sa_column=Column(BigInteger))
@@ -62,6 +66,8 @@ class UserStatistics(UserStatisticsBase, table=True):
 
 
 class UserStatisticsResp(UserStatisticsBase):
+    global_rank: int | None = Field(default=None)
+    country_rank: int | None = Field(default=None)
     grade_counts: dict[str, int] = Field(
         default_factory=lambda: {
             "ss": 0,
@@ -79,7 +85,9 @@ class UserStatisticsResp(UserStatisticsBase):
     )
 
     @classmethod
-    def from_db(cls, obj: UserStatistics) -> "UserStatisticsResp":
+    async def from_db(
+        cls, obj: UserStatistics, session: AsyncSession, user_country: str
+    ) -> "UserStatisticsResp":
         s = cls.model_validate(obj)
         s.grade_counts = {
             "ss": obj.grade_ss,
@@ -92,4 +100,56 @@ class UserStatisticsResp(UserStatisticsBase):
             "current": obj.level_current,
             "progress": obj.level_progress,
         }
+        s.global_rank = await get_rank(session, obj)
+        s.country_rank = await get_rank(session, obj, user_country)
         return s
+
+
+async def get_rank(
+    session: AsyncSession, statistics: UserStatistics, country: str | None = None
+) -> int | None:
+    from .lazer_user import User
+
+    query = select(
+        UserStatistics.user_id,
+        func.row_number().over(order_by=col(UserStatistics.pp).desc()).label("rank"),
+    ).where(
+        UserStatistics.mode == statistics.mode,
+        UserStatistics.pp > 0,
+        col(UserStatistics.is_ranked).is_(True),
+    )
+
+    if country is not None:
+        query = query.join(User).where(User.country_code == country)
+
+    subq = query.subquery()
+
+    result = await session.exec(
+        select(subq.c.rank).where(subq.c.user_id == statistics.user_id)
+    )
+
+    rank = result.first()
+    if rank is None:
+        return None
+
+    today = datetime.now(UTC).date()
+    rank_history = (
+        await session.exec(
+            select(RankHistory).where(
+                RankHistory.user_id == statistics.user_id,
+                RankHistory.mode == statistics.mode,
+                RankHistory.date == today,
+            )
+        )
+    ).first()
+    if rank_history is None:
+        rank_history = RankHistory(
+            user_id=statistics.user_id,
+            mode=statistics.mode,
+            date=today,
+            rank=rank,
+        )
+        session.add(rank_history)
+    else:
+        rank_history.rank = rank
+    return rank
