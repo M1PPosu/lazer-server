@@ -70,7 +70,7 @@ docker-compose -f docker-compose-osurx.yml up -d
 | `DEBUG` | 调试模式 | `false` |
 | `SERVER_URL` | 服务器 URL | `http://localhost:8000` |
 | `CORS_URLS` | 额外的 CORS 允许的域名列表 (JSON 格式) | `[]` |
-| `FRONTEND_URL` | 前端 URL，当访问从游戏打开的 URL 时会重定向到这个 URL，为空表示不重定向 | `` |
+| `FRONTEND_URL` | 前端 URL，当访问从游戏打开的 URL 时会重定向到这个 URL，为空表示不重定向 | `(null)` |
 
 ### OAuth 设置
 | 变量名 | 描述 | 默认值 |
@@ -100,6 +100,11 @@ Fetcher 用于从 osu! 官方 API 获取数据，使用 osu! 官方 API 的 OAut
 | 变量名 | 描述 | 默认值 |
 |--------|------|--------|
 | `LOG_LEVEL` | 日志级别 | `INFO` |
+
+### Sentry 设置
+| 变量名 | 描述 | 默认值 |
+|--------|------|--------|
+| `SENTRY_DSN` | Sentry DSN，为空不启用 Sentry | `(null)` |
 
 ### 游戏设置
 | 变量名 | 描述 | 默认值 |

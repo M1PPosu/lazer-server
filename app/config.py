@@ -84,6 +84,9 @@ class Settings(BaseSettings):
     # 日志设置
     log_level: str = "INFO"
 
+    # Sentry 配置
+    sentry_dsn: HttpUrl | None = None
+
     # 游戏设置
     enable_osu_rx: bool = False
     enable_osu_ap: bool = False

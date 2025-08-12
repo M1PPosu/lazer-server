@@ -24,6 +24,7 @@ from app.service.osu_rx_statistics import create_rx_statistics
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+import sentry_sdk
 
 
 @asynccontextmanager
@@ -45,6 +46,14 @@ desc = (
     "osu! API 模拟服务器，支持 osu! API v2 和 osu!lazer 的绝大部分功能。\n\n"
     "官方文档：[osu!web 文档](https://osu.ppy.sh/docs/index.html)"
 )
+
+if settings.sentry_dsn is not None:
+    sentry_sdk.init(
+        dsn=str(settings.sentry_dsn),
+        send_default_pii=False,
+        environment="production" if not settings.debug else "development",
+    )
+
 app = FastAPI(
     title="osu! API 模拟服务器",
     version="1.0.0",
