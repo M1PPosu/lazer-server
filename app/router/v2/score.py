@@ -32,6 +32,7 @@ from app.database.score import (
 )
 from app.dependencies.database import get_db, get_redis
 from app.dependencies.fetcher import get_fetcher
+from app.dependencies.storage import get_storage_service
 from app.dependencies.user import get_current_user
 from app.fetcher import Fetcher
 from app.models.room import RoomCategory
@@ -42,12 +43,13 @@ from app.models.score import (
     Rank,
     SoloScoreSubmissionInfo,
 )
-from app.path import REPLAY_DIR
+from app.storage.base import StorageService
+from app.storage.local import LocalStorageService
 
 from .router import router
 
 from fastapi import Body, Depends, Form, HTTPException, Query, Security
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from httpx import HTTPError
 from pydantic import BaseModel
 from redis.asyncio import Redis
@@ -715,15 +717,15 @@ async def download_score_replay(
     score_id: int,
     current_user: User = Security(get_current_user, scopes=["public"]),
     db: AsyncSession = Depends(get_db),
+    storage_service: StorageService = Depends(get_storage_service),
 ):
     score = (await db.exec(select(Score).where(Score.id == score_id))).first()
     if not score:
         raise HTTPException(status_code=404, detail="Score not found")
 
-    filename = f"{score.id}_{score.beatmap_id}_{score.user_id}_lazer_replay.osr"
-    path = REPLAY_DIR / filename
+    filepath = f"replays/{score.id}_{score.beatmap_id}_{score.user_id}_lazer_replay.osr"
 
-    if not path.exists():
+    if not await storage_service.is_exists(filepath):
         raise HTTPException(status_code=404, detail="Replay file not found")
 
     is_friend = (
@@ -755,7 +757,14 @@ async def download_score_replay(
             db.add(replay_watched_count)
         replay_watched_count.count += 1
         await db.commit()
-
-    return FileResponse(
-        path=path, filename=filename, media_type="application/x-osu-replay"
-    )
+    if isinstance(storage_service, LocalStorageService):
+        return FileResponse(
+            path=await storage_service.get_file_url(filepath),
+            filename=filepath,
+            media_type="application/x-osu-replay",
+        )
+    else:
+        return RedirectResponse(
+            await storage_service.get_file_url(filepath),
+            301,
+        )

@@ -13,6 +13,7 @@ from app.database.score import Score
 from app.database.score_token import ScoreToken
 from app.dependencies.database import engine
 from app.dependencies.fetcher import get_fetcher
+from app.dependencies.storage import get_storage_service
 from app.models.mods import mods_to_int
 from app.models.score import LegacyReplaySoloScoreInfo, ScoreStatistics
 from app.models.spectator_hub import (
@@ -25,7 +26,6 @@ from app.models.spectator_hub import (
     StoreClientState,
     StoreScore,
 )
-from app.path import REPLAY_DIR
 from app.utils import unix_timestamp_to_windows
 
 from .hub import Client, Hub
@@ -64,7 +64,7 @@ def encode_string(s: str) -> bytes:
     return ret
 
 
-def save_replay(
+async def save_replay(
     ruleset_id: int,
     md5: str,
     username: str,
@@ -136,10 +136,14 @@ def save_replay(
     data.extend(struct.pack("<i", len(compressed)))
     data.extend(compressed)
 
+    storage_service = get_storage_service()
     replay_path = (
-        REPLAY_DIR / f"{score.id}_{score.beatmap_id}_{score.user_id}_lazer_replay.osr"
+        f"replays/{score.id}_{score.beatmap_id}_{score.user_id}_lazer_replay.osr"
     )
-    replay_path.write_bytes(data)
+    await storage_service.write_file(
+        replay_path,
+        bytes(data),
+    )
 
 
 class SpectatorHub(Hub[StoreClientState]):
@@ -298,7 +302,7 @@ class SpectatorHub(Hub[StoreClientState]):
                 score_record.has_replay = True
                 await session.commit()
                 await session.refresh(score_record)
-                save_replay(
+                await save_replay(
                     ruleset_id=store.ruleset_id,
                     md5=store.checksum,
                     username=store.score.score_info.user.name,
