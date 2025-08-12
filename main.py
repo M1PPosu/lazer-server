@@ -53,9 +53,16 @@ app.include_router(file_router)
 app.include_router(auth_router)
 app.include_router(private_router)
 # CORS 配置
+origins = []
+for url in [*settings.cors_urls, settings.server_url]:
+    origins.append(str(url))
+    origins.append(str(url).removesuffix("/"))
+if settings.frontend_url:
+    origins.append(str(settings.frontend_url))
+    origins.append(str(settings.frontend_url).removesuffix("/"))
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[str(url) for url in [*settings.cors_urls, settings.server_url]],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
