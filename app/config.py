@@ -67,6 +67,7 @@ class Settings(BaseSettings):
     private_api_secret: str = "your_private_api_secret_here"
     cors_urls: list[HttpUrl] = []
     server_url: HttpUrl = HttpUrl("http://localhost:8000")
+    frontend_url: HttpUrl | None = None
 
     # SignalR 设置
     signalr_negotiate_timeout: int = 30

@@ -16,6 +16,7 @@ from app.router import (
     private_router,
     signalr_router,
 )
+from app.router.redirect import redirect_router
 from app.service.daily_challenge import daily_challenge_job
 from app.service.osu_rx_statistics import create_rx_statistics
 
@@ -59,6 +60,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+if settings.frontend_url is not None:
+    app.include_router(redirect_router)
 
 
 @app.get("/", include_in_schema=False)
