@@ -50,6 +50,8 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
+# 测试用的证书
+test-cert/ 
 
 # Translations
 *.mo
