@@ -156,8 +156,8 @@ class User(AsyncAttrs, UserBase, table=True):
     rank_history: list[RankHistory] = Relationship(
         back_populates="user",
     )
+    events: list[Event] = Relationship(back_populates="user")
 
-    events: list["Event"] = Relationship(back_populates="user")
     email: str = Field(max_length=254, unique=True, index=True, exclude=True)
     priv: int = Field(default=1, exclude=True)
     pw_bcrypt: str = Field(max_length=60, exclude=True)

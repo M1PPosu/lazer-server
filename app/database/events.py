@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from datetime import UTC, datetime
 from enum import Enum
 import json
@@ -16,7 +14,7 @@ from sqlmodel import (
 )
 
 if TYPE_CHECKING:
-    from app.database.lazer_user import User
+    from .lazer_user import User
 
 
 class EventType(str, Enum):
