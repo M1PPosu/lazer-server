@@ -1,12 +1,22 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 import json
+from typing import TYPE_CHECKING
 
-from app.database.lazer_user import User
+from sqlmodel import (
+    BigInteger,
+    Column,
+    DateTime,
+    Field,
+    ForeignKey,
+    Relationship,
+    SQLModel,
+)
 
-from sqlmodel import Field, Relationship, SQLModel
+if TYPE_CHECKING:
+    from app.database.lazer_user import User
 
 
 class EventType(str, Enum):
@@ -28,15 +38,20 @@ class EventType(str, Enum):
 
 class EventBase(SQLModel):
     id: int = Field(default=None, primary_key=True)
-    createdAt: datetime
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), default=datetime.now(UTC))
+    )
     type: EventType
     event_payload: str
 
 
 class Event(EventBase, table=True):
     __tablename__ = "user_events"  # pyright: ignore[reportAssignmentType]
-    user_id: int | None = Field(default=None, foreign_key="lazer_users.id")
-    user: User = Relationship(back_populates="events")
+    user_id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True),
+    )
+    user: "User" = Relationship(back_populates="events")
 
 
 class EventResp(EventBase):

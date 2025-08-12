@@ -1,7 +1,6 @@
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, NotRequired, TypedDict
 
-from app.database.events import Event
 from app.models.model import UTCBaseModel
 from app.models.score import GameMode
 from app.models.user import Country, Page
@@ -10,6 +9,7 @@ from .achievement import UserAchievement, UserAchievementResp
 from .beatmap_playcounts import BeatmapPlaycounts
 from .counts import CountResp, MonthlyPlaycounts, ReplayWatchedCount
 from .daily_challenge import DailyChallengeStats, DailyChallengeStatsResp
+from .events import Event
 from .rank_history import RankHistory, RankHistoryResp, RankTop
 from .statistics import UserStatistics, UserStatisticsResp
 from .team import Team, TeamMember
