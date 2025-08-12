@@ -17,6 +17,7 @@ from app.router import (
     signalr_router,
 )
 from app.router.redirect import redirect_router
+from app.service.calculate_all_user_rank import calculate_user_rank
 from app.service.daily_challenge import daily_challenge_job
 from app.service.osu_rx_statistics import create_rx_statistics
 
@@ -29,6 +30,7 @@ from fastapi.responses import JSONResponse
 async def lifespan(app: FastAPI):
     # on startup
     await create_rx_statistics()
+    await calculate_user_rank(True)
     await get_fetcher()  # 初始化 fetcher
     init_scheduler()
     await daily_challenge_job()

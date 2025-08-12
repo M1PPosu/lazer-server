@@ -32,7 +32,7 @@ class BatchUserResponse(BaseModel):
 
 
 @router.get(
-    "/users",
+    "/users/",
     response_model=BatchUserResponse,
     name="批量获取用户信息",
     description="通过用户 ID 列表批量获取用户信息。",

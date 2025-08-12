@@ -1,13 +1,13 @@
 from .achievement import UserAchievement, UserAchievementResp
 from .auth import OAuthClient, OAuthToken
 from .beatmap import (
-    Beatmap as Beatmap,
-    BeatmapResp as BeatmapResp,
+    Beatmap,
+    BeatmapResp,
 )
 from .beatmap_playcounts import BeatmapPlaycounts, BeatmapPlaycountsResp
 from .beatmapset import (
-    Beatmapset as Beatmapset,
-    BeatmapsetResp as BeatmapsetResp,
+    Beatmapset,
+    BeatmapsetResp,
 )
 from .best_score import BestScore
 from .counts import (
@@ -30,6 +30,7 @@ from .playlist_attempts import (
 from .playlist_best_score import PlaylistBestScore
 from .playlists import Playlist, PlaylistResp
 from .pp_best_score import PPBestScore
+from .rank_history import RankHistory, RankHistoryResp, RankTop
 from .relationship import Relationship, RelationshipResp, RelationshipType
 from .room import APIUploadedRoom, Room, RoomResp
 from .room_participated_user import RoomParticipatedUser
@@ -58,6 +59,7 @@ __all__ = [
     "Beatmap",
     "BeatmapPlaycounts",
     "BeatmapPlaycountsResp",
+    "BeatmapResp",
     "Beatmapset",
     "BeatmapsetResp",
     "BestScore",
@@ -78,6 +80,9 @@ __all__ = [
     "PlaylistAggregateScore",
     "PlaylistBestScore",
     "PlaylistResp",
+    "RankHistory",
+    "RankHistoryResp",
+    "RankTop",
     "Relationship",
     "RelationshipResp",
     "RelationshipType",
