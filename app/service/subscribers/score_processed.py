@@ -35,7 +35,10 @@ class ScoreSubscriber(RedisSubscriber):
 
     async def unsubscribe_room_score(self, room_id: int, user_id: int):
         if room_id in self.room_subscriber:
-            self.room_subscriber[room_id].remove(user_id)
+            try:
+                self.room_subscriber[room_id].remove(user_id)
+            except ValueError:
+                pass
             if not self.room_subscriber[room_id]:
                 del self.room_subscriber[room_id]
 
