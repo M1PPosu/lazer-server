@@ -7,5 +7,7 @@
 			"path": "packages/msgpack_lazer_api"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"python.analysis.typeCheckingMode": "off"
+	}
 }
