@@ -48,7 +48,7 @@ app.include_router(private_router)
 # CORS 配置
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[str(settings.server_url)],
+    allow_origins=[str(url) for url in [*settings.cors_urls, settings.server_url]],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
