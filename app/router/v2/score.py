@@ -519,7 +519,8 @@ async def show_playlist_score(
 
     start_time = time.time()
     score_record = None
-    completed = room.category != RoomCategory.REALTIME
+    is_playlist = room.category != RoomCategory.REALTIME
+    completed = is_playlist
     while time.time() - start_time < READ_SCORE_TIMEOUT:
         if score_record is None:
             score_record = (
@@ -553,10 +554,13 @@ async def show_playlist_score(
         higher_scores = []
         lower_scores = []
         for score in scores:
+            resp = await ScoreResp.from_db(session, score.score)
+            if is_playlist and not resp.passed:
+                continue
             if score.total_score > resp.total_score:
-                higher_scores.append(await ScoreResp.from_db(session, score.score))
+                higher_scores.append(resp)
             elif score.total_score < resp.total_score:
-                lower_scores.append(await ScoreResp.from_db(session, score.score))
+                lower_scores.append(resp)
         resp.scores_around = ScoreAround(
             higher=MultiplayerScores(scores=higher_scores),
             lower=MultiplayerScores(scores=lower_scores),
