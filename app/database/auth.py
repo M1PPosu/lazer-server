@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from app.models.model import UTCBaseModel
 
 from sqlalchemy import Column, DateTime
-from sqlmodel import JSON, BigInteger, Field, ForeignKey, Relationship, SQLModel
+from sqlmodel import JSON, BigInteger, Field, ForeignKey, Relationship, SQLModel, Text
 
 if TYPE_CHECKING:
     from .lazer_user import User
@@ -33,6 +33,8 @@ class OAuthToken(UTCBaseModel, SQLModel, table=True):
 
 class OAuthClient(SQLModel, table=True):
     __tablename__ = "oauth_clients"  # pyright: ignore[reportAssignmentType]
+    name: str = Field(max_length=100, index=True)
+    description: str = Field(sa_column=Column(Text), default="")
     client_id: int | None = Field(default=None, primary_key=True, index=True)
     client_secret: str = Field(default_factory=secrets.token_hex, index=True)
     redirect_uris: list[str] = Field(default_factory=list, sa_column=Column(JSON))
