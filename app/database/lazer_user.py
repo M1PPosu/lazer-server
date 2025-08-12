@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, NotRequired, TypedDict
 
+from app.database.events import Event
 from app.models.model import UTCBaseModel
 from app.models.score import GameMode
 from app.models.user import Country, Page, RankHistory
@@ -151,7 +152,7 @@ class User(AsyncAttrs, UserBase, table=True):
     favourite_beatmapsets: list["FavouriteBeatmapset"] = Relationship(
         back_populates="user"
     )
-
+    events: list["Event"] = Relationship(back_populates="user")
     email: str = Field(max_length=254, unique=True, index=True, exclude=True)
     priv: int = Field(default=1, exclude=True)
     pw_bcrypt: str = Field(max_length=60, exclude=True)
