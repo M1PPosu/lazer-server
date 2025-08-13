@@ -44,13 +44,16 @@ async def upload_avatar(
         raise HTTPException(status_code=400, detail="File size exceeds 5MB limit")
     elif len(content) == 0:
         raise HTTPException(status_code=400, detail="File cannot be empty")
-    with Image.open(BytesIO(content)) as img:
-        if img.format not in ["PNG", "JPEG", "GIF"]:
-            raise HTTPException(status_code=400, detail="Invalid image format")
-        if img.size[0] > 256 or img.size[1] > 256:
-            raise HTTPException(
-                status_code=400, detail="Image size exceeds 256x256 pixels"
-            )
+    try:
+        with Image.open(BytesIO(content)) as img:
+            if img.format not in ["PNG", "JPEG", "GIF"]:
+                raise HTTPException(status_code=400, detail="Invalid image format")
+            if img.size[0] > 256 or img.size[1] > 256:
+                raise HTTPException(
+                    status_code=400, detail="Image size exceeds 256x256 pixels"
+                )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error processing image: {e}")
 
     filehash = hashlib.sha256(content).hexdigest()
     storage_path = f"avatars/{current_user.id}_{filehash}.png"
