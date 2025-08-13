@@ -507,7 +507,13 @@ class MultiplayerQueue:
 
         limit = HOST_LIMIT if is_host else PER_USER_LIMIT
         if (
-            len([True for u in self.room.playlist if u.owner_id == user.user_id])
+            len(
+                [
+                    True
+                    for u in self.room.playlist
+                    if u.owner_id == user.user_id and not u.expired
+                ]
+            )
             >= limit
         ):
             raise InvokeException(f"You can only have {limit} items in the queue")
