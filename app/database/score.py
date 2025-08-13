@@ -13,7 +13,8 @@ from app.calculator import (
     calculate_weighted_pp,
     clamp,
 )
-from app.config import settings
+from app.config import Settings, settings
+from app.database.events import Event, EventType
 from app.database.team import TeamMember
 from app.models.model import (
     CurrentUserAttributes,
@@ -225,6 +226,31 @@ class ScoreResp(ScoreBase):
             )
             or None
         )
+        total_users = (
+            await session.exec(select(func.count()).select_from(User))
+        ).first()
+        assert total_users is not None
+        if s.rank_global is not None and s.rank_global <= min(
+            math.ceil(float(total_users) * 0.01), 50
+        ):
+            rank_event = Event(
+                created_at=datetime.now(UTC),
+                type=EventType.RANK,
+                user_id=score.user_id,
+                user=score.user,
+            )
+            rank_event.event_payload = {
+                "scorerank": str(score.rank),
+                "rank": s.rank_global,
+                "mode": str(s.beatmap.mode),
+                "beatmap": {"title": s.beatmap.version, "url": s.beatmap.url},
+                "user": {
+                    "username": score.user.username,
+                    "url": str(Settings.frontend_url) + "/users/" + str(score.user.id),
+                },
+            }
+            session.add(rank_event)
+            await session.commit()
         s.rank_country = (
             await get_score_position_by_id(
                 session,
