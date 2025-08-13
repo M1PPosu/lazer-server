@@ -815,6 +815,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             raise InvokeException("Room is not ready for gameplay")
         if room.queue.current_item.expired:
             raise InvokeException("Current playlist item is expired")
+        await room.stop_all_countdowns(ForceGameplayStartCountdown)
         playing = False
         played_user = 0
         for user in room.room.users:
