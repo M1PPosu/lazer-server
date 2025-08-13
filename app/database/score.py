@@ -96,10 +96,12 @@ class ScoreBase(AsyncAttrs, SQLModel, UTCBaseModel):
     )
     type: str
     beatmap_id: int = Field(index=True, foreign_key="beatmaps.id")
+    maximum_statistics: ScoreStatistics = Field(
+        sa_column=Column(JSON), default_factory=dict
+    )
 
     # optional
     # TODO: current_user_attributes
-    # position: int | None = Field(default=None)  # multiplayer
 
 
 class Score(ScoreBase, table=True):
@@ -206,14 +208,6 @@ class ScoreResp(ScoreBase):
             s.statistics[HitResult.SMALL_TICK_HIT] = score.nsmall_tick_hit
         if score.nlarge_tick_hit is not None:
             s.statistics[HitResult.LARGE_TICK_HIT] = score.nlarge_tick_hit
-        if score.gamemode == GameMode.MANIA:
-            s.maximum_statistics = {
-                HitResult.PERFECT: score.beatmap.max_combo,
-            }
-        else:
-            s.maximum_statistics = {
-                HitResult.GREAT: score.beatmap.max_combo,
-            }
         s.user = await UserResp.from_db(
             score.user,
             session,
@@ -667,7 +661,6 @@ async def process_score(
     score = Score(
         accuracy=info.accuracy,
         max_combo=info.max_combo,
-        # maximum_statistics=info.maximum_statistics,
         mods=info.mods,
         passed=info.passed,
         rank=info.rank,
@@ -694,6 +687,7 @@ async def process_score(
         nslider_tail_hit=info.statistics.get(HitResult.SLIDER_TAIL_HIT, 0),
         playlist_item_id=item_id,
         room_id=room_id,
+        maximum_statistics=info.maximum_statistics,
     )
     if can_get_pp:
         beatmap_raw = await fetcher.get_or_fetch_beatmap_raw(redis, beatmap_id)

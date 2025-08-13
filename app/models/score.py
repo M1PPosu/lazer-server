@@ -68,28 +68,29 @@ class Rank(str, Enum):
 
 # https://github.com/ppy/osu/blob/master/osu.Game/Rulesets/Scoring/HitResult.cs
 class HitResult(str, Enum):
-    PERFECT = "perfect"  # [Order(0)]
-    GREAT = "great"  # [Order(1)]
-    GOOD = "good"  # [Order(2)]
-    OK = "ok"  # [Order(3)]
-    MEH = "meh"  # [Order(4)]
-    MISS = "miss"  # [Order(5)]
-
-    LARGE_TICK_HIT = "large_tick_hit"  # [Order(6)]
-    SMALL_TICK_HIT = "small_tick_hit"  # [Order(7)]
-    SLIDER_TAIL_HIT = "slider_tail_hit"  # [Order(8)]
-
-    LARGE_BONUS = "large_bonus"  # [Order(9)]
-    SMALL_BONUS = "small_bonus"  # [Order(10)]
-
-    LARGE_TICK_MISS = "large_tick_miss"  # [Order(11)]
-    SMALL_TICK_MISS = "small_tick_miss"  # [Order(12)]
-
-    IGNORE_HIT = "ignore_hit"  # [Order(13)]
-    IGNORE_MISS = "ignore_miss"  # [Order(14)]
-
     NONE = "none"  # [Order(15)]
+
+    MISS = "miss"  # [Order(5)]
+    MEH = "meh"  # [Order(4)]
+    OK = "ok"  # [Order(3)]
+    GOOD = "good"  # [Order(2)]
+    GREAT = "great"  # [Order(1)]
+    PERFECT = "perfect"  # [Order(0)]
+
+    SMALL_TICK_MISS = "small_tick_miss"  # [Order(12)]
+    SMALL_TICK_HIT = "small_tick_hit"  # [Order(7)]
+    LARGE_TICK_MISS = "large_tick_miss"  # [Order(11)]
+    LARGE_TICK_HIT = "large_tick_hit"  # [Order(6)]
+
+    SMALL_BONUS = "small_bonus"  # [Order(10)]
+    LARGE_BONUS = "large_bonus"  # [Order(9)]
+
+    IGNORE_MISS = "ignore_miss"  # [Order(14)]
+    IGNORE_HIT = "ignore_hit"  # [Order(13)]
+
     COMBO_BREAK = "combo_break"  # [Order(16)]
+
+    SLIDER_TAIL_HIT = "slider_tail_hit"  # [Order(8)]
 
     LEGACY_COMBO_INCREASE = "legacy_combo_increase"  # [Order(99)] @deprecated
 
