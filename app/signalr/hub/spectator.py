@@ -14,6 +14,7 @@ from app.database.score_token import ScoreToken
 from app.dependencies.database import engine
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.storage import get_storage_service
+from app.exception import InvokeException
 from app.models.mods import mods_to_int
 from app.models.score import LegacyReplaySoloScoreInfo, ScoreStatistics
 from app.models.spectator_hub import (
@@ -30,6 +31,7 @@ from app.utils import unix_timestamp_to_windows
 
 from .hub import Client, Hub
 
+from httpx import HTTPError
 from sqlalchemy.orm import joinedload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -190,9 +192,12 @@ class SpectatorHub(Hub[StoreClientState]):
         fetcher = await get_fetcher()
         async with AsyncSession(engine) as session:
             async with session.begin():
-                beatmap = await Beatmap.get_or_fetch(
-                    session, fetcher, bid=state.beatmap_id
-                )
+                try:
+                    beatmap = await Beatmap.get_or_fetch(
+                        session, fetcher, bid=state.beatmap_id
+                    )
+                except HTTPError:
+                    raise InvokeException(f"Beatmap {state.beatmap_id} not found.")
                 user = (
                     await session.exec(select(User).where(User.id == user_id))
                 ).first()

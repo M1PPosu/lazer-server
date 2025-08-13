@@ -77,9 +77,13 @@ class Client:
                 await asyncio.sleep(settings.signalr_ping_interval)
             except WebSocketDisconnect:
                 break
-            except Exception as e:
-                logger.error(f"Error in ping task for {self.connection_id}: {e}")
-                break
+            except RuntimeError as e:
+                if "disconnect message" in str(e):
+                    break
+                else:
+                    logger.error(f"Error in ping task for {self.connection_id}: {e}")
+            except Exception:
+                logger.exception(f"Error in client {self.connection_id}")
 
 
 class Hub[TState: UserState]:
@@ -158,6 +162,8 @@ class Hub[TState: UserState]:
         return client
 
     async def remove_client(self, client: Client) -> None:
+        if client.connection_token not in self.clients:
+            return
         del self.clients[client.connection_token]
         if client._listen_task:
             client._listen_task.cancel()
@@ -186,7 +192,22 @@ class Hub[TState: UserState]:
             await method(client)
 
     async def send_packet(self, client: Client, packet: Packet) -> None:
-        await client.send_packet(packet)
+        try:
+            await client.send_packet(packet)
+        except WebSocketDisconnect as e:
+            logger.info(
+                f"Client {client.connection_id} disconnected: {e.code}, {e.reason}"
+            )
+            await self.remove_client(client)
+        except RuntimeError as e:
+            if "disconnect message" in str(e):
+                logger.info(f"Client {client.connection_id} closed the connection.")
+            else:
+                logger.exception(f"RuntimeError in client {client.connection_id}: {e}")
+            await self.remove_client(client)
+        except Exception:
+            logger.exception(f"Error in client {client.connection_id}")
+            await self.remove_client(client)
 
     async def broadcast_call(self, method: str, *args: Any) -> None:
         tasks = []
