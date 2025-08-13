@@ -30,7 +30,7 @@ class PlaylistBestScore(SQLModel, table=True):
         sa_column=Column(BigInteger, ForeignKey("scores.id"), primary_key=True)
     )
     room_id: int = Field(foreign_key="rooms.id", index=True)
-    playlist_id: int = Field(foreign_key="room_playlists.id", index=True)
+    playlist_id: int = Field(index=True)
     total_score: int = Field(default=0, sa_column=Column(BigInteger))
     attempts: int = Field(default=0)  # playlist
 
