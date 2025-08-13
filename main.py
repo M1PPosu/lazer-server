@@ -22,6 +22,7 @@ from app.service.daily_challenge import daily_challenge_job
 from app.service.osu_rx_statistics import create_rx_statistics
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import sentry_sdk
@@ -99,11 +100,19 @@ async def health_check():
     return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
 
 
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error": exc.errors(),
+        },
+    )
+
+
 @app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
-    if request.url.path.startswith("/api/v2"):
-        return JSONResponse(status_code=exc.status_code, content={"error": exc.detail})
-    raise exc
+async def http_exception_handler(requst: Request, exc: HTTPException):
+    return JSONResponse(status_code=exc.status_code, content={"error": exc.detail})
 
 
 if settings.secret_key == "your_jwt_secret_here":
