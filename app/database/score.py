@@ -613,6 +613,59 @@ async def process_user(
         statistics.ranked_score += difference
         statistics.level_current = calculate_score_to_level(statistics.total_score)
         statistics.maximum_combo = max(statistics.maximum_combo, score.max_combo)
+        new_score_position = await get_score_position_by_user(
+            session, score.beatmap_id, user, score.gamemode
+        )
+        total_users = await session.exec(select(func.count()).select_from(User))
+        assert total_users is not None
+        score_range = min(50, math.ceil(float(total_users.one()) * 0.01))
+        if new_score_position <= score_range and new_score_position > 0:
+            # Get the scores that might be displaced
+            displaced_scores_query = (
+                select(BestScore)
+                .where(
+                    BestScore.beatmap_id == score.beatmap_id,
+                    BestScore.gamemode == score.gamemode,
+                    BestScore.user_id != user.id,  # Not the current user
+                )
+                .order_by(col(BestScore.total_score).desc())
+                .limit(score_range)
+            )
+            displaced_scores = (await session.exec(displaced_scores_query)).all()
+
+            # Check if any scores were pushed out of the top positions
+            for i, displaced_score in enumerate(displaced_scores):
+                # Get the position of this displaced score
+                displaced_position = await get_score_position_by_id(
+                    session, score.beatmap_id, displaced_score.score_id, score.gamemode
+                )
+
+                # If this score was previously in top positions but now pushed out
+                if (
+                    i < score_range
+                    and displaced_position > score_range
+                    and displaced_position is not None
+                ):
+                    # Create rank lost event for the displaced user
+                    rank_lost_event = Event(
+                        created_at=datetime.now(UTC),
+                        type=EventType.RANK_LOST,
+                        user_id=displaced_score.user_id,
+                    )
+                    rank_lost_event.event_payload = {
+                        "mode": str(score.gamemode),
+                        "beatmap": {
+                            "title": score.beatmap.version,
+                            "url": score.beatmap.url,
+                        },
+                        "user": {
+                            "username": user.username,
+                            "url": str(Settings.frontend_url)
+                            + "/users/"
+                            + str(user.id),
+                        },
+                    }
+                    session.add(rank_lost_event)
     if score.passed and ranked:
         if previous_score_best_mod is not None:
             previous_score_best_mod.mods = mod_for_save
