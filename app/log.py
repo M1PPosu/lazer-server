@@ -40,9 +40,13 @@ class InterceptHandler(logging.Handler):
 
         if record.name == "uvicorn.access":
             message = self._format_uvicorn_access_log(message)
+            color = True
         elif record.name == "uvicorn.error":
             message = self._format_uvicorn_error_log(message)
-        logger.opt(depth=depth, exception=record.exc_info, colors=True).log(
+            color = True
+        else:
+            color = False
+        logger.opt(depth=depth, exception=record.exc_info, colors=color).log(
             level, message
         )
 
