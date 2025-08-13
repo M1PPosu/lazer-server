@@ -19,7 +19,13 @@ def json_serializer(value):
 
 
 # 数据库引擎
-engine = create_async_engine(settings.database_url, json_serializer=json_serializer)
+engine = create_async_engine(
+    settings.database_url,
+    json_serializer=json_serializer,
+    pool_size=20,
+    max_overflow=20,
+    pool_timeout=30.0,
+)
 
 # Redis 连接
 redis_client = redis.from_url(settings.redis_url, decode_responses=True)
