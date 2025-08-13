@@ -48,9 +48,15 @@ async def user_rename(
         user_id=current_user.id,
         user=current_user,
     )
+    if settings.frontend_url is not None:
+        frontend_url = str(settings.frontend_url)
+    elif settings.server_url is not None:
+        frontend_url = str(settings.server_url)
+    else:
+        frontend_url = "/"
     rename_event.event_payload["user"] = {
         "username": new_name,
-        "url": str(settings.frontend_url) + "/users/" + str(current_user.id),
+        "url": frontend_url + "users/" + str(current_user.id),
         "previous_username": current_user.previous_usernames[-1],
     }
     session.add(rename_event)
