@@ -36,7 +36,7 @@ class BeatmapBase(SQLModel):
     # optional
     checksum: str = Field(sa_column=Column(VARCHAR(32), index=True))
     current_user_playcount: int = Field(default=0)
-    max_combo: int = Field(default=0)
+    max_combo: int | None = Field(default=0)
     # TODO: failtimes, owners
 
     # BeatmapExtended
