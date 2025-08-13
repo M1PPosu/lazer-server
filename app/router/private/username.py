@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from app.config import settings
 from app.database.events import Event, EventType
 from app.database.lazer_user import User
 from app.dependencies.database import get_db
@@ -49,7 +50,7 @@ async def user_rename(
     )
     rename_event.event_payload["user"] = {
         "username": new_name,
-        "url": "https://g0v0.top/users/" + str(current_user.id),
+        "url": str(settings.frontend_url) + "/users/" + str(current_user.id),
         "previous_username": current_user.previous_usernames[-1],
     }
     session.add(rename_event)
