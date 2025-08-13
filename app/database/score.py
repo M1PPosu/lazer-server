@@ -174,6 +174,7 @@ class ScoreResp(ScoreBase):
     rank_country: int | None = None
     position: int | None = None
     scores_around: "ScoreAround | None" = None
+    ranked: bool = False
     current_user_attributes: CurrentUserAttributes | None = None
 
     @classmethod
@@ -238,6 +239,7 @@ class ScoreResp(ScoreBase):
         s.current_user_attributes = CurrentUserAttributes(
             pin=PinAttributes(is_pinned=bool(score.pinned_order), score_id=score.id)
         )
+        s.ranked = s.pp > 0
         return s
 
 
