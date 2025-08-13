@@ -1,9 +1,9 @@
 from datetime import UTC, datetime
 from enum import Enum
-import json
 from typing import TYPE_CHECKING
 
 from sqlmodel import (
+    JSON,
     BigInteger,
     Column,
     DateTime,
@@ -40,7 +40,9 @@ class EventBase(SQLModel):
         sa_column=Column(DateTime(timezone=True), default=datetime.now(UTC))
     )
     type: EventType
-    event_payload: str
+    event_payload: dict = Field(
+        exclude=True, default_factory=dict, sa_column=Column(JSON)
+    )
 
 
 class Event(EventBase, table=True):
@@ -53,15 +55,9 @@ class Event(EventBase, table=True):
 
 
 class EventResp(EventBase):
-    _payload: dict
-
     def merge_payload(self) -> "EventResp":
-        parsed = {}
-        try:
-            parsed = json.loads(self.event_payload or "{}")
-        except json.JSONDecodeError:
-            parsed = {}
-        for key, value in parsed.items():
+        for key, value in self.event_payload.items():
             setattr(self, key, value)
-        self._payload = parsed
         return self
+
+    pass
