@@ -102,15 +102,15 @@ async def save_replay(
     )
 
     # write frames
-    # FIXME: cannot play in stable
     frame_strs = []
     last_time = 0
     for frame in frames:
+        time = round(frame.time)
         frame_strs.append(
-            f"{frame.time - last_time}|{frame.mouse_x or 0.0}"
+            f"{time - last_time}|{frame.mouse_x or 0.0}"
             f"|{frame.mouse_y or 0.0}|{frame.button_state}"
         )
-        last_time = frame.time
+        last_time = time
     frame_strs.append("-12345|0|0|0")
 
     compressed = lzma.compress(
@@ -324,8 +324,8 @@ class SpectatorHub(Hub[StoreClientState]):
 
     async def StartWatchingUser(self, client: Client, target_id: int) -> None:
         user_id = int(client.connection_id)
-        target_store = self.get_or_create_state(client)
-        if target_store.state:
+        target_store = self.state.get(target_id)
+        if target_store and target_store.state:
             await self.call_noblock(
                 client,
                 "UserBeganPlaying",
@@ -352,8 +352,7 @@ class SpectatorHub(Hub[StoreClientState]):
     async def EndWatchingUser(self, client: Client, target_id: int) -> None:
         user_id = int(client.connection_id)
         self.remove_from_group(client, self.group_id(target_id))
-        store = self.state.get(user_id)
-        if store:
-            store.watched_user.discard(target_id)
+        store = self.get_or_create_state(client)
+        store.watched_user.discard(target_id)
         if (target_client := self.get_client_by_id(str(target_id))) is not None:
             await self.call_noblock(target_client, "UserEndedWatching", user_id)
