@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
+from app.database.events import Event, EventType
 from app.database.lazer_user import User
 from app.dependencies.database import get_db
 from app.dependencies.user import get_client_user
@@ -38,5 +41,17 @@ async def user_rename(
         raise HTTPException(409, "Username Exisits")
     current_user.previous_usernames.append(current_user.username)
     current_user.username = new_name
+    rename_event = Event(
+        created_at=datetime.now(UTC),
+        type=EventType.USERNAME_CHANGE,
+        user_id=current_user.id,
+        user=current_user,
+    )
+    rename_event.event_payload["user"] = {
+        "username": new_name,
+        "url": "https://g0v0.top/users/" + str(current_user.id),
+        "previous_username": current_user.previous_usernames[-1],
+    }
+    session.add(rename_event)
     await session.commit()
     return None
