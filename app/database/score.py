@@ -585,7 +585,7 @@ async def process_user(
             session.add(previous_score_best)
 
         statistics.ranked_score += difference
-        statistics.level_current = calculate_score_to_level(statistics.ranked_score)
+        statistics.level_current = calculate_score_to_level(statistics.total_score)
         statistics.maximum_combo = max(statistics.maximum_combo, score.max_combo)
     if score.passed and ranked:
         if previous_score_best_mod is not None:

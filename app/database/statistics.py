@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+import math
 from typing import TYPE_CHECKING
 
 from app.models.score import GameMode
@@ -59,8 +60,7 @@ class UserStatistics(UserStatisticsBase, table=True):
     grade_sh: int = Field(default=0)
     grade_a: int = Field(default=0)
 
-    level_current: int = Field(default=1)
-    level_progress: int = Field(default=0)
+    level_current: float = Field(default=1)
 
     user: "User" = Relationship(back_populates="statistics")  # type: ignore[valid-type]
 
@@ -97,9 +97,10 @@ class UserStatisticsResp(UserStatisticsBase):
             "a": obj.grade_a,
         }
         s.level = {
-            "current": obj.level_current,
-            "progress": obj.level_progress,
+            "current": int(obj.level_current),
+            "progress": int(math.fmod(obj.level_current, 1) * 100),
         }
+
         s.global_rank = await get_rank(session, obj)
         s.country_rank = await get_rank(session, obj, user_country)
         return s
