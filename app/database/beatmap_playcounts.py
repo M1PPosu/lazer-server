@@ -1,4 +1,7 @@
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
+
+from app.database.events import Event, EventType
 
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncAttrs
@@ -70,6 +73,21 @@ async def process_beatmap_playcount(
 
     if existing_playcount:
         existing_playcount.playcount += 1
+        if existing_playcount.playcount % 100 == 0:
+            playcount_event = Event(
+                created_at=datetime.now(UTC),
+                type=EventType.BEATMAP_PLAYCOUNT,
+                user_id=user_id,
+            )
+            await existing_playcount.awaitable_attrs.beatmap
+            playcount_event.event_payload = {
+                "count": existing_playcount.playcount,
+                "beatmap": {
+                    "title": existing_playcount.beatmap.version,
+                    "url": existing_playcount.beatmap.url,
+                },
+            }
+            session.add(playcount_event)
     else:
         new_playcount = BeatmapPlaycounts(
             user_id=user_id, beatmap_id=beatmap_id, playcount=1
