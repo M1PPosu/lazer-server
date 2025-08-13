@@ -428,12 +428,48 @@ async def oauth_token(
             refresh_token=refresh_token_str,
             scope=" ".join(scopes),
         )
-    else:
-        return create_oauth_error_response(
-            error="unsupported_grant_type",
-            description=(
-                "The authorization grant type is not supported "
-                "by the authorization server."
-            ),
-            hint="Unsupported grant type",
+    elif grant_type == "client_credentials":
+        if client is None:
+            return create_oauth_error_response(
+                error="invalid_client",
+                description=(
+                    "Client authentication failed (e.g., unknown client, "
+                    "no client authentication included, "
+                    "or unsupported authentication method)."
+                ),
+                hint="Invalid client credentials",
+                status_code=401,
+            )
+        elif scopes != ["public"]:
+            return create_oauth_error_response(
+                error="invalid_scope",
+                description="The requested scope is invalid, unknown, or malformed.",
+                hint="Scope must be 'public'",
+                status_code=400,
+            )
+
+        # 生成令牌
+        access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
+        access_token = create_access_token(
+            data={"sub": "3"}, expires_delta=access_token_expires
+        )
+        refresh_token_str = generate_refresh_token()
+
+        # 存储令牌
+        await store_token(
+            db,
+            3,
+            client_id,
+            scopes,
+            access_token,
+            refresh_token_str,
+            settings.access_token_expire_minutes * 60,
+        )
+
+        return TokenResponse(
+            access_token=access_token,
+            token_type="Bearer",
+            expires_in=settings.access_token_expire_minutes * 60,
+            refresh_token=refresh_token_str,
+            scope=" ".join(scopes),
         )

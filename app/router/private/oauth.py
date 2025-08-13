@@ -37,6 +37,7 @@ async def create_oauth_app(
     if next_id < 10:
         await session.execute(text("ALTER TABLE oauth_clients AUTO_INCREMENT = 10"))
         await session.commit()
+        await session.refresh(current_user)
 
     oauth_client = OAuthClient(
         name=name,

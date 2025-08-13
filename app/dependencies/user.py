@@ -5,6 +5,7 @@ from typing import Annotated
 from app.auth import get_token_by_access_token
 from app.config import settings
 from app.database import User
+from app.models.oauth import OAuth2ClientCredentialsBearer
 
 from .database import get_db
 
@@ -47,6 +48,16 @@ oauth2_code = OAuth2AuthorizationCodeBearer(
     scheme_name="Authorization Code Grant",
 )
 
+oauth2_client_credentials = OAuth2ClientCredentialsBearer(
+    tokenUrl="oauth/token",
+    refreshUrl="oauth/token",
+    scopes={
+        "public": "允许读取公开数据。",
+    },
+    description="osu! OAuth 认证 （客户端凭证流）",
+    scheme_name="Client Credentials Grant",
+)
+
 
 async def get_client_user(
     token: Annotated[str, Depends(oauth2_password)],
@@ -67,9 +78,12 @@ async def get_current_user(
     db: Annotated[AsyncSession, Depends(get_db)],
     token_pw: Annotated[str | None, Depends(oauth2_password)] = None,
     token_code: Annotated[str | None, Depends(oauth2_code)] = None,
+    token_client_credentials: Annotated[
+        str | None, Depends(oauth2_client_credentials)
+    ] = None,
 ) -> User:
     """获取当前认证用户"""
-    token = token_pw or token_code
+    token = token_pw or token_code or token_client_credentials
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
