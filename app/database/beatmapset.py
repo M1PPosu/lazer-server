@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import TYPE_CHECKING, NotRequired, TypedDict
+from typing import TYPE_CHECKING, NotRequired, Self, TypedDict
 
 from app.config import settings
 from app.models.beatmap import BeatmapRankStatus, Genre, Language
@@ -7,7 +7,7 @@ from app.models.score import GameMode
 
 from .lazer_user import BASE_INCLUDES, User, UserResp
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from sqlalchemy import JSON, Column, DateTime, Text
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlmodel import Field, Relationship, SQLModel, col, exists, func, select
@@ -72,17 +72,17 @@ class BeatmapsetBase(SQLModel):
     artist: str = Field(index=True)
     artist_unicode: str = Field(index=True)
     covers: BeatmapCovers | None = Field(sa_column=Column(JSON))
-    creator: str
+    creator: str = Field(index=True)
     nsfw: bool = Field(default=False)
-    play_count: int
+    play_count: int = Field(index=True)
     preview_url: str
     source: str = Field(default="")
 
     spotlight: bool = Field(default=False)
-    title: str
-    title_unicode: str
-    user_id: int
-    video: bool
+    title: str = Field(index=True)
+    title_unicode: str = Field(index=True)
+    user_id: int = Field(index=True)
+    video: bool = Field(index=True)
 
     # optional
     # converts: list[Beatmap] = Relationship(back_populates="beatmapset")
@@ -95,19 +95,21 @@ class BeatmapsetBase(SQLModel):
     # TODO: events: Optional[list[BeatmapsetEvent]] = None
 
     pack_tags: list[str] = Field(default=[], sa_column=Column(JSON))
-    ratings: list[int] = Field(default=None, sa_column=Column(JSON))
+    ratings: list[int] | None = Field(default=None, sa_column=Column(JSON))
     # TODO: related_users: Optional[list[User]] = None
     # TODO: user: Optional[User] = Field(default=None)
-    track_id: int | None = Field(default=None)  # feature artist?
+    track_id: int | None = Field(default=None, index=True)  # feature artist?
 
     # BeatmapsetExtended
     bpm: float = Field(default=0.0)
     can_be_hyped: bool = Field(default=False)
     discussion_locked: bool = Field(default=False)
-    last_updated: datetime = Field(sa_column=Column(DateTime))
-    ranked_date: datetime | None = Field(default=None, sa_column=Column(DateTime))
-    storyboard: bool = Field(default=False)
-    submitted_date: datetime = Field(sa_column=Column(DateTime))
+    last_updated: datetime = Field(sa_column=Column(DateTime, index=True))
+    ranked_date: datetime | None = Field(
+        default=None, sa_column=Column(DateTime, index=True)
+    )
+    storyboard: bool = Field(default=False, index=True)
+    submitted_date: datetime = Field(sa_column=Column(DateTime, index=True))
     tags: str = Field(default="", sa_column=Column(Text))
 
 
@@ -117,13 +119,13 @@ class Beatmapset(AsyncAttrs, BeatmapsetBase, table=True):
     id: int | None = Field(default=None, primary_key=True, index=True)
     # Beatmapset
     beatmap_status: BeatmapRankStatus = Field(
-        default=BeatmapRankStatus.GRAVEYARD,
+        default=BeatmapRankStatus.GRAVEYARD, index=True
     )
 
     # optional
     beatmaps: list["Beatmap"] = Relationship(back_populates="beatmapset")
-    beatmap_genre: Genre = Field(default=Genre.UNSPECIFIED)
-    beatmap_language: Language = Field(default=Language.UNSPECIFIED)
+    beatmap_genre: Genre = Field(default=Genre.UNSPECIFIED, index=True)
+    beatmap_language: Language = Field(default=Language.UNSPECIFIED, index=True)
     nominations_required: int = Field(default=0)
     nominations_current: int = Field(default=0)
 
@@ -148,9 +150,13 @@ class Beatmapset(AsyncAttrs, BeatmapsetBase, table=True):
         if resp.hype:
             update["hype_current"] = resp.hype.current
             update["hype_required"] = resp.hype.required
-        if resp.genre:
+        if resp.genre_id:
+            update["beatmap_genre"] = Genre(resp.genre_id)
+        elif resp.genre:
             update["beatmap_genre"] = Genre(resp.genre.id)
-        if resp.language:
+        if resp.language_id:
+            update["beatmap_language"] = Language(resp.language_id)
+        elif resp.language:
             update["beatmap_language"] = Language(resp.language.id)
         beatmapset = Beatmapset.model_validate(
             {
@@ -191,11 +197,25 @@ class BeatmapsetResp(BeatmapsetBase):
     hype: BeatmapHype | None = None
     availability: BeatmapAvailability
     genre: BeatmapTranslationText | None = None
+    genre_id: int
     language: BeatmapTranslationText | None = None
+    language_id: int
     nominations: BeatmapNominations | None = None
     has_favourited: bool = False
     favourite_count: int = 0
     recent_favourites: list[UserResp] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def fix_genre_language(self) -> Self:
+        if self.genre is None:
+            self.genre = BeatmapTranslationText(
+                name=Genre(self.genre_id).name, id=self.genre_id
+            )
+        if self.language is None:
+            self.language = BeatmapTranslationText(
+                name=Language(self.language_id).name, id=self.language_id
+            )
+        return self
 
     @classmethod
     async def from_db(
@@ -228,6 +248,8 @@ class BeatmapsetResp(BeatmapsetBase):
                 name=beatmapset.beatmap_language.name,
                 id=beatmapset.beatmap_language.value,
             ),
+            "genre_id": beatmapset.beatmap_genre.value,
+            "language_id": beatmapset.beatmap_language.value,
             "nominations": BeatmapNominations(
                 required=beatmapset.nominations_required,
                 current=beatmapset.nominations_current,
@@ -288,3 +310,8 @@ class BeatmapsetResp(BeatmapsetBase):
         return cls.model_validate(
             update,
         )
+
+
+class SearchBeatmapsetsResp(SQLModel):
+    beatmapsets: list[BeatmapsetResp]
+    total: int

@@ -28,10 +28,10 @@ class BeatmapBase(SQLModel):
     url: str
     mode: GameMode
     beatmapset_id: int = Field(foreign_key="beatmapsets.id", index=True)
-    difficulty_rating: float = Field(default=0.0)
+    difficulty_rating: float = Field(default=0.0, index=True)
     total_length: int
-    user_id: int
-    version: str
+    user_id: int = Field(index=True)
+    version: str = Field(index=True)
 
     # optional
     checksum: str = Field(sa_column=Column(VARCHAR(32), index=True))
@@ -50,14 +50,14 @@ class BeatmapBase(SQLModel):
     count_spinners: int = Field(default=0)
     deleted_at: datetime | None = Field(default=None, sa_column=Column(DateTime))
     hit_length: int = Field(default=0)
-    last_updated: datetime = Field(sa_column=Column(DateTime))
+    last_updated: datetime = Field(sa_column=Column(DateTime, index=True))
 
 
 class Beatmap(BeatmapBase, table=True):
     __tablename__ = "beatmaps"  # pyright: ignore[reportAssignmentType]
     id: int = Field(primary_key=True, index=True)
     beatmapset_id: int = Field(foreign_key="beatmapsets.id", index=True)
-    beatmap_status: BeatmapRankStatus
+    beatmap_status: BeatmapRankStatus = Field(index=True)
     # optional
     beatmapset: Beatmapset = Relationship(
         back_populates="beatmaps", sa_relationship_kwargs={"lazy": "joined"}

@@ -1,20 +1,80 @@
 from __future__ import annotations
 
-from typing import Literal
+import re
+from typing import Annotated, Literal
+from urllib.parse import parse_qs
 
 from app.database import Beatmap, Beatmapset, BeatmapsetResp, FavouriteBeatmapset, User
-from app.dependencies.database import get_db
+from app.database.beatmapset import SearchBeatmapsetsResp
+from app.dependencies.database import engine, get_db
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.user import get_client_user, get_current_user
 from app.fetcher import Fetcher
+from app.models.beatmap import SearchQueryModel
 
 from .router import router
 
-from fastapi import Depends, Form, HTTPException, Path, Query, Security
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    Form,
+    HTTPException,
+    Path,
+    Query,
+    Request,
+    Security,
+)
 from fastapi.responses import RedirectResponse
 from httpx import HTTPError
-from sqlmodel import select
+from sqlmodel import exists, select
 from sqlmodel.ext.asyncio.session import AsyncSession
+
+
+async def _save_to_db(sets: SearchBeatmapsetsResp):
+    async with AsyncSession(engine) as session:
+        for s in sets.beatmapsets:
+            if not (
+                await session.exec(select(exists()).where(Beatmapset.id == s.id))
+            ).first():
+                await Beatmapset.from_resp(session, s)
+
+
+@router.get(
+    "/beatmapsets/search",
+    name="搜索谱面集",
+    tags=["谱面集"],
+    response_model=SearchBeatmapsetsResp,
+)
+async def search_beatmapset(
+    query: Annotated[SearchQueryModel, Query(...)],
+    request: Request,
+    background_tasks: BackgroundTasks,
+    current_user: User = Security(get_current_user, scopes=["public"]),
+    db: AsyncSession = Depends(get_db),
+    fetcher: Fetcher = Depends(get_fetcher),
+):
+    params = parse_qs(qs=request.url.query, keep_blank_values=True)
+    cursor = {}
+    for k, v in params.items():
+        match = re.match(r"cursor\[(\w+)\]", k)
+        if match:
+            cursor[match.group(1)] = v[0] if v else None
+    if (
+        "recommended" in query.c
+        or len(query.r) > 0
+        or query.played
+        or "follows" in query.c
+        or "mine" in query.s
+        or "favourites" in query.s
+    ):
+        # TODO: search locally
+        return SearchBeatmapsetsResp(total=0, beatmapsets=[])
+    try:
+        sets = await fetcher.search_beatmapset(query, cursor)
+        background_tasks.add_task(_save_to_db, sets)
+    except HTTPError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return sets
 
 
 @router.get(
