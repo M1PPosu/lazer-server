@@ -315,12 +315,22 @@ class UserResp(UserBase):
                 CountResp.from_db(pc)
                 for pc in await obj.awaitable_attrs.monthly_playcounts
             ]
+            if len(u.monthly_playcounts) == 1:
+                d = u.monthly_playcounts[0].start_date
+                u.monthly_playcounts.insert(
+                    0, CountResp(start_date=d - timedelta(days=20), count=0)
+                )
 
         if "replays_watched_counts" in include:
             u.replay_watched_counts = [
                 CountResp.from_db(rwc)
                 for rwc in await obj.awaitable_attrs.replays_watched_counts
             ]
+            if len(u.replay_watched_counts) == 1:
+                d = u.replay_watched_counts[0].start_date
+                u.replay_watched_counts.insert(
+                    0, CountResp(start_date=d - timedelta(days=20), count=0)
+                )
 
         if "achievements" in include:
             u.user_achievements = [

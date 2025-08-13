@@ -74,5 +74,7 @@ class RankHistoryResp(BaseModel):
             )
         ).all()
         data = [result.rank for result in results]
+        if len(data) != 90:
+            data.extend([0] * (90 - len(data)))
         data.reverse()
         return cls(mode=mode, data=data)
