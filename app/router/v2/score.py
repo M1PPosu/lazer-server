@@ -98,14 +98,16 @@ async def submit_score(
             db_beatmap = await Beatmap.get_or_fetch(db, fetcher, bid=beatmap)
         except HTTPError:
             raise HTTPException(status_code=404, detail="Beatmap not found")
-        ranked = (
-            db_beatmap.beatmap_status.has_pp() | settings.enable_all_beatmap_leaderboard
+        has_pp = db_beatmap.beatmap_status.has_pp() | settings.enable_all_beatmap_pp
+        has_leaderboard = (
+            db_beatmap.beatmap_status.has_leaderboard()
+            | settings.enable_all_beatmap_leaderboard
         )
         beatmap_length = db_beatmap.total_length
         score = await process_score(
             current_user,
             beatmap,
-            ranked,
+            has_pp,
             score_token,
             info,
             fetcher,
@@ -117,7 +119,9 @@ async def submit_score(
         await db.refresh(current_user)
         score_id = score.id
         score_token.score_id = score_id
-        await process_user(db, current_user, score, beatmap_length, ranked)
+        await process_user(
+            db, current_user, score, beatmap_length, has_pp, has_leaderboard
+        )
         score = (await db.exec(select(Score).where(Score.id == score_id))).first()
         assert score is not None
     return await ScoreResp.from_db(db, score)

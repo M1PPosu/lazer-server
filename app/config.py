@@ -93,6 +93,7 @@ class Settings(BaseSettings):
     enable_all_mods_pp: bool = False
     enable_supporter_for_all_users: bool = False
     enable_all_beatmap_leaderboard: bool = False
+    enable_all_beatmap_pp: bool = False
     seasonal_backgrounds: list[str] = []
 
     # 存储设置

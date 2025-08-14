@@ -79,10 +79,7 @@ async def _recalculate_pp(
                 time -= 1
                 await asyncio.sleep(2)
                 continue
-            ranked = (
-                db_beatmap.beatmap_status.has_pp()
-                | settings.enable_all_beatmap_leaderboard
-            )
+            ranked = db_beatmap.beatmap_status.has_pp() | settings.enable_all_beatmap_pp
             if not ranked or not mods_can_get_pp(
                 MODE_TO_INT[score.gamemode], score.mods
             ):

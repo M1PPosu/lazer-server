@@ -531,7 +531,12 @@ async def get_user_best_pp(
 
 
 async def process_user(
-    session: AsyncSession, user: User, score: Score, length: int, ranked: bool = False
+    session: AsyncSession,
+    user: User,
+    score: Score,
+    length: int,
+    ranked: bool = False,
+    has_leaderboard: bool = False,
 ):
     assert user.id
     assert score.id
@@ -598,18 +603,6 @@ async def process_user(
                     statistics.grade_sh -= 1
                 case Rank.A:
                     statistics.grade_a -= 1
-        else:
-            previous_score_best = BestScore(
-                user_id=user.id,
-                beatmap_id=score.beatmap_id,
-                gamemode=score.gamemode,
-                score_id=score.id,
-                total_score=score.total_score,
-                rank=score.rank,
-                mods=mod_for_save,
-            )
-            session.add(previous_score_best)
-
         statistics.ranked_score += difference
         statistics.level_current = calculate_score_to_level(statistics.total_score)
         statistics.maximum_combo = max(statistics.maximum_combo, score.max_combo)
@@ -666,7 +659,7 @@ async def process_user(
                         },
                     }
                     session.add(rank_lost_event)
-    if score.passed and ranked:
+    if score.passed and has_leaderboard:
         if previous_score_best_mod is not None:
             previous_score_best_mod.mods = mod_for_save
             previous_score_best_mod.score_id = score.id
@@ -674,7 +667,7 @@ async def process_user(
             previous_score_best_mod.total_score = score.total_score
         elif (
             previous_score_best is not None and previous_score_best.score_id != score.id
-        ):
+        ) or previous_score_best is None:
             session.add(
                 BestScore(
                     user_id=user.id,
@@ -686,6 +679,7 @@ async def process_user(
                     mods=mod_for_save,
                 )
             )
+
     statistics.play_count += 1
     mouthly_playcount.count += 1
     statistics.play_time += length
