@@ -78,10 +78,11 @@ class Client:
             except WebSocketDisconnect:
                 break
             except RuntimeError as e:
-                if "disconnect message" in str(e):
+                if "disconnect message" in str(e) or "close message" in str(e):
                     break
                 else:
                     logger.error(f"Error in ping task for {self.connection_id}: {e}")
+                    break
             except Exception:
                 logger.exception(f"Error in client {self.connection_id}")
 
