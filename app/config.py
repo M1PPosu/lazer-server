@@ -68,6 +68,15 @@ class Settings(BaseSettings):
     server_url: HttpUrl = HttpUrl("http://localhost:8000")
     frontend_url: HttpUrl | None = None
 
+    @property
+    def web_url(self):
+        if self.frontend_url is not None:
+            return str(self.frontend_url)
+        elif self.server_url is not None:
+            return str(self.server_url)
+        else:
+            return "/"
+
     # SignalR 设置
     signalr_negotiate_timeout: int = 30
     signalr_ping_interval: int = 15

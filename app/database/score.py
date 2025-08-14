@@ -13,7 +13,7 @@ from app.calculator import (
     calculate_weighted_pp,
     clamp,
 )
-from app.config import Settings, settings
+from app.config import settings
 from app.database.events import Event, EventType
 from app.database.team import TeamMember
 from app.models.model import (
@@ -244,7 +244,7 @@ class ScoreResp(ScoreBase):
                 "beatmap": {"title": s.beatmap.version, "url": s.beatmap.url},
                 "user": {
                     "username": score.user.username,
-                    "url": str(Settings.frontend_url) + "/users/" + str(score.user.id),
+                    "url": settings.web_url + "users/" + str(score.user.id),
                 },
             }
             session.add(rank_event)
@@ -651,9 +651,7 @@ async def process_user(
                         },
                         "user": {
                             "username": user.username,
-                            "url": str(Settings.frontend_url)
-                            + "/users/"
-                            + str(user.id),
+                            "url": settings.web_url + "users/" + str(user.id),
                         },
                     }
                     session.add(rank_lost_event)
