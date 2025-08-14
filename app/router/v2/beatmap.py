@@ -4,8 +4,8 @@ import asyncio
 import hashlib
 import json
 
-from app.calculator import calculate_beatmap_attribute
 from app.database import Beatmap, BeatmapResp, User
+from app.database.beatmap import calculate_beatmap_attributes
 from app.dependencies.database import get_db, get_redis
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.user import get_current_user
@@ -195,16 +195,11 @@ async def get_beatmap_attributes(
     )
     if await redis.exists(key):
         return BeatmapAttributes.model_validate_json(await redis.get(key))  # pyright: ignore[reportArgumentType]
-
     try:
-        resp = await fetcher.get_or_fetch_beatmap_raw(redis, beatmap_id)
-        try:
-            attr = await asyncio.get_event_loop().run_in_executor(
-                None, calculate_beatmap_attribute, resp, ruleset, mods_
-            )
-        except rosu.ConvertError as e:  # pyright: ignore[reportAttributeAccessIssue]
-            raise HTTPException(status_code=400, detail=str(e))
-        await redis.set(key, attr.model_dump_json())
-        return attr
+        return await calculate_beatmap_attributes(
+            beatmap_id, ruleset, mods_, redis, fetcher
+        )
     except HTTPStatusError:
         raise HTTPException(status_code=404, detail="Beatmap not found")
+    except rosu.ConvertError as e:  # pyright: ignore[reportAttributeAccessIssue]
+        raise HTTPException(status_code=400, detail=str(e)) from e

@@ -10,11 +10,13 @@ from app.dependencies.fetcher import get_fetcher
 from app.dependencies.scheduler import init_scheduler, stop_scheduler
 from app.log import logger
 from app.router import (
+    api_v1_router,
     api_v2_router,
     auth_router,
     fetcher_router,
     file_router,
     private_router,
+    redirect_api_router,
     signalr_router,
 )
 from app.router.redirect import redirect_router
@@ -48,8 +50,9 @@ async def lifespan(app: FastAPI):
 
 
 desc = (
-    "osu! API 模拟服务器，支持 osu! API v2 和 osu!lazer 的绝大部分功能。\n\n"
-    "官方文档：[osu!web 文档](https://osu.ppy.sh/docs/index.html)"
+    "osu! API 模拟服务器，支持 osu! API v1, v2 和 osu!lazer 的绝大部分功能。\n\n"
+    "官方文档：[osu!web 文档](https://osu.ppy.sh/docs/index.html)\n\n"
+    "V1 API 文档：[osu-api](https://github.com/ppy/osu-api/wiki)"
 )
 
 if settings.sentry_dsn is not None:
@@ -67,6 +70,8 @@ app = FastAPI(
 )
 
 app.include_router(api_v2_router)
+app.include_router(api_v1_router)
+app.include_router(redirect_api_router)
 app.include_router(signalr_router)
 app.include_router(fetcher_router)
 app.include_router(file_router)

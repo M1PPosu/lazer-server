@@ -5,12 +5,14 @@ from typing import Annotated
 from app.auth import get_token_by_access_token
 from app.config import settings
 from app.database import User
+from app.database.auth import V1APIKeys
 from app.models.oauth import OAuth2ClientCredentialsBearer
 
 from .database import get_db
 
 from fastapi import Depends, HTTPException
 from fastapi.security import (
+    APIKeyQuery,
     HTTPBearer,
     OAuth2AuthorizationCodeBearer,
     OAuth2PasswordBearer,
@@ -57,6 +59,23 @@ oauth2_client_credentials = OAuth2ClientCredentialsBearer(
     description="osu! OAuth 认证 （客户端凭证流）",
     scheme_name="Client Credentials Grant",
 )
+
+v1_api_key = APIKeyQuery(name="k", scheme_name="V1 API Key", description="v1 API 密钥")
+
+
+async def v1_authorize(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    api_key: Annotated[str, Depends(v1_api_key)],
+):
+    """V1 API Key 授权"""
+    if not api_key:
+        raise HTTPException(status_code=401, detail="Missing API key")
+
+    api_key_record = (
+        await db.exec(select(V1APIKeys).where(V1APIKeys.key == api_key))
+    ).first()
+    if not api_key_record:
+        raise HTTPException(status_code=401, detail="Invalid API key")
 
 
 async def get_client_user(

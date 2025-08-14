@@ -1,5 +1,5 @@
 from .achievement import UserAchievement, UserAchievementResp
-from .auth import OAuthClient, OAuthToken
+from .auth import OAuthClient, OAuthToken, V1APIKeys
 from .beatmap import (
     Beatmap,
     BeatmapResp,
@@ -109,6 +109,7 @@ __all__ = [
     "UserResp",
     "UserStatistics",
     "UserStatisticsResp",
+    "V1APIKeys",
 ]
 
 for i in __all__:

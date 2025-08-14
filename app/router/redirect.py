@@ -4,7 +4,7 @@ import urllib.parse
 
 from app.config import settings
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
 redirect_router = APIRouter(include_in_schema=False)
@@ -28,3 +28,20 @@ async def redirect(request: Request):
         redirect_url,
         status_code=301,
     )
+
+
+redirect_api_router = APIRouter(prefix="/api", include_in_schema=False)
+
+
+@redirect_api_router.get("/{path}")
+async def redirect_to_api_root(request: Request, path: str):
+    if path in {
+        "get_beatmaps",
+        "get_user",
+        "get_scores",
+        "get_user_best",
+        "get_user_recent",
+        "get_replay",
+    }:
+        return RedirectResponse(f"/api/v1/{path}?{request.url.query}", status_code=302)
+    raise HTTPException(404, detail="Not Found")

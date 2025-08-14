@@ -1,13 +1,18 @@
+import asyncio
 from datetime import datetime
+import hashlib
 from typing import TYPE_CHECKING
 
+from app.calculator import calculate_beatmap_attribute
 from app.config import settings
-from app.models.beatmap import BeatmapRankStatus
+from app.models.beatmap import BeatmapAttributes, BeatmapRankStatus
+from app.models.mods import APIMod
 from app.models.score import MODE_TO_INT, GameMode
 
 from .beatmap_playcounts import BeatmapPlaycounts
 from .beatmapset import Beatmapset, BeatmapsetResp
 
+from redis.asyncio import Redis
 from sqlalchemy import Column, DateTime
 from sqlmodel import VARCHAR, Field, Relationship, SQLModel, col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -195,3 +200,24 @@ class BeatmapResp(BeatmapBase):
                 )
             ).one()
         return cls.model_validate(beatmap_)
+
+
+async def calculate_beatmap_attributes(
+    beatmap_id: int,
+    ruleset: GameMode,
+    mods_: list[APIMod],
+    redis: Redis,
+    fetcher: "Fetcher",
+):
+    key = (
+        f"beatmap:{beatmap_id}:{ruleset}:"
+        f"{hashlib.md5(str(mods_).encode()).hexdigest()}:attributes"
+    )
+    if await redis.exists(key):
+        return BeatmapAttributes.model_validate_json(await redis.get(key))  # pyright: ignore[reportArgumentType]
+    resp = await fetcher.get_or_fetch_beatmap_raw(redis, beatmap_id)
+    attr = await asyncio.get_event_loop().run_in_executor(
+        None, calculate_beatmap_attribute, resp, ruleset, mods_
+    )
+    await redis.set(key, attr.model_dump_json())
+    return attr
