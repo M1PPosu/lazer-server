@@ -16,7 +16,7 @@ from .router import router
 
 from fastapi import Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
@@ -61,7 +61,7 @@ async def download_replay(
                         Score.beatmap_id == beatmap,
                         Score.user_id == user
                         if type == "id" or user.isdigit()
-                        else Score.user.username == user,
+                        else col(Score.user).has(username=user),
                         Score.mods == mods_,
                         Score.gamemode == GameMode.from_int_extra(ruleset_id)
                         if ruleset_id is not None

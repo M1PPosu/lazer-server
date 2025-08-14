@@ -83,7 +83,7 @@ async def get_user_best(
                 .where(
                     Score.user_id == user
                     if type == "id" or user.isdigit()
-                    else Score.user.username == user,
+                    else col(Score.user).has(username=user),
                     Score.gamemode == GameMode.from_int_extra(ruleset_id),
                     exists().where(col(PPBestScore.score_id) == Score.id),
                 )
@@ -119,7 +119,7 @@ async def get_user_recent(
                 .where(
                     Score.user_id == user
                     if type == "id" or user.isdigit()
-                    else Score.user.username == user,
+                    else col(Score.user).has(username=user),
                     Score.gamemode == GameMode.from_int_extra(ruleset_id),
                     Score.ended_at > datetime.now(UTC) - timedelta(hours=24),
                 )
@@ -160,7 +160,7 @@ async def get_scores(
                         Score.beatmap_id == beatmap_id,
                         Score.user_id == user
                         if type == "id" or user.isdigit()
-                        else Score.user.username == user,
+                        else col(Score.user).has(username=user),
                     )
                     .options(joinedload(Score.beatmap))
                     .order_by(col(Score.classic_total_score).desc())
