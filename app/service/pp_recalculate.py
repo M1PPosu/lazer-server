@@ -90,7 +90,6 @@ async def _recalculate_pp(
                 pp = await asyncio.get_event_loop().run_in_executor(
                     None, calculate_pp, score, beatmap_raw
                 )
-                logger.info(f"{score.user_id} {score.id} pp: {pp}")
                 score.pp = pp
                 if score.beatmap_id not in prev or prev[score.beatmap_id].pp < pp:
                     best_score = PPBestScore(
