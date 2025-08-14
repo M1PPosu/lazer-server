@@ -18,15 +18,15 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 @router.post(
     "/cover/upload",
-    name="上传头像",
+    name="上传头图",
 )
-async def upload_avatar(
+async def upload_cover(
     content: bytes = File(...),
     current_user: User = Security(get_client_user),
     storage: StorageService = Depends(get_storage_service),
     session: AsyncSession = Depends(get_db),
 ):
-    """上传用户头像
+    """上传用户头图
 
     接收图片数据，验证图片格式和大小后存储到存储服务，并更新用户的头像 URL
 
