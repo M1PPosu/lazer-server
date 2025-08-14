@@ -16,7 +16,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 @router.get(
-    "/{ruleset}/{type}",
+    "/rankings/{ruleset}/{type}",
     response_model=list[UserStatisticsResp],
     name="获取排行榜",
     description="获取在指定模式下的用户排行榜",
