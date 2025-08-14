@@ -3,13 +3,13 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 
-from app.dependencies.user import v1_api_key
+from app.dependencies.user import v1_authorize
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, field_serializer
 
 router = APIRouter(
-    prefix="/api/v1", dependencies=[Depends(v1_api_key)], tags=["V1 API"]
+    prefix="/api/v1", dependencies=[Depends(v1_authorize)], tags=["V1 API"]
 )
 
 
