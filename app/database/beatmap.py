@@ -7,7 +7,7 @@ from app.calculator import calculate_beatmap_attribute
 from app.config import settings
 from app.models.beatmap import BeatmapAttributes, BeatmapRankStatus
 from app.models.mods import APIMod
-from app.models.score import MODE_TO_INT, GameMode
+from app.models.score import GameMode
 
 from .beatmap_playcounts import BeatmapPlaycounts
 from .beatmapset import Beatmapset, BeatmapsetResp
@@ -176,7 +176,7 @@ class BeatmapResp(BeatmapBase):
         else:
             beatmap_["status"] = beatmap_status.name.lower()
             beatmap_["ranked"] = beatmap_status.value
-        beatmap_["mode_int"] = MODE_TO_INT[beatmap.mode]
+        beatmap_["mode_int"] = int(beatmap.mode)
         if not from_set:
             beatmap_["beatmapset"] = await BeatmapsetResp.from_db(
                 beatmap.beatmapset, session=session, user=user

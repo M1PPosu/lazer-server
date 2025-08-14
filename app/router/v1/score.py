@@ -7,11 +7,11 @@ from app.database.pp_best_score import PPBestScore
 from app.database.score import Score, get_leaderboard
 from app.dependencies.database import get_db
 from app.models.mods import int_to_mods, mods_to_int
-from app.models.score import INT_TO_MODE, LeaderboardType
+from app.models.score import GameMode, LeaderboardType
 
 from .router import AllStrModel, router
 
-from fastapi import Depends, Query
+from fastapi import Depends, HTTPException, Query
 from sqlalchemy.orm import joinedload
 from sqlmodel import col, exists, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -69,29 +69,32 @@ class V1Score(AllStrModel):
 )
 async def get_user_best(
     user: str = Query(..., alias="u", description="用户"),
-    ruleset_id: int = Query(0, alias="m", description="Ruleset ID", ge=0, le=3),
+    ruleset_id: int = Query(0, alias="m", description="Ruleset ID", ge=0),
     type: Literal["string", "id"] | None = Query(
         None, description="用户类型：string 用户名称 / id 用户 ID"
     ),
     limit: int = Query(10, ge=1, le=100, description="返回的成绩数量"),
     session: AsyncSession = Depends(get_db),
 ):
-    scores = (
-        await session.exec(
-            select(Score)
-            .where(
-                Score.user_id == user
-                if type == "id" or user.isdigit()
-                else Score.user.username == user,
-                Score.gamemode == INT_TO_MODE[ruleset_id],
-                exists().where(col(PPBestScore.score_id) == Score.id),
+    try:
+        scores = (
+            await session.exec(
+                select(Score)
+                .where(
+                    Score.user_id == user
+                    if type == "id" or user.isdigit()
+                    else Score.user.username == user,
+                    Score.gamemode == GameMode.from_int_extra(ruleset_id),
+                    exists().where(col(PPBestScore.score_id) == Score.id),
+                )
+                .order_by(col(Score.pp).desc())
+                .options(joinedload(Score.beatmap))
+                .limit(limit)
             )
-            .order_by(col(Score.pp).desc())
-            .options(joinedload(Score.beatmap))
-            .limit(limit)
-        )
-    ).all()
-    return [await V1Score.from_db(score) for score in scores]
+        ).all()
+        return [await V1Score.from_db(score) for score in scores]
+    except KeyError:
+        raise HTTPException(400, "Invalid request")
 
 
 @router.get(
@@ -102,29 +105,32 @@ async def get_user_best(
 )
 async def get_user_recent(
     user: str = Query(..., alias="u", description="用户"),
-    ruleset_id: int = Query(0, alias="m", description="Ruleset ID", ge=0, le=3),
+    ruleset_id: int = Query(0, alias="m", description="Ruleset ID", ge=0),
     type: Literal["string", "id"] | None = Query(
         None, description="用户类型：string 用户名称 / id 用户 ID"
     ),
     limit: int = Query(10, ge=1, le=100, description="返回的成绩数量"),
     session: AsyncSession = Depends(get_db),
 ):
-    scores = (
-        await session.exec(
-            select(Score)
-            .where(
-                Score.user_id == user
-                if type == "id" or user.isdigit()
-                else Score.user.username == user,
-                Score.gamemode == INT_TO_MODE[ruleset_id],
-                Score.ended_at > datetime.now(UTC) - timedelta(hours=24),
+    try:
+        scores = (
+            await session.exec(
+                select(Score)
+                .where(
+                    Score.user_id == user
+                    if type == "id" or user.isdigit()
+                    else Score.user.username == user,
+                    Score.gamemode == GameMode.from_int_extra(ruleset_id),
+                    Score.ended_at > datetime.now(UTC) - timedelta(hours=24),
+                )
+                .order_by(col(Score.pp).desc())
+                .options(joinedload(Score.beatmap))
+                .limit(limit)
             )
-            .order_by(col(Score.pp).desc())
-            .options(joinedload(Score.beatmap))
-            .limit(limit)
-        )
-    ).all()
-    return [await V1Score.from_db(score) for score in scores]
+        ).all()
+        return [await V1Score.from_db(score) for score in scores]
+    except KeyError:
+        raise HTTPException(400, "Invalid request")
 
 
 @router.get(
@@ -136,7 +142,7 @@ async def get_user_recent(
 async def get_scores(
     user: str | None = Query(None, alias="u", description="用户"),
     beatmap_id: int = Query(alias="b", description="谱面 ID"),
-    ruleset_id: int = Query(0, alias="m", description="Ruleset ID", ge=0, le=3),
+    ruleset_id: int = Query(0, alias="m", description="Ruleset ID", ge=0),
     type: Literal["string", "id"] | None = Query(
         None, description="用户类型：string 用户名称 / id 用户 ID"
     ),
@@ -144,28 +150,31 @@ async def get_scores(
     mods: int = Query(0, description="成绩的 MOD"),
     session: AsyncSession = Depends(get_db),
 ):
-    if user is not None:
-        scores = (
-            await session.exec(
-                select(Score)
-                .where(
-                    Score.gamemode == INT_TO_MODE[ruleset_id],
-                    Score.beatmap_id == beatmap_id,
-                    Score.user_id == user
-                    if type == "id" or user.isdigit()
-                    else Score.user.username == user,
+    try:
+        if user is not None:
+            scores = (
+                await session.exec(
+                    select(Score)
+                    .where(
+                        Score.gamemode == GameMode.from_int_extra(ruleset_id),
+                        Score.beatmap_id == beatmap_id,
+                        Score.user_id == user
+                        if type == "id" or user.isdigit()
+                        else Score.user.username == user,
+                    )
+                    .options(joinedload(Score.beatmap))
+                    .order_by(col(Score.classic_total_score).desc())
                 )
-                .options(joinedload(Score.beatmap))
-                .order_by(col(Score.classic_total_score).desc())
+            ).all()
+        else:
+            scores, _ = await get_leaderboard(
+                session,
+                beatmap_id,
+                GameMode.from_int_extra(ruleset_id),
+                LeaderboardType.GLOBAL,
+                [mod["acronym"] for mod in int_to_mods(mods)],
+                limit=limit,
             )
-        ).all()
-    else:
-        scores, _ = await get_leaderboard(
-            session,
-            beatmap_id,
-            INT_TO_MODE[ruleset_id],
-            LeaderboardType.GLOBAL,
-            [mod["acronym"] for mod in int_to_mods(mods)],
-            limit=limit,
-        )
-    return [await V1Score.from_db(score) for score in scores]
+        return [await V1Score.from_db(score) for score in scores]
+    except KeyError:
+        raise HTTPException(400, "Invalid request")

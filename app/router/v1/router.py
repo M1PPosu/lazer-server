@@ -22,4 +22,6 @@ class AllStrModel(BaseModel):
             return v.strftime("%Y-%m-%d %H:%M:%S")
         elif isinstance(v, bool):
             return "1" if v else "0"
+        elif isinstance(v, list):
+            return [self.serialize_datetime(item, _info) for item in v]
         return str(v)

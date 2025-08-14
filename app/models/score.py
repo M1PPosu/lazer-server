@@ -31,17 +31,35 @@ class GameMode(str, Enum):
             GameMode.OSUAP: rosu.GameMode.Osu,
         }[self]
 
+    def __int__(self) -> int:
+        return {
+            GameMode.OSU: 0,
+            GameMode.TAIKO: 1,
+            GameMode.FRUITS: 2,
+            GameMode.MANIA: 3,
+            GameMode.OSURX: 0,
+            GameMode.OSUAP: 0,
+        }[self]
 
-MODE_TO_INT = {
-    GameMode.OSU: 0,
-    GameMode.TAIKO: 1,
-    GameMode.FRUITS: 2,
-    GameMode.MANIA: 3,
-    GameMode.OSURX: 0,
-    GameMode.OSUAP: 0,
-}
-INT_TO_MODE = {v: k for k, v in MODE_TO_INT.items()}
-INT_TO_MODE[0] = GameMode.OSU
+    @classmethod
+    def from_int(cls, v: int) -> "GameMode":
+        return {
+            0: GameMode.OSU,
+            1: GameMode.TAIKO,
+            2: GameMode.FRUITS,
+            3: GameMode.MANIA,
+        }[v]
+
+    @classmethod
+    def from_int_extra(cls, v: int) -> "GameMode":
+        return {
+            0: GameMode.OSU,
+            1: GameMode.TAIKO,
+            2: GameMode.FRUITS,
+            3: GameMode.MANIA,
+            4: GameMode.OSURX,
+            5: GameMode.OSUAP,
+        }[v]
 
 
 class Rank(str, Enum):

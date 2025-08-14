@@ -24,8 +24,6 @@ from app.models.model import (
 )
 from app.models.mods import APIMod, mods_can_get_pp
 from app.models.score import (
-    INT_TO_MODE,
-    MODE_TO_INT,
     GameMode,
     HitResult,
     LeaderboardType,
@@ -189,7 +187,7 @@ class ScoreResp(ScoreBase):
         )
         s.is_perfect_combo = s.max_combo == s.beatmap.max_combo
         s.legacy_perfect = s.max_combo == s.beatmap.max_combo
-        s.ruleset_id = MODE_TO_INT[score.gamemode]
+        s.ruleset_id = int(score.gamemode)
         best_id = await get_best_id(session, score.id)
         if best_id:
             s.best_id = best_id
@@ -728,7 +726,7 @@ async def process_score(
     acronyms = [mod["acronym"] for mod in info.mods]
     is_rx = "RX" in acronyms
     is_ap = "AP" in acronyms
-    gamemode = INT_TO_MODE[info.ruleset_id]
+    gamemode = GameMode.from_int(info.ruleset_id)
     if settings.enable_osu_rx and is_rx and gamemode == GameMode.OSU:
         gamemode = GameMode.OSURX
     elif settings.enable_osu_ap and is_ap and gamemode == GameMode.OSU:

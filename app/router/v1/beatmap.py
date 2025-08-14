@@ -13,7 +13,7 @@ from app.dependencies.fetcher import get_fetcher
 from app.fetcher import Fetcher
 from app.models.beatmap import BeatmapRankStatus, Genre, Language
 from app.models.mods import int_to_mods
-from app.models.score import MODE_TO_INT, GameMode
+from app.models.score import GameMode
 
 from .router import AllStrModel, router
 
@@ -100,7 +100,7 @@ class V1Beatmap(AllStrModel):
             total_length=db_beatmap.total_length,
             version=db_beatmap.version,
             file_md5=db_beatmap.checksum,
-            mode=MODE_TO_INT[db_beatmap.mode],
+            mode=int(db_beatmap.mode),
             tags=db_beatmap.beatmapset.tags,
             favourite_count=(
                 await session.exec(

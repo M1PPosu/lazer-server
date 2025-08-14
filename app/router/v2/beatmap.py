@@ -13,7 +13,6 @@ from app.fetcher import Fetcher
 from app.models.beatmap import BeatmapAttributes
 from app.models.mods import APIMod, int_to_mods
 from app.models.score import (
-    INT_TO_MODE,
     GameMode,
 )
 
@@ -168,7 +167,7 @@ async def get_beatmap_attributes(
         default=None, description="指定 ruleset；为空则使用谱面自身模式"
     ),
     ruleset_id: int | None = Query(
-        default=None, description="以数字指定 ruleset （与 ruleset 二选一）"
+        default=None, description="以数字指定 ruleset （与 ruleset 二选一）", ge=0, le=3
     ),
     redis: Redis = Depends(get_redis),
     db: AsyncSession = Depends(get_db),
@@ -185,7 +184,7 @@ async def get_beatmap_attributes(
                 mods_.append(APIMod(acronym=i, settings={}))
     mods_.sort(key=lambda x: x["acronym"])
     if ruleset_id is not None and ruleset is None:
-        ruleset = INT_TO_MODE[ruleset_id]
+        ruleset = GameMode.from_int(ruleset_id)
     if ruleset is None:
         beatmap_db = await Beatmap.get_or_fetch(db, fetcher, beatmap_id)
         ruleset = beatmap_db.mode

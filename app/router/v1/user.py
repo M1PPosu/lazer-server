@@ -6,11 +6,11 @@ from typing import Literal
 from app.database.lazer_user import User
 from app.database.statistics import UserStatistics, UserStatisticsResp
 from app.dependencies.database import get_db
-from app.models.score import INT_TO_MODE, GameMode
+from app.models.score import GameMode
 
 from .router import AllStrModel, router
 
-from fastapi import Depends, Query
+from fastapi import Depends, HTTPException, Query
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -65,7 +65,9 @@ class V1User(AllStrModel):
             playcount=statistics.play_count if statistics else 0,
             ranked_score=statistics.ranked_score if statistics else 0,
             total_score=statistics.total_score if statistics else 0,
-            pp_rank=statistics.global_rank if statistics else 0,
+            pp_rank=statistics.global_rank
+            if statistics and statistics.global_rank
+            else 0,
             level=current_statistics.level_current if current_statistics else 0,
             pp_raw=statistics.pp if statistics else 0.0,
             accuracy=statistics.hit_accuracy if statistics else 0,
@@ -76,7 +78,9 @@ class V1User(AllStrModel):
             count_rank_a=current_statistics.grade_a if current_statistics else 0,
             country=db_user.country_code,
             total_seconds_played=statistics.play_time if statistics else 0,
-            pp_country_rank=statistics.country_rank if statistics else 0,
+            pp_country_rank=statistics.country_rank
+            if statistics and statistics.country_rank
+            else 0,
             events=[],  # TODO
         )
 
@@ -89,9 +93,7 @@ class V1User(AllStrModel):
 )
 async def get_user(
     user: str = Query(..., alias="u", description="用户"),
-    ruleset_id: int | None = Query(
-        None, alias="m", description="Ruleset ID", ge=0, le=3
-    ),
+    ruleset_id: int | None = Query(None, alias="m", description="Ruleset ID", ge=0),
     type: Literal["string", "id"] | None = Query(
         None, description="用户类型：string 用户名称 / id 用户 ID"
     ),
@@ -111,8 +113,13 @@ async def get_user(
     ).first()
     if not db_user:
         return []
-    return [
-        await V1User.from_db(
-            session, db_user, INT_TO_MODE[ruleset_id] if ruleset_id else None
-        )
-    ]
+    try:
+        return [
+            await V1User.from_db(
+                session,
+                db_user,
+                GameMode.from_int_extra(ruleset_id) if ruleset_id else None,
+            )
+        ]
+    except KeyError:
+        raise HTTPException(400, "Invalid request")

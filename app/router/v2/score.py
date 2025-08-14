@@ -37,7 +37,6 @@ from app.dependencies.user import get_client_user, get_current_user
 from app.fetcher import Fetcher
 from app.models.room import RoomCategory
 from app.models.score import (
-    INT_TO_MODE,
     GameMode,
     LeaderboardType,
     Rank,
@@ -187,7 +186,7 @@ async def get_user_beatmap_score(
     beatmap_id: int = Path(description="谱面 ID"),
     user_id: int = Path(description="用户 ID"),
     legacy_only: bool = Query(None, description="是否只查询 Stable 分数"),
-    mode: str = Query(None, description="指定 ruleset (可选)"),
+    mode: GameMode | None = Query(None, description="指定 ruleset (可选)"),
     mods: str = Query(None, description="筛选使用的 Mods (暂未实现)"),
     current_user: User = Security(get_current_user, scopes=["public"]),
     db: AsyncSession = Depends(get_db),
@@ -232,7 +231,7 @@ async def get_user_all_beatmap_scores(
     beatmap_id: int = Path(description="谱面 ID"),
     user_id: int = Path(description="用户 ID"),
     legacy_only: bool = Query(None, description="是否只查询 Stable 分数"),
-    ruleset: str = Query(None, description="指定 ruleset (可选)"),
+    ruleset: GameMode | None = Query(None, description="指定 ruleset (可选)"),
     current_user: User = Security(get_current_user, scopes=["public"]),
     db: AsyncSession = Depends(get_db),
 ):
@@ -275,7 +274,7 @@ async def create_solo_score(
         score_token = ScoreToken(
             user_id=current_user.id,
             beatmap_id=beatmap_id,
-            ruleset_id=INT_TO_MODE[ruleset_id],
+            ruleset_id=GameMode.from_int(ruleset_id),
         )
         db.add(score_token)
         await db.commit()
@@ -370,7 +369,7 @@ async def create_playlist_score(
     score_token = ScoreToken(
         user_id=current_user.id,
         beatmap_id=beatmap_id,
-        ruleset_id=INT_TO_MODE[ruleset_id],
+        ruleset_id=GameMode.from_int(ruleset_id),
         playlist_item_id=playlist_id,
     )
     session.add(score_token)

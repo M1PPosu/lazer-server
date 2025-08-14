@@ -19,7 +19,7 @@ from app.dependencies.fetcher import get_fetcher
 from app.fetcher import Fetcher
 from app.log import logger
 from app.models.mods import mods_can_get_pp
-from app.models.score import MODE_TO_INT, GameMode
+from app.models.score import GameMode
 
 from httpx import HTTPError
 from redis.asyncio import Redis
@@ -80,9 +80,7 @@ async def _recalculate_pp(
                 await asyncio.sleep(2)
                 continue
             ranked = db_beatmap.beatmap_status.has_pp() | settings.enable_all_beatmap_pp
-            if not ranked or not mods_can_get_pp(
-                MODE_TO_INT[score.gamemode], score.mods
-            ):
+            if not ranked or not mods_can_get_pp(int(score.gamemode), score.mods):
                 score.pp = 0
                 break
             try:

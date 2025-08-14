@@ -9,7 +9,7 @@ from app.database.score import Score
 from app.dependencies.database import get_db
 from app.dependencies.storage import get_storage_service
 from app.models.mods import int_to_mods
-from app.models.score import INT_TO_MODE
+from app.models.score import GameMode
 from app.storage import StorageService
 
 from .router import router
@@ -35,7 +35,10 @@ async def download_replay(
     beatmap: int = Query(..., alias="b", description="谱面 ID"),
     user: str = Query(..., alias="u", description="用户"),
     ruleset_id: int | None = Query(
-        None, alias="m", description="Ruleset ID", ge=0, le=3
+        None,
+        alias="m",
+        description="Ruleset ID",
+        ge=0,
     ),
     score_id: int | None = Query(None, alias="s", description="成绩 ID"),
     type: Literal["string", "id"] | None = Query(
@@ -51,22 +54,25 @@ async def download_replay(
         if score_record is None:
             raise HTTPException(status_code=404, detail="Score not found")
     else:
-        score_record = (
-            await session.exec(
-                select(Score).where(
-                    Score.beatmap_id == beatmap,
-                    Score.user_id == user
-                    if type == "id" or user.isdigit()
-                    else Score.user.username == user,
-                    Score.mods == mods_,
-                    Score.gamemode == INT_TO_MODE[ruleset_id]
-                    if ruleset_id is not None
-                    else True,
+        try:
+            score_record = (
+                await session.exec(
+                    select(Score).where(
+                        Score.beatmap_id == beatmap,
+                        Score.user_id == user
+                        if type == "id" or user.isdigit()
+                        else Score.user.username == user,
+                        Score.mods == mods_,
+                        Score.gamemode == GameMode.from_int_extra(ruleset_id)
+                        if ruleset_id is not None
+                        else True,
+                    )
                 )
-            )
-        ).first()
-        if score_record is None:
-            raise HTTPException(status_code=404, detail="Score not found")
+            ).first()
+            if score_record is None:
+                raise HTTPException(status_code=404, detail="Score not found")
+        except KeyError:
+            raise HTTPException(status_code=400, detail="Invalid request")
 
     filepath = (
         f"replays/{score_record.id}_{score_record.beatmap_id}"
