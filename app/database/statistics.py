@@ -86,7 +86,7 @@ class UserStatisticsResp(UserStatisticsBase):
 
     @classmethod
     async def from_db(
-        cls, obj: UserStatistics, session: AsyncSession, user_country: str
+        cls, obj: UserStatistics, session: AsyncSession, user_country: str | None = None
     ) -> "UserStatisticsResp":
         s = cls.model_validate(obj)
         s.grade_counts = {
