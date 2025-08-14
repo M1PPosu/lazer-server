@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 from io import BytesIO
 
-from app.database.lazer_user import User
+from app.database.lazer_user import User, UserProfileCover
 from app.dependencies.database import get_db
 from app.dependencies.storage import get_storage_service
 from app.dependencies.user import get_client_user
@@ -17,7 +17,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 @router.post(
-    "/avatar/upload",
+    "/cover/upload",
     name="上传头像",
 )
 async def upload_avatar(
@@ -32,35 +32,35 @@ async def upload_avatar(
 
     限制条件:
     - 支持的图片格式: PNG、JPEG、GIF
-    - 最大文件大小: 5MB
-    - 最大图片尺寸: 256x256 像素
+    - 最大文件大小: 10MB
+    - 最大图片尺寸: 3000x2000 像素
 
     返回:
     - 头像 URL 和文件哈希值
     """
 
     # check file
-    if len(content) > 5 * 1024 * 1024:  # 5MB limit
-        raise HTTPException(status_code=400, detail="File size exceeds 5MB limit")
+    if len(content) > 10 * 1024 * 1024:  # 10MB limit
+        raise HTTPException(status_code=400, detail="File size exceeds 10MB limit")
     elif len(content) == 0:
         raise HTTPException(status_code=400, detail="File cannot be empty")
     try:
         with Image.open(BytesIO(content)) as img:
             if img.format not in ["PNG", "JPEG", "GIF"]:
                 raise HTTPException(status_code=400, detail="Invalid image format")
-            if img.size[0] > 256 or img.size[1] > 256:
+            if img.size[0] > 3000 or img.size[1] > 2000:
                 raise HTTPException(
-                    status_code=400, detail="Image size exceeds 256x256 pixels"
+                    status_code=400, detail="Image size exceeds 3000x2000 pixels"
                 )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error processing image: {e}")
 
     filehash = hashlib.sha256(content).hexdigest()
-    storage_path = f"avatars/{current_user.id}_{filehash}.png"
+    storage_path = f"cover/{current_user.id}_{filehash}.png"
     if not await storage.is_exists(storage_path):
         await storage.write_file(storage_path, content)
     url = await storage.get_file_url(storage_path)
-    current_user.avatar_url = url
+    current_user.cover = UserProfileCover(url=url)
     await session.commit()
 
     return {
