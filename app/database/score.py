@@ -518,7 +518,7 @@ async def get_user_best_pp(
     session: AsyncSession,
     user: int,
     mode: GameMode,
-    limit: int = 200,
+    limit: int = 1000,
 ) -> Sequence[PPBestScore]:
     return (
         await session.exec(
