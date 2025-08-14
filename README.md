@@ -115,6 +115,7 @@ Fetcher 用于从 osu! 官方 API 获取数据，使用 osu! 官方 API 的 OAut
 | `ENABLE_SUPPORTER_FOR_ALL_USERS` | 启用所有新注册用户的支持者状态 | `false` |
 | `ENABLE_ALL_BEATMAP_LEADERBOARD` | 启用所有谱面的排行榜 | `false` |
 | `ENABLE_ALL_BEATMAP_PP` | 允许任何谱面获得 PP | `false` |
+| `SUSPICIOUS_SCORE_CHECK` | 启用可疑分数检查（star>25&acc<80 或 pp>2300） | `true` |
 | `SEASONAL_BACKGROUNDS` | 季节背景图 URL 列表 | `[]` |
 
 ### 存储服务设置

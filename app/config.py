@@ -94,6 +94,7 @@ class Settings(BaseSettings):
     enable_supporter_for_all_users: bool = False
     enable_all_beatmap_leaderboard: bool = False
     enable_all_beatmap_pp: bool = False
+    suspicious_score_check: bool = True
     seasonal_backgrounds: list[str] = []
 
     # 存储设置

@@ -3,6 +3,8 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING
 
+from app.config import settings
+from app.log import logger
 from app.models.beatmap import BeatmapAttributes
 from app.models.mods import APIMod
 from app.models.score import GameMode
@@ -75,7 +77,18 @@ def calculate_pp(
         misses=score.nmiss,
     )
     attrs = perf.calculate(map)
-    return attrs.pp
+    pp = attrs.pp
+    # mrekk bp1: 2048pp; ppy-sb top1 rxbp1: 2198pp
+    if settings.suspicious_score_check and (
+        (attrs.difficulty.stars > 25 and score.accuracy < 0.8) or pp > 2300
+    ):
+        logger.warning(
+            f"User {score.user_id} played {score.beatmap_id} with {pp=} "
+            f"acc={score.accuracy}. The score is suspicious and return 0pp"
+            f"({score.id=})"
+        )
+        return 0
+    return pp
 
 
 # https://osu.ppy.sh/wiki/Gameplay/Score/Total_score
