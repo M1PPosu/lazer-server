@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
+import math
 import time
 
 from app.calculator import clamp
@@ -16,6 +17,7 @@ from app.database import (
     User,
 )
 from app.database.counts import ReplayWatchedCount
+from app.database.events import Event, EventType
 from app.database.playlist_attempts import ItemAttemptsCount
 from app.database.playlist_best_score import (
     PlaylistBestScore,
@@ -123,7 +125,31 @@ async def submit_score(
         )
         score = (await db.exec(select(Score).where(Score.id == score_id))).first()
         assert score is not None
-    return await ScoreResp.from_db(db, score)
+    resp = await ScoreResp.from_db(db, score)
+    total_users = (await db.exec(select(func.count()).select_from(User))).first()
+    assert total_users is not None
+    if resp.rank_global is not None and resp.rank_global <= min(
+        math.ceil(float(total_users) * 0.01), 50
+    ):
+        rank_event = Event(
+            created_at=datetime.now(UTC),
+            type=EventType.RANK,
+            user_id=score.user_id,
+            user=score.user,
+        )
+        rank_event.event_payload = {
+            "scorerank": str(score.rank),
+            "rank": resp.rank_global,
+            "mode": str(resp.beatmap.mode),  # pyright: ignore[reportOptionalMemberAccess]
+            "beatmap": {"title": resp.beatmap.version, "url": resp.beatmap.url},  # pyright: ignore[reportOptionalMemberAccess]
+            "user": {
+                "username": score.user.username,
+                "url": settings.web_url + "users/" + str(score.user.id),
+            },
+        }
+        db.add(rank_event)
+        await db.commit()
+    return resp
 
 
 class BeatmapScores(BaseModel):
