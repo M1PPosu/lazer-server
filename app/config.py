@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Annotated, Any
 
-from pydantic import Field, HttpUrl, ValidationInfo, field_validator
+from pydantic import AliasChoices, Field, HttpUrl, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -97,8 +97,12 @@ class Settings(BaseSettings):
     sentry_dsn: HttpUrl | None = None
 
     # 游戏设置
-    enable_osu_rx: bool = False
-    enable_osu_ap: bool = False
+    enable_rx: bool = Field(
+        default=False, validation_alias=AliasChoices("enable_rx", "enable_osu_rx")
+    )
+    enable_ap: bool = Field(
+        default=False, validation_alias=AliasChoices("enable_ap", "enable_osu_ap")
+    )
     enable_all_mods_pp: bool = False
     enable_supporter_for_all_users: bool = False
     enable_all_beatmap_leaderboard: bool = False

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import TYPE_CHECKING, Literal, TypedDict
+from typing import TYPE_CHECKING, Literal, TypedDict, cast
+
+from app.config import settings
 
 from .mods import API_MODS, APIMod, init_mods
 
@@ -18,6 +20,8 @@ class GameMode(str, Enum):
     MANIA = "mania"
     OSURX = "osurx"
     OSUAP = "osuap"
+    TAIKORX = "taikorx"
+    FRUITSRX = "fruitsrx"
 
     def to_rosu(self) -> "rosu.GameMode":
         import rosu_pp_py as rosu
@@ -29,6 +33,8 @@ class GameMode(str, Enum):
             GameMode.MANIA: rosu.GameMode.Mania,
             GameMode.OSURX: rosu.GameMode.Osu,
             GameMode.OSUAP: rosu.GameMode.Osu,
+            GameMode.TAIKORX: rosu.GameMode.Taiko,
+            GameMode.FRUITSRX: rosu.GameMode.Catch,
         }[self]
 
     def __int__(self) -> int:
@@ -39,6 +45,8 @@ class GameMode(str, Enum):
             GameMode.MANIA: 3,
             GameMode.OSURX: 0,
             GameMode.OSUAP: 0,
+            GameMode.TAIKORX: 1,
+            GameMode.FRUITSRX: 2,
         }[self]
 
     @classmethod
@@ -59,7 +67,26 @@ class GameMode(str, Enum):
             3: GameMode.MANIA,
             4: GameMode.OSURX,
             5: GameMode.OSUAP,
+            6: GameMode.TAIKORX,
+            7: GameMode.FRUITSRX,
         }[v]
+
+    def to_special_mode(self, mods: list[APIMod] | list[str]) -> "GameMode":
+        if self not in (GameMode.OSU, GameMode.TAIKO, GameMode.FRUITS):
+            return self
+        if not settings.enable_rx and not settings.enable_ap:
+            return self
+        if len(mods) > 0 and isinstance(mods[0], dict):
+            mods = [mod["acronym"] for mod in cast(list[APIMod], mods)]
+        if "AP" in mods and settings.enable_ap:
+            return GameMode.OSUAP
+        if "RX" in mods and settings.enable_rx:
+            return {
+                GameMode.OSU: GameMode.OSURX,
+                GameMode.TAIKO: GameMode.TAIKORX,
+                GameMode.FRUITS: GameMode.FRUITSRX,
+            }[self]
+        raise ValueError(f"Unknown game mode: {self}")
 
 
 class Rank(str, Enum):

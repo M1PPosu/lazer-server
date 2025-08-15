@@ -15,19 +15,24 @@ async def create_rx_statistics():
     async with AsyncSession(engine) as session:
         users = (await session.exec(select(User.id))).all()
         for i in users:
-            if settings.enable_osu_rx:
-                is_exist = (
-                    await session.exec(
-                        select(exists()).where(
-                            UserStatistics.user_id == i,
-                            UserStatistics.mode == GameMode.OSURX,
+            if settings.enable_rx:
+                for mode in (
+                    GameMode.OSURX,
+                    GameMode.TAIKORX,
+                    GameMode.FRUITSRX,
+                ):
+                    is_exist = (
+                        await session.exec(
+                            select(exists()).where(
+                                UserStatistics.user_id == i,
+                                UserStatistics.mode == mode,
+                            )
                         )
-                    )
-                ).first()
-                if not is_exist:
-                    statistics_rx = UserStatistics(mode=GameMode.OSURX, user_id=i)
-                    session.add(statistics_rx)
-            if settings.enable_osu_ap:
+                    ).first()
+                    if not is_exist:
+                        statistics_rx = UserStatistics(mode=mode, user_id=i)
+                        session.add(statistics_rx)
+            if settings.enable_ap:
                 is_exist = (
                     await session.exec(
                         select(exists()).where(

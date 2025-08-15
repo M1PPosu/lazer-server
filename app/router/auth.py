@@ -175,10 +175,11 @@ async def register_user(
         for i in [GameMode.OSU, GameMode.TAIKO, GameMode.FRUITS, GameMode.MANIA]:
             statistics = UserStatistics(mode=i, user_id=new_user.id)
             db.add(statistics)
-        if settings.enable_osu_rx:
-            statistics_rx = UserStatistics(mode=GameMode.OSURX, user_id=new_user.id)
-            db.add(statistics_rx)
-        if settings.enable_osu_ap:
+        if settings.enable_rx:
+            for mode in (GameMode.OSURX, GameMode.TAIKORX, GameMode.FRUITSRX):
+                statistics_rx = UserStatistics(mode=mode, user_id=new_user.id)
+                db.add(statistics_rx)
+        if settings.enable_ap:
             statistics_ap = UserStatistics(mode=GameMode.OSUAP, user_id=new_user.id)
             db.add(statistics_ap)
         daily_challenge_user_stats = DailyChallengeStats(user_id=new_user.id)

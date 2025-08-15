@@ -6,7 +6,7 @@
 
 - **OAuth 2.0 认证**: 支持密码流和刷新令牌流
 - **用户数据管理**: 完整的用户信息、统计数据、成就等
-- **多游戏模式支持**: osu! (osu!rx, osu!ap), taiko, fruits, mania
+- **多游戏模式支持**: osu! (RX, AP), taiko (RX), catch (RX), mania
 - **数据库持久化**: MySQL 存储用户数据
 - **缓存支持**: Redis 缓存令牌和会话信息
 - **多种存储后端**: 支持本地存储、Cloudflare R2、AWS S3
@@ -109,8 +109,8 @@ Fetcher 用于从 osu! 官方 API 获取数据，使用 osu! 官方 API 的 OAut
 ### 游戏设置
 | 变量名 | 描述 | 默认值 |
 |--------|------|--------|
-| `ENABLE_OSU_RX` | 启用 osu!RX 统计数据 | `false` |
-| `ENABLE_OSU_AP` | 启用 osu!AP 统计数据 | `false` |
+| `ENABLE_RX` | 启用 RX mod 统计数据 | `false` |
+| `ENABLE_AP` | 启用 AP mod 统计数据 | `false` |
 | `ENABLE_ALL_MODS_PP` | 启用所有 Mod 的 PP 计算 | `false` |
 | `ENABLE_SUPPORTER_FOR_ALL_USERS` | 启用所有新注册用户的支持者状态 | `false` |
 | `ENABLE_ALL_BEATMAP_LEADERBOARD` | 启用所有谱面的排行榜 | `false` |

@@ -160,9 +160,13 @@ def mods_can_get_pp(ruleset_id: int, mods: list[APIMod]) -> bool:
         return True
     ranked_mods = RANKED_MODS[ruleset_id]
     for mod in mods:
-        if app_settings.enable_osu_rx and mod["acronym"] == "RX" and ruleset_id == 0:
+        if (
+            app_settings.enable_rx
+            and mod["acronym"] == "RX"
+            and ruleset_id in {0, 1, 2}
+        ):
             continue
-        if app_settings.enable_osu_ap and mod["acronym"] == "AP" and ruleset_id == 0:
+        if app_settings.enable_ap and mod["acronym"] == "AP" and ruleset_id == 0:
             continue
 
         mod["settings"] = mod.get("settings", {})

@@ -330,12 +330,8 @@ async def get_leaderboard(
     user: User | None = None,
     limit: int = 50,
 ) -> tuple[list[Score], Score | None]:
-    is_rx = "RX" in (mods or [])
-    is_ap = "AP" in (mods or [])
-    if settings.enable_osu_rx and is_rx:
-        mode = GameMode.OSURX
-    elif settings.enable_osu_ap and is_ap:
-        mode = GameMode.OSUAP
+    mods = mods or []
+    mode = mode.to_special_mode(mods)
 
     wheres = await _score_where(type, beatmap, mode, mods, user)
     if wheres is None:
@@ -696,14 +692,7 @@ async def process_score(
 ) -> Score:
     assert user.id
     can_get_pp = info.passed and ranked and mods_can_get_pp(info.ruleset_id, info.mods)
-    acronyms = [mod["acronym"] for mod in info.mods]
-    is_rx = "RX" in acronyms
-    is_ap = "AP" in acronyms
-    gamemode = GameMode.from_int(info.ruleset_id)
-    if settings.enable_osu_rx and is_rx and gamemode == GameMode.OSU:
-        gamemode = GameMode.OSURX
-    elif settings.enable_osu_ap and is_ap and gamemode == GameMode.OSU:
-        gamemode = GameMode.OSUAP
+    gamemode = GameMode.from_int(info.ruleset_id).to_special_mode(info.mods)
     score = Score(
         accuracy=info.accuracy,
         max_combo=info.max_combo,
