@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from enum import Enum
 import math
 from typing import TYPE_CHECKING
 
@@ -9,7 +10,7 @@ from app.models.beatmap import BeatmapAttributes
 from app.models.mods import APIMod
 from app.models.score import GameMode
 
-from osupyparser import OsuFile
+from osupyparser import HitObject, OsuFile
 from osupyparser.osu.objects import Slider
 from sqlmodel import col, exists, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -266,13 +267,93 @@ def calculate_weighted_acc(acc: float, index: int) -> float:
     return calculate_pp_weight(index) * acc if acc > 0 else 0.0
 
 
+# 大致算法来自 https://github.com/MaxOhn/rosu-pp/blob/main/src/model/beatmap/suspicious.rs
+
+
+class Threshold(int, Enum):
+    # 谱面异常常量
+    NOTES_THRESHOLD = 500000  # 除 taiko 以外任何模式的物件数量
+    TAIKO_THRESHOLD = 30000  # taiko 模式下的物量限制
+
+    NOTES_PER_1S_THRESHOLD = 200  # 3000 BPM
+    NOTES_PER_10S_THRESHOLD = 500  # 600 BPM
+
+    # 这个尺寸已经是常规游玩区域大小的 4 倍了 …… 如果不合适那另说吧
+    NOTE_POSX_THRESHOLD = 512  # x: [-512,512]
+    NOTE_POSY_THRESHOLD = 384  # y: [-384,384]
+
+    POS_ERROR_THRESHOLD = (
+        1280 * 50
+    )  # 超过这么多个物件（包括滑条控制点）的位置有问题就毙掉
+
+    SLIDER_REPEAT_THRESHOLD = 5000
+
+
+def too_dense(hit_objects: list[HitObject], per_1s: int, per_10s: int) -> bool:
+    per_1s = max(1, per_1s)
+    per_10s = max(1, per_10s)
+    for i in range(0, len(hit_objects)):
+        if len(hit_objects) > i + per_1s:
+            if hit_objects[i + per_1s].start_time - hit_objects[i].start_time < 1000:
+                return True
+        elif len(hit_objects) > i + per_10s:
+            if hit_objects[i + per_10s].start_time - hit_objects[i].start_time < 10000:
+                return True
+    return False
+
+
+def slider_is_sus(hit_objects: list[HitObject]) -> bool:
+    for obj in hit_objects:
+        if isinstance(obj, Slider):
+            flag_repeat = obj.repeat_count > Threshold.SLIDER_REPEAT_THRESHOLD
+            flag_pos = int(
+                obj.pos.x > Threshold.NOTE_POSX_THRESHOLD
+                or obj.pos.x < 0
+                or obj.pos.y > Threshold.NOTE_POSY_THRESHOLD
+                or obj.pos.y < 0
+            )
+            for point in obj.points:
+                flag_pos += int(
+                    point.x > Threshold.NOTE_POSX_THRESHOLD
+                    or point.x < 0
+                    or point.y > Threshold.NOTE_POSY_THRESHOLD
+                    or point.y < 0
+                )
+            if flag_pos or flag_repeat:
+                return True
+    return False
+
+
 def is_suspicious_beatmap(content: str) -> bool:
     osufile = OsuFile(content=content.encode("utf-8-sig")).parse_file()
-    for obj in osufile.hit_objects:
-        if obj.pos.x < 0 or obj.pos.y < 0 or obj.pos.x > 512 or obj.pos.y > 384:
+    if (
+        osufile.hit_objects[-1].start_time - osufile.hit_objects[0].start_time
+        > 24 * 60 * 60 * 1000
+    ):
+        return True
+    if osufile.mode == int(GameMode.TAIKO):
+        if len(osufile.hit_objects) > Threshold.TAIKO_THRESHOLD:
             return True
-        if isinstance(obj, Slider):
-            for point in obj.points:
-                if point.x < 0 or point.y < 0 or point.x > 512 or point.y > 384:
-                    return True
+    elif len(osufile.hit_objects) > Threshold.NOTES_THRESHOLD:
+        return True
+    match osufile.mode:
+        case int(GameMode.OSU):
+            return too_dense(
+                osufile.hit_objects,
+                Threshold.NOTES_PER_1S_THRESHOLD,
+                Threshold.NOTES_PER_10S_THRESHOLD,
+            ) or slider_is_sus(osufile.hit_objects)
+        case int(GameMode.TAIKO):
+            return too_dense(
+                osufile.hit_objects,
+                Threshold.NOTES_PER_1S_THRESHOLD * 2,
+                Threshold.NOTES_PER_10S_THRESHOLD * 2,
+            )
+        case int(GameMode.FRUITS):
+            return slider_is_sus(osufile.hit_objects)
+        case int(GameMode.MANIA):
+            keys_per_hand = max(1, int(osufile.cs / 2))
+            per_1s = Threshold.NOTES_PER_1S_THRESHOLD * keys_per_hand
+            per_10s = Threshold.NOTES_PER_10S_THRESHOLD * keys_per_hand
+            return too_dense(osufile.hit_objects, per_1s, per_10s)
     return False
