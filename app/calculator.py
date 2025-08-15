@@ -5,7 +5,6 @@ import math
 from typing import TYPE_CHECKING
 
 from app.config import settings
-from app.database.beatmap import BannedBeatmaps
 from app.log import logger
 from app.models.beatmap import BeatmapAttributes
 from app.models.mods import APIMod
@@ -328,6 +327,8 @@ def slider_is_sus(hit_objects: list[HitObject]) -> bool:
 def is_suspicious_beatmap(content: str) -> bool:
     osufile = OsuFile(content=content.encode("utf-8-sig")).parse_file()
     engine = create_engine(settings.database_url)
+    from app.database.beatmap import BannedBeatmaps
+
     with Session(engine) as session:
         banned_beatmap = session.exec(
             select(BannedBeatmaps).where(
