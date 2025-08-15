@@ -86,7 +86,7 @@ async def calculate_pp(score: "Score", beatmap: str, session: AsyncSession) -> f
     perf = rosu.Performance(
         mods=score.mods,
         lazer=True,
-        accuracy=score.accuracy,
+        accuracy=clamp(score.accuracy * 100, 0, 100),
         combo=score.max_combo,
         large_tick_hits=score.nlarge_tick_hit or 0,
         slider_end_hits=score.nslider_tail_hit or 0,
