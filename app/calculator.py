@@ -324,6 +324,13 @@ def slider_is_sus(hit_objects: list[HitObject]) -> bool:
     return False
 
 
+def is_2b(hit_objects: list[HitObject]) -> bool:
+    for i in range(0, len(hit_objects) - 1):
+        if hit_objects[i] == hit_objects[i + 1].start_time:
+            return True
+    return False
+
+
 def is_suspicious_beatmap(content: str) -> bool:
     osufile = OsuFile(content=content.encode("utf-8-sig")).parse_file()
 
@@ -339,19 +346,23 @@ def is_suspicious_beatmap(content: str) -> bool:
         return True
     match osufile.mode:
         case int(GameMode.OSU):
-            return too_dense(
-                osufile.hit_objects,
-                Threshold.NOTES_PER_1S_THRESHOLD,
-                Threshold.NOTES_PER_10S_THRESHOLD,
-            ) or slider_is_sus(osufile.hit_objects)
+            return (
+                too_dense(
+                    osufile.hit_objects,
+                    Threshold.NOTES_PER_1S_THRESHOLD,
+                    Threshold.NOTES_PER_10S_THRESHOLD,
+                )
+                or slider_is_sus(osufile.hit_objects)
+                or is_2b(osufile.hit_objects)
+            )
         case int(GameMode.TAIKO):
             return too_dense(
                 osufile.hit_objects,
                 Threshold.NOTES_PER_1S_THRESHOLD * 2,
                 Threshold.NOTES_PER_10S_THRESHOLD * 2,
-            )
+            ) or is_2b(osufile.hit_objects)
         case int(GameMode.FRUITS):
-            return slider_is_sus(osufile.hit_objects)
+            return slider_is_sus(osufile.hit_objects) or is_2b(osufile.hit_objects)
         case int(GameMode.MANIA):
             keys_per_hand = max(1, int(osufile.cs / 2))
             per_1s = Threshold.NOTES_PER_1S_THRESHOLD * keys_per_hand
