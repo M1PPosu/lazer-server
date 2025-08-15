@@ -35,13 +35,17 @@ async def user_rename(
     返回:
     - 成功: None
     """
+    assert current_user is not None
     samename_user = (
         await session.exec(select(User).where(User.username == new_name))
     ).first()
     if samename_user:
         raise HTTPException(409, "Username Exisits")
-    current_user.previous_usernames.append(current_user.username)
+    previous_username = []
+    previous_username.extend(current_user.previous_usernames)
+    previous_username.append(current_user.username)
     current_user.username = new_name
+    current_user.previous_usernames = previous_username
     rename_event = Event(
         created_at=datetime.now(UTC),
         type=EventType.USERNAME_CHANGE,
