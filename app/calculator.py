@@ -12,7 +12,7 @@ from app.models.score import GameMode
 
 from osupyparser import HitObject, OsuFile
 from osupyparser.osu.objects import Slider
-from sqlmodel import Session, col, create_engine, exists, select
+from sqlmodel import col, exists, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 try:
@@ -326,17 +326,7 @@ def slider_is_sus(hit_objects: list[HitObject]) -> bool:
 
 def is_suspicious_beatmap(content: str) -> bool:
     osufile = OsuFile(content=content.encode("utf-8-sig")).parse_file()
-    engine = create_engine(settings.database_url)
-    from app.database.beatmap import BannedBeatmaps
 
-    with Session(engine) as session:
-        banned_beatmap = session.exec(
-            select(BannedBeatmaps).where(
-                BannedBeatmaps.beatmap_id == osufile.beatmap_id
-            )
-        ).first()
-        if banned_beatmap:  # 人工黑名单榜上有名
-            return True
     if (
         osufile.hit_objects[-1].start_time - osufile.hit_objects[0].start_time
         > 24 * 60 * 60 * 1000
