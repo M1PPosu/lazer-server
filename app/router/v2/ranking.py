@@ -17,7 +17,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 class CountryStatistics(BaseModel):
-    country_code: str
+    code: str
     active_users: int
     play_count: int
     ranked_score: int
@@ -48,13 +48,15 @@ async def get_country_ranking(
             await session.exec(
                 select(UserStatistics).where(
                     UserStatistics.mode == ruleset,
+                    UserStatistics.pp > 0,
                     col(UserStatistics.user).has(country_code=country),
+                    col(UserStatistics.user).has(is_active=True),
                 )
             )
         ).all()
         pp = 0
         country_stats = CountryStatistics(
-            country_code=country,
+            code=country,
             active_users=0,
             play_count=0,
             ranked_score=0,
@@ -92,9 +94,15 @@ async def get_user_ranking(
     current_user: User = Security(get_current_user, scopes=["public"]),
     session: AsyncSession = Depends(get_db),
 ):
-    wheres = [col(UserStatistics.mode) == ruleset]
+    wheres = [
+        col(UserStatistics.mode) == ruleset,
+        col(UserStatistics.pp) > 0,
+        col(UserStatistics.is_ranked).is_(True),
+    ]
+    include = ["user"]
     if type == "performance":
         order_by = col(UserStatistics.pp).desc()
+        include.append("rank_change_since_30_days")
     else:
         order_by = col(UserStatistics.ranked_score).desc()
     if country:
@@ -106,9 +114,10 @@ async def get_user_ranking(
         .limit(50)
         .offset(50 * (page - 1))
     )
-    return TopUsersResponse(
+    resp = TopUsersResponse(
         ranking=[
-            await UserStatisticsResp.from_db(statistics, session, None)
+            await UserStatisticsResp.from_db(statistics, session, None, include)
             for statistics in statistics_list
         ]
     )
+    return resp

@@ -86,7 +86,7 @@ class GameMode(str, Enum):
                 GameMode.TAIKO: GameMode.TAIKORX,
                 GameMode.FRUITS: GameMode.FRUITSRX,
             }[self]
-        raise ValueError(f"Unknown game mode: {self}")
+        return self
 
 
 class Rank(str, Enum):

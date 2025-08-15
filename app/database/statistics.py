@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 import math
 from typing import TYPE_CHECKING
 
@@ -6,6 +6,7 @@ from app.models.score import GameMode
 
 from .rank_history import RankHistory
 
+from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlmodel import (
     BigInteger,
     Column,
@@ -20,7 +21,7 @@ from sqlmodel import (
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 if TYPE_CHECKING:
-    from .lazer_user import User
+    from .lazer_user import User, UserResp
 
 
 class UserStatisticsBase(SQLModel):
@@ -43,7 +44,7 @@ class UserStatisticsBase(SQLModel):
     is_ranked: bool = Field(default=True)
 
 
-class UserStatistics(UserStatisticsBase, table=True):
+class UserStatistics(AsyncAttrs, UserStatisticsBase, table=True):
     __tablename__ = "lazer_user_statistics"  # pyright: ignore[reportAssignmentType]
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(
@@ -66,6 +67,8 @@ class UserStatistics(UserStatisticsBase, table=True):
 
 
 class UserStatisticsResp(UserStatisticsBase):
+    user: "UserResp | None" = None
+    rank_change_since_30_days: int | None = 0
     global_rank: int | None = Field(default=None)
     country_rank: int | None = Field(default=None)
     grade_counts: dict[str, int] = Field(
@@ -86,9 +89,13 @@ class UserStatisticsResp(UserStatisticsBase):
 
     @classmethod
     async def from_db(
-        cls, obj: UserStatistics, session: AsyncSession, user_country: str | None = None
+        cls,
+        obj: UserStatistics,
+        session: AsyncSession,
+        user_country: str | None = None,
+        include: list[str] = [],
     ) -> "UserStatisticsResp":
-        s = cls.model_validate(obj)
+        s = cls.model_validate(obj.model_dump())
         s.grade_counts = {
             "ss": obj.grade_ss,
             "ssh": obj.grade_ssh,
@@ -100,9 +107,32 @@ class UserStatisticsResp(UserStatisticsBase):
             "current": int(obj.level_current),
             "progress": int(math.fmod(obj.level_current, 1) * 100),
         }
+        if "user" in include:
+            from .lazer_user import RANKING_INCLUDES, UserResp
+
+            user = await UserResp.from_db(
+                await obj.awaitable_attrs.user, session, include=RANKING_INCLUDES
+            )
+            s.user = user
+            user_country = user.country_code
 
         s.global_rank = await get_rank(session, obj)
         s.country_rank = await get_rank(session, obj, user_country)
+
+        if "rank_change_since_30_days" in include:
+            rank_best = (
+                await session.exec(
+                    select(func.max(RankHistory.rank)).where(
+                        RankHistory.date > datetime.now(UTC) - timedelta(days=30),
+                        RankHistory.user_id == obj.user_id,
+                    )
+                )
+            ).first()
+            if rank_best is None or s.global_rank is None:
+                s.rank_change_since_30_days = 0
+            else:
+                s.rank_change_since_30_days = rank_best - s.global_rank
+
         return s
 
 

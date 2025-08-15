@@ -444,3 +444,8 @@ BASE_INCLUDES = [
     "daily_challenge_user_stats",
     "statistics",
 ]
+
+RANKING_INCLUDES = [
+    "team",
+    "statistics",
+]
