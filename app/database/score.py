@@ -1,4 +1,3 @@
-import asyncio
 from collections.abc import Sequence
 from datetime import UTC, date, datetime
 import json
@@ -726,9 +725,7 @@ async def process_score(
     )
     if can_get_pp:
         beatmap_raw = await fetcher.get_or_fetch_beatmap_raw(redis, beatmap_id)
-        pp = await asyncio.get_event_loop().run_in_executor(
-            None, calculate_pp, score, beatmap_raw
-        )
+        pp = await calculate_pp(score, beatmap_raw, session)
         score.pp = pp
     session.add(score)
     user_id = user.id

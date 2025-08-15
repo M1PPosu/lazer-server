@@ -85,9 +85,7 @@ async def _recalculate_pp(
                 break
             try:
                 beatmap_raw = await fetcher.get_or_fetch_beatmap_raw(redis, beatmap_id)
-                pp = await asyncio.get_event_loop().run_in_executor(
-                    None, calculate_pp, score, beatmap_raw
-                )
+                pp = await calculate_pp(score, beatmap_raw, session)
                 score.pp = pp
                 if score.beatmap_id not in prev or prev[score.beatmap_id].pp < pp:
                     best_score = PPBestScore(

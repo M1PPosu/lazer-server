@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import math
-import os
 from typing import TYPE_CHECKING
-import zipfile
 
 from app.config import settings
 from app.log import logger
@@ -11,10 +9,9 @@ from app.models.beatmap import BeatmapAttributes
 from app.models.mods import APIMod
 from app.models.score import GameMode
 
-import httpx
 from osupyparser import OsuFile
 from osupyparser.osu.objects import Slider
-from sqlmodel import Session, create_engine, select
+from sqlmodel import col, exists, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 try:
@@ -63,10 +60,25 @@ def calculate_beatmap_attribute(
     )
 
 
-def calculate_pp(
-    score: "Score",
-    beatmap: str,
-) -> float:
+async def calculate_pp(score: "Score", beatmap: str, session: AsyncSession) -> float:
+    from app.database.beatmap import BannedBeatmaps
+
+    if settings.suspicious_score_check:
+        beatmap_banned = (
+            await session.exec(
+                select(exists()).where(
+                    col(BannedBeatmaps.beatmap_id) == score.beatmap_id
+                )
+            )
+        ).first()
+        if beatmap_banned:
+            return 0
+        is_suspicious = is_suspicious_beatmap(beatmap)
+        if is_suspicious:
+            session.add(BannedBeatmaps(beatmap_id=score.beatmap_id))
+            logger.warning(f"Beatmap {score.beatmap_id} is suspicious, banned")
+            return 0
+
     map = rosu.Beatmap(content=beatmap)
     map.convert(score.gamemode.to_rosu(), score.mods)  # pyright: ignore[reportArgumentType]
     perf = rosu.Performance(
@@ -86,21 +98,10 @@ def calculate_pp(
     )
     attrs = perf.calculate(map)
     pp = attrs.pp
-    engine = create_engine(settings.database_url)
-    from app.database.beatmap import BannedBeatmaps
 
-    beatmap_banned = False
-    with Session(engine) as session:
-        beatmap_id = session.exec(
-            select(BannedBeatmaps).where(BannedBeatmaps.beatmap_id == score.beatmap_id)
-        ).first()
-        if beatmap_id:
-            beatmap_banned = True
     # mrekk bp1: 2048pp; ppy-sb top1 rxbp1: 2198pp
     if settings.suspicious_score_check and (
-        beatmap_banned
-        or (attrs.difficulty.stars > 25 and score.accuracy < 0.8)
-        or pp > 2300
+        (attrs.difficulty.stars > 25 and score.accuracy < 0.8) or pp > 2300
     ):
         logger.warning(
             f"User {score.user_id} played {score.beatmap_id} with {pp=} "
@@ -237,32 +238,6 @@ def calculate_score_to_level(total_score: int) -> float:
         99999999999,
         99999999999,
         99999999999,
-        99999999999,
-        99999999999,
-        99999999999,
-        99999999999,
-        99999999999,
-        99999999999,
-        99999999999,
-        99999999999,
-        99999999999,
-        99999999999,
-        99999999999,
-        99999999999,
-        99999999999,
-        99999999999,
-        99999999999,
-        99999999999,
-        99999999999,
-        99999999999,
-        99999999999,
-        99999999999,
-        99999999999,
-        99999999999,
-        99999999999,
-        99999999999,
-        99999999999,
-        99999999999,
     ]
 
     remaining_score = total_score
@@ -291,48 +266,13 @@ def calculate_weighted_acc(acc: float, index: int) -> float:
     return calculate_pp_weight(index) * acc if acc > 0 else 0.0
 
 
-async def get_suspscious_beatmap(beatmapset_id: int, session: AsyncSession):
-    url = (
-        f"https://txy1.sayobot.cn/beatmaps/download/novideo/{beatmapset_id}?server=auto"
-    )
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(url)
-        if resp.status_code == 200:
-            import aiofiles
-
-            async with aiofiles.open(f"temp_beatmaps/{beatmapset_id}.osz", "wb") as f:
-                await f.write(resp.content)
-    with zipfile.ZipFile(f"temp_beatmaps/{beatmapset_id}.osz", "r") as beatmap_ref:
-        beatmap_ref.extractall(f"temp_beatmaps/{beatmapset_id}")
-    os.remove(f"temp_beatmaps/{beatmapset_id}.osz")
-    all_osu_files = []
-    for root, dirs, files in os.walk(f"temp_beatmaps/{beatmapset_id}"):
-        for name in files:
-            if name.endswith(".osu"):
-                all_osu_files.append(os.path.join(root, name))
-    for file in all_osu_files:
-        osufile = OsuFile(file).parse_file()
-        for obj in osufile.hit_objects:
-            if obj.pos.x < 0 or obj.pos.y < 0 or obj.pos.x > 512 or obj.pos.y > 384:
-                # 延迟导入以解决循环导入问题
-                from app.database.beatmap import BannedBeatmaps
-
-                session.add(
-                    BannedBeatmaps(id=osufile.beatmap_id, beatmap_id=osufile.beatmap_id)
-                )
-                break
-            if type(obj) is Slider:
-                for point in obj.points:
-                    if point.x < 0 or point.y < 0 or point.x > 512 or point.y > 384:
-                        # 延迟导入以解决循环导入问题
-                        from app.database.beatmap import BannedBeatmaps
-
-                        session.add(
-                            BannedBeatmaps(
-                                id=osufile.beatmap_id, beatmap_id=osufile.beatmap_id
-                            )
-                        )
-                        break
-        os.remove(file)
-    os.remove(f"temp_beatmaps/{beatmapset_id}")
-    return None
+def is_suspicious_beatmap(content: str) -> bool:
+    osufile = OsuFile(content=content.encode("utf-8-sig")).parse_file()
+    for obj in osufile.hit_objects:
+        if obj.pos.x < 0 or obj.pos.y < 0 or obj.pos.x > 512 or obj.pos.y > 384:
+            return True
+        if isinstance(obj, Slider):
+            for point in obj.points:
+                if point.x < 0 or point.y < 0 or point.x > 512 or point.y > 384:
+                    return True
+    return False

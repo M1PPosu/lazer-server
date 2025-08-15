@@ -96,10 +96,12 @@ reportIncompatibleVariableOverride = false
 [tool.uv.workspace]
 members = [
     "packages/msgpack_lazer_api",
+    "packages/osupyparser",
 ]
 
 [tool.uv.sources]
 msgpack-lazer-api = { workspace = true }
+osupyparser = { git = "https://github.com/MingxuanGame/osupyparser.git" }
 
 [tool.uv]
 cache-keys = [{file = "pyproject.toml"}, {file = "packages/msgpack_lazer_api/Cargo.toml"}, {file = "**/*.rs"}]

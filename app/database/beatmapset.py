@@ -183,10 +183,6 @@ class Beatmapset(AsyncAttrs, BeatmapsetBase, table=True):
         if not beatmapset:
             resp = await fetcher.get_beatmapset(sid)
             beatmapset = await cls.from_resp(session, resp)
-            # 检查可疑谱面
-            from app.calculator import get_suspscious_beatmap
-
-            await get_suspscious_beatmap(sid, session)
         return beatmapset
 
 

@@ -858,7 +858,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "msgpack-lazer-api", editable = "packages/msgpack_lazer_api" },
-    { name = "osupyparser", specifier = ">=1.0.7" },
+    { name = "osupyparser", git = "https://github.com/MingxuanGame/osupyparser.git" },
     { name = "passlib", extras = ["bcrypt"], specifier = ">=1.7.4" },
     { name = "pillow", specifier = ">=11.3.0" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.5.0" },
@@ -883,9 +883,8 @@ dev = [
 
 [[package]]
 name = "osupyparser"
-version = "1.0.7"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/7b/6b/7f567c2acd1f2028603353da40ad7411bb47754994552d3f0c4cfa6703f9/OsuPyParser-1.0.7.tar.gz", hash = "sha256:67f530c31dd5c288c8fff8f583c899c673536681f8cc3699d0afc5e4d8c2b1ff", size = 9095, upload-time = "2021-08-29T23:48:22.752Z" }
+version = "1.0.8"
+source = { git = "https://github.com/MingxuanGame/osupyparser.git#e41ec1db87ab64531897127a44b86351c21322bd" }
 
 [[package]]
 name = "passlib"
