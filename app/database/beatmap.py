@@ -3,7 +3,6 @@ from datetime import datetime
 import hashlib
 from typing import TYPE_CHECKING
 
-from app.calculator import calculate_beatmap_attribute
 from app.config import settings
 from app.models.beatmap import BeatmapAttributes, BeatmapRankStatus
 from app.models.mods import APIMod
@@ -202,6 +201,12 @@ class BeatmapResp(BeatmapBase):
         return cls.model_validate(beatmap_)
 
 
+class BannedBeatmaps(SQLModel, table=True):
+    __tablename__ = "banned_beatmaps"  # pyright: ignore[reportAssignmentType]
+    id: int = Field(primary_key=True, index=True)
+    beatmap_id: int = Field(index=True)
+
+
 async def calculate_beatmap_attributes(
     beatmap_id: int,
     ruleset: GameMode,
@@ -216,6 +221,9 @@ async def calculate_beatmap_attributes(
     if await redis.exists(key):
         return BeatmapAttributes.model_validate_json(await redis.get(key))  # pyright: ignore[reportArgumentType]
     resp = await fetcher.get_or_fetch_beatmap_raw(redis, beatmap_id)
+    # 延迟导入以解决循环导入问题
+    from app.calculator import calculate_beatmap_attribute
+
     attr = await asyncio.get_event_loop().run_in_executor(
         None, calculate_beatmap_attribute, resp, ruleset, mods_
     )

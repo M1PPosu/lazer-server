@@ -822,6 +822,7 @@ dependencies = [
     { name = "httpx" },
     { name = "loguru" },
     { name = "msgpack-lazer-api" },
+    { name = "osupyparser" },
     { name = "passlib", extra = ["bcrypt"] },
     { name = "pillow" },
     { name = "pydantic", extra = ["email"] },
@@ -857,6 +858,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "msgpack-lazer-api", editable = "packages/msgpack_lazer_api" },
+    { name = "osupyparser", specifier = ">=1.0.7" },
     { name = "passlib", extras = ["bcrypt"], specifier = ">=1.7.4" },
     { name = "pillow", specifier = ">=11.3.0" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.5.0" },
@@ -878,6 +880,12 @@ dev = [
     { name = "ruff", specifier = ">=0.12.4" },
     { name = "types-aioboto3", extras = ["aioboto3", "essential"], specifier = ">=15.0.0" },
 ]
+
+[[package]]
+name = "osupyparser"
+version = "1.0.7"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/7b/6b/7f567c2acd1f2028603353da40ad7411bb47754994552d3f0c4cfa6703f9/OsuPyParser-1.0.7.tar.gz", hash = "sha256:67f530c31dd5c288c8fff8f583c899c673536681f8cc3699d0afc5e4d8c2b1ff", size = 9095, upload-time = "2021-08-29T23:48:22.752Z" }
 
 [[package]]
 name = "passlib"
