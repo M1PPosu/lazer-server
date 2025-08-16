@@ -4,10 +4,16 @@ import asyncio
 
 from app.database.chat import ChannelType, ChatChannel, ChatChannelResp, ChatMessageResp
 from app.database.lazer_user import User
-from app.dependencies.database import DBFactory, get_db_factory, get_redis
+from app.dependencies.database import (
+    DBFactory,
+    engine,
+    get_db_factory,
+    get_redis,
+)
 from app.dependencies.user import get_current_user
 from app.log import logger
 from app.models.chat import ChatEvent
+from app.service.subscribers.chat import ChatSubscriber
 
 from fastapi import APIRouter, Depends, Header, WebSocket, WebSocketDisconnect
 from fastapi.security import SecurityScopes
@@ -23,6 +29,9 @@ class ChatServer:
         self.redis: Redis = get_redis()
 
         self.tasks: set[asyncio.Task] = set()
+        self.ChatSubscriber = ChatSubscriber()
+        self.ChatSubscriber.chat_server = self
+        self._subscribed = False
 
     def _add_task(self, task):
         task = asyncio.create_task(task)
@@ -158,7 +167,13 @@ class ChatServer:
             del self.channels[channel_id]
 
         channel_resp = await ChatChannelResp.from_db(
-            channel, session, user, self.redis, self.channels[channel_id]
+            channel,
+            session,
+            user,
+            self.redis,
+            self.channels.get(channel_id)
+            if channel.type != ChannelType.PUBLIC
+            else None,
         )
         client = self.connect_client.get(user_id)
         if client:
@@ -169,6 +184,30 @@ class ChatServer:
                     data=channel_resp.model_dump(),
                 ),
             )
+
+    async def join_room_channel(self, channel_id: int, user_id: int):
+        async with AsyncSession(engine) as session:
+            channel = await ChatChannel.get(channel_id, session)
+            if channel is None:
+                return
+
+            user = await session.get(User, user_id)
+            if user is None:
+                return
+
+            await self.join_channel(user, channel, session)
+
+    async def leave_room_channel(self, channel_id: int, user_id: int):
+        async with AsyncSession(engine) as session:
+            channel = await ChatChannel.get(channel_id, session)
+            if channel is None:
+                return
+
+            user = await session.get(User, user_id)
+            if user is None:
+                return
+
+            await self.leave_channel(user, channel, session)
 
 
 server = ChatServer()
@@ -207,6 +246,10 @@ async def chat_websocket(
     authorization: str = Header(...),
     factory: DBFactory = Depends(get_db_factory),
 ):
+    if not server._subscribed:
+        server._subscribed = True
+        await server.ChatSubscriber.start_subscribe()
+
     async for session in factory():
         token = authorization[7:]
         if (

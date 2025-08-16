@@ -44,6 +44,7 @@ from sqlmodel import col
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 if TYPE_CHECKING:
+    from app.database.room import Room
     from app.signalr.hub import MultiplayerHub
 
 HOST_LIMIT = 50
@@ -348,7 +349,7 @@ class MultiplayerRoom(BaseModel):
     channel_id: int
 
     @classmethod
-    def from_db(cls, room) -> "MultiplayerRoom":
+    def from_db(cls, room: "Room") -> "MultiplayerRoom":
         """
         将 Room (数据库模型) 转换为 MultiplayerRoom (业务模型)
         """
@@ -358,7 +359,7 @@ class MultiplayerRoom(BaseModel):
         host_user = MultiplayerRoomUser(user_id=room.host_id)
         # playlist 转换
         playlist = []
-        if hasattr(room, "playlist"):
+        if room.playlist:
             for item in room.playlist:
                 playlist.append(
                     PlaylistItem(
@@ -396,7 +397,7 @@ class MultiplayerRoom(BaseModel):
             match_state=None,
             playlist=playlist,
             active_countdowns=[],
-            channel_id=getattr(room, "channel_id", 0),
+            channel_id=room.channel_id,
         )
 
 

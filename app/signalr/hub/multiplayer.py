@@ -6,6 +6,7 @@ from typing import override
 
 from app.database import Room
 from app.database.beatmap import Beatmap
+from app.database.chat import ChannelType, ChatChannel
 from app.database.lazer_user import User
 from app.database.multiplayer_event import MultiplayerEvent
 from app.database.playlists import Playlist
@@ -195,6 +196,18 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 await session.commit()
                 await session.refresh(db_room)
 
+                channel = ChatChannel(
+                    name=f"room_{db_room.id}",
+                    description="Multiplayer room",
+                    type=ChannelType.MULTIPLAYER,
+                )
+                session.add(channel)
+                await session.commit()
+                await session.refresh(channel)
+                await session.refresh(db_room)
+                room.channel_id = channel.channel_id  # pyright: ignore[reportAttributeAccessIssue]
+                db_room.channel_id = channel.channel_id
+
                 item = room.playlist[0]
                 item.owner_id = client.user_id
                 room.room_id = db_room.id
@@ -280,6 +293,10 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 if db_room is None:
                     raise InvokeException("Room does not exist in database")
                 db_room.participant_count += 1
+
+        redis = get_redis()
+        await redis.publish("chat:room:joined", f"{room.channel_id}:{user.user_id}")
+
         return room
 
     async def change_beatmap_availability(
@@ -913,6 +930,9 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         target_store = self.state.get(user.user_id)
         if target_store:
             target_store.room_id = 0
+
+        redis = get_redis()
+        await redis.publish("chat:room:left", f"{room.room.channel_id}:{user.user_id}")
 
     async def end_room(self, room: ServerMultiplayerRoom):
         assert room.room.host

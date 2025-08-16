@@ -54,7 +54,7 @@ class RoomBase(SQLModel, UTCBaseModel):
     auto_skip: bool
     auto_start_duration: int
     status: RoomStatus
-    # TODO: channel_id
+    channel_id: int | None = None
 
 
 class Room(AsyncAttrs, RoomBase, table=True):
@@ -84,6 +84,7 @@ class RoomResp(RoomBase):
     current_playlist_item: PlaylistResp | None = None
     current_user_score: PlaylistAggregateScore | None = None
     recent_participants: list[UserResp] = Field(default_factory=list)
+    channel_id: int = 0
 
     @classmethod
     async def from_db(
@@ -93,7 +94,9 @@ class RoomResp(RoomBase):
         include: list[str] = [],
         user: User | None = None,
     ) -> "RoomResp":
-        resp = cls.model_validate(room.model_dump())
+        d = room.model_dump()
+        d["channel_id"] = d.get("channel_id", 0) or 0
+        resp = cls.model_validate(d)
 
         stats = RoomPlaylistItemStats(count_active=0, count_total=0)
         difficulty_range = RoomDifficultyRange(
@@ -158,6 +161,7 @@ class RoomResp(RoomBase):
             # duration = room.settings.duration,
             starts_at=server_room.start_at,
             participant_count=len(room.users),
+            channel_id=server_room.room.channel_id or 0,
         )
         return resp
 

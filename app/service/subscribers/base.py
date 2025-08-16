@@ -24,6 +24,11 @@ class RedisSubscriber:
             del self.handlers[channel]
         await self.pubsub.unsubscribe(channel)
 
+    def add_handler(self, channel: str, handler: Callable[[str, str], Awaitable[Any]]):
+        if channel not in self.handlers:
+            self.handlers[channel] = []
+        self.handlers[channel].append(handler)
+
     async def listen(self):
         while True:
             message = await self.pubsub.get_message(
