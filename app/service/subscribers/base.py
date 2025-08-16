@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from fnmatch import fnmatch
 from typing import Any
 
 from app.dependencies.database import get_redis_pubsub
@@ -29,12 +30,17 @@ class RedisSubscriber:
                 ignore_subscribe_messages=True, timeout=None
             )
             if message is not None and message["type"] == "message":
-                method = self.handlers.get(message["channel"])
-                if method:
+                matched_handlers = []
+                if message["channel"] in self.handlers:
+                    matched_handlers.extend(self.handlers[message["channel"]])
+                for pattern, handlers in self.handlers.items():
+                    if fnmatch(message["channel"], pattern):
+                        matched_handlers.extend(handlers)
+                if matched_handlers:
                     await asyncio.gather(
                         *[
                             handler(message["channel"], message["data"])
-                            for handler in method
+                            for handler in matched_handlers
                         ]
                     )
 

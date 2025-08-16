@@ -13,6 +13,7 @@ from app.router import (
     api_v1_router,
     api_v2_router,
     auth_router,
+    chat_router,
     fetcher_router,
     file_router,
     private_router,
@@ -71,6 +72,7 @@ app = FastAPI(
 
 app.include_router(api_v2_router)
 app.include_router(api_v1_router)
+app.include_router(chat_router)
 app.include_router(redirect_api_router)
 app.include_router(signalr_router)
 app.include_router(fetcher_router)
