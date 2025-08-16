@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator, Callable
 from contextvars import ContextVar
 import json
 
@@ -49,6 +50,17 @@ async def get_db():
             db_session_context.set(None)
     else:
         yield session
+
+
+DBFactory = Callable[[], AsyncIterator[AsyncSession]]
+
+
+async def get_db_factory() -> DBFactory:
+    async def _factory() -> AsyncIterator[AsyncSession]:
+        async with AsyncSession(engine) as session:
+            yield session
+
+    return _factory
 
 
 # Redis 依赖

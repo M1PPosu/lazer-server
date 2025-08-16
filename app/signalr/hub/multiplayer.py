@@ -6,6 +6,7 @@ from typing import override
 
 from app.database import Room
 from app.database.beatmap import Beatmap
+from app.database.chat import ChannelType, ChatChannel
 from app.database.lazer_user import User
 from app.database.multiplayer_event import MultiplayerEvent
 from app.database.playlists import Playlist
@@ -172,6 +173,20 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                     self.get_client_by_id(str(user_id)), server_room, user
                 )
 
+    def _ensure_in_room(self, client: Client) -> ServerMultiplayerRoom:
+        store = self.get_or_create_state(client)
+        if store.room_id == 0:
+            raise InvokeException("You are not in a room")
+        if store.room_id not in self.rooms:
+            raise InvokeException("Room does not exist")
+        server_room = self.rooms[store.room_id]
+        return server_room
+
+    def _ensure_host(self, client: Client, server_room: ServerMultiplayerRoom):
+        room = server_room.room
+        if room.host is None or room.host.user_id != client.user_id:
+            raise InvokeException("You are not the host of this room")
+
     async def CreateRoom(self, client: Client, room: MultiplayerRoom):
         logger.info(f"[MultiplayerHub] {client.user_id} creating room")
         store = self.get_or_create_state(client)
@@ -194,6 +209,18 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 session.add(db_room)
                 await session.commit()
                 await session.refresh(db_room)
+
+                channel = ChatChannel(
+                    name=f"room_{db_room.id}",
+                    description="Multiplayer room",
+                    type=ChannelType.MULTIPLAYER,
+                )
+                session.add(channel)
+                await session.commit()
+                await session.refresh(channel)
+                await session.refresh(db_room)
+                room.channel_id = channel.channel_id  # pyright: ignore[reportAttributeAccessIssue]
+                db_room.channel_id = channel.channel_id
 
                 item = room.playlist[0]
                 item.owner_id = client.user_id
@@ -280,6 +307,10 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 if db_room is None:
                     raise InvokeException("Room does not exist in database")
                 db_room.participant_count += 1
+
+        redis = get_redis()
+        await redis.publish("chat:room:joined", f"{room.channel_id}:{user.user_id}")
+
         return room
 
     async def change_beatmap_availability(
@@ -914,6 +945,9 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         if target_store:
             target_store.room_id = 0
 
+        redis = get_redis()
+        await redis.publish("chat:room:left", f"{room.room.channel_id}:{user.user_id}")
+
     async def end_room(self, room: ServerMultiplayerRoom):
         assert room.room.host
         async with AsyncSession(engine) as session:
@@ -1085,16 +1119,9 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         )
 
     async def ChangeSettings(self, client: Client, settings: MultiplayerRoomSettings):
-        store = self.get_or_create_state(client)
-        if store.room_id == 0:
-            raise InvokeException("You are not in a room")
-        if store.room_id not in self.rooms:
-            raise InvokeException("Room does not exist")
-        server_room = self.rooms[store.room_id]
+        server_room = self._ensure_in_room(client)
+        self._ensure_host(client, server_room)
         room = server_room.room
-
-        if room.host is None or room.host.user_id != client.user_id:
-            raise InvokeException("You are not the host of this room")
 
         if room.state != MultiplayerRoomState.OPEN:
             raise InvokeException("Cannot change settings while playing")

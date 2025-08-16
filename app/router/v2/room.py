@@ -116,7 +116,7 @@ class APICreatedRoom(RoomResp):
 
 
 async def _participate_room(
-    room_id: int, user_id: int, db_room: Room, session: AsyncSession
+    room_id: int, user_id: int, db_room: Room, session: AsyncSession, redis: Redis
 ):
     participated_user = (
         await session.exec(
@@ -138,6 +138,8 @@ async def _participate_room(
         participated_user.joined_at = datetime.now(UTC)
     db_room.participant_count += 1
 
+    await redis.publish("chat:room:joined", f"{db_room.channel_id}:{user_id}")
+
 
 @router.post(
     "/rooms",
@@ -150,11 +152,12 @@ async def create_room(
     room: APIUploadedRoom,
     db: AsyncSession = Depends(get_db),
     current_user: User = Security(get_client_user),
+    redis: Redis = Depends(get_redis),
 ):
     assert current_user.id is not None
     user_id = current_user.id
     db_room = await create_playlist_room_from_api(db, room, user_id)
-    await _participate_room(db_room.id, user_id, db_room, db)
+    await _participate_room(db_room.id, user_id, db_room, db, redis)
     created_room = APICreatedRoom.model_validate(await RoomResp.from_db(db_room, db))
     created_room.error = ""
     return created_room
@@ -219,11 +222,12 @@ async def add_user_to_room(
     room_id: int = Path(..., description="房间 ID"),
     user_id: int = Path(..., description="用户 ID"),
     db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
     current_user: User = Security(get_client_user),
 ):
     db_room = (await db.exec(select(Room).where(Room.id == room_id))).first()
     if db_room is not None:
-        await _participate_room(room_id, user_id, db_room, db)
+        await _participate_room(room_id, user_id, db_room, db, redis)
         await db.commit()
         await db.refresh(db_room)
         resp = await RoomResp.from_db(db_room, db)
@@ -243,6 +247,7 @@ async def remove_user_from_room(
     user_id: int = Path(..., description="用户 ID"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Security(get_client_user),
+    redis: Redis = Depends(get_redis),
 ):
     db_room = (await db.exec(select(Room).where(Room.id == room_id))).first()
     if db_room is not None:
@@ -257,6 +262,7 @@ async def remove_user_from_room(
         if participated_user is not None:
             participated_user.left_at = datetime.now(UTC)
         db_room.participant_count -= 1
+        await redis.publish("chat:room:left", f"{db_room.channel_id}:{user_id}")
         await db.commit()
         return None
     else:

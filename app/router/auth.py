@@ -14,6 +14,7 @@ from app.auth import (
     store_token,
 )
 from app.config import settings
+from app.const import BANCHOBOT_ID
 from app.database import DailyChallengeStats, OAuthClient, User
 from app.database.statistics import UserStatistics
 from app.dependencies import get_db
@@ -459,7 +460,7 @@ async def oauth_token(
         # 存储令牌
         await store_token(
             db,
-            3,
+            BANCHOBOT_ID,
             client_id,
             scopes,
             access_token,

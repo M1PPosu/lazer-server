@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
+from app.const import BANCHOBOT_ID
 from app.database import (
     BeatmapPlaycounts,
     BeatmapPlaycountsResp,
@@ -65,6 +66,7 @@ async def get_users(
                 include=SEARCH_INCLUDED,
             )
             for searched_user in searched_users
+            if searched_user.id != BANCHOBOT_ID
         ]
     )
 
@@ -91,7 +93,7 @@ async def get_user_info_ruleset(
             )
         )
     ).first()
-    if not searched_user:
+    if not searched_user or searched_user.id == BANCHOBOT_ID:
         raise HTTPException(404, detail="User not found")
     return await UserResp.from_db(
         searched_user,
@@ -123,7 +125,7 @@ async def get_user_info(
             )
         )
     ).first()
-    if not searched_user:
+    if not searched_user or searched_user.id == BANCHOBOT_ID:
         raise HTTPException(404, detail="User not found")
     return await UserResp.from_db(
         searched_user,
@@ -148,7 +150,7 @@ async def get_user_beatmapsets(
     offset: int = Query(0, ge=0, description="偏移量"),
 ):
     user = await session.get(User, user_id)
-    if not user:
+    if not user or user.id == BANCHOBOT_ID:
         raise HTTPException(404, detail="User not found")
 
     if type in {
@@ -218,7 +220,7 @@ async def get_user_scores(
     current_user: User = Security(get_current_user, scopes=["public"]),
 ):
     db_user = await session.get(User, user_id)
-    if not db_user:
+    if not db_user or db_user.id == BANCHOBOT_ID:
         raise HTTPException(404, detail="User not found")
 
     gamemode = mode or db_user.playmode
@@ -271,7 +273,7 @@ async def get_user_events(
     session: AsyncSession = Depends(get_db),
 ):
     db_user = await session.get(User, user)
-    if db_user is None:
+    if db_user is None or db_user.id == BANCHOBOT_ID:
         raise HTTPException(404, "User Not found")
     events = await db_user.awaitable_attrs.events
     if limit is not None:

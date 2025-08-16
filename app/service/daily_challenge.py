@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 import json
 
+from app.const import BANCHOBOT_ID
 from app.database.playlists import Playlist
 from app.database.room import Room
 from app.dependencies.database import engine, get_redis
@@ -26,12 +27,12 @@ async def create_daily_challenge_room(
         return await create_playlist_room(
             session=session,
             name=str(today),
-            host_id=3,
+            host_id=BANCHOBOT_ID,
             playlist=[
                 Playlist(
                     id=0,
                     room_id=0,
-                    owner_id=3,
+                    owner_id=BANCHOBOT_ID,
                     ruleset_id=ruleset_id,
                     beatmap_id=beatmap,
                     required_mods=required_mods,

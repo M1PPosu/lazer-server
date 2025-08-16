@@ -168,6 +168,46 @@ class User(AsyncAttrs, UserBase, table=True):
         default=None, sa_column=Column(DateTime(timezone=True)), exclude=True
     )
 
+    async def is_user_can_pm(
+        self, from_user: "User", session: AsyncSession
+    ) -> tuple[bool, str]:
+        from .relationship import Relationship, RelationshipType
+
+        from_relationship = (
+            await session.exec(
+                select(Relationship).where(
+                    Relationship.user_id == from_user.id,
+                    Relationship.target_id == self.id,
+                )
+            )
+        ).first()
+        if from_relationship and from_relationship.type == RelationshipType.BLOCK:
+            return False, "You have blocked the target user."
+        if from_user.pm_friends_only and (
+            not from_relationship or from_relationship.type != RelationshipType.FOLLOW
+        ):
+            return (
+                False,
+                "You have disabled non-friend communications "
+                "and target user is not your friend.",
+            )
+
+        relationship = (
+            await session.exec(
+                select(Relationship).where(
+                    Relationship.user_id == self.id,
+                    Relationship.target_id == from_user.id,
+                )
+            )
+        ).first()
+        if relationship and relationship.type == RelationshipType.BLOCK:
+            return False, "Target user has blocked you."
+        if self.pm_friends_only and (
+            not relationship or relationship.type != RelationshipType.FOLLOW
+        ):
+            return False, "Target user has disabled non-friend communications"
+        return True, ""
+
 
 class UserResp(UserBase):
     id: int | None = None

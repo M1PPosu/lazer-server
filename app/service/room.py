@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from app.database.beatmap import Beatmap
+from app.database.chat import ChannelType, ChatChannel
 from app.database.playlists import Playlist
 from app.database.room import APIUploadedRoom, Room
 from app.dependencies.fetcher import get_fetcher
@@ -25,6 +26,18 @@ async def create_playlist_room_from_api(
     session.add(db_room)
     await session.commit()
     await session.refresh(db_room)
+
+    channel = ChatChannel(
+        name=f"room_{db_room.id}",
+        description="Playlist room",
+        type=ChannelType.MULTIPLAYER,
+    )
+    session.add(channel)
+    await session.commit()
+    await session.refresh(channel)
+    await session.refresh(db_room)
+    db_room.channel_id = channel.channel_id
+
     await add_playlists_to_room(session, db_room.id, room.playlist, host_id)
     await session.refresh(db_room)
     return db_room
@@ -57,6 +70,18 @@ async def create_playlist_room(
     session.add(db_room)
     await session.commit()
     await session.refresh(db_room)
+
+    channel = ChatChannel(
+        name=f"room_{db_room.id}",
+        description="Playlist room",
+        type=ChannelType.MULTIPLAYER,
+    )
+    session.add(channel)
+    await session.commit()
+    await session.refresh(channel)
+    await session.refresh(db_room)
+    db_room.channel_id = channel.channel_id
+
     await add_playlists_to_room(session, db_room.id, playlist, host_id)
     await session.refresh(db_room)
     return db_room

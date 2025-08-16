@@ -13,6 +13,7 @@ from app.router import (
     api_v1_router,
     api_v2_router,
     auth_router,
+    chat_router,
     fetcher_router,
     file_router,
     private_router,
@@ -21,6 +22,7 @@ from app.router import (
 )
 from app.router.redirect import redirect_router
 from app.service.calculate_all_user_rank import calculate_user_rank
+from app.service.create_banchobot import create_banchobot
 from app.service.daily_challenge import daily_challenge_job
 from app.service.osu_rx_statistics import create_rx_statistics
 from app.service.pp_recalculate import recalculate_all_players_pp
@@ -42,6 +44,7 @@ async def lifespan(app: FastAPI):
     await calculate_user_rank(True)
     init_scheduler()
     await daily_challenge_job()
+    await create_banchobot()
     # on shutdown
     yield
     stop_scheduler()
@@ -71,6 +74,7 @@ app = FastAPI(
 
 app.include_router(api_v2_router)
 app.include_router(api_v1_router)
+app.include_router(chat_router)
 app.include_router(redirect_api_router)
 app.include_router(signalr_router)
 app.include_router(fetcher_router)

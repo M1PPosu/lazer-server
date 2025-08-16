@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.config import settings
+from app.const import BANCHOBOT_ID
 from app.database.lazer_user import User
 from app.database.statistics import UserStatistics
 from app.dependencies.database import engine
@@ -15,6 +16,9 @@ async def create_rx_statistics():
     async with AsyncSession(engine) as session:
         users = (await session.exec(select(User.id))).all()
         for i in users:
+            if i == BANCHOBOT_ID:
+                continue
+
             if settings.enable_rx:
                 for mode in (
                     GameMode.OSURX,

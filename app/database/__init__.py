@@ -10,6 +10,13 @@ from .beatmapset import (
     BeatmapsetResp,
 )
 from .best_score import BestScore
+from .chat import (
+    ChannelType,
+    ChatChannel,
+    ChatChannelResp,
+    ChatMessage,
+    ChatMessageResp,
+)
 from .counts import (
     CountResp,
     MonthlyPlaycounts,
@@ -63,6 +70,11 @@ __all__ = [
     "Beatmapset",
     "BeatmapsetResp",
     "BestScore",
+    "ChannelType",
+    "ChatChannel",
+    "ChatChannelResp",
+    "ChatMessage",
+    "ChatMessageResp",
     "CountResp",
     "DailyChallengeStats",
     "DailyChallengeStatsResp",
