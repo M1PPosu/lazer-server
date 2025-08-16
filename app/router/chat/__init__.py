@@ -11,8 +11,15 @@ from fastapi import Query
 __all__ = ["chat_router"]
 
 
-@router.get("/notifications")
-async def get_notifications(max_id: int | None = Query(None)):
+@router.get(
+    "/notifications",
+    tags=["通知", "聊天"],
+    name="获取通知",
+    description="获取当前用户未读通知。根据 ID 排序。同时返回通知服务器入口。",
+)
+async def get_notifications(
+    max_id: int | None = Query(None, description="获取 ID 小于此值的通知"),
+):
     if settings.server_url is not None:
         notification_endpoint = f"{settings.server_url}notification-server".replace(
             "http://", "ws://"

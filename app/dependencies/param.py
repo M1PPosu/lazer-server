@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from typing import Any
 
 from fastapi import Request
@@ -36,4 +37,15 @@ def BodyOrForm[T: BaseModel](model: type[T]):
         except ValidationError as e:
             raise RequestValidationError(e.errors())
 
+    dependency.__signature__ = inspect.signature(  # pyright: ignore[reportFunctionMemberAccess]
+        lambda x: None
+    ).replace(
+        parameters=[
+            inspect.Parameter(
+                name=model.__name__.lower(),
+                kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                annotation=model,
+            )
+        ]
+    )
     return dependency

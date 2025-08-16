@@ -19,7 +19,7 @@ from app.router.v2 import api_v2_router as router
 from .banchobot import bot
 from .server import server
 
-from fastapi import Depends, HTTPException, Query, Security
+from fastapi import Depends, HTTPException, Path, Query, Security
 from pydantic import BaseModel, Field
 from redis.asyncio import Redis
 from sqlmodel import col, select
@@ -30,10 +30,18 @@ class KeepAliveResp(BaseModel):
     silences: list[UserSilenceResp] = Field(default_factory=list)
 
 
-@router.post("/chat/ack")
+@router.post(
+    "/chat/ack",
+    name="保持连接",
+    response_model=KeepAliveResp,
+    description="保持公共频道的连接。同时返回最近的禁言列表。",
+    tags=["聊天"],
+)
 async def keep_alive(
-    history_since: int | None = Query(None),
-    since: int | None = Query(None),
+    history_since: int | None = Query(
+        None, description="获取自此禁言 ID 之后的禁言记录"
+    ),
+    since: int | None = Query(None, description="获取自此消息 ID 之后的禁言记录"),
     current_user: User = Security(get_current_user, scopes=["chat.read"]),
     session: AsyncSession = Depends(get_db),
 ):
@@ -68,9 +76,15 @@ class MessageReq(BaseModel):
     uuid: str | None = None
 
 
-@router.post("/chat/channels/{channel}/messages", response_model=ChatMessageResp)
+@router.post(
+    "/chat/channels/{channel}/messages",
+    response_model=ChatMessageResp,
+    name="发送消息",
+    description="发送消息到指定频道。",
+    tags=["聊天"],
+)
 async def send_message(
-    channel: str,
+    channel: str = Path(..., description="频道 ID/名称"),
     req: MessageReq = Depends(BodyOrForm(MessageReq)),
     current_user: User = Security(get_current_user, scopes=["chat.write"]),
     session: AsyncSession = Depends(get_db),
@@ -103,12 +117,18 @@ async def send_message(
     return resp
 
 
-@router.get("/chat/channels/{channel}/messages", response_model=list[ChatMessageResp])
+@router.get(
+    "/chat/channels/{channel}/messages",
+    response_model=list[ChatMessageResp],
+    name="获取消息",
+    description="获取指定频道的消息列表。",
+    tags=["聊天"],
+)
 async def get_message(
     channel: str,
-    limit: int = Query(50, ge=1, le=50),
-    since: int = Query(default=0, ge=0),
-    until: int | None = Query(None),
+    limit: int = Query(50, ge=1, le=50, description="获取消息的数量"),
+    since: int = Query(default=0, ge=0, description="获取自此消息 ID 之后的消息记录"),
+    until: int | None = Query(None, description="获取自此消息 ID 之前的消息记录"),
     current_user: User = Security(get_current_user, scopes=["chat.read"]),
     session: AsyncSession = Depends(get_db),
 ):
@@ -130,10 +150,16 @@ async def get_message(
     return resp
 
 
-@router.put("/chat/channels/{channel}/mark-as-read/{message}", status_code=204)
+@router.put(
+    "/chat/channels/{channel}/mark-as-read/{message}",
+    status_code=204,
+    name="标记消息为已读",
+    description="标记指定消息为已读。",
+    tags=["聊天"],
+)
 async def mark_as_read(
-    channel: str,
-    message: int,
+    channel: str = Path(..., description="频道 ID/名称"),
+    message: int = Path(..., description="消息 ID"),
     current_user: User = Security(get_current_user, scopes=["chat.read"]),
     session: AsyncSession = Depends(get_db),
 ):
@@ -157,7 +183,12 @@ class NewPMResp(BaseModel):
     new_channel_id: int
 
 
-@router.post("/chat/new")
+@router.post(
+    "/chat/new",
+    name="创建私聊频道",
+    description="创建一个新的私聊频道。",
+    tags=["聊天"],
+)
 async def create_new_pm(
     req: PMReq = Depends(BodyOrForm(PMReq)),
     current_user: User = Security(get_current_user, scopes=["chat.write"]),

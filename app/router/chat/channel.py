@@ -18,7 +18,7 @@ from app.router.v2 import api_v2_router as router
 
 from .server import server
 
-from fastapi import Depends, HTTPException, Query, Security
+from fastapi import Depends, HTTPException, Path, Query, Security
 from pydantic import BaseModel, Field, model_validator
 from redis.asyncio import Redis
 from sqlmodel import col, select
@@ -30,13 +30,23 @@ class UpdateResponse(BaseModel):
     silences: list[Any] = Field(default_factory=list)
 
 
-@router.get("/chat/updates", response_model=UpdateResponse)
+@router.get(
+    "/chat/updates",
+    response_model=UpdateResponse,
+    name="获取更新",
+    description="获取当前用户所在频道的最新的禁言情况。",
+    tags=["聊天"],
+)
 async def get_update(
-    history_since: int | None = Query(None),
-    since: int | None = Query(None),
+    history_since: int | None = Query(
+        None, description="获取自此禁言 ID 之后的禁言记录"
+    ),
+    since: int | None = Query(None, description="获取自此消息 ID 之后的禁言记录"),
+    includes: list[str] = Query(
+        ["presence", "silences"], alias="includes[]", description="要包含的更新类型"
+    ),
     current_user: User = Security(get_current_user, scopes=["chat.read"]),
     session: AsyncSession = Depends(get_db),
-    includes: list[str] = Query(["presence"], alias="includes[]"),
     redis: Redis = Depends(get_redis),
 ):
     resp = UpdateResponse()
@@ -83,10 +93,16 @@ async def get_update(
     return resp
 
 
-@router.put("/chat/channels/{channel}/users/{user}", response_model=ChatChannelResp)
+@router.put(
+    "/chat/channels/{channel}/users/{user}",
+    response_model=ChatChannelResp,
+    name="加入频道",
+    description="加入指定的公开/房间频道。",
+    tags=["聊天"],
+)
 async def join_channel(
-    channel: str,
-    user: str,
+    channel: str = Path(..., description="频道 ID/名称"),
+    user: str = Path(..., description="用户 ID"),
     current_user: User = Security(get_current_user, scopes=["chat.write_manage"]),
     session: AsyncSession = Depends(get_db),
 ):
@@ -100,10 +116,13 @@ async def join_channel(
 @router.delete(
     "/chat/channels/{channel}/users/{user}",
     status_code=204,
+    name="离开频道",
+    description="将用户移出指定的公开/房间频道。",
+    tags=["聊天"],
 )
 async def leave_channel(
-    channel: str,
-    user: str,
+    channel: str = Path(..., description="频道 ID/名称"),
+    user: str = Path(..., description="用户 ID"),
     current_user: User = Security(get_current_user, scopes=["chat.write_manage"]),
     session: AsyncSession = Depends(get_db),
 ):
@@ -115,7 +134,13 @@ async def leave_channel(
     return
 
 
-@router.get("/chat/channels")
+@router.get(
+    "/chat/channels",
+    response_model=list[ChatChannelResp],
+    name="获取频道列表",
+    description="获取所有公开频道。",
+    tags=["聊天"],
+)
 async def get_channel_list(
     current_user: User = Security(get_current_user, scopes=["chat.read"]),
     session: AsyncSession = Depends(get_db),
@@ -148,9 +173,15 @@ class GetChannelResp(BaseModel):
     users: list[UserResp] = Field(default_factory=list)
 
 
-@router.get("/chat/channels/{channel}")
+@router.get(
+    "/chat/channels/{channel}",
+    response_model=GetChannelResp,
+    name="获取频道信息",
+    description="获取指定频道的信息。",
+    tags=["聊天"],
+)
 async def get_channel(
-    channel: str,
+    channel: str = Path(..., description="频道 ID/名称"),
     current_user: User = Security(get_current_user, scopes=["chat.read"]),
     session: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
@@ -211,7 +242,13 @@ class CreateChannelReq(BaseModel):
         return self
 
 
-@router.post("/chat/channels")
+@router.post(
+    "/chat/channels",
+    response_model=ChatChannelResp,
+    name="创建频道",
+    description="创建一个新的私聊/通知频道。如果存在私聊频道则重新加入。",
+    tags=["聊天"],
+)
 async def create_channel(
     req: CreateChannelReq = Depends(BodyOrForm(CreateChannelReq)),
     current_user: User = Security(get_current_user, scopes=["chat.write_manage"]),
