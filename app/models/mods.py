@@ -180,3 +180,24 @@ def mods_can_get_pp(ruleset_id: int, mods: list[APIMod]) -> bool:
             if expected_value != NO_CHECK and value != expected_value:
                 return False
     return True
+
+
+ENUM_TO_STR = {
+    0: {
+        "MR": {"reflection"},
+        "AC": {"accuracy_judge_mode"},
+        "BR": {"direction"},
+        "AD": {"style"},
+    },
+    1: {"AC": {"accuracy_judge_mode"}},
+    2: {"AC": {"accuracy_judge_mode"}},
+    3: {"AC": {"accuracy_judge_mode"}},
+}
+
+
+def parse_enum_to_str(ruleset_id: int, mods: list[APIMod]):
+    for mod in mods:
+        if mod["acronym"] in ENUM_TO_STR.get(ruleset_id, {}):
+            for setting in mod.get("settings", {}):
+                if setting in ENUM_TO_STR[ruleset_id][mod["acronym"]]:
+                    mod["settings"][setting] = str(mod["settings"][setting])  # pyright: ignore[reportTypedDictNotRequiredAccess]

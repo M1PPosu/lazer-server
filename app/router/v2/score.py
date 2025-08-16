@@ -49,7 +49,7 @@ from app.storage.local import LocalStorageService
 
 from .router import router
 
-from fastapi import Body, Depends, Form, HTTPException, Path, Query, Security
+from fastapi import Body, Depends, Form, HTTPException, Path, Query, Request, Security
 from fastapi.responses import FileResponse, RedirectResponse
 from httpx import HTTPError
 from pydantic import BaseModel
@@ -316,6 +316,7 @@ async def create_solo_score(
     description="**客户端专属**\n使用令牌提交单曲成绩。",
 )
 async def submit_solo_score(
+    req: Request,
     beatmap_id: int = Path(description="谱面 ID"),
     token: int = Path(description="成绩令牌 ID"),
     info: SoloScoreSubmissionInfo = Body(description="成绩提交信息"),

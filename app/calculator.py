@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from enum import Enum
 import math
 from typing import TYPE_CHECKING
@@ -7,7 +8,7 @@ from typing import TYPE_CHECKING
 from app.config import settings
 from app.log import logger
 from app.models.beatmap import BeatmapAttributes
-from app.models.mods import APIMod
+from app.models.mods import APIMod, parse_enum_to_str
 from app.models.score import GameMode
 
 from osupyparser import HitObject, OsuFile
@@ -81,9 +82,11 @@ async def calculate_pp(score: "Score", beatmap: str, session: AsyncSession) -> f
             return 0
 
     map = rosu.Beatmap(content=beatmap)
-    map.convert(score.gamemode.to_rosu(), score.mods)  # pyright: ignore[reportArgumentType]
+    mods = deepcopy(score.mods.copy())
+    parse_enum_to_str(int(score.gamemode), mods)
+    map.convert(score.gamemode.to_rosu(), mods)  # pyright: ignore[reportArgumentType]
     perf = rosu.Performance(
-        mods=score.mods,
+        mods=mods,
         lazer=True,
         accuracy=clamp(score.accuracy * 100, 0, 100),
         combo=score.max_combo,
