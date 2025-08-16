@@ -459,7 +459,7 @@ async def oauth_token(
         # 存储令牌
         await store_token(
             db,
-            3,
+            2,
             client_id,
             scopes,
             access_token,

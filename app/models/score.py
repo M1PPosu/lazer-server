@@ -88,6 +88,16 @@ class GameMode(str, Enum):
             }[self]
         return self
 
+    @classmethod
+    def parse(cls, v: str | int) -> "GameMode | None":
+        if isinstance(v, int) or v.isdigit():
+            return cls.from_int_extra(int(v))
+        v = v.lower()
+        try:
+            return cls[v]
+        except ValueError:
+            return None
+
 
 class Rank(str, Enum):
     X = "X"

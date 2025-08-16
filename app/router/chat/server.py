@@ -72,16 +72,24 @@ class ChatServer:
     async def mark_as_read(self, channel_id: int, message_id: int):
         await self.redis.set(f"chat:{channel_id}:last_msg", message_id)
 
-    async def send_message_to_channel(self, message: ChatMessageResp):
-        self._add_task(
-            self.broadcast(
-                message.channel_id,
-                ChatEvent(
-                    event="chat.message.new",
-                    data={"messages": [message], "users": [message.sender]},
-                ),
-            )
+    async def send_message_to_channel(
+        self, message: ChatMessageResp, is_bot_command: bool = False
+    ):
+        event = ChatEvent(
+            event="chat.message.new",
+            data={"messages": [message], "users": [message.sender]},
         )
+        if is_bot_command:
+            client = self.connect_client.get(message.sender_id)
+            if client:
+                self._add_task(self.send_event(client, event))
+        else:
+            self._add_task(
+                self.broadcast(
+                    message.channel_id,
+                    event,
+                )
+            )
         assert message.message_id
         await self.mark_as_read(message.channel_id, message.message_id)
 
@@ -91,14 +99,17 @@ class ChatServer:
         channel_id = channel.channel_id
         assert channel_id is not None
 
+        not_joined = []
+
         if channel_id not in self.channels:
             self.channels[channel_id] = []
-        for user_id in [user.id for user in users]:
-            assert user_id is not None
-            if user_id not in self.channels[channel_id]:
-                self.channels[channel_id].append(user_id)
-
         for user in users:
+            assert user.id is not None
+            if user.id not in self.channels[channel_id]:
+                self.channels[channel_id].append(user.id)
+                not_joined.append(user)
+
+        for user in not_joined:
             assert user.id is not None
             channel_resp = await ChatChannelResp.from_db(
                 channel,

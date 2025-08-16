@@ -14,6 +14,7 @@ from app.dependencies.param import BodyOrForm
 from app.dependencies.user import get_current_user
 from app.router.v2 import api_v2_router as router
 
+from .banchobot import bot
 from .server import server
 
 from fastapi import Depends, HTTPException, Query, Security
@@ -63,8 +64,12 @@ async def send_message(
     await session.commit()
     await session.refresh(msg)
     await session.refresh(current_user)
+    await session.refresh(db_channel)
     resp = await ChatMessageResp.from_db(msg, session, current_user)
-    await server.send_message_to_channel(resp)
+    is_bot_command = req.message.startswith("!")
+    await server.send_message_to_channel(resp, is_bot_command)
+    if is_bot_command:
+        await bot.try_handle(current_user, db_channel, req.message, session)
     return resp
 
 
