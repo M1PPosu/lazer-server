@@ -173,6 +173,20 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                     self.get_client_by_id(str(user_id)), server_room, user
                 )
 
+    def _ensure_in_room(self, client: Client) -> ServerMultiplayerRoom:
+        store = self.get_or_create_state(client)
+        if store.room_id == 0:
+            raise InvokeException("You are not in a room")
+        if store.room_id not in self.rooms:
+            raise InvokeException("Room does not exist")
+        server_room = self.rooms[store.room_id]
+        return server_room
+
+    def _ensure_host(self, client: Client, server_room: ServerMultiplayerRoom):
+        room = server_room.room
+        if room.host is None or room.host.user_id != client.user_id:
+            raise InvokeException("You are not the host of this room")
+
     async def CreateRoom(self, client: Client, room: MultiplayerRoom):
         logger.info(f"[MultiplayerHub] {client.user_id} creating room")
         store = self.get_or_create_state(client)
@@ -1105,16 +1119,9 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         )
 
     async def ChangeSettings(self, client: Client, settings: MultiplayerRoomSettings):
-        store = self.get_or_create_state(client)
-        if store.room_id == 0:
-            raise InvokeException("You are not in a room")
-        if store.room_id not in self.rooms:
-            raise InvokeException("Room does not exist")
-        server_room = self.rooms[store.room_id]
+        server_room = self._ensure_in_room(client)
+        self._ensure_host(client, server_room)
         room = server_room.room
-
-        if room.host is None or room.host.user_id != client.user_id:
-            raise InvokeException("You are not the host of this room")
 
         if room.state != MultiplayerRoomState.OPEN:
             raise InvokeException("Cannot change settings while playing")

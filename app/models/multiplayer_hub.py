@@ -625,7 +625,9 @@ class MultiplayerQueue:
         async with AsyncSession(engine) as session:
             await Playlist.delete_item(item.id, self.room.room_id, session)
 
-        self.room.playlist.remove(item)
+        found_item = next((i for i in self.room.playlist if i.id == item.id), None)
+        if found_item:
+            self.room.playlist.remove(found_item)
         self.current_index = self.room.playlist.index(self.upcoming_items[0])
 
         await self.update_order()

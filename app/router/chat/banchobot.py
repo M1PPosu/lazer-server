@@ -2,25 +2,39 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from datetime import timedelta
 from math import ceil
 import random
 import shlex
 
 from app.const import BANCHOBOT_ID
 from app.database import ChatMessageResp
+from app.database.beatmap import Beatmap
 from app.database.chat import ChannelType, ChatChannel, ChatMessage, MessageType
 from app.database.lazer_user import User
 from app.database.score import Score
 from app.database.statistics import UserStatistics, get_rank
+from app.dependencies.fetcher import get_fetcher
+from app.exception import InvokeException
+from app.models.mods import APIMod
+from app.models.multiplayer_hub import (
+    ChangeTeamRequest,
+    ServerMultiplayerRoom,
+    StartMatchCountdownRequest,
+)
+from app.models.room import MatchType, QueueMode
 from app.models.score import GameMode
+from app.signalr.hub import MultiplayerHubs
+from app.signalr.hub.hub import Client
 
 from .server import server
 
+from httpx import HTTPError
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 HandlerResult = str | None | Awaitable[str | None]
-Handler = Callable[[User, list[str], AsyncSession], HandlerResult]
+Handler = Callable[[User, list[str], AsyncSession, ChatChannel], HandlerResult]
 
 
 class Bot:
@@ -66,7 +80,7 @@ class Bot:
         if handler is None:
             return
         else:
-            res = handler(user, args, session)
+            res = handler(user, args, session, channel)
             if asyncio.iscoroutine(res):
                 res = await res
             reply = res  # type: ignore[assignment]
@@ -143,7 +157,9 @@ bot = Bot()
 
 
 @bot.command("help")
-async def _help(user: User, args: list[str], _session: AsyncSession) -> str:
+async def _help(
+    user: User, args: list[str], _session: AsyncSession, channel: ChatChannel
+) -> str:
     cmds = sorted(bot._handlers.keys())
     if args:
         target = args[0].lower()
@@ -156,7 +172,9 @@ async def _help(user: User, args: list[str], _session: AsyncSession) -> str:
 
 
 @bot.command("roll")
-def _roll(user: User, args: list[str], _session: AsyncSession) -> str:
+def _roll(
+    user: User, args: list[str], _session: AsyncSession, channel: ChatChannel
+) -> str:
     if len(args) > 0 and args[0].isdigit():
         r = random.randint(1, int(args[0]))
     else:
@@ -165,9 +183,11 @@ def _roll(user: User, args: list[str], _session: AsyncSession) -> str:
 
 
 @bot.command("stats")
-async def _stats(user: User, args: list[str], session: AsyncSession) -> str:
+async def _stats(
+    user: User, args: list[str], session: AsyncSession, channel: ChatChannel
+) -> str:
     if len(args) < 1:
-        return "Usage: !stats <username>"
+        return "Usage: !stats <username> [gamemode]"
 
     target_user = (
         await session.exec(select(User).where(User.username == args[0]))
@@ -209,3 +229,345 @@ Plays: {statistics.play_count} (lv{ceil(statistics.level_current)})
 Accuracy: {statistics.hit_accuracy}
 PP: {statistics.pp}
 """
+
+
+async def _mp_name(
+    signalr_client: Client,
+    room: ServerMultiplayerRoom,
+    args: list[str],
+    session: AsyncSession,
+) -> str:
+    if len(args) < 1:
+        return "Usage: !mp name <name>"
+
+    name = args[0]
+    try:
+        settings = room.room.settings.model_copy()
+        settings.name = name
+        await MultiplayerHubs.ChangeSettings(signalr_client, settings)
+        return f"Room name has changed to {name}"
+    except InvokeException as e:
+        return e.message
+
+
+async def _mp_set(
+    signalr_client: Client,
+    room: ServerMultiplayerRoom,
+    args: list[str],
+    session: AsyncSession,
+) -> str:
+    if len(args) < 1:
+        return "Usage: !mp set <teammode> [<queuemode>]"
+
+    teammode = {"0": MatchType.HEAD_TO_HEAD, "2": MatchType.TEAM_VERSUS}.get(args[0])
+    if not teammode:
+        return "Invalid teammode. Use 0 for Head-to-Head or 2 for Team Versus."
+    queuemode = (
+        {
+            "0": QueueMode.HOST_ONLY,
+            "1": QueueMode.ALL_PLAYERS,
+            "2": QueueMode.ALL_PLAYERS_ROUND_ROBIN,
+        }.get(args[1])
+        if len(args) >= 2
+        else None
+    )
+    try:
+        settings = room.room.settings.model_copy()
+        settings.match_type = teammode
+        if queuemode:
+            settings.queue_mode = queuemode
+        await MultiplayerHubs.ChangeSettings(signalr_client, settings)
+        return f"Room setting 'teammode' has been changed to {teammode.name.lower()}"
+    except InvokeException as e:
+        return e.message
+
+
+async def _mp_host(
+    signalr_client: Client,
+    room: ServerMultiplayerRoom,
+    args: list[str],
+    session: AsyncSession,
+) -> str:
+    if len(args) < 1:
+        return "Usage: !mp host <username>"
+
+    username = args[0]
+    user_id = (
+        await session.exec(select(User.id).where(User.username == username))
+    ).first()
+    if not user_id:
+        return f"User '{username}' not found."
+
+    try:
+        await MultiplayerHubs.TransferHost(signalr_client, user_id)
+        return f"User '{username}' has been hosted in the room."
+    except InvokeException as e:
+        return e.message
+
+
+async def _mp_start(
+    signalr_client: Client,
+    room: ServerMultiplayerRoom,
+    args: list[str],
+    session: AsyncSession,
+) -> str:
+    timer = None
+    if len(args) >= 1 and args[0].isdigit():
+        timer = int(args[0])
+
+    try:
+        if timer is not None:
+            await MultiplayerHubs.SendMatchRequest(
+                signalr_client,
+                StartMatchCountdownRequest(duration=timedelta(seconds=timer)),
+            )
+            return ""
+        else:
+            await MultiplayerHubs.StartMatch(signalr_client)
+            return "Good luck! Enjoy game!"
+    except InvokeException as e:
+        return e.message
+
+
+async def _mp_abort(
+    signalr_client: Client,
+    room: ServerMultiplayerRoom,
+    args: list[str],
+    session: AsyncSession,
+) -> str:
+    try:
+        await MultiplayerHubs.AbortMatch(signalr_client)
+        return "Match aborted."
+    except InvokeException as e:
+        return e.message
+
+
+async def _mp_team(
+    signalr_client: Client,
+    room: ServerMultiplayerRoom,
+    args: list[str],
+    session: AsyncSession,
+):
+    if room.room.settings.match_type != MatchType.TEAM_VERSUS:
+        return "This command is only available in Team Versus mode."
+
+    if len(args) < 2:
+        return "Usage: !mp team <username> <colour>"
+
+    username = args[0]
+    team = {"red": 0, "blue": 1}.get(args[1])
+    if team is None:
+        return "Invalid team colour. Use 'red' or 'blue'."
+
+    user_id = (
+        await session.exec(select(User.id).where(User.username == username))
+    ).first()
+    if not user_id:
+        return f"User '{username}' not found."
+    user_client = MultiplayerHubs.get_client_by_id(str(user_id))
+    if not user_client:
+        return f"User '{username}' is not in the room."
+
+    try:
+        await MultiplayerHubs.SendMatchRequest(
+            user_client, ChangeTeamRequest(team_id=team)
+        )
+        return ""
+    except InvokeException as e:
+        return e.message
+
+
+async def _mp_password(
+    signalr_client: Client,
+    room: ServerMultiplayerRoom,
+    args: list[str],
+    session: AsyncSession,
+) -> str:
+    password = ""
+    if len(args) >= 1:
+        password = args[0]
+
+    try:
+        settings = room.room.settings.model_copy()
+        settings.password = password
+        await MultiplayerHubs.ChangeSettings(signalr_client, settings)
+        return "Room password has been set."
+    except InvokeException as e:
+        return e.message
+
+
+async def _mp_kick(
+    signalr_client: Client,
+    room: ServerMultiplayerRoom,
+    args: list[str],
+    session: AsyncSession,
+) -> str:
+    if len(args) < 1:
+        return "Usage: !mp kick <username>"
+
+    username = args[0]
+    user_id = (
+        await session.exec(select(User.id).where(User.username == username))
+    ).first()
+    if not user_id:
+        return f"User '{username}' not found."
+
+    try:
+        await MultiplayerHubs.KickUser(signalr_client, user_id)
+        return f"User '{username}' has been kicked from the room."
+    except InvokeException as e:
+        return e.message
+
+
+async def _mp_map(
+    signalr_client: Client,
+    room: ServerMultiplayerRoom,
+    args: list[str],
+    session: AsyncSession,
+) -> str:
+    if len(args) < 1:
+        return "Usage: !mp map <mapid> [<playmode>]"
+
+    map_id = args[0]
+    if not map_id.isdigit():
+        return "Invalid map ID."
+    map_id = int(map_id)
+    playmode = GameMode.parse(args[1].upper()) if len(args) >= 2 else None
+    if playmode not in (
+        GameMode.OSU,
+        GameMode.TAIKO,
+        GameMode.FRUITS,
+        GameMode.MANIA,
+        None,
+    ):
+        return "Invalid playmode."
+
+    try:
+        beatmap = await Beatmap.get_or_fetch(session, await get_fetcher(), bid=map_id)
+        if beatmap.mode != GameMode.OSU and playmode and playmode != beatmap.mode:
+            return (
+                f"Cannot convert to {playmode.value}. "
+                f"Original mode is {beatmap.mode.value}."
+            )
+    except HTTPError:
+        return "Beatmap not found"
+
+    try:
+        current_item = room.queue.current_item
+        item = current_item.model_copy(deep=True)
+        item.owner_id = signalr_client.user_id
+        item.beatmap_checksum = beatmap.checksum
+        item.required_mods = []
+        item.allowed_mods = []
+        item.freestyle = False
+        item.beatmap_id = map_id
+        if playmode is not None:
+            item.ruleset_id = int(playmode)
+        if item.expired:
+            item.id = 0
+            item.expired = False
+            item.played_at = None
+            await MultiplayerHubs.AddPlaylistItem(signalr_client, item)
+        else:
+            await MultiplayerHubs.EditPlaylistItem(signalr_client, item)
+        return ""
+    except InvokeException as e:
+        return e.message
+
+
+async def _mp_mods(
+    signalr_client: Client,
+    room: ServerMultiplayerRoom,
+    args: list[str],
+    session: AsyncSession,
+) -> str:
+    if len(args) < 1:
+        return "Usage: !mp mods <mod1> [<mod2> ...]"
+
+    required_mods = []
+    allowed_mods = []
+    freestyle = False
+    for arg in args:
+        if arg == "None":
+            required_mods.clear()
+            allowed_mods.clear()
+            break
+        elif arg == "Freestyle":
+            freestyle = True
+        elif arg.startswith("+"):
+            mod = arg.removeprefix("+")
+            if len(mod) != 2:
+                return f"Invalid mod: {mod}."
+            allowed_mods.append(APIMod(acronym=mod))
+        else:
+            if len(arg) != 2:
+                return f"Invalid mod: {arg}."
+            required_mods.append(APIMod(acronym=arg))
+
+    try:
+        current_item = room.queue.current_item
+        item = current_item.model_copy(deep=True)
+        item.owner_id = signalr_client.user_id
+        item.freestyle = freestyle
+        if not freestyle:
+            item.allowed_mods = allowed_mods
+        else:
+            item.allowed_mods = []
+        item.required_mods = required_mods
+        if item.expired:
+            item.id = 0
+            item.expired = False
+            item.played_at = None
+            await MultiplayerHubs.AddPlaylistItem(signalr_client, item)
+        else:
+            await MultiplayerHubs.EditPlaylistItem(signalr_client, item)
+        return ""
+    except InvokeException as e:
+        return e.message
+
+
+_MP_COMMANDS = {
+    "name": _mp_name,
+    "set": _mp_set,
+    "host": _mp_host,
+    "start": _mp_start,
+    "abort": _mp_abort,
+    "map": _mp_map,
+    "mods": _mp_mods,
+    "kick": _mp_kick,
+    "password": _mp_password,
+    "team": _mp_team,
+}
+_MP_HELP = """!mp name <name>
+!mp set <teammode> [<queuemode>]
+!mp host <host>
+!mp start [<timer>]
+!mp abort
+!mp map <map> [<playmode>]
+!mp mods <mod1> [<mod2> ...]
+!mp kick <user>
+!mp password [<password>]
+!mp team <user> <team:red|blue>"""
+
+
+@bot.command("mp")
+async def _mp(user: User, args: list[str], session: AsyncSession, channel: ChatChannel):
+    if not channel.name.startswith("room_"):
+        return
+
+    room_id = int(channel.name[5:])
+    room = MultiplayerHubs.rooms.get(room_id)
+    if not room:
+        return
+    signalr_client = MultiplayerHubs.get_client_by_id(str(user.id))
+    if not signalr_client:
+        return
+
+    if len(args) < 1:
+        return f"Usage: !mp <{'|'.join(_MP_COMMANDS.keys())}> [args]"
+
+    command = args[0].lower()
+    if command not in _MP_COMMANDS:
+        return f"No such command: {command}"
+
+    return await _MP_COMMANDS[command](signalr_client, room, args[1:], session)
