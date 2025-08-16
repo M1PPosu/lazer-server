@@ -12,7 +12,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 async def create_banchobot():
     async with AsyncSession(engine) as session:
-        is_exist = (await session.exec(select(exists()).where(User.id == 2))).first()
+        is_exist = (
+            await session.exec(select(exists()).where(User.id == BANCHOBOT_ID))
+        ).first()
         if not is_exist:
             banchobot = User(
                 username="BanchoBot",

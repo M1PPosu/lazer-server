@@ -67,7 +67,7 @@ async def get_update(
                         else None,
                     )
                 )
-    if "sliences" in includes:
+    if "silences" in includes:
         if history_since:
             silences = (
                 await session.exec(
