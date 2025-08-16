@@ -67,7 +67,9 @@ async def send_message(
     await session.refresh(db_channel)
     resp = await ChatMessageResp.from_db(msg, session, current_user)
     is_bot_command = req.message.startswith("!")
-    await server.send_message_to_channel(resp, is_bot_command)
+    await server.send_message_to_channel(
+        resp, is_bot_command and db_channel.type == ChannelType.PUBLIC
+    )
     if is_bot_command:
         await bot.try_handle(current_user, db_channel, req.message, session)
     return resp
