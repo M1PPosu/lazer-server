@@ -1,9 +1,15 @@
 from __future__ import annotations
 
 from app.database import ChatMessageResp
-from app.database.chat import ChatChannel, ChatMessage, MessageType
+from app.database.chat import (
+    ChannelType,
+    ChatChannel,
+    ChatChannelResp,
+    ChatMessage,
+    MessageType,
+)
 from app.database.lazer_user import User
-from app.dependencies.database import get_db
+from app.dependencies.database import get_db, get_redis
 from app.dependencies.param import BodyOrForm
 from app.dependencies.user import get_current_user
 from app.router.v2 import api_v2_router as router
@@ -12,6 +18,7 @@ from .server import server
 
 from fastapi import Depends, HTTPException, Query, Security
 from pydantic import BaseModel
+from redis.asyncio import Redis
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -42,6 +49,9 @@ async def send_message(
     db_channel = await ChatChannel.get(channel, session)
     if db_channel is None:
         raise HTTPException(status_code=404, detail="Channel not found")
+
+    assert db_channel.channel_id
+    assert current_user.id
     msg = ChatMessage(
         channel_id=db_channel.channel_id,
         content=req.message,
@@ -95,4 +105,73 @@ async def mark_as_read(
     db_channel = await ChatChannel.get(channel, session)
     if db_channel is None:
         raise HTTPException(status_code=404, detail="Channel not found")
+    assert db_channel.channel_id
     await server.mark_as_read(db_channel.channel_id, message)
+
+
+class PMReq(BaseModel):
+    target_id: int
+    message: str
+    is_action: bool = False
+    uuid: str | None = None
+
+
+class NewPMResp(BaseModel):
+    channel: ChatChannelResp
+    message: ChatMessageResp
+    new_channel_id: int
+
+
+@router.post("/chat/new")
+async def create_new_pm(
+    req: PMReq = Depends(BodyOrForm(PMReq)),
+    current_user: User = Security(get_current_user, scopes=["chat.write"]),
+    session: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+):
+    user_id = current_user.id
+    target = await session.get(User, req.target_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Target user not found")
+    is_can_pm, block = await target.is_user_can_pm(current_user, session)
+    if not is_can_pm:
+        raise HTTPException(status_code=403, detail=block)
+
+    assert user_id
+    channel = await ChatChannel.get_pm_channel(user_id, req.target_id, session)
+    if channel is None:
+        channel = ChatChannel(
+            name=f"pm_{user_id}_{req.target_id}",
+            description="Private message channel",
+            type=ChannelType.PM,
+        )
+        session.add(channel)
+        await session.commit()
+        await session.refresh(channel)
+        await session.refresh(target)
+        await session.refresh(current_user)
+
+    assert channel.channel_id
+    await server.batch_join_channel([target, current_user], channel, session)
+    channel_resp = await ChatChannelResp.from_db(
+        channel, session, current_user, redis, server.channels[channel.channel_id]
+    )
+    msg = ChatMessage(
+        channel_id=channel.channel_id,
+        content=req.message,
+        sender_id=user_id,
+        type=MessageType.ACTION if req.is_action else MessageType.PLAIN,
+        uuid=req.uuid,
+    )
+    session.add(msg)
+    await session.commit()
+    await session.refresh(msg)
+    await session.refresh(current_user)
+    await session.refresh(channel)
+    message_resp = await ChatMessageResp.from_db(msg, session, current_user)
+    await server.send_message_to_channel(message_resp)
+    return NewPMResp(
+        channel=channel_resp,
+        message=message_resp,
+        new_channel_id=channel_resp.channel_id,
+    )

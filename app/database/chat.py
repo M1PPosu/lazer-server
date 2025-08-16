@@ -16,6 +16,7 @@ from sqlmodel import (
     ForeignKey,
     Relationship,
     SQLModel,
+    col,
     select,
 )
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -65,6 +66,15 @@ class ChatChannel(ChatChannelBase, table=True):
             await session.exec(select(ChatChannel).where(ChatChannel.name == channel))
         ).first()
 
+    @classmethod
+    async def get_pm_channel(
+        cls, user1: int, user2: int, session: AsyncSession
+    ) -> "ChatChannel | None":
+        channel = await cls.get(f"pm_{user1}_{user2}", session)
+        if channel is None:
+            channel = await cls.get(f"pm_{user2}_{user1}", session)
+        return channel
+
 
 class ChatChannelResp(ChatChannelBase):
     channel_id: int
@@ -73,8 +83,8 @@ class ChatChannelResp(ChatChannelBase):
     current_user_attributes: ChatUserAttributes | None = None
     last_read_id: int | None = None
     last_message_id: int | None = None
-    recent_messages: list[str] | None = None
-    users: list[int] | None = None
+    recent_messages: list["ChatMessageResp"] = Field(default_factory=list)
+    users: list[int] = Field(default_factory=list)
     message_length_limit: int = 1000
 
     @classmethod
@@ -82,9 +92,10 @@ class ChatChannelResp(ChatChannelBase):
         cls,
         channel: ChatChannel,
         session: AsyncSession,
-        users: list[int],
         user: User,
         redis: Redis,
+        users: list[int] | None = None,
+        include_recent_messages: bool = False,
     ) -> Self:
         c = cls.model_validate(channel)
         silence = (
@@ -123,9 +134,33 @@ class ChatChannelResp(ChatChannelBase):
             c.moderated = False
 
         c.current_user_attributes = attribute
-        c.users = users
+        if c.type != ChannelType.PUBLIC and users is not None:
+            c.users = users
         c.last_message_id = last_msg
         c.last_read_id = last_read_id
+
+        if include_recent_messages:
+            messages = (
+                await session.exec(
+                    select(ChatMessage)
+                    .where(ChatMessage.channel_id == channel.channel_id)
+                    .order_by(col(ChatMessage.timestamp).desc())
+                    .limit(10)
+                )
+            ).all()
+            c.recent_messages = [
+                await ChatMessageResp.from_db(msg, session, user) for msg in messages
+            ]
+            c.recent_messages.reverse()
+
+        if c.type == ChannelType.PM and users and len(users) == 2:
+            target_user_id = next(u for u in users if u != user.id)
+            target_name = await session.exec(
+                select(User.username).where(User.id == target_user_id)
+            )
+            c.name = target_name.one()
+            assert user.id
+            c.users = [target_user_id, user.id]
         return c
 
 

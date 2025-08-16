@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
-from app.database.chat import ChatChannel, ChatChannelResp, ChatMessageResp
+from app.database.chat import ChannelType, ChatChannel, ChatChannelResp, ChatMessageResp
 from app.database.lazer_user import User
 from app.dependencies.database import DBFactory, get_db_factory, get_redis
 from app.dependencies.user import get_current_user
@@ -73,7 +73,42 @@ class ChatServer:
                 ),
             )
         )
+        assert message.message_id
         await self.mark_as_read(message.channel_id, message.message_id)
+
+    async def batch_join_channel(
+        self, users: list[User], channel: ChatChannel, session: AsyncSession
+    ):
+        channel_id = channel.channel_id
+        assert channel_id is not None
+
+        if channel_id not in self.channels:
+            self.channels[channel_id] = []
+        for user_id in [user.id for user in users]:
+            assert user_id is not None
+            if user_id not in self.channels[channel_id]:
+                self.channels[channel_id].append(user_id)
+
+        for user in users:
+            assert user.id is not None
+            channel_resp = await ChatChannelResp.from_db(
+                channel,
+                session,
+                user,
+                self.redis,
+                self.channels[channel_id]
+                if channel.type != ChannelType.PUBLIC
+                else None,
+            )
+            client = self.connect_client.get(user.id)
+            if client:
+                await self.send_event(
+                    client,
+                    ChatEvent(
+                        event="chat.channel.join",
+                        data=channel_resp.model_dump(),
+                    ),
+                )
 
     async def join_channel(
         self, user: User, channel: ChatChannel, session: AsyncSession
@@ -81,6 +116,7 @@ class ChatServer:
         user_id = user.id
         channel_id = channel.channel_id
         assert channel_id is not None
+        assert user_id is not None
 
         if channel_id not in self.channels:
             self.channels[channel_id] = []
@@ -88,7 +124,11 @@ class ChatServer:
             self.channels[channel_id].append(user_id)
 
         channel_resp = await ChatChannelResp.from_db(
-            channel, session, self.channels[channel_id], user, self.redis
+            channel,
+            session,
+            user,
+            self.redis,
+            self.channels[channel_id] if channel.type != ChannelType.PUBLIC else None,
         )
 
         client = self.connect_client.get(user_id)
@@ -109,15 +149,16 @@ class ChatServer:
         user_id = user.id
         channel_id = channel.channel_id
         assert channel_id is not None
+        assert user_id is not None
 
         if channel_id in self.channels and user_id in self.channels[channel_id]:
             self.channels[channel_id].remove(user_id)
 
-        if not self.channels.get(channel_id):
+        if (c := self.channels.get(channel_id)) is not None and not c:
             del self.channels[channel_id]
 
         channel_resp = await ChatChannelResp.from_db(
-            channel, session, self.channels.get(channel_id, []), user, self.redis
+            channel, session, user, self.redis, self.channels[channel_id]
         )
         client = self.connect_client.get(user_id)
         if client:
