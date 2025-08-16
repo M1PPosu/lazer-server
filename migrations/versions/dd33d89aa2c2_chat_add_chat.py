@@ -159,12 +159,6 @@ def upgrade() -> None:
         ["user_id"],
         unique=False,
     )
-    op.create_index(
-        op.f("ix_chat_silence_users_id"),
-        "chat_silence_users",
-        ["id"],
-        unique=False,
-    )
     op.bulk_insert(
         channel_table,
         [
