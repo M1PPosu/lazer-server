@@ -6,6 +6,9 @@ from app.database.chat import (
     ChannelType,
     ChatChannel,
     ChatChannelResp,
+    ChatMessage,
+    SilenceUser,
+    UserSilenceResp,
 )
 from app.database.lazer_user import User, UserResp
 from app.dependencies.database import get_db, get_redis
@@ -53,6 +56,29 @@ async def get_update(
                         if channel.type != ChannelType.PUBLIC
                         else None,
                     )
+                )
+    if "sliences" in includes:
+        if history_since:
+            silences = (
+                await session.exec(
+                    select(SilenceUser).where(col(SilenceUser.id) > history_since)
+                )
+            ).all()
+            resp.silences.extend(
+                [UserSilenceResp.from_db(silence) for silence in silences]
+            )
+        elif since:
+            msg = await session.get(ChatMessage, since)
+            if msg:
+                silences = (
+                    await session.exec(
+                        select(SilenceUser).where(
+                            col(SilenceUser.banned_at) > msg.timestamp
+                        )
+                    )
+                ).all()
+                resp.silences.extend(
+                    [UserSilenceResp.from_db(silence) for silence in silences]
                 )
     return resp
 

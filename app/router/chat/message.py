@@ -7,6 +7,8 @@ from app.database.chat import (
     ChatChannelResp,
     ChatMessage,
     MessageType,
+    SilenceUser,
+    UserSilenceResp,
 )
 from app.database.lazer_user import User
 from app.dependencies.database import get_db, get_redis
@@ -18,10 +20,14 @@ from .banchobot import bot
 from .server import server
 
 from fastapi import Depends, HTTPException, Query, Security
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from redis.asyncio import Redis
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
+
+
+class KeepAliveResp(BaseModel):
+    silences: list[UserSilenceResp] = Field(default_factory=list)
 
 
 @router.post("/chat/ack")
@@ -31,7 +37,29 @@ async def keep_alive(
     current_user: User = Security(get_current_user, scopes=["chat.read"]),
     session: AsyncSession = Depends(get_db),
 ):
-    return {"silences": []}
+    resp = KeepAliveResp()
+    if history_since:
+        silences = (
+            await session.exec(
+                select(SilenceUser).where(col(SilenceUser.id) > history_since)
+            )
+        ).all()
+        resp.silences.extend([UserSilenceResp.from_db(silence) for silence in silences])
+    elif since:
+        msg = await session.get(ChatMessage, since)
+        if msg:
+            silences = (
+                await session.exec(
+                    select(SilenceUser).where(
+                        col(SilenceUser.banned_at) > msg.timestamp
+                    )
+                )
+            ).all()
+            resp.silences.extend(
+                [UserSilenceResp.from_db(silence) for silence in silences]
+            )
+
+    return resp
 
 
 class MessageReq(BaseModel):

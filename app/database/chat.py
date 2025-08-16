@@ -226,3 +226,15 @@ class SilenceUser(UTCBaseModel, SQLModel, table=True):
     banned_at: datetime = Field(
         sa_column=Column(DateTime, index=True), default=datetime.now(UTC)
     )
+
+
+class UserSilenceResp(SQLModel):
+    id: int
+    user_id: int
+
+    @classmethod
+    def from_db(cls, db_silence: SilenceUser) -> "UserSilenceResp":
+        return cls(
+            id=db_silence.id,
+            user_id=db_silence.user_id,
+        )
