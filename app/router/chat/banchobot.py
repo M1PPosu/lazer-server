@@ -164,7 +164,7 @@ async def _help(
     if args:
         target = args[0].lower()
         if target in bot._handlers:
-            return f"Use: !{target} [args]"
+            return f"Usage: !{target} [args]"
         return f"No such command: {target}"
     if not cmds:
         return "No available commands"
