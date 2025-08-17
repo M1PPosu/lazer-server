@@ -892,34 +892,21 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
 
     async def make_user_leave(
         self,
-        client: Client,
+        client: Client | None,
         room: ServerMultiplayerRoom,
         user: MultiplayerRoomUser,
         kicked: bool = False,
     ):
-        self.remove_from_group(client, self.group_id(room.room.room_id))
+        if client:
+            self.remove_from_group(client, self.group_id(room.room.room_id))
         room.room.users.remove(user)
 
-        if len(room.room.users) == 0:
-            await self.end_room(room)
-        await self.update_room_state(room)
-        if (
-            len(room.room.users) != 0
-            and room.room.host
-            and room.room.host.user_id == user.user_id
-        ):
-            next_host = room.room.users[0]
-            await self.set_host(room, next_host)
+        target_store = self.state.get(user.user_id)
+        if target_store:
+            target_store.room_id = 0
 
-        if kicked:
-            await self.call_noblock(client, "UserKicked", user)
-            await self.broadcast_group_call(
-                self.group_id(room.room.room_id), "UserKicked", user
-            )
-        else:
-            await self.broadcast_group_call(
-                self.group_id(room.room.room_id), "UserLeft", user
-            )
+        redis = get_redis()
+        await redis.publish("chat:room:left", f"{room.room.channel_id}:{user.user_id}")
 
         async with AsyncSession(engine) as session:
             async with session.begin():
@@ -939,12 +926,28 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                     raise InvokeException("Room does not exist in database")
                 db_room.participant_count -= 1
 
-        target_store = self.state.get(user.user_id)
-        if target_store:
-            target_store.room_id = 0
+        if len(room.room.users) == 0:
+            await self.end_room(room)
+            return
+        await self.update_room_state(room)
+        if (
+            len(room.room.users) != 0
+            and room.room.host
+            and room.room.host.user_id == user.user_id
+        ):
+            next_host = room.room.users[0]
+            await self.set_host(room, next_host)
 
-        redis = get_redis()
-        await redis.publish("chat:room:left", f"{room.room.channel_id}:{user.user_id}")
+        if kicked:
+            if client:
+                await self.call_noblock(client, "UserKicked", user)
+            await self.broadcast_group_call(
+                self.group_id(room.room.room_id), "UserKicked", user
+            )
+        else:
+            await self.broadcast_group_call(
+                self.group_id(room.room.room_id), "UserLeft", user
+            )
 
     async def end_room(self, room: ServerMultiplayerRoom):
         assert room.room.host
@@ -1005,8 +1008,6 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             user.user_id,
         )
         target_client = self.get_client_by_id(str(user.user_id))
-        if target_client is None:
-            return
         await self.make_user_leave(target_client, server_room, user, kicked=True)
         logger.info(
             f"[MultiplayerHub] {user.user_id} was kicked from room {room.room_id}"
