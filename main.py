@@ -29,6 +29,27 @@ from app.service.init_geoip import init_geoip
 from app.service.osu_rx_statistics import create_rx_statistics
 from app.service.recalculate import recalculate
 
+# 检查 New Relic 配置文件是否存在，如果存在则初始化 New Relic
+newrelic_config_path = os.path.join(os.path.dirname(__file__), "newrelic.ini")
+if os.path.exists(newrelic_config_path):
+    try:
+        import newrelic.agent
+
+        environment = os.environ.get(
+            "NEW_RELIC_ENVIRONMENT",
+            "production" if not settings.debug else "development"
+        )
+
+        newrelic.agent.initialize(newrelic_config_path, environment)
+        logger.info(f"[NewRelic] Enabled, environment: {environment}")
+    except ImportError:
+        logger.warning("[NewRelic] Config file found but 'newrelic' package is not installed")
+    except Exception as e:
+        logger.error(f"[NewRelic] Initialization failed: {e}")
+else:
+    logger.info("[NewRelic] No newrelic.ini config file found, skipping initialization")
+
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware

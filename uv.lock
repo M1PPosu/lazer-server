@@ -545,6 +545,7 @@ dependencies = [
     { name = "loguru" },
     { name = "maxminddb" },
     { name = "msgpack-lazer-api" },
+    { name = "newrelic" },
     { name = "osupyparser" },
     { name = "passlib", extra = ["bcrypt"] },
     { name = "pillow" },
@@ -583,6 +584,7 @@ requires-dist = [
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "maxminddb", specifier = ">=2.8.2" },
     { name = "msgpack-lazer-api", editable = "packages/msgpack_lazer_api" },
+    { name = "newrelic", specifier = ">=10.1.0" },
     { name = "osupyparser", git = "https://github.com/MingxuanGame/osupyparser.git" },
     { name = "passlib", extras = ["bcrypt"], specifier = ">=1.7.4" },
     { name = "pillow", specifier = ">=11.3.0" },
@@ -929,6 +931,22 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/b2/0a/2436550b1520091af0600dff547913cb2d66fbac27a8c33bc1b1bccd8d98/multidict-6.6.4-cp313-cp313t-win_amd64.whl", hash = "sha256:6d46a180acdf6e87cc41dc15d8f5c2986e1e8739dc25dbb7dac826731ef381a4", size = 53100, upload-time = "2025-08-11T12:08:13.823Z" },
     { url = "https://files.pythonhosted.org/packages/97/ea/43ac51faff934086db9c072a94d327d71b7d8b40cd5dcb47311330929ef0/multidict-6.6.4-cp313-cp313t-win_arm64.whl", hash = "sha256:756989334015e3335d087a27331659820d53ba432befdef6a718398b0a8493ad", size = 45501, upload-time = "2025-08-11T12:08:15.173Z" },
     { url = "https://files.pythonhosted.org/packages/fd/69/b547032297c7e63ba2af494edba695d781af8a0c6e89e4d06cf848b21d80/multidict-6.6.4-py3-none-any.whl", hash = "sha256:27d8f8e125c07cb954e54d75d04905a9bba8a439c1d84aca94949d4d03d8601c", size = 12313, upload-time = "2025-08-11T12:08:46.891Z" },
+]
+
+[[package]]
+name = "newrelic"
+version = "10.16.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d4/71/07c41fd5e8c94e95216b000d00c3cf735f769cb406c0f33c6ff83b7b7418/newrelic-10.16.0.tar.gz", hash = "sha256:d20eb934380a88d787f93e037d2ccfd5a7c80e657db5bb2e645216eaafe32e26", size = 1267210, upload-time = "2025-08-14T22:23:47.619Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/be/4b/ba14854270412686fdc331b1503b90554968e58d504297572bfc9cdaf3ad/newrelic-10.16.0-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:2f74301ed32ce625fb84c8bd0c079498dca603ff111d5baa2f59b6480ef7355b", size = 858772, upload-time = "2025-08-14T22:23:19.058Z" },
+    { url = "https://files.pythonhosted.org/packages/97/41/de8f0be9e285371cee22a8399840141ffb34ffa5462d31c80c5d7a951ed5/newrelic-10.16.0-cp312-cp312-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:3efef3b10f02a086d9009a80b020db8f0b1db5072075779c9facd5d2fe3bb916", size = 858430, upload-time = "2025-08-14T22:23:20.658Z" },
+    { url = "https://files.pythonhosted.org/packages/52/74/2fc1e2d96029b57397eb3e2fae9f5e5840af3b98e896834b7a584f614b98/newrelic-10.16.0-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:8328f621f3683b28156cfa8e1648a56b894480bf4c4953cde7e659b1480ae1e9", size = 856401, upload-time = "2025-08-14T22:23:21.981Z" },
+    { url = "https://files.pythonhosted.org/packages/2a/42/fb73714fbf105b0c96faea68d17149dfecaa0209a6354b6a6d67c77ef65f/newrelic-10.16.0-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:07f65faed0a9aa40695e6e6ce4c943ca9c9643fc848c2344bb26665a65893a80", size = 856270, upload-time = "2025-08-14T22:23:23.407Z" },
+    { url = "https://files.pythonhosted.org/packages/76/6d/47389d4a9390af2834f552d3bb7ed9b7c9ded30054409621e941ddbe1083/newrelic-10.16.0-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:053e73518cf0b2af412490723d3fa8338dab6ed48b748c0b7a0288160d1c33e2", size = 858759, upload-time = "2025-08-14T22:23:24.957Z" },
+    { url = "https://files.pythonhosted.org/packages/b4/3e/9e44b713450c89d9d9b0a2626059014ad6e6699992fd687aec4cacb54b35/newrelic-10.16.0-cp313-cp313-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:8263ae16eb4745def12bace2e3e38e013e76d4e765333a77342b270702e3eaa9", size = 858435, upload-time = "2025-08-14T22:23:26.536Z" },
+    { url = "https://files.pythonhosted.org/packages/61/a6/660dfd715011e2fef4d8e5f91c8c040f4ac125bc3bdc644ae0e514cbe87c/newrelic-10.16.0-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:6e83e1341a72ac92118d1af40c2c3ba56069c589acceb1e89d236beab8d7891a", size = 856574, upload-time = "2025-08-14T22:23:28.041Z" },
+    { url = "https://files.pythonhosted.org/packages/59/9a/25935a1b999cef132a1597ca3686c028f5472e58d26bfe33876e8af38f4f/newrelic-10.16.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:71950c5e1f26bf1ed563d3641da97f6bb209f80697675888ee12808d8ac69452", size = 856448, upload-time = "2025-08-14T22:23:29.483Z" },
 ]
 
 [[package]]

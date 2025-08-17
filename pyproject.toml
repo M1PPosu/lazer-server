@@ -17,6 +17,7 @@ dependencies = [
     "loguru>=0.7.3",
     "maxminddb>=2.8.2",
     "msgpack-lazer-api",
+    "newrelic>=10.1.0",
     "osupyparser>=1.0.7",
     "passlib[bcrypt]>=1.7.4",
     "pillow>=11.3.0",
