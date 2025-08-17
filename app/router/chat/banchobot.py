@@ -16,7 +16,7 @@ from app.database.score import Score
 from app.database.statistics import UserStatistics, get_rank
 from app.dependencies.fetcher import get_fetcher
 from app.exception import InvokeException
-from app.models.mods import APIMod
+from app.models.mods import APIMod, mod_to_save
 from app.models.multiplayer_hub import (
     ChangeTeamRequest,
     ServerMultiplayerRoom,
@@ -30,7 +30,8 @@ from app.signalr.hub.hub import Client
 from .server import server
 
 from httpx import HTTPError
-from sqlmodel import func, select
+from sqlalchemy.orm import joinedload
+from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 HandlerResult = str | None | Awaitable[str | None]
@@ -571,3 +572,57 @@ async def _mp(user: User, args: list[str], session: AsyncSession, channel: ChatC
         return f"No such command: {command}"
 
     return await _MP_COMMANDS[command](signalr_client, room, args[1:], session)
+
+
+async def _score(
+    user_id: int,
+    session: AsyncSession,
+    include_fail: bool = False,
+    gamemode: GameMode | None = None,
+) -> str:
+    q = (
+        select(Score)
+        .where(Score.user_id == user_id)
+        .order_by(col(Score.id).desc())
+        .options(joinedload(Score.beatmap))
+    )
+    if not include_fail:
+        q = q.where(Score.passed.is_(True))
+    if gamemode is not None:
+        q = q.where(Score.gamemode == gamemode)
+
+    score = (await session.exec(q)).first()
+    if score is None:
+        return "You have no scores."
+
+    result = f"""{score.beatmap.beatmapset.title} [{score.beatmap.version}] ({score.gamemode.name.lower()})
+Played at {score.started_at}
+{score.pp:.2f}pp {score.accuracy:.2%} {",".join(mod_to_save(score.mods))} {score.rank.name.upper()}
+Great: {score.n300}, Good: {score.n100}, Meh: {score.n50}, Miss: {score.nmiss}"""  # noqa: E501
+    if score.gamemode == GameMode.MANIA:
+        keys = next(
+            (mod["acronym"] for mod in score.mods if mod["acronym"].endswith("K")), None
+        )
+        if keys is None:
+            keys = f"{int(score.beatmap.cs)}K"
+        p_d_g = f"{score.ngeki / score.n300:.2f}:1" if score.n300 > 0 else "inf:1"
+        result += (
+            f"\nKeys: {keys}, Perfect: {score.ngeki}, Ok: {score.nkatu}, P/G: {p_d_g}"
+        )
+    return result
+
+
+@bot.command("re")
+async def _re(user: User, args: list[str], session: AsyncSession, channel: ChatChannel):
+    gamemode = None
+    if len(args) >= 1:
+        gamemode = GameMode.parse(args[0])
+    return await _score(user.id, session, include_fail=True, gamemode=gamemode)
+
+
+@bot.command("pr")
+async def _pr(user: User, args: list[str], session: AsyncSession, channel: ChatChannel):
+    gamemode = None
+    if len(args) >= 1:
+        gamemode = GameMode.parse(args[0])
+    return await _score(user.id, session, include_fail=False, gamemode=gamemode)
