@@ -167,7 +167,8 @@ async def mark_as_read(
     if db_channel is None:
         raise HTTPException(status_code=404, detail="Channel not found")
     assert db_channel.channel_id
-    await server.mark_as_read(db_channel.channel_id, message)
+    assert current_user.id
+    await server.mark_as_read(db_channel.channel_id, current_user.id, message)
 
 
 class PMReq(BaseModel):

@@ -6,6 +6,7 @@ import lzma
 import struct
 import time
 from typing import override
+from venv import logger
 
 from app.config import settings
 from app.database import Beatmap, User
@@ -217,6 +218,7 @@ class SpectatorHub(Hub[StoreClientState]):
                         maximum_statistics=state.maximum_statistics,
                     )
                 )
+        logger.info(f"[SpectatorHub] {client.user_id} began playing {state.beatmap_id}")
         await self.broadcast_group_call(
             self.group_id(user_id),
             "UserBeganPlaying",
@@ -320,6 +322,10 @@ class SpectatorHub(Hub[StoreClientState]):
     async def _end_session(self, user_id: int, state: SpectatorState) -> None:
         if state.state == SpectatedUserState.Playing:
             state.state = SpectatedUserState.Quit
+        logger.info(
+            f"[SpectatorHub] {user_id} finished playing {state.beatmap_id} "
+            f"with {state.state}"
+        )
         await self.broadcast_group_call(
             self.group_id(user_id),
             "UserFinishedPlaying",
@@ -330,7 +336,9 @@ class SpectatorHub(Hub[StoreClientState]):
     async def StartWatchingUser(self, client: Client, target_id: int) -> None:
         user_id = int(client.connection_id)
         target_store = self.state.get(target_id)
+        logger.info(f"[SpectatorHub] {user_id} started watching {target_id}")
         if target_store and target_store.state:
+            logger.debug(f"[SpectatorHub] {target_id} is {target_store.state}")
             await self.call_noblock(
                 client,
                 "UserBeganPlaying",
@@ -361,3 +369,4 @@ class SpectatorHub(Hub[StoreClientState]):
         store.watched_user.discard(target_id)
         if (target_client := self.get_client_by_id(str(target_id))) is not None:
             await self.call_noblock(target_client, "UserEndedWatching", user_id)
+        logger.info(f"[SpectatorHub] {user_id} ended watching {target_id}")

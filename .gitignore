@@ -52,7 +52,7 @@ coverage.xml
 .pytest_cache/
 cover/
 # 测试用的证书
-test-cert/ 
+test-cert/
 
 # Translations
 *.mo
@@ -218,3 +218,4 @@ osu-master/*
 
 geoip/*
 newrelic.ini
+logs/

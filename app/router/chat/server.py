@@ -69,8 +69,8 @@ class ChatServer:
             if client:
                 await self.send_event(client, event)
 
-    async def mark_as_read(self, channel_id: int, message_id: int):
-        await self.redis.set(f"chat:{channel_id}:last_msg", message_id)
+    async def mark_as_read(self, channel_id: int, user_id: int, message_id: int):
+        await self.redis.set(f"chat:{channel_id}:last_read:{user_id}", message_id)
 
     async def send_message_to_channel(
         self, message: ChatMessageResp, is_bot_command: bool = False
@@ -91,7 +91,10 @@ class ChatServer:
                 )
             )
         assert message.message_id
-        await self.mark_as_read(message.channel_id, message.message_id)
+        await self.mark_as_read(
+            message.channel_id, message.sender_id, message.message_id
+        )
+        await self.redis.set(f"chat:{message.channel_id}:last_msg", message.message_id)
 
     async def batch_join_channel(
         self, users: list[User], channel: ChatChannel, session: AsyncSession
