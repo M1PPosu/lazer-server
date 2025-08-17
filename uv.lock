@@ -5,7 +5,7 @@ requires-python = ">=3.12"
 [manifest]
 members = [
     "msgpack-lazer-api",
-    "osu-lazer-api",
+    "g0v0-server",
 ]
 
 [[package]]
@@ -808,7 +808,7 @@ wheels = [
 ]
 
 [[package]]
-name = "osu-lazer-api"
+name = "g0v0-server"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
