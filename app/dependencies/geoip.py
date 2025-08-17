@@ -2,6 +2,7 @@
 """
 GeoIP dependency for FastAPI
 """
+import ipaddress
 from functools import lru_cache
 from app.helpers.geoip_helper import GeoIPHelper
 from app.config import settings
@@ -23,29 +24,76 @@ def get_geoip_helper() -> GeoIPHelper:
 
 def get_client_ip(request) -> str:
     """
-    Get the real client IP address
-    Supports proxies, load balancers, and Cloudflare headers
+    获取客户端真实 IP 地址
+    支持 IPv4 和 IPv6，考虑代理、负载均衡器等情况
     """
     headers = request.headers
 
-    # 1. Cloudflare specific headers
+    # 1. Cloudflare 专用头部
     cf_ip = headers.get("CF-Connecting-IP")
     if cf_ip:
-        return cf_ip.strip()
+        ip = cf_ip.strip()
+        if is_valid_ip(ip):
+            return ip
 
     true_client_ip = headers.get("True-Client-IP")
     if true_client_ip:
-        return true_client_ip.strip()
+        ip = true_client_ip.strip()
+        if is_valid_ip(ip):
+            return ip
 
-    # 2. Standard proxy headers
+    # 2. 标准代理头部
     forwarded_for = headers.get("X-Forwarded-For")
     if forwarded_for:
-        # X-Forwarded-For may contain multiple IPs, take the first
-        return forwarded_for.split(",")[0].strip()
+        # X-Forwarded-For 可能包含多个 IP，取第一个有效的
+        for ip_str in forwarded_for.split(","):
+            ip = ip_str.strip()
+            if is_valid_ip(ip) and not is_private_ip(ip):
+                return ip
 
     real_ip = headers.get("X-Real-IP")
     if real_ip:
-        return real_ip.strip()
+        ip = real_ip.strip()
+        if is_valid_ip(ip):
+            return ip
 
-    # 3. Fallback to client host
-    return request.client.host if request.client else "127.0.0.1"
+    # 3. 回退到客户端 IP
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    return client_ip if is_valid_ip(client_ip) else "127.0.0.1"
+
+
+def is_valid_ip(ip_str: str) -> bool:
+    """
+    验证 IP 地址是否有效（支持 IPv4 和 IPv6）
+    """
+    try:
+        ipaddress.ip_address(ip_str)
+        return True
+    except ValueError:
+        return False
+
+
+def is_private_ip(ip_str: str) -> bool:
+    """
+    判断是否为私有 IP 地址
+    """
+    try:
+        ip = ipaddress.ip_address(ip_str)
+        return ip.is_private
+    except ValueError:
+        return False
+
+
+def normalize_ip(ip_str: str) -> str:
+    """
+    标准化 IP 地址格式
+    对于 IPv6，转换为压缩格式
+    """
+    try:
+        ip = ipaddress.ip_address(ip_str)
+        if isinstance(ip, ipaddress.IPv6Address):
+            return ip.compressed
+        else:
+            return str(ip)
+    except ValueError:
+        return ip_str

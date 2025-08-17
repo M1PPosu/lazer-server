@@ -23,6 +23,7 @@ from app.dependencies.database import get_redis
 from app.dependencies.geoip import get_geoip_helper, get_client_ip
 from app.helpers.geoip_helper import GeoIPHelper
 from app.log import logger
+from app.service.login_log_service import LoginLogService
 from app.models.oauth import (
     OAuthErrorResponse,
     RegistrationRequestErrors,
@@ -201,6 +202,7 @@ async def register_user(
     description="OAuth 令牌端点，支持密码、刷新令牌和授权码三种授权方式。",
 )
 async def oauth_token(
+    request: Request,
     grant_type: Literal[
         "authorization_code", "refresh_token", "password", "client_credentials"
     ] = Form(..., description="授权类型：密码/刷新令牌/授权码/客户端凭证"),
@@ -268,6 +270,15 @@ async def oauth_token(
         # 验证用户
         user = await authenticate_user(db, username, password)
         if not user:
+            # 记录失败的登录尝试
+            await LoginLogService.record_failed_login(
+                db=db,
+                request=request,
+                attempted_username=username,
+                login_method="password",
+                notes="Invalid credentials"
+            )
+            
             return create_oauth_error_response(
                 error="invalid_grant",
                 description=(
@@ -280,18 +291,34 @@ async def oauth_token(
                 hint="Incorrect sign in",
             )
 
+        # 确保用户对象与当前会话关联
+        await db.refresh(user)
+        
+        # 记录成功的登录
+        user_id = getattr(user, 'id')
+        assert user_id is not None, "User ID should not be None after authentication"
+        await LoginLogService.record_login(
+            db=db,
+            user_id=user_id,
+            request=request,
+            login_success=True,
+            login_method="password",
+            notes=f"OAuth password grant for client {client_id}"
+        )
+
         # 生成令牌
         access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
+        # 获取用户ID，避免触发延迟加载
         access_token = create_access_token(
-            data={"sub": str(user.id)}, expires_delta=access_token_expires
+            data={"sub": str(user_id)}, expires_delta=access_token_expires
         )
         refresh_token_str = generate_refresh_token()
 
         # 存储令牌
-        assert user.id
+        assert user_id
         await store_token(
             db,
-            user.id,
+            user_id,
             client_id,
             scopes,
             access_token,
@@ -397,18 +424,26 @@ async def oauth_token(
                 hint="Invalid authorization code",
             )
         user, scopes = code_result
+        
+        # 确保用户对象与当前会话关联
+        await db.refresh(user)
+        
         # 生成令牌
         access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
+        # 重新查询只获取ID，避免触发延迟加载
+        id_result = await db.exec(select(User.id).where(User.username == username))
+        user_id = id_result.first()
+        
         access_token = create_access_token(
-            data={"sub": str(user.id)}, expires_delta=access_token_expires
+            data={"sub": str(user_id)}, expires_delta=access_token_expires
         )
         refresh_token_str = generate_refresh_token()
 
         # 存储令牌
-        assert user.id
+        assert user_id
         await store_token(
             db,
-            user.id,
+            user_id,
             client_id,
             scopes,
             access_token,

@@ -60,6 +60,7 @@ from .user_account_history import (
     UserAccountHistoryResp,
     UserAccountHistoryType,
 )
+from .user_login_log import UserLoginLog
 
 __all__ = [
     "APIUploadedRoom",
@@ -118,6 +119,7 @@ __all__ = [
     "UserAchievement",
     "UserAchievement",
     "UserAchievementResp",
+    "UserLoginLog",
     "UserResp",
     "UserStatistics",
     "UserStatisticsResp",
