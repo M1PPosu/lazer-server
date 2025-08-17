@@ -114,10 +114,13 @@ async def authenticate_user_legacy(
     pw_md5 = hashlib.md5(password.encode()).hexdigest()
 
     # 2. 根据用户名查找用户
-    statement = select(User).where(User.username == name)
+    statement = select(User).where(User.username == name).options()
     user = (await db.exec(statement)).first()
     if not user:
         return None
+
+    
+    await db.refresh(user)
 
     # 3. 验证密码
     if user.pw_bcrypt is None or user.pw_bcrypt == "":
@@ -261,4 +264,8 @@ async def get_user_by_authorization_code(
 
     statement = select(User).where(User.id == int(user_id))
     user = (await db.exec(statement)).first()
-    return (user, scopes.split(",")) if user else None
+    if user:
+        
+        await db.refresh(user)
+        return (user, scopes.split(","))
+    return None

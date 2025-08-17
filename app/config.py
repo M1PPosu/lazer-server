@@ -3,9 +3,23 @@ from __future__ import annotations
 from enum import Enum
 from typing import Annotated, Any
 
-from pydantic import AliasChoices, Field, HttpUrl, ValidationInfo, field_validator
+from pydantic import AliasChoices, Field, HttpUrl, ValidationInfo, field_validator, BeforeValidator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+def _parse_list(v):
+    if v is None or v == "" or str(v).strip() in ("[]", "{}"):
+        return []
+    if isinstance(v, list):
+        return v
+    s = str(v).strip()
+    try:
+        import json
+        parsed = json.loads(s)
+        if isinstance(parsed, list):
+            return parsed
+    except Exception:
+        pass
+    return [x.strip() for x in s.split(",") if x.strip()]
 
 class AWSS3StorageSettings(BaseSettings):
     s3_access_key_id: str
@@ -96,6 +110,12 @@ class Settings(BaseSettings):
     # Sentry 配置
     sentry_dsn: HttpUrl | None = None
 
+    # GeoIP 配置
+    maxmind_license_key: str = ""
+    geoip_dest_dir: str = "./geoip"
+    geoip_update_day: int = 1  # 每周更新的星期几（0=周一，6=周日）
+    geoip_update_hour: int = 2  # 每周更新的小时数（0-23）
+
     # 游戏设置
     enable_rx: bool = Field(
         default=False, validation_alias=AliasChoices("enable_rx", "enable_osu_rx")
@@ -108,7 +128,7 @@ class Settings(BaseSettings):
     enable_all_beatmap_leaderboard: bool = False
     enable_all_beatmap_pp: bool = False
     suspicious_score_check: bool = True
-    seasonal_backgrounds: list[str] = []
+    seasonal_backgrounds: Annotated[list[str], BeforeValidator(_parse_list)] = []
     banned_name: list[str] = [
         "mrekk",
         "vaxei",
