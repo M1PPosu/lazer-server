@@ -277,12 +277,12 @@ class Hub[TState: UserState]:
                     f"Client {client.connection_token} call {packet.target}"
                     f" failed: {error}"
                 )
-            except Exception as e:
+            except Exception:
                 logger.exception(
                     f"Error invoking method {packet.target} for "
                     f"client {client.connection_id}"
                 )
-                error = str(e)
+                error = "Unknown error occured in server"
             if packet.invocation_id is not None:
                 await client.send_packet(
                     CompletionPacket(
