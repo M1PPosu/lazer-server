@@ -21,7 +21,7 @@ from app.models.model import (
     RespWithCursor,
     UTCBaseModel,
 )
-from app.models.mods import APIMod, mods_can_get_pp
+from app.models.mods import APIMod, mod_to_save, mods_can_get_pp
 from app.models.score import (
     GameMode,
     HitResult,
@@ -443,7 +443,6 @@ async def get_user_best_score_in_beatmap(
     ).first()
 
 
-# FIXME
 async def get_user_best_score_with_mod_in_beatmap(
     session: AsyncSession,
     beatmap: int,
@@ -458,7 +457,7 @@ async def get_user_best_score_with_mod_in_beatmap(
                 BestScore.gamemode == mode if mode is not None else True,
                 BestScore.beatmap_id == beatmap,
                 BestScore.user_id == user,
-                # BestScore.mods == mod,
+                BestScore.mods == mod,
             )
             .order_by(col(BestScore.total_score).desc())
         )
@@ -508,7 +507,7 @@ async def process_user(
 ):
     assert user.id
     assert score.id
-    mod_for_save = list({mod["acronym"] for mod in score.mods})
+    mod_for_save = mod_to_save(score.mods)
     previous_score_best = await get_user_best_score_in_beatmap(
         session, score.beatmap_id, user.id, score.gamemode
     )

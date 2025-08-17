@@ -75,11 +75,16 @@ async def calculate_pp(score: "Score", beatmap: str, session: AsyncSession) -> f
         ).first()
         if beatmap_banned:
             return 0
-        is_suspicious = is_suspicious_beatmap(beatmap)
-        if is_suspicious:
-            session.add(BannedBeatmaps(beatmap_id=score.beatmap_id))
-            logger.warning(f"Beatmap {score.beatmap_id} is suspicious, banned")
-            return 0
+        try:
+            is_suspicious = is_suspicious_beatmap(beatmap)
+            if is_suspicious:
+                session.add(BannedBeatmaps(beatmap_id=score.beatmap_id))
+                logger.warning(f"Beatmap {score.beatmap_id} is suspicious, banned")
+                return 0
+        except Exception:
+            logger.exception(
+                f"Error checking if beatmap {score.beatmap_id} is suspicious"
+            )
 
     map = rosu.Beatmap(content=beatmap)
     mods = deepcopy(score.mods.copy())
@@ -108,7 +113,8 @@ async def calculate_pp(score: "Score", beatmap: str, session: AsyncSession) -> f
         (attrs.difficulty.stars > 25 and score.accuracy < 0.8) or pp > 2300
     ):
         logger.warning(
-            f"User {score.user_id} played {score.beatmap_id} with {pp=} "
+            f"User {score.user_id} played {score.beatmap_id} "
+            f"(star={attrs.difficulty.stars}) with {pp=} "
             f"acc={score.accuracy}. The score is suspicious and return 0pp"
             f"({score.id=})"
         )
@@ -335,7 +341,7 @@ def is_2b(hit_objects: list[HitObject]) -> bool:
 
 
 def is_suspicious_beatmap(content: str) -> bool:
-    osufile = OsuFile(content=content.encode("utf-8-sig")).parse_file()
+    osufile = OsuFile(content=content.encode("utf-8")).parse_file()
 
     if (
         osufile.hit_objects[-1].start_time - osufile.hit_objects[0].start_time

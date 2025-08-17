@@ -201,3 +201,9 @@ def parse_enum_to_str(ruleset_id: int, mods: list[APIMod]):
             for setting in mod.get("settings", {}):
                 if setting in ENUM_TO_STR[ruleset_id][mod["acronym"]]:
                     mod["settings"][setting] = str(mod["settings"][setting])  # pyright: ignore[reportTypedDictNotRequiredAccess]
+
+
+def mod_to_save(mods: list[APIMod]) -> list[str]:
+    s = list({mod["acronym"] for mod in mods})
+    s.sort()
+    return s
