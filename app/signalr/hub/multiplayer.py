@@ -364,7 +364,10 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         user = next((u for u in room.users if u.user_id == client.user_id), None)
         if user is None:
             raise InvokeException("You are not in this room")
-
+        logger.info(
+            f"[MultiplayerHub] {client.user_id} adding "
+            f"beatmap {item.beatmap_id} to room {room.room_id}"
+        )
         await server_room.queue.add_item(
             item,
             user,
@@ -383,6 +386,10 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         if user is None:
             raise InvokeException("You are not in this room")
 
+        logger.info(
+            f"[MultiplayerHub] {client.user_id} editing "
+            f"item {item.id} in room {room.room_id}"
+        )
         await server_room.queue.edit_item(
             item,
             user,
@@ -401,6 +408,10 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         if user is None:
             raise InvokeException("You are not in this room")
 
+        logger.info(
+            f"[MultiplayerHub] {client.user_id} removing "
+            f"item {item_id} from room {room.room_id}"
+        )
         await server_room.queue.remove_item(
             item_id,
             user,
@@ -666,6 +677,10 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
 
         if user.state == state:
             return
+        logger.info(
+            f"[MultiplayerHub] {user.user_id}'s state "
+            f"changed from {user.state} to {state}"
+        )
         match state:
             case MultiplayerUserState.IDLE:
                 if user.state.is_playing:
@@ -684,6 +699,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             or room.state == MultiplayerRoomState.WAITING_FOR_LOAD
         ):
             await self.call_noblock(client, "LoadRequested")
+
         await self.update_room_state(server_room)
 
     async def change_user_state(
@@ -767,6 +783,10 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
     async def change_room_state(
         self, room: ServerMultiplayerRoom, state: MultiplayerRoomState
     ):
+        logger.debug(
+            f"[MultiplayerHub] Room {room.room.room_id} state "
+            f"changed from {room.room.state} to {state}"
+        )
         room.room.state = state
         await self.broadcast_group_call(
             self.group_id(room.room.room_id),
@@ -799,6 +819,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         if all(u.state != MultiplayerUserState.READY for u in room.users):
             raise InvokeException("Can't start match when no users are ready.")
 
+        logger.info(f"[MultiplayerHub] Room {room.room_id} match started")
         await self.start_match(server_room)
 
     async def start_match(self, room: ServerMultiplayerRoom):
@@ -971,6 +992,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             room.room.host.user_id,
         )
         del self.rooms[room.room.room_id]
+        logger.info(f"[MultiplayerHub] Room {room.room.room_id} ended")
 
     async def LeaveRoom(self, client: Client):
         store = self.get_or_create_state(client)
@@ -989,6 +1011,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             user.user_id,
         )
         await self.make_user_leave(client, server_room, user)
+        logger.info(f"[MultiplayerHub] {client.user_id} left room {room.room_id}")
 
     async def KickUser(self, client: Client, user_id: int):
         store = self.get_or_create_state(client)
@@ -1017,6 +1040,10 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         if target_client is None:
             return
         await self.make_user_leave(target_client, server_room, user, kicked=True)
+        logger.info(
+            f"[MultiplayerHub] {user.user_id} was kicked from room {room.room_id}"
+            f"by {client.user_id}"
+        )
 
     async def set_host(self, room: ServerMultiplayerRoom, user: MultiplayerRoomUser):
         room.room.host = user
@@ -1046,6 +1073,10 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             new_host.user_id,
         )
         await self.set_host(server_room, new_host)
+        logger.info(
+            f"[MultiplayerHub] {client.user_id} transferred host to {new_host.user_id}"
+            f" in room {room.room_id}"
+        )
 
     async def AbortGameplay(self, client: Client):
         store = self.get_or_create_state(client)
@@ -1100,6 +1131,9 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             GameplayAbortReason.HOST_ABORTED,
         )
         await self.update_room_state(server_room)
+        logger.info(
+            f"[MultiplayerHub] {client.user_id} aborted match in room {room.room_id}"
+        )
 
     async def change_user_match_state(
         self, room: ServerMultiplayerRoom, user: MultiplayerRoomUser

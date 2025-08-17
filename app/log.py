@@ -127,6 +127,16 @@ logger.add(
     level=settings.log_level,
     diagnose=settings.debug,
 )
+logger.add(
+    "logs/{time:YYYY-MM-DD}.log",
+    rotation="00:00",
+    retention="30 days",
+    colorize=False,
+    format="{time:YYYY-MM-DD HH:mm:ss} {level} | {message}",
+    level=settings.log_level,
+    diagnose=settings.debug,
+    encoding="utf8",
+)
 logging.basicConfig(handlers=[InterceptHandler()], level=settings.log_level, force=True)
 
 uvicorn_loggers = [
@@ -140,3 +150,5 @@ for logger_name in uvicorn_loggers:
     uvicorn_logger = logging.getLogger(logger_name)
     uvicorn_logger.handlers = [InterceptHandler()]
     uvicorn_logger.propagate = False
+
+logging.getLogger("httpx").setLevel("WARNING")

@@ -273,6 +273,10 @@ class Hub[TState: UserState]:
                 result = await self.invoke_method(client, packet.target, args)
             except InvokeException as e:
                 error = e.message
+                logger.debug(
+                    f"Client {client.connection_token} call {packet.target}"
+                    f" failed: {error}"
+                )
             except Exception as e:
                 logger.exception(
                     f"Error invoking method {packet.target} for "
