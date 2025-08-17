@@ -89,8 +89,7 @@ async def get_client_user(
     user = (await db.exec(select(User).where(User.id == token_record.user_id))).first()
     if not user:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
-    
-    
+
     await db.refresh(user)
     return user
 
@@ -128,7 +127,6 @@ async def get_current_user(
     user = (await db.exec(select(User).where(User.id == token_record.user_id))).first()
     if not user:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
-    
-    
+
     await db.refresh(user)
     return user

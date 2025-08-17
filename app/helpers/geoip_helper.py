@@ -1,21 +1,36 @@
-# -*- coding: utf-8 -*-
 """
 GeoLite2 Helper Class
 """
+
+from __future__ import annotations
+
 import os
-import tarfile
+from pathlib import Path
 import shutil
+import tarfile
 import tempfile
 import time
+
 import httpx
 import maxminddb
-from pathlib import Path
+
+BASE_URL = "https://download.maxmind.com/app/geoip_download"
+EDITIONS = {
+    "City": "GeoLite2-City",
+    "Country": "GeoLite2-Country",
+    "ASN": "GeoLite2-ASN",
+}
+
 
 class GeoIPHelper:
-    BASE_URL = "https://download.maxmind.com/app/geoip_download"
-    EDITIONS = {"City": "GeoLite2-City", "Country": "GeoLite2-Country", "ASN": "GeoLite2-ASN"}
-
-    def __init__(self, dest_dir="./geoip", license_key=None, editions=None, max_age_days=8, timeout=60.0):
+    def __init__(
+        self,
+        dest_dir="./geoip",
+        license_key=None,
+        editions=None,
+        max_age_days=8,
+        timeout=60.0,
+    ):
         self.dest_dir = dest_dir
         self.license_key = license_key or os.getenv("MAXMIND_LICENSE_KEY")
         self.editions = editions or ["City", "ASN"]
@@ -30,7 +45,7 @@ class GeoIPHelper:
             target = (base / m.name).resolve()
             if not str(target).startswith(str(base)):
                 raise RuntimeError("Unsafe path in tar file")
-        tar.extractall(path=path, filter='data')
+        tar.extractall(path=path, filter="data")
 
     def _download_and_extract(self, edition_id: str) -> str:
         """
@@ -40,9 +55,14 @@ class GeoIPHelper:
         - 临时目录退出后自动清理
         """
         if not self.license_key:
-            raise ValueError("缺少 MaxMind License Key，请传入或设置环境变量 MAXMIND_LICENSE_KEY")
+            raise ValueError(
+                "缺少 MaxMind License Key，请传入或设置环境变量 MAXMIND_LICENSE_KEY"
+            )
 
-        url = f"{self.BASE_URL}?edition_id={edition_id}&license_key={self.license_key}&suffix=tar.gz"
+        url = (
+            f"{BASE_URL}?edition_id={edition_id}&"
+            f"license_key={self.license_key}&suffix=tar.gz"
+        )
 
         with httpx.Client(follow_redirects=True, timeout=self.timeout) as client:
             with client.stream("GET", url) as resp:
@@ -81,13 +101,16 @@ class GeoIPHelper:
     def _latest_file(self, edition_id: str):
         if not os.path.isdir(self.dest_dir):
             return None
-        files = [os.path.join(self.dest_dir, f) for f in os.listdir(self.dest_dir)
-                 if f.startswith(edition_id) and f.endswith(".mmdb")]
+        files = [
+            os.path.join(self.dest_dir, f)
+            for f in os.listdir(self.dest_dir)
+            if f.startswith(edition_id) and f.endswith(".mmdb")
+        ]
         return max(files, key=os.path.getmtime) if files else None
 
     def update(self, force=False):
         for ed in self.editions:
-            eid = self.EDITIONS[ed]
+            eid = EDITIONS[ed]
             path = self._latest_file(eid)
             need = force or not path
             if path:
@@ -97,12 +120,11 @@ class GeoIPHelper:
             if need:
                 path = self._download_and_extract(eid)
 
-
             old = self._readers.get(ed)
             if old:
                 try:
                     old.close()
-                except:
+                except Exception:
                     pass
             if path is not None:
                 self._readers[ed] = maxminddb.open_database(path)
@@ -139,10 +161,9 @@ class GeoIPHelper:
         for r in self._readers.values():
             try:
                 r.close()
-            except:
+            except Exception:
                 pass
         self._readers = {}
-
 
 
 if __name__ == "__main__":

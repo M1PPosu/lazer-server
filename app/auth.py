@@ -119,7 +119,6 @@ async def authenticate_user_legacy(
     if not user:
         return None
 
-    
     await db.refresh(user)
 
     # 3. 验证密码
@@ -265,7 +264,6 @@ async def get_user_by_authorization_code(
     statement = select(User).where(User.id == int(user_id))
     user = (await db.exec(statement)).first()
     if user:
-        
         await db.refresh(user)
         return (user, scopes.split(","))
     return None

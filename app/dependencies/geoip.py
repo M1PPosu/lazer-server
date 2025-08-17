@@ -1,13 +1,17 @@
-# -*- coding: utf-8 -*-
 """
 GeoIP dependency for FastAPI
 """
-import ipaddress
-from functools import lru_cache
-from app.helpers.geoip_helper import GeoIPHelper
-from app.config import settings
 
-@lru_cache()
+from __future__ import annotations
+
+from functools import lru_cache
+import ipaddress
+
+from app.config import settings
+from app.helpers.geoip_helper import GeoIPHelper
+
+
+@lru_cache
 def get_geoip_helper() -> GeoIPHelper:
     """
     获取 GeoIP 帮助类实例
@@ -18,7 +22,7 @@ def get_geoip_helper() -> GeoIPHelper:
         license_key=settings.maxmind_license_key,
         editions=["City", "ASN"],
         max_age_days=8,
-        timeout=60.0
+        timeout=60.0,
     )
 
 

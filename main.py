@@ -37,13 +37,15 @@ if os.path.exists(newrelic_config_path):
 
         environment = os.environ.get(
             "NEW_RELIC_ENVIRONMENT",
-            "production" if not settings.debug else "development"
+            "production" if not settings.debug else "development",
         )
 
         newrelic.agent.initialize(newrelic_config_path, environment)
         logger.info(f"[NewRelic] Enabled, environment: {environment}")
     except ImportError:
-        logger.warning("[NewRelic] Config file found but 'newrelic' package is not installed")
+        logger.warning(
+            "[NewRelic] Config file found but 'newrelic' package is not installed"
+        )
     except Exception as e:
         logger.error(f"[NewRelic] Initialization failed: {e}")
 else:

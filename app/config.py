@@ -3,8 +3,16 @@ from __future__ import annotations
 from enum import Enum
 from typing import Annotated, Any
 
-from pydantic import AliasChoices, Field, HttpUrl, ValidationInfo, field_validator, BeforeValidator
+from pydantic import (
+    AliasChoices,
+    BeforeValidator,
+    Field,
+    HttpUrl,
+    ValidationInfo,
+    field_validator,
+)
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
 
 def _parse_list(v):
     if v is None or v == "" or str(v).strip() in ("[]", "{}"):
@@ -14,12 +22,14 @@ def _parse_list(v):
     s = str(v).strip()
     try:
         import json
+
         parsed = json.loads(s)
         if isinstance(parsed, list):
             return parsed
     except Exception:
         pass
     return [x.strip() for x in s.split(",") if x.strip()]
+
 
 class AWSS3StorageSettings(BaseSettings):
     s3_access_key_id: str
