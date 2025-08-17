@@ -12,6 +12,7 @@ from app.database import Relationship, RelationshipType, User
 from app.database.playlist_best_score import PlaylistBestScore
 from app.database.playlists import Playlist
 from app.database.room import Room
+from app.database.score import Score
 from app.dependencies.database import engine, get_redis
 from app.models.metadata_hub import (
     TOTAL_SCORE_DISTRIBUTION_BINS,
@@ -257,6 +258,9 @@ class MetadataHub(Hub[MetadataClientState]):
                             PlaylistBestScore.room_id == stats.room_id,
                             PlaylistBestScore.playlist_id == playlist_id,
                             PlaylistBestScore.score_id > last_processed_score_id,
+                            col(PlaylistBestScore.score).has(
+                                col(Score.passed).is_(True)
+                            ),
                         )
                     )
                 ).all()
