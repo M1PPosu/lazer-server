@@ -14,7 +14,7 @@ from .beatmapset import Beatmapset, BeatmapsetResp
 
 from redis.asyncio import Redis
 from sqlalchemy import Column, DateTime
-from sqlmodel import VARCHAR, Field, Relationship, SQLModel, col, func, select
+from sqlmodel import VARCHAR, Field, Relationship, SQLModel, col, exists, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 if TYPE_CHECKING:
@@ -80,8 +80,11 @@ class Beatmap(BeatmapBase, table=True):
                 "beatmap_status": BeatmapRankStatus(resp.ranked),
             }
         )
-        session.add(beatmap)
-        await session.commit()
+        if not (
+            await session.exec(select(exists()).where(Beatmap.id == resp.id))
+        ).first():
+            session.add(beatmap)
+            await session.commit()
         beatmap = (
             await session.exec(select(Beatmap).where(Beatmap.id == resp.id))
         ).first()
@@ -106,7 +109,10 @@ class Beatmap(BeatmapBase, table=True):
                     "beatmap_status": BeatmapRankStatus(resp.ranked),
                 }
             )
-            session.add(beatmap)
+            if not (
+                await session.exec(select(exists()).where(Beatmap.id == resp.id))
+            ).first():
+                session.add(beatmap)
             beatmaps.append(beatmap)
         await session.commit()
         return beatmaps
