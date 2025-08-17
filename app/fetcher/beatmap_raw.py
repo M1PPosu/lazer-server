@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from ._base import BaseFetcher
 
-from httpx import AsyncClient
+from httpx import AsyncClient, HTTPError
 from httpx._models import Response
 from loguru import logger
 import redis.asyncio as redis
@@ -22,12 +22,10 @@ class BeatmapRawFetcher(BaseFetcher):
                 f"<blue>[BeatmapRawFetcher]</blue> get_beatmap_raw: <y>{req_url}</y>"
             )
             resp = await self._request(req_url)
-            if resp.status_code == 429:
+            if resp.status_code >= 400:
                 continue
-            elif resp.status_code < 400:
-                return resp.text
-            else:
-                resp.raise_for_status()
+            return resp.text
+        raise HTTPError("Failed to fetch beatmap")
 
     async def _request(self, url: str) -> Response:
         async with AsyncClient() as client:
