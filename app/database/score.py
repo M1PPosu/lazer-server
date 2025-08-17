@@ -645,6 +645,11 @@ async def process_user(
                     mods=mod_for_save,
                 )
             )
+        elif previous_score_best is not None:
+            previous_score_best.total_score = score.total_score
+            previous_score_best.rank = score.rank
+            previous_score_best.mods = mod_for_save
+            previous_score_best.score_id = score.id
 
     statistics.play_count += 1
     mouthly_playcount.count += 1
