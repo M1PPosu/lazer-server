@@ -108,6 +108,21 @@ Fetcher 用于从 osu! 官方 API 获取数据，使用 osu! 官方 API 的 OAut
 |--------|------|--------|
 | `SENTRY_DSN` | Sentry DSN，为空不启用 Sentry | `(null)` |
 
+### GeoIP 配置
+| 变量名 | 描述 | 默认值 |
+|--------|------|--------|
+| `MAXMIND_LICENSE_KEY` | MaxMind License Key（用于 IP 地址地理位置查询） | `""` |
+| `GEOIP_DEST_DIR` | GeoIP 数据库存储目录 | `"./geoip"` |
+| `GEOIP_UPDATE_DAY` | GeoIP 每周更新的星期几（0=周一，6=周日） | `1` |
+| `GEOIP_UPDATE_HOUR` | GeoIP 每周更新时间（小时，0-23） | `2` |
+
+### New Relic 设置
+| 变量名 | 描述 | 默认值 |
+|--------|------|--------|
+| `NEW_RELIC_ENVIRONMENT` | New Relic 环境标识 | `"production"` 或 `"development"` |
+
+将 `newrelic.ini` 配置文件放入项目根目录即可自动启用 New Relic 监控。如果配置文件不存在或 newrelic 包未安装，将跳过 New Relic 初始化。可通过环境变量 `NEW_RELIC_ENVIRONMENT` 指定运行环境。
+
 ### 游戏设置
 | 变量名 | 描述 | 默认值 |
 |--------|------|--------|
