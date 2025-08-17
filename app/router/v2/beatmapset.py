@@ -6,11 +6,14 @@ from urllib.parse import parse_qs
 
 from app.database import Beatmap, Beatmapset, BeatmapsetResp, FavouriteBeatmapset, User
 from app.database.beatmapset import SearchBeatmapsetsResp
+from app.dependencies.beatmap_download import get_beatmap_download_service
 from app.dependencies.database import engine, get_db
 from app.dependencies.fetcher import get_fetcher
+from app.dependencies.geoip import get_client_ip, get_geoip_helper
 from app.dependencies.user import get_client_user, get_current_user
 from app.fetcher import Fetcher
 from app.models.beatmap import SearchQueryModel
+from app.service.beatmap_download_service import BeatmapDownloadService
 
 from .router import router
 
@@ -123,22 +126,43 @@ async def get_beatmapset(
     "/beatmapsets/{beatmapset_id}/download",
     tags=["谱面集"],
     name="下载谱面集",
-    description="**客户端专属**\n下载谱面集文件。若用户国家为 CN 则跳转国内镜像。",
+    description="**客户端专属**\n下载谱面集文件。基于请求IP地理位置智能分流，支持负载均衡和自动故障转移。中国IP使用Sayobot镜像，其他地区使用Nerinyan和OsuDirect镜像。",
 )
 async def download_beatmapset(
+    request: Request,
     beatmapset_id: int = Path(..., description="谱面集 ID"),
     no_video: bool = Query(True, alias="noVideo", description="是否下载无视频版本"),
     current_user: User = Security(get_client_user),
+    download_service: BeatmapDownloadService = Depends(get_beatmap_download_service),
 ):
-    if current_user.country_code == "CN":
-        return RedirectResponse(
-            f"https://txy1.sayobot.cn/beatmaps/download/"
-            f"{'novideo' if no_video else 'full'}/{beatmapset_id}?server=auto"
+    client_ip = get_client_ip(request)
+
+    geoip_helper = get_geoip_helper()
+    geo_info = geoip_helper.lookup(client_ip)
+    country_code = geo_info.get("country_iso", "")
+
+    # 优先使用IP地理位置判断，如果获取失败则回退到用户账户的国家代码
+    is_china = country_code == "CN" or (
+        not country_code and current_user.country_code == "CN"
+    )
+
+    try:
+        # 使用负载均衡服务获取下载URL
+        download_url = download_service.get_download_url(
+            beatmapset_id=beatmapset_id, no_video=no_video, is_china=is_china
         )
-    else:
-        return RedirectResponse(
-            f"https://api.nerinyan.moe/d/{beatmapset_id}?noVideo={no_video}"
-        )
+        return RedirectResponse(download_url)
+    except HTTPException:
+        # 如果负载均衡服务失败，回退到原有逻辑
+        if is_china:
+            return RedirectResponse(
+                f"https://dl.sayobot.cn/beatmaps/download/"
+                f"{'novideo' if no_video else 'full'}/{beatmapset_id}"
+            )
+        else:
+            return RedirectResponse(
+                f"https://api.nerinyan.moe/d/{beatmapset_id}?noVideo={no_video}"
+            )
 
 
 @router.post(
@@ -178,3 +202,17 @@ async def favourite_beatmapset(
     else:
         await db.delete(existing_favourite)
     await db.commit()
+
+
+@router.get(
+    "/beatmapsets/download-status",
+    tags=["谱面集"],
+    name="下载服务状态",
+    description="获取谱面下载服务的健康状态和负载均衡信息。",
+)
+async def get_download_service_status(
+    current_user: User = Security(get_current_user, scopes=["public"]),
+    download_service: BeatmapDownloadService = Depends(get_beatmap_download_service),
+):
+    """获取下载服务状态"""
+    return download_service.get_service_status()

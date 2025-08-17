@@ -21,6 +21,7 @@ from app.router import (
     signalr_router,
 )
 from app.router.redirect import redirect_router
+from app.service.beatmap_download_service import download_service
 from app.service.calculate_all_user_rank import calculate_user_rank
 from app.service.create_banchobot import create_banchobot
 from app.service.daily_challenge import daily_challenge_job
@@ -72,9 +73,11 @@ async def lifespan(app: FastAPI):
     schedule_geoip_updates()  # 调度 GeoIP 定时更新任务
     await daily_challenge_job()
     await create_banchobot()
+    await download_service.start_health_check()  # 启动下载服务健康检查
     # on shutdown
     yield
     stop_scheduler()
+    await download_service.stop_health_check()  # 停止下载服务健康检查
     await engine.dispose()
     await redis_client.aclose()
 
