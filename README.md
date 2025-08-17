@@ -111,7 +111,7 @@ Fetcher 用于从 osu! 官方 API 获取数据，使用 osu! 官方 API 的 OAut
 ### GeoIP 配置
 | 变量名 | 描述 | 默认值 |
 |--------|------|--------|
-| `MAXMIND_LICENSE_KEY` | MaxMind License Key（用于 IP 地址地理位置查询） | `""` |
+| `MAXMIND_LICENSE_KEY` | MaxMind License Key（用于下载离线IP库） | `""` |
 | `GEOIP_DEST_DIR` | GeoIP 数据库存储目录 | `"./geoip"` |
 | `GEOIP_UPDATE_DAY` | GeoIP 每周更新的星期几（0=周一，6=周日） | `1` |
 | `GEOIP_UPDATE_HOUR` | GeoIP 每周更新时间（小时，0-23） | `2` |
