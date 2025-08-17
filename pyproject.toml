@@ -1,7 +1,7 @@
 [project]
-name = "osu-lazer-api"
+name = "g0v0-server"
 version = "0.1.0"
-description = "Add your description here"
+description = "3rd-party osu!lazer server which supports the latest osu!lazer."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -30,6 +30,7 @@ dependencies = [
     "sqlmodel>=0.0.24",
     "uvicorn[standard]>=0.24.0",
 ]
+authors = ["GooGuTeam"]
 
 [tool.ruff]
 line-length = 88

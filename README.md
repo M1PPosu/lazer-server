@@ -1,6 +1,8 @@
-# osu! API 模拟服务器
+# g0v0-server
 
-这是一个使用 FastAPI + MySQL + Redis 实现的 osu! API 模拟服务器，提供了完整的用户认证和数据管理功能。
+[English](./README.en.md) | 简体中文
+
+这是一个使用 FastAPI + MySQL + Redis 实现的 osu! API 模拟服务器，支持 osu! API v1, v2 和 osu!lazer 的绝大部分功能。
 
 ## 功能特性
 
@@ -18,8 +20,8 @@
 
 1. 克隆项目
 ```bash
-git clone https://github.com/GooGuTeam/osu_lazer_api.git
-cd osu_lazer_api
+git clone https://github.com/GooGuTeam/g0v0-server.git
+cd g0v0-server
 ```
 
 2. 创建 `.env` 文件
@@ -168,7 +170,7 @@ STORAGE_SETTINGS='{
 
 ### 更新数据库
 
-参考[数据库迁移指南](./MIGRATE_GUIDE.md)
+参考[数据库迁移指南](https://github.com/GooGuTeam/g0v0-server/wiki/Migrate-Database)
 
 ## 许可证
 
@@ -176,4 +178,9 @@ MIT License
 
 ## 贡献
 
-欢迎提交 Issue 和 Pull Request！
+项目目前处于快速迭代状态，欢迎提交 Issue 和 Pull Request！
+
+## 参与讨论
+
+- QQ 群：`1059561526`
+- Discord: https://discord.gg/AhzJXXWYfF

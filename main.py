@@ -66,8 +66,8 @@ if settings.sentry_dsn is not None:
     )
 
 app = FastAPI(
-    title="osu! API 模拟服务器",
-    version="1.0.0",
+    title="g0v0-server",
+    version="0.1.0",
     lifespan=lifespan,
     description=desc,
 )
