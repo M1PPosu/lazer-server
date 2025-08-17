@@ -24,6 +24,8 @@ from app.router.redirect import redirect_router
 from app.service.calculate_all_user_rank import calculate_user_rank
 from app.service.create_banchobot import create_banchobot
 from app.service.daily_challenge import daily_challenge_job
+from app.service.geoip_scheduler import schedule_geoip_updates
+from app.service.init_geoip import init_geoip
 from app.service.osu_rx_statistics import create_rx_statistics
 from app.service.recalculate import recalculate
 
@@ -38,11 +40,13 @@ import sentry_sdk
 async def lifespan(app: FastAPI):
     # on startup
     await get_fetcher()  # 初始化 fetcher
+    await init_geoip()  # 初始化 GeoIP 数据库
     if os.environ.get("RECALCULATE", "false").lower() == "true":
         await recalculate()
     await create_rx_statistics()
     await calculate_user_rank(True)
     init_scheduler()
+    schedule_geoip_updates()  # 调度 GeoIP 定时更新任务
     await daily_challenge_job()
     await create_banchobot()
     # on shutdown
