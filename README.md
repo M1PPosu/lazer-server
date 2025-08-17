@@ -119,6 +119,7 @@ Fetcher 用于从 osu! 官方 API 获取数据，使用 osu! 官方 API 的 OAut
 | `ENABLE_ALL_BEATMAP_PP` | 允许任何谱面获得 PP | `false` |
 | `SUSPICIOUS_SCORE_CHECK` | 启用可疑分数检查（star>25&acc<80 或 pp>2300） | `true` |
 | `SEASONAL_BACKGROUNDS` | 季节背景图 URL 列表 | `[]` |
+| `BANNED_NAME` | 禁止使用的用户名列表 | `["mrekk", "vaxei", "btmc", "cookiezi", "peppy", "saragi", "chocomint"]` |
 
 ### 存储服务设置
 

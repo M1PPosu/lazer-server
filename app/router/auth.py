@@ -12,6 +12,7 @@ from app.auth import (
     get_token_by_refresh_token,
     get_user_by_authorization_code,
     store_token,
+    validate_username,
 )
 from app.config import settings
 from app.const import BANCHOBOT_ID
@@ -44,33 +45,6 @@ def create_oauth_error_response(
         error=error, error_description=description, hint=hint, message=description
     )
     return JSONResponse(status_code=status_code, content=error_data.model_dump())
-
-
-def validate_username(username: str) -> list[str]:
-    """验证用户名"""
-    errors = []
-
-    if not username:
-        errors.append("Username is required")
-        return errors
-
-    if len(username) < 3:
-        errors.append("Username must be at least 3 characters long")
-
-    if len(username) > 15:
-        errors.append("Username must be at most 15 characters long")
-
-    # 检查用户名格式（只允许字母、数字、下划线、连字符）
-    if not re.match(r"^[a-zA-Z0-9_-]+$", username):
-        errors.append(
-            "Username can only contain letters, numbers, underscores, and hyphens"
-        )
-
-    # 检查是否以数字开头
-    if username[0].isdigit():
-        errors.append("Username cannot start with a number")
-
-    return errors
 
 
 def validate_email(email: str) -> list[str]:

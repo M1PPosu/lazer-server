@@ -115,6 +115,7 @@ The Fetcher is used to get data from the official osu! API using OAuth 2.0 authe
 | `ENABLE_ALL_BEATMAP_PP` | Allow any beatmap to grant PP | `false` |
 | `SUSPICIOUS_SCORE_CHECK` | Enable suspicious score check (star>25 & acc<80 or pp>2300) | `true` |
 | `SEASONAL_BACKGROUNDS` | List of seasonal background URLs | `[]` |
+| `BANNED_NAME` | List of banned usernames | `["mrekk", "vaxei", "btmc", "cookiezi", "peppy", "saragi", "chocomint"]` |
 
 ### Storage Service Settings
 

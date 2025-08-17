@@ -109,6 +109,15 @@ class Settings(BaseSettings):
     enable_all_beatmap_pp: bool = False
     suspicious_score_check: bool = True
     seasonal_backgrounds: list[str] = []
+    banned_name: list[str] = [
+        "mrekk",
+        "vaxei",
+        "btmc",
+        "cookiezi",
+        "peppy",
+        "saragi",
+        "chocomint",
+    ]
 
     # 存储设置
     storage_service: StorageServiceType = StorageServiceType.LOCAL

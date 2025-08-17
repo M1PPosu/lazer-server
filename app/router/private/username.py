@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from app.auth import validate_username
 from app.config import settings
 from app.database.events import Event, EventType
 from app.database.lazer_user import User
@@ -41,6 +42,9 @@ async def user_rename(
     ).first()
     if samename_user:
         raise HTTPException(409, "Username Exisits")
+    errors = validate_username(new_name)
+    if errors:
+        raise HTTPException(403, "\n".join(errors))
     previous_username = []
     previous_username.extend(current_user.previous_usernames)
     previous_username.append(current_user.username)
