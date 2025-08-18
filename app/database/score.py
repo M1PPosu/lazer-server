@@ -15,13 +15,14 @@ from app.calculator import (
 from app.config import settings
 from app.database.events import Event, EventType
 from app.database.team import TeamMember
+from app.dependencies.database import get_redis
 from app.models.model import (
     CurrentUserAttributes,
     PinAttributes,
     RespWithCursor,
     UTCBaseModel,
 )
-from app.models.mods import APIMod, mod_to_save, mods_can_get_pp
+from app.models.mods import APIMod, get_speed_rate, mod_to_save, mods_can_get_pp
 from app.models.score import (
     GameMode,
     HitResult,
@@ -393,7 +394,7 @@ async def get_score_position_by_user(
     subq = select(BestScore, rownum).join(Beatmap).where(*wheres).subquery()
     stmt = select(subq.c.row_number).where(subq.c.user_id == user.id)
     result = await session.exec(stmt)
-    s = result.one_or_none()
+    s = result.first()
     return s if s else 0
 
 
@@ -457,7 +458,10 @@ async def get_user_best_score_with_mod_in_beatmap(
                 BestScore.gamemode == mode if mode is not None else True,
                 BestScore.beatmap_id == beatmap,
                 BestScore.user_id == user,
-                BestScore.mods == mod,
+                text(
+                    "JSON_CONTAINS(total_score_best_scores.mods, :w)"
+                    " AND JSON_CONTAINS(:w, total_score_best_scores.mods)"
+                ).params(w=json.dumps(mod)),
             )
             .order_by(col(BestScore.total_score).desc())
         )
@@ -497,11 +501,46 @@ async def get_user_best_pp(
     ).all()
 
 
+# https://github.com/ppy/osu-queue-score-statistics/blob/master/osu.Server.Queues.ScoreStatisticsProcessor/Helpers/PlayValidityHelper.cs
+def get_play_length(score: Score, beatmap_length: int):
+    speed_rate = get_speed_rate(score.mods)
+    length = beatmap_length / speed_rate
+    return int(min(length, (score.ended_at - score.started_at).total_seconds()))
+
+
+def calculate_playtime(score: Score, beatmap_length: int) -> tuple[int, bool]:
+    total_length = get_play_length(score, beatmap_length)
+    total_obj_hited = (
+        score.n300
+        + score.n100
+        + score.n50
+        + score.ngeki
+        + score.nkatu
+        + (score.nlarge_tick_hit or 0)
+        + (score.nlarge_tick_miss or 0)
+        + (score.nslider_tail_hit or 0)
+        + (score.nsmall_tick_hit or 0)
+    )
+    total_obj = 0
+    for statistics, count in score.maximum_statistics.items():
+        if not isinstance(statistics, HitResult):
+            statistics = HitResult(statistics)
+        if statistics.is_scorable():
+            total_obj += count
+
+    return total_length, score.passed or (
+        total_length > 8
+        and score.total_score >= 5000
+        and total_obj_hited >= min(0.1 * total_obj, 20)
+    )
+
+
 async def process_user(
     session: AsyncSession,
     user: User,
     score: Score,
-    length: int,
+    score_token: int,
+    beatmap_length: int,
     ranked: bool = False,
     has_leaderboard: bool = False,
 ):
@@ -644,7 +683,7 @@ async def process_user(
                     mods=mod_for_save,
                 )
             )
-        elif previous_score_best is not None:
+        if previous_score_best is not None:
             previous_score_best.total_score = score.total_score
             previous_score_best.rank = score.rank
             previous_score_best.mods = mod_for_save
@@ -652,7 +691,11 @@ async def process_user(
 
     statistics.play_count += 1
     mouthly_playcount.count += 1
-    statistics.play_time += length
+    playtime, is_valid = calculate_playtime(score, beatmap_length)
+    if is_valid:
+        redis = get_redis()
+        await redis.xadd(f"score:existed_time:{score_token}", {"time": playtime})
+        statistics.play_time += playtime
     statistics.count_100 += score.n100 + score.nkatu
     statistics.count_300 += score.n300 + score.ngeki
     statistics.count_50 += score.n50
@@ -662,18 +705,19 @@ async def process_user(
     )
 
     if score.passed and ranked:
-        best_pp_scores = await get_user_best_pp(session, user.id, score.gamemode)
-        pp_sum = 0.0
-        acc_sum = 0.0
-        for i, bp in enumerate(best_pp_scores):
-            pp_sum += calculate_weighted_pp(bp.pp, i)
-            acc_sum += calculate_weighted_acc(bp.acc, i)
-        if len(best_pp_scores):
-            # https://github.com/ppy/osu-queue-score-statistics/blob/c538ae/osu.Server.Queues.ScoreStatisticsProcessor/Helpers/UserTotalPerformanceAggregateHelper.cs#L41-L45
-            acc_sum *= 100 / (20 * (1 - math.pow(0.95, len(best_pp_scores))))
-        acc_sum = clamp(acc_sum, 0.0, 100.0)
-        statistics.pp = pp_sum
-        statistics.hit_accuracy = acc_sum
+        with session.no_autoflush:
+            best_pp_scores = await get_user_best_pp(session, user.id, score.gamemode)
+            pp_sum = 0.0
+            acc_sum = 0.0
+            for i, bp in enumerate(best_pp_scores):
+                pp_sum += calculate_weighted_pp(bp.pp, i)
+                acc_sum += calculate_weighted_acc(bp.acc, i)
+            if len(best_pp_scores):
+                # https://github.com/ppy/osu-queue-score-statistics/blob/c538ae/osu.Server.Queues.ScoreStatisticsProcessor/Helpers/UserTotalPerformanceAggregateHelper.cs#L41-L45
+                acc_sum *= 100 / (20 * (1 - math.pow(0.95, len(best_pp_scores))))
+            acc_sum = clamp(acc_sum, 0.0, 100.0)
+            statistics.pp = pp_sum
+            statistics.hit_accuracy = acc_sum
     if add_to_db:
         session.add(mouthly_playcount)
     await process_beatmap_playcount(session, user.id, score.beatmap_id)

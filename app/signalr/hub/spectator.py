@@ -8,16 +8,19 @@ import time
 from typing import override
 from venv import logger
 
+from app.calculator import clamp
 from app.config import settings
 from app.database import Beatmap, User
+from app.database.failtime import FailTime, FailTimeResp
 from app.database.score import Score
 from app.database.score_token import ScoreToken
-from app.dependencies.database import engine
+from app.database.statistics import UserStatistics
+from app.dependencies.database import engine, get_redis
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.storage import get_storage_service
 from app.exception import InvokeException
-from app.models.mods import mods_to_int
-from app.models.score import LegacyReplaySoloScoreInfo, ScoreStatistics
+from app.models.mods import APIMod, mods_to_int
+from app.models.score import GameMode, LegacyReplaySoloScoreInfo, ScoreStatistics
 from app.models.spectator_hub import (
     APIUser,
     FrameDataBundle,
@@ -164,7 +167,7 @@ class SpectatorHub(Hub[StoreClientState]):
     @override
     async def _clean_state(self, state: StoreClientState) -> None:
         if state.state:
-            await self._end_session(int(state.connection_id), state.state)
+            await self._end_session(int(state.connection_id), state.state, state)
         for target in self.waited_clients:
             target_client = self.get_client_by_id(target)
             if target_client:
@@ -254,20 +257,22 @@ class SpectatorHub(Hub[StoreClientState]):
             or store.score_token is None
             or store.beatmap_status is None
             or store.state is None
+            or store.score is None
         ):
             return
+
         if (
             settings.enable_all_beatmap_leaderboard
             and store.beatmap_status.has_leaderboard()
         ) and any(k.is_hit() and v > 0 for k, v in score.score_info.statistics.items()):
             await self._process_score(store, client)
+        await self._end_session(user_id, state, store)
         store.state = None
         store.beatmap_status = None
         store.checksum = None
         store.ruleset_id = None
         store.score_token = None
         store.score = None
-        await self._end_session(user_id, state)
 
     async def _process_score(self, store: StoreClientState, client: Client) -> None:
         user_id = int(client.connection_id)
@@ -319,9 +324,80 @@ class SpectatorHub(Hub[StoreClientState]):
                     frames=store.score.replay_frames,
                 )
 
-    async def _end_session(self, user_id: int, state: SpectatorState) -> None:
+    async def _end_session(
+        self, user_id: int, state: SpectatorState, store: StoreClientState
+    ) -> None:
+        async def _add_failtime():
+            async with AsyncSession(engine) as session:
+                failtime = await session.get(FailTime, state.beatmap_id)
+                total_length = (
+                    await session.exec(
+                        select(Beatmap.total_length).where(
+                            Beatmap.id == state.beatmap_id
+                        )
+                    )
+                ).one()
+                index = clamp(round((exit_time / total_length) * 100), 0, 99)
+                if failtime is not None:
+                    resp = FailTimeResp.from_db(failtime)
+                else:
+                    resp = FailTimeResp()
+                if state.state == SpectatedUserState.Failed:
+                    resp.fail[index] += 1
+                elif state.state == SpectatedUserState.Quit:
+                    resp.exit[index] += 1
+
+                new_failtime = FailTime.from_resp(state.beatmap_id, resp)  # pyright: ignore[reportArgumentType]
+                if failtime is not None:
+                    await session.merge(new_failtime)
+                else:
+                    session.add(new_failtime)
+                await session.commit()
+
+        async def _edit_playtime(token: int, ruleset_id: int, mods: list[APIMod]):
+            redis = get_redis()
+            key = f"score:existed_time:{token}"
+            messages = await redis.xrange(key, min="-", max="+", count=1)
+            if not messages:
+                return
+            before_time = int(messages[0][1]["time"])
+            await redis.delete(key)
+            async with AsyncSession(engine) as session:
+                gamemode = GameMode.from_int(ruleset_id).to_special_mode(mods)
+                statistics = (
+                    await session.exec(
+                        select(UserStatistics).where(
+                            UserStatistics.user_id == user_id,
+                            UserStatistics.mode == gamemode,
+                        )
+                    )
+                ).first()
+                if statistics is None:
+                    return
+                statistics.play_time -= before_time
+                statistics.play_time += round(min(before_time, exit_time))
+
         if state.state == SpectatedUserState.Playing:
             state.state = SpectatedUserState.Quit
+        exit_time = max(frame.time for frame in store.score.replay_frames) // 1000  # pyright: ignore[reportOptionalMemberAccess]
+
+        task = asyncio.create_task(
+            _edit_playtime(
+                store.score_token,  # pyright: ignore[reportArgumentType]
+                store.ruleset_id,  # pyright: ignore[reportArgumentType]
+                store.score.score_info.mods,  # pyright: ignore[reportOptionalMemberAccess]
+            )
+        )
+        self.tasks.add(task)
+        task.add_done_callback(self.tasks.discard)
+        if (
+            state.state == SpectatedUserState.Failed
+            or state.state == SpectatedUserState.Quit
+        ):
+            task = asyncio.create_task(_add_failtime())
+            self.tasks.add(task)
+            task.add_done_callback(self.tasks.discard)
+
         logger.info(
             f"[SpectatorHub] {user_id} finished playing {state.beatmap_id} "
             f"with {state.state}"

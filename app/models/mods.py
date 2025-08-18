@@ -207,3 +207,11 @@ def mod_to_save(mods: list[APIMod]) -> list[str]:
     s = list({mod["acronym"] for mod in mods})
     s.sort()
     return s
+
+
+def get_speed_rate(mods: list[APIMod]):
+    rate = 1.0
+    for mod in mods:
+        if mod["acronym"] in {"DT", "NC", "HT", "DC"}:
+            rate *= mod.get("settings", {}).get("speed_change", 1.0)  # pyright: ignore[reportOperatorIssue]
+    return rate
