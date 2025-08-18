@@ -2,6 +2,7 @@ from datetime import UTC, datetime, timedelta
 import json
 from typing import TYPE_CHECKING, NotRequired, TypedDict
 
+from app.database.pp_best_score import PPBestScore
 from app.models.model import UTCBaseModel
 from app.models.score import GameMode
 from app.models.user import Country, Page
@@ -428,10 +429,10 @@ class UserResp(UserBase):
         u.scores_best_count = (
             await session.exec(
                 select(func.count())
-                .select_from(BestScore)
+                .select_from(PPBestScore)
                 .where(
-                    BestScore.user_id == obj.id,
-                    BestScore.gamemode == ruleset,
+                    PPBestScore.user_id == obj.id,
+                    PPBestScore.gamemode == ruleset,
                 )
                 .limit(200)
             )
