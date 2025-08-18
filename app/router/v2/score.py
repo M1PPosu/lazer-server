@@ -50,7 +50,17 @@ from app.storage.local import LocalStorageService
 
 from .router import router
 
-from fastapi import Body, Depends, Form, HTTPException, Path, Query, Request, Security
+from fastapi import (
+    BackgroundTasks,
+    Body,
+    Depends,
+    Form,
+    HTTPException,
+    Path,
+    Query,
+    Request,
+    Security,
+)
 from fastapi.responses import FileResponse, RedirectResponse
 from httpx import HTTPError
 from pydantic import BaseModel
@@ -99,6 +109,7 @@ async def submit_score(
         # 智能预取beatmap缓存（异步进行，不阻塞主流程）
         try:
             from app.service.beatmap_cache_service import get_beatmap_cache_service
+
             cache_service = get_beatmap_cache_service(redis, fetcher)
             await cache_service.smart_preload_for_score(beatmap)
         except Exception as e:
@@ -165,6 +176,34 @@ async def submit_score(
         db.add(rank_event)
         await db.commit()
     return resp
+
+
+async def _preload_beatmap_for_pp_calculation(beatmap_id: int) -> None:
+    """
+    预缓存beatmap文件以加速PP计算
+    当玩家开始游玩时异步预加载beatmap原始文件到Redis缓存
+    """
+    # 检查是否启用了beatmap预加载功能
+    if not settings.enable_beatmap_preload:
+        return
+
+    try:
+        # 异步获取fetcher和redis连接
+        fetcher = await get_fetcher()
+        redis = get_redis()
+
+        # 检查是否已经缓存，避免重复下载
+        cache_key = f"beatmap:raw:{beatmap_id}"
+        if await redis.exists(cache_key):
+            logger.debug(f"Beatmap {beatmap_id} already cached, skipping preload")
+            return
+
+        await fetcher.get_or_fetch_beatmap_raw(redis, beatmap_id)
+        logger.debug(f"Successfully preloaded beatmap {beatmap_id} for PP calculation")
+
+    except Exception as e:
+        # 预缓存失败不应该影响正常游戏流程
+        logger.warning(f"Failed to preload beatmap {beatmap_id}: {e}")
 
 
 class BeatmapScores(BaseModel):
@@ -311,6 +350,7 @@ async def get_user_all_beatmap_scores(
     description="**客户端专属**\n为指定谱面创建一次性的成绩提交令牌。",
 )
 async def create_solo_score(
+    background_task: BackgroundTasks,
     beatmap_id: int = Path(description="谱面 ID"),
     version_hash: str = Form("", description="游戏版本哈希"),
     beatmap_hash: str = Form(description="谱面文件哈希"),
@@ -319,6 +359,7 @@ async def create_solo_score(
     db: AsyncSession = Depends(get_db),
 ):
     assert current_user.id is not None
+    background_task.add_task(_preload_beatmap_for_pp_calculation, beatmap_id)
     async with db:
         score_token = ScoreToken(
             user_id=current_user.id,
@@ -360,6 +401,7 @@ async def submit_solo_score(
     description="**客户端专属**\n为房间游玩项目创建成绩提交令牌。",
 )
 async def create_playlist_score(
+    background_task: BackgroundTasks,
     room_id: int,
     playlist_id: int,
     beatmap_id: int = Form(description="谱面 ID"),
@@ -415,7 +457,7 @@ async def create_playlist_score(
             status_code=400, detail="Playlist item has already been played"
         )
     # 这里应该不用验证mod了吧。。。
-
+    background_task.add_task(_preload_beatmap_for_pp_calculation, beatmap_id)
     score_token = ScoreToken(
         user_id=current_user.id,
         beatmap_id=beatmap_id,
