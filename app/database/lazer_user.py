@@ -2,7 +2,6 @@ from datetime import UTC, datetime, timedelta
 import json
 from typing import TYPE_CHECKING, NotRequired, TypedDict
 
-from app.database.pp_best_score import PPBestScore
 from app.models.model import UTCBaseModel
 from app.models.score import GameMode
 from app.models.user import Country, Page
@@ -265,6 +264,7 @@ class UserResp(UserBase):
 
         from .best_score import BestScore
         from .favourite_beatmapset import FavouriteBeatmapset
+        from .pp_best_score import PPBestScore
         from .relationship import Relationship, RelationshipResp, RelationshipType
         from .score import Score
 

@@ -314,7 +314,7 @@ async def _score_where(
                 text(
                     "JSON_CONTAINS(total_score_best_scores.mods, :w)"
                     " AND JSON_CONTAINS(:w, total_score_best_scores.mods)"
-                )  # pyright: ignore[reportArgumentType]
+                ).params(w=json.dumps(mods))  # pyright: ignore[reportArgumentType]
             )
         else:
             return None
@@ -346,8 +346,6 @@ async def get_leaderboard(
             .limit(limit)
             .order_by(col(BestScore.total_score).desc())
         )
-        if mods:
-            query = query.params(w=json.dumps(mods))
         extra_need = 0
         for s in await session.exec(query):
             if s.user_id in scores:
