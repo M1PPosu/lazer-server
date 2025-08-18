@@ -22,7 +22,7 @@ from app.models.multiplayer_hub import (
     ServerMultiplayerRoom,
     StartMatchCountdownRequest,
 )
-from app.models.room import MatchType, QueueMode
+from app.models.room import MatchType, QueueMode, RoomStatus
 from app.models.score import GameMode
 from app.signalr.hub import MultiplayerHubs
 from app.signalr.hub.hub import Client
@@ -187,14 +187,14 @@ def _roll(
 async def _stats(
     user: User, args: list[str], session: AsyncSession, channel: ChatChannel
 ) -> str:
-    if len(args) < 1:
-        return "Usage: !stats <username> [gamemode]"
-
-    target_user = (
-        await session.exec(select(User).where(User.username == args[0]))
-    ).first()
-    if not target_user:
-        return f"User '{args[0]}' not found."
+    if len(args) >= 1:
+        target_user = (
+            await session.exec(select(User).where(User.username == args[0]))
+        ).first()
+        if not target_user:
+            return f"User '{args[0]}' not found."
+    else:
+        target_user = user
 
     gamemode = None
     if len(args) >= 2:
@@ -368,6 +368,11 @@ async def _mp_team(
     user_client = MultiplayerHubs.get_client_by_id(str(user_id))
     if not user_client:
         return f"User '{username}' is not in the room."
+    if (
+        user_client.user_id != signalr_client.user_id
+        and room.room.host.user_id != signalr_client.user_id
+    ):
+        return "You are not allowed to change other users' teams."
 
     try:
         await MultiplayerHubs.SendMatchRequest(
@@ -429,6 +434,9 @@ async def _mp_map(
     if len(args) < 1:
         return "Usage: !mp map <mapid> [<playmode>]"
 
+    if room.status != RoomStatus.IDLE:
+        return "Cannot change map while the game is running."
+
     map_id = args[0]
     if not map_id.isdigit():
         return "Invalid map ID."
@@ -485,15 +493,19 @@ async def _mp_mods(
     if len(args) < 1:
         return "Usage: !mp mods <mod1> [<mod2> ...]"
 
+    if room.status != RoomStatus.IDLE:
+        return "Cannot change mods while the game is running."
+
     required_mods = []
     allowed_mods = []
     freestyle = False
     for arg in args:
-        if arg == "None":
+        arg = arg.upper()
+        if arg == "NONE":
             required_mods.clear()
             allowed_mods.clear()
             break
-        elif arg == "Freestyle":
+        elif arg == "FREESTYLE":
             freestyle = True
         elif arg.startswith("+"):
             mod = arg.removeprefix("+")
