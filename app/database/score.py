@@ -681,14 +681,9 @@ async def process_user(
                     }
                     session.add(rank_lost_event)
     if score.passed and has_leaderboard:
-        if previous_score_best_mod is not None:
-            previous_score_best_mod.mods = mod_for_save
-            previous_score_best_mod.score_id = score.id
-            previous_score_best_mod.rank = score.rank
-            previous_score_best_mod.total_score = score.total_score
-        elif (
-            previous_score_best is not None and previous_score_best.score_id != score.id
-        ) or previous_score_best is None:
+        # 情况1: 没有最佳分数记录，直接添加
+        # 情况2: 有最佳分数记录但没有该mod组合的记录，添加新记录
+        if previous_score_best is None or previous_score_best_mod is None:
             session.add(
                 BestScore(
                     user_id=user.id,
@@ -700,11 +695,29 @@ async def process_user(
                     mods=mod_for_save,
                 )
             )
-        if previous_score_best is not None:
+
+        # 情况3: 有最佳分数记录和该mod组合的记录，且是同一个记录，更新得分更高的情况
+        elif (
+            previous_score_best.score_id == previous_score_best_mod.score_id
+            and difference > 0
+        ):
             previous_score_best.total_score = score.total_score
             previous_score_best.rank = score.rank
-            previous_score_best.mods = mod_for_save
             previous_score_best.score_id = score.id
+
+        # 情况4: 有最佳分数记录和该mod组合的记录，但不是同一个记录
+        elif previous_score_best.score_id != previous_score_best_mod.score_id:
+            # 更新全局最佳记录（如果新分数更高）
+            if difference > 0:
+                # 下方的 if 一定会触发。将高分设置为此分数，删除自己防止重复的 score_id
+                await session.delete(previous_score_best)
+
+            # 更新mod特定最佳记录（如果新分数更高）
+            mod_diff = score.total_score - previous_score_best_mod.total_score
+            if mod_diff > 0:
+                previous_score_best_mod.total_score = score.total_score
+                previous_score_best_mod.rank = score.rank
+                previous_score_best_mod.score_id = score.id
 
     statistics.play_count += 1
     mouthly_playcount.count += 1
@@ -791,6 +804,7 @@ async def process_score(
     )
     if can_get_pp:
         from app.calculator import pre_fetch_and_calculate_pp
+
         pp = await pre_fetch_and_calculate_pp(
             score, beatmap_id, session, redis, fetcher
         )
