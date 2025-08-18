@@ -1,9 +1,11 @@
 from datetime import UTC, datetime, timedelta
+import json
 from typing import TYPE_CHECKING, NotRequired, TypedDict
 
 from app.models.model import UTCBaseModel
 from app.models.score import GameMode
 from app.models.user import Country, Page
+from app.path import STATIC_DIR
 
 from .achievement import UserAchievement, UserAchievementResp
 from .beatmap_playcounts import BeatmapPlaycounts
@@ -61,6 +63,8 @@ Badge = TypedDict(
         "url": str,
     },
 )
+
+COUNTRIES = json.loads((STATIC_DIR / "iso3166.json").read_text())
 
 
 class UserBase(UTCBaseModel, SQLModel):
@@ -267,6 +271,9 @@ class UserResp(UserBase):
 
         u = cls.model_validate(obj.model_dump())
         u.id = obj.id
+        u.country = Country(
+            code=obj.country_code, name=COUNTRIES.get(obj.country_code, "Unknown")
+        )
         u.follower_count = (
             await session.exec(
                 select(func.count())
