@@ -558,7 +558,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 if (
                     ruleset_id is not None
                     and user_beatmap.mode != GameMode.OSU
-                    and ruleset_id != user_beatmap.mode
+                    and ruleset_id != int(user_beatmap.mode)
                 ):
                     raise InvokeException(
                         "Selected ruleset is not supported for the given beatmap."
