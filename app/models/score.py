@@ -159,6 +159,13 @@ class HitResult(str, Enum):
             HitResult.MISS,
         )
 
+    def is_scorable(self) -> bool:
+        return self not in (
+            HitResult.NONE,
+            HitResult.IGNORE_HIT,
+            HitResult.IGNORE_MISS,
+        )
+
 
 class LeaderboardType(Enum):
     GLOBAL = "global"

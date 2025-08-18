@@ -14,7 +14,7 @@ from app.config import settings
 from app.database import BestScore, UserStatistics
 from app.database.beatmap import Beatmap
 from app.database.pp_best_score import PPBestScore
-from app.database.score import Score, get_user_best_pp
+from app.database.score import Score, calculate_playtime, get_user_best_pp
 from app.dependencies.database import engine, get_redis
 from app.dependencies.fetcher import get_fetcher
 from app.fetcher import Fetcher
@@ -245,7 +245,9 @@ async def _recalculate_statistics(statistics: UserStatistics, session: AsyncSess
 
         statistics.play_count += 1
         statistics.total_score += score.total_score
-        statistics.play_time += beatmap.hit_length
+        playtime, is_valid = calculate_playtime(score, beatmap.hit_length)
+        if is_valid:
+            statistics.play_time += playtime
         statistics.count_300 += score.n300 + score.ngeki
         statistics.count_100 += score.n100 + score.nkatu
         statistics.count_50 += score.n50

@@ -121,7 +121,13 @@ async def submit_score(
         score_id = score.id
         score_token.score_id = score_id
         await process_user(
-            db, current_user, score, beatmap_length, has_pp, has_leaderboard
+            db,
+            current_user,
+            score,
+            token,
+            beatmap_length,
+            has_pp,
+            has_leaderboard,
         )
         score = (await db.exec(select(Score).where(Score.id == score_id))).first()
         assert score is not None

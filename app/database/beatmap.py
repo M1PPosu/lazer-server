@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from app.calculator import calculate_beatmap_attribute
 from app.config import settings
+from app.database.failtime import FailTime, FailTimeResp
 from app.models.beatmap import BeatmapAttributes, BeatmapRankStatus
 from app.models.mods import APIMod
 from app.models.score import GameMode
@@ -66,6 +67,9 @@ class Beatmap(BeatmapBase, table=True):
     # optional
     beatmapset: Beatmapset = Relationship(
         back_populates="beatmaps", sa_relationship_kwargs={"lazy": "joined"}
+    )
+    failtimes: FailTime | None = Relationship(
+        back_populates="beatmap", sa_relationship_kwargs={"lazy": "joined"}
     )
 
     @classmethod
@@ -156,6 +160,7 @@ class BeatmapResp(BeatmapBase):
     url: str = ""
     playcount: int = 0
     passcount: int = 0
+    failtimes: FailTimeResp | None = None
 
     @classmethod
     async def from_db(
@@ -187,6 +192,10 @@ class BeatmapResp(BeatmapBase):
             beatmap_["beatmapset"] = await BeatmapsetResp.from_db(
                 beatmap.beatmapset, session=session, user=user
             )
+        if beatmap.failtimes is not None:
+            beatmap_["failtimes"] = FailTimeResp.from_db(beatmap.failtimes)
+        else:
+            beatmap_["failtimes"] = FailTimeResp()
         if session:
             beatmap_["playcount"] = (
                 await session.exec(
