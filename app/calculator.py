@@ -89,7 +89,7 @@ async def calculate_pp(score: "Score", beatmap: str, session: AsyncSession) -> f
     # 使用线程池执行计算密集型操作以避免阻塞事件循环
     import asyncio
     loop = asyncio.get_event_loop()
-    
+
     def _calculate_pp_sync():
         map = rosu.Beatmap(content=beatmap)
         mods = deepcopy(score.mods.copy())
@@ -111,7 +111,7 @@ async def calculate_pp(score: "Score", beatmap: str, session: AsyncSession) -> f
             misses=score.nmiss,
         )
         return perf.calculate(map)
-    
+
     # 在线程池中执行计算
     attrs = await loop.run_in_executor(None, _calculate_pp_sync)
     pp = attrs.pp

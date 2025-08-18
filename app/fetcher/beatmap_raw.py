@@ -38,10 +38,10 @@ class BeatmapRawFetcher(BaseFetcher):
         self, redis: redis.Redis, beatmap_id: int
     ) -> str:
         from app.config import settings
-        
+
         cache_key = f"beatmap:{beatmap_id}:raw"
         cache_expire = settings.beatmap_cache_expire_hours * 60 * 60
-        
+
         # 检查缓存
         if await redis.exists(cache_key):
             content = await redis.get(cache_key)
@@ -49,7 +49,7 @@ class BeatmapRawFetcher(BaseFetcher):
                 # 延长缓存时间
                 await redis.expire(cache_key, cache_expire)
                 return content  # pyright: ignore[reportReturnType]
-        
+
         # 获取并缓存
         raw = await self.get_beatmap_raw(beatmap_id)
         await redis.set(cache_key, raw, ex=cache_expire)
