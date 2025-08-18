@@ -81,11 +81,13 @@ class Bot:
         if handler is None:
             return
         else:
-            res = handler(user, args, session, channel)
-            if asyncio.iscoroutine(res):
-                res = await res
-            reply = res  # type: ignore[assignment]
-
+            try:
+                res = handler(user, args, session, channel)
+                if asyncio.iscoroutine(res):
+                    res = await res
+                reply = res  # type: ignore[assignment]
+            except Exception:
+                reply = "Unknown error occured."
         if reply:
             await self._send_reply(user, channel, reply, session)
 
