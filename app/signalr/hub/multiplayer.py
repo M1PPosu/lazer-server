@@ -1114,6 +1114,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         if settings.match_type == MatchType.PLAYLISTS:
             raise InvokeException("Invalid match type selected")
 
+        settings.playlist_item_id = room.settings.playlist_item_id
         previous_settings = room.settings
         room.settings = settings
 
