@@ -242,7 +242,13 @@ async def get_beatmap_scores(
         )
 
     all_scores, user_score, count = await get_leaderboard(
-        db, beatmap_id, mode, type=type, user=current_user, limit=limit, mods=mods
+        db,
+        beatmap_id,
+        mode,
+        type=type,
+        user=current_user,
+        limit=limit,
+        mods=sorted(mods),
     )
 
     user_score_resp = await ScoreResp.from_db(db, user_score) if user_score else None

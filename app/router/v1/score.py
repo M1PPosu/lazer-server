@@ -6,7 +6,7 @@ from typing import Literal
 from app.database.pp_best_score import PPBestScore
 from app.database.score import Score, get_leaderboard
 from app.dependencies.database import get_db
-from app.models.mods import int_to_mods, mods_to_int
+from app.models.mods import int_to_mods, mod_to_save, mods_to_int
 from app.models.score import GameMode, LeaderboardType
 
 from .router import AllStrModel, router
@@ -172,7 +172,7 @@ async def get_scores(
                 beatmap_id,
                 GameMode.from_int_extra(ruleset_id),
                 LeaderboardType.GLOBAL,
-                [mod["acronym"] for mod in int_to_mods(mods)],
+                mod_to_save(int_to_mods(mods)),
                 limit=limit,
             )
         return [await V1Score.from_db(score) for score in scores]
