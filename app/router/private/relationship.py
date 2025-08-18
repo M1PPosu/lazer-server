@@ -2,15 +2,14 @@ from __future__ import annotations
 
 from app.database import Relationship, User
 from app.database.relationship import RelationshipType
-from app.dependencies.database import get_db
+from app.dependencies.database import Database
 from app.dependencies.user import get_client_user
 
 from .router import router
 
-from fastapi import Depends, HTTPException, Path, Security
+from fastapi import HTTPException, Path, Security
 from pydantic import BaseModel, Field
 from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 class CheckResponse(BaseModel):
@@ -26,9 +25,9 @@ class CheckResponse(BaseModel):
     response_model=CheckResponse,
 )
 async def check_user_relationship(
+    db: Database,
     user_id: int = Path(..., description="目标用户的 ID"),
     current_user: User = Security(get_client_user),
-    db: AsyncSession = Depends(get_db),
 ):
     if user_id == current_user.id:
         raise HTTPException(422, "Cannot check relationship with yourself")

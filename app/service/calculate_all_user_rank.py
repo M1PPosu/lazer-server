@@ -4,12 +4,11 @@ from datetime import UTC, datetime, timedelta
 
 from app.database import RankHistory, UserStatistics
 from app.database.rank_history import RankTop
-from app.dependencies.database import engine
+from app.dependencies.database import with_db
 from app.dependencies.scheduler import get_scheduler
 from app.models.score import GameMode
 
 from sqlmodel import col, exists, select, update
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 @get_scheduler().scheduled_job(
@@ -18,7 +17,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 async def calculate_user_rank(is_today: bool = False):
     today = datetime.now(UTC).date()
     target_date = today if is_today else today - timedelta(days=1)
-    async with AsyncSession(engine) as session:
+    async with with_db() as session:
         for gamemode in GameMode:
             users = await session.exec(
                 select(UserStatistics)

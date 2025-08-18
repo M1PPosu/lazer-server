@@ -18,8 +18,7 @@ from app.config import settings
 from app.const import BANCHOBOT_ID
 from app.database import DailyChallengeStats, OAuthClient, User
 from app.database.statistics import UserStatistics
-from app.dependencies import get_db
-from app.dependencies.database import get_redis
+from app.dependencies.database import Database, get_redis
 from app.dependencies.geoip import get_client_ip, get_geoip_helper
 from app.helpers.geoip_helper import GeoIPHelper
 from app.log import logger
@@ -37,7 +36,6 @@ from fastapi.responses import JSONResponse
 from redis.asyncio import Redis
 from sqlalchemy import text
 from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 def create_oauth_error_response(
@@ -89,11 +87,11 @@ router = APIRouter(tags=["osu! OAuth 认证"])
     description="用户注册接口",
 )
 async def register_user(
+    db: Database,
     request: Request,
     user_username: str = Form(..., alias="user[username]", description="用户名"),
     user_email: str = Form(..., alias="user[user_email]", description="电子邮箱"),
     user_password: str = Form(..., alias="user[password]", description="密码"),
-    db: AsyncSession = Depends(get_db),
     geoip: GeoIPHelper = Depends(get_geoip_helper),
 ):
     username_errors = validate_username(user_username)
@@ -205,6 +203,7 @@ async def register_user(
     description="OAuth 令牌端点，支持密码、刷新令牌和授权码三种授权方式。",
 )
 async def oauth_token(
+    db: Database,
     request: Request,
     grant_type: Literal[
         "authorization_code", "refresh_token", "password", "client_credentials"
@@ -218,7 +217,6 @@ async def oauth_token(
     refresh_token: str | None = Form(
         None, description="刷新令牌（仅刷新令牌模式需要）"
     ),
-    db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
 ):
     scopes = scope.split(" ")

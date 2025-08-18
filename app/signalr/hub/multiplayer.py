@@ -12,7 +12,7 @@ from app.database.multiplayer_event import MultiplayerEvent
 from app.database.playlists import Playlist
 from app.database.relationship import Relationship, RelationshipType
 from app.database.room_participated_user import RoomParticipatedUser
-from app.dependencies.database import engine, get_redis
+from app.dependencies.database import get_redis, with_db
 from app.dependencies.fetcher import get_fetcher
 from app.exception import InvokeException
 from app.log import logger
@@ -50,7 +50,6 @@ from .hub import Client, Hub
 from httpx import HTTPError
 from sqlalchemy import update
 from sqlmodel import col, exists, select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 GAMEPLAY_LOAD_TIMEOUT = 30
 
@@ -61,7 +60,7 @@ class MultiplayerEventLogger:
 
     async def log_event(self, event: MultiplayerEvent):
         try:
-            async with AsyncSession(engine) as session:
+            async with with_db() as session:
                 session.add(event)
                 await session.commit()
         except Exception as e:
@@ -192,7 +191,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         store = self.get_or_create_state(client)
         if store.room_id != 0:
             raise InvokeException("You are already in a room")
-        async with AsyncSession(engine) as session:
+        async with with_db() as session:
             async with session:
                 db_room = Room(
                     name=room.settings.name,
@@ -282,7 +281,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         await server_room.match_type_handler.handle_join(user)
         await self.event_logger.player_joined(room_id, user.user_id)
 
-        async with AsyncSession(engine) as session:
+        async with with_db() as session:
             async with session.begin():
                 if (
                     participated_user := (
@@ -398,7 +397,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         )
 
     async def change_db_settings(self, room: ServerMultiplayerRoom):
-        async with AsyncSession(engine) as session:
+        async with with_db() as session:
             await session.execute(
                 update(Room)
                 .where(col(Room.id) == room.room.room_id)
@@ -477,7 +476,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                     room,
                     user,
                 )
-        async with AsyncSession(engine) as session:
+        async with with_db() as session:
             try:
                 beatmap = await Beatmap.get_or_fetch(
                     session, fetcher, bid=room.queue.current_item.beatmap_id
@@ -535,7 +534,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             if not room.queue.current_item.freestyle:
                 raise InvokeException("Current item does not allow free user styles.")
 
-            async with AsyncSession(engine) as session:
+            async with with_db() as session:
                 item_beatmap = await session.get(
                     Beatmap, room.queue.current_item.beatmap_id
                 )
@@ -910,7 +909,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         redis = get_redis()
         await redis.publish("chat:room:left", f"{room.room.channel_id}:{user.user_id}")
 
-        async with AsyncSession(engine) as session:
+        async with with_db() as session:
             async with session.begin():
                 participated_user = (
                     await session.exec(
@@ -954,7 +953,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
 
     async def end_room(self, room: ServerMultiplayerRoom):
         assert room.room.host
-        async with AsyncSession(engine) as session:
+        async with with_db() as session:
             await session.execute(
                 update(Room)
                 .where(col(Room.id) == room.room.room_id)
@@ -1171,7 +1170,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         if user is None:
             raise InvokeException("You are not in this room")
 
-        async with AsyncSession(engine) as session:
+        async with with_db() as session:
             db_user = await session.get(User, user_id)
             target_relationship = (
                 await session.exec(

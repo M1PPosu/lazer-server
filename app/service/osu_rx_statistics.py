@@ -4,16 +4,15 @@ from app.config import settings
 from app.const import BANCHOBOT_ID
 from app.database.lazer_user import User
 from app.database.statistics import UserStatistics
-from app.dependencies.database import engine
+from app.dependencies.database import with_db
 from app.models.score import GameMode
 
 from sqlalchemy import exists
 from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 async def create_rx_statistics():
-    async with AsyncSession(engine) as session:
+    async with with_db() as session:
         users = (await session.exec(select(User.id))).all()
         for i in users:
             if i == BANCHOBOT_ID:

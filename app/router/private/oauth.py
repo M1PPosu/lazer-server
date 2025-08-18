@@ -4,7 +4,7 @@ import secrets
 
 from app.database.auth import OAuthClient, OAuthToken
 from app.database.lazer_user import User
-from app.dependencies.database import get_db, get_redis
+from app.dependencies.database import Database, get_redis
 from app.dependencies.user import get_client_user
 
 from .router import router
@@ -12,7 +12,6 @@ from .router import router
 from fastapi import Body, Depends, HTTPException, Security
 from redis.asyncio import Redis
 from sqlmodel import select, text
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 @router.post(
@@ -21,11 +20,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
     description="创建一个新的 OAuth 应用程序，并生成客户端 ID 和密钥",
 )
 async def create_oauth_app(
+    session: Database,
     name: str = Body(..., max_length=100, description="应用程序名称"),
     description: str = Body("", description="应用程序描述"),
     redirect_uris: list[str] = Body(..., description="允许的重定向 URI 列表"),
     current_user: User = Security(get_client_user),
-    session: AsyncSession = Depends(get_db),
 ):
     result = await session.execute(  # pyright: ignore[reportDeprecated]
         text(
@@ -61,8 +60,8 @@ async def create_oauth_app(
     description="通过客户端 ID 获取 OAuth 应用的详细信息",
 )
 async def get_oauth_app(
+    session: Database,
     client_id: int,
-    session: AsyncSession = Depends(get_db),
     current_user: User = Security(get_client_user),
 ):
     oauth_app = await session.get(OAuthClient, client_id)
@@ -82,7 +81,7 @@ async def get_oauth_app(
     description="获取当前用户创建的所有 OAuth 应用程序",
 )
 async def get_user_oauth_apps(
-    session: AsyncSession = Depends(get_db),
+    session: Database,
     current_user: User = Security(get_client_user),
 ):
     oauth_apps = await session.exec(
@@ -106,8 +105,8 @@ async def get_user_oauth_apps(
     description="删除指定的 OAuth 应用程序及其关联的所有令牌",
 )
 async def delete_oauth_app(
+    session: Database,
     client_id: int,
-    session: AsyncSession = Depends(get_db),
     current_user: User = Security(get_client_user),
 ):
     oauth_client = await session.get(OAuthClient, client_id)
@@ -134,11 +133,11 @@ async def delete_oauth_app(
     description="更新指定 OAuth 应用的名称、描述和重定向 URI",
 )
 async def update_oauth_app(
+    session: Database,
     client_id: int,
     name: str = Body(..., max_length=100, description="应用程序新名称"),
     description: str = Body("", description="应用程序新描述"),
     redirect_uris: list[str] = Body(..., description="新的重定向 URI 列表"),
-    session: AsyncSession = Depends(get_db),
     current_user: User = Security(get_client_user),
 ):
     oauth_client = await session.get(OAuthClient, client_id)
@@ -169,8 +168,8 @@ async def update_oauth_app(
     description="为指定的 OAuth 应用生成新的客户端密钥，并使所有现有的令牌失效",
 )
 async def refresh_secret(
+    session: Database,
     client_id: int,
-    session: AsyncSession = Depends(get_db),
     current_user: User = Security(get_client_user),
 ):
     oauth_client = await session.get(OAuthClient, client_id)
@@ -204,11 +203,11 @@ async def refresh_secret(
     description="为特定用户和 OAuth 应用生成授权码，用于授权码授权流程",
 )
 async def generate_oauth_code(
+    session: Database,
     client_id: int,
     current_user: User = Security(get_client_user),
     redirect_uri: str = Body(..., description="授权后重定向的 URI"),
     scopes: list[str] = Body(..., description="请求的权限范围列表"),
-    session: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
 ):
     client = await session.get(OAuthClient, client_id)

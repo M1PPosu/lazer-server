@@ -92,7 +92,7 @@ class GameMode(str, Enum):
     def parse(cls, v: str | int) -> "GameMode | None":
         if isinstance(v, int) or v.isdigit():
             return cls.from_int_extra(int(v))
-        v = v.lower()
+        v = v.upper()
         try:
             return cls[v]
         except ValueError:

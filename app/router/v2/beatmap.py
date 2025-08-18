@@ -6,7 +6,7 @@ import json
 
 from app.database import Beatmap, BeatmapResp, User
 from app.database.beatmap import calculate_beatmap_attributes
-from app.dependencies.database import get_db, get_redis
+from app.dependencies.database import Database, get_redis
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.user import get_current_user
 from app.fetcher import Fetcher
@@ -24,7 +24,6 @@ from pydantic import BaseModel
 from redis.asyncio import Redis
 import rosu_pp_py as rosu
 from sqlmodel import col, select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 class BatchGetResp(BaseModel):
@@ -47,13 +46,13 @@ class BatchGetResp(BaseModel):
     ),
 )
 async def lookup_beatmap(
+    db: Database,
     id: int | None = Query(default=None, alias="id", description="谱面 ID"),
     md5: str | None = Query(default=None, alias="checksum", description="谱面文件 MD5"),
     filename: str | None = Query(
         default=None, alias="filename", description="谱面文件名"
     ),
     current_user: User = Security(get_current_user, scopes=["public"]),
-    db: AsyncSession = Depends(get_db),
     fetcher: Fetcher = Depends(get_fetcher),
 ):
     if id is None and md5 is None and filename is None:
@@ -80,9 +79,9 @@ async def lookup_beatmap(
     description="获取单个谱面详情。",
 )
 async def get_beatmap(
+    db: Database,
     beatmap_id: int = Path(..., description="谱面 ID"),
     current_user: User = Security(get_current_user, scopes=["public"]),
-    db: AsyncSession = Depends(get_db),
     fetcher: Fetcher = Depends(get_fetcher),
 ):
     try:
@@ -103,11 +102,11 @@ async def get_beatmap(
     ),
 )
 async def batch_get_beatmaps(
+    db: Database,
     beatmap_ids: list[int] = Query(
         alias="ids[]", default_factory=list, description="谱面 ID 列表 （最多 50 个）"
     ),
     current_user: User = Security(get_current_user, scopes=["public"]),
-    db: AsyncSession = Depends(get_db),
     fetcher: Fetcher = Depends(get_fetcher),
 ):
     if not beatmap_ids:
@@ -157,6 +156,7 @@ async def batch_get_beatmaps(
     description=("计算谱面指定 mods / ruleset 下谱面的难度属性 (难度/PP 相关属性)。"),
 )
 async def get_beatmap_attributes(
+    db: Database,
     beatmap_id: int = Path(..., description="谱面 ID"),
     current_user: User = Security(get_current_user, scopes=["public"]),
     mods: list[str] = Query(
@@ -170,7 +170,6 @@ async def get_beatmap_attributes(
         default=None, description="以数字指定 ruleset （与 ruleset 二选一）", ge=0, le=3
     ),
     redis: Redis = Depends(get_redis),
-    db: AsyncSession = Depends(get_db),
     fetcher: Fetcher = Depends(get_fetcher),
 ):
     mods_ = []

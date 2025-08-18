@@ -12,7 +12,7 @@ from app.database.playlists import Playlist, PlaylistResp
 from app.database.room import APIUploadedRoom, Room, RoomResp
 from app.database.room_participated_user import RoomParticipatedUser
 from app.database.score import Score
-from app.dependencies.database import get_db, get_redis
+from app.dependencies.database import Database, get_redis
 from app.dependencies.user import get_client_user, get_current_user
 from app.models.room import RoomCategory, RoomStatus
 from app.service.room import create_playlist_room_from_api
@@ -36,6 +36,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
     description="获取房间列表。支持按状态/模式筛选",
 )
 async def get_all_rooms(
+    db: Database,
     mode: Literal["open", "ended", "participated", "owned", None] = Query(
         default="open",
         description=(
@@ -51,7 +52,6 @@ async def get_all_rooms(
         ),
     ),
     status: RoomStatus | None = Query(None, description="房间状态（可选）"),
-    db: AsyncSession = Depends(get_db),
     current_user: User = Security(get_current_user, scopes=["public"]),
 ):
     resp_list: list[RoomResp] = []
@@ -149,8 +149,8 @@ async def _participate_room(
     description="**客户端专属**\n创建一个新的房间。",
 )
 async def create_room(
+    db: Database,
     room: APIUploadedRoom,
-    db: AsyncSession = Depends(get_db),
     current_user: User = Security(get_client_user),
     redis: Redis = Depends(get_redis),
 ):
@@ -173,6 +173,7 @@ async def create_room(
     description="获取单个房间详情。",
 )
 async def get_room(
+    db: Database,
     room_id: int = Path(..., description="房间 ID"),
     category: str = Query(
         default="",
@@ -181,7 +182,6 @@ async def get_room(
             " / DAILY_CHALLENGE 每日挑战 (可选)"
         ),
     ),
-    db: AsyncSession = Depends(get_db),
     current_user: User = Security(get_client_user),
     redis: Redis = Depends(get_redis),
 ):
@@ -201,8 +201,8 @@ async def get_room(
     description="**客户端专属**\n结束歌单模式房间。",
 )
 async def delete_room(
+    db: Database,
     room_id: int = Path(..., description="房间 ID"),
-    db: AsyncSession = Depends(get_db),
     current_user: User = Security(get_client_user),
 ):
     db_room = (await db.exec(select(Room).where(Room.id == room_id))).first()
@@ -221,9 +221,9 @@ async def delete_room(
     description="**客户端专属**\n加入指定歌单模式房间。",
 )
 async def add_user_to_room(
+    db: Database,
     room_id: int = Path(..., description="房间 ID"),
     user_id: int = Path(..., description="用户 ID"),
-    db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
     current_user: User = Security(get_client_user),
 ):
@@ -245,9 +245,9 @@ async def add_user_to_room(
     description="**客户端专属**\n离开指定歌单模式房间。",
 )
 async def remove_user_from_room(
+    db: Database,
     room_id: int = Path(..., description="房间 ID"),
     user_id: int = Path(..., description="用户 ID"),
-    db: AsyncSession = Depends(get_db),
     current_user: User = Security(get_client_user),
     redis: Redis = Depends(get_redis),
 ):
@@ -289,8 +289,8 @@ class APILeaderboard(BaseModel):
     description="获取房间内累计得分排行榜。",
 )
 async def get_room_leaderboard(
+    db: Database,
     room_id: int = Path(..., description="房间 ID"),
-    db: AsyncSession = Depends(get_db),
     current_user: User = Security(get_current_user, scopes=["public"]),
 ):
     db_room = (await db.exec(select(Room).where(Room.id == room_id))).first()
@@ -345,8 +345,8 @@ class RoomEvents(BaseModel):
     description="获取房间事件列表 （倒序，可按 after / before 进行范围截取）。",
 )
 async def get_room_events(
+    db: Database,
     room_id: int = Path(..., description="房间 ID"),
-    db: AsyncSession = Depends(get_db),
     current_user: User = Security(get_current_user, scopes=["public"]),
     limit: int = Query(100, ge=1, le=1000, description="返回条数 (1-1000)"),
     after: int | None = Query(None, ge=0, description="仅包含大于该事件 ID 的事件"),

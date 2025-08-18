@@ -14,7 +14,7 @@ from app.database.failtime import FailTime, FailTimeResp
 from app.database.score import Score
 from app.database.score_token import ScoreToken
 from app.database.statistics import UserStatistics
-from app.dependencies.database import engine, get_redis
+from app.dependencies.database import get_redis, with_db
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.storage import get_storage_service
 from app.exception import InvokeException
@@ -38,7 +38,6 @@ from .hub import Client, Hub
 from httpx import HTTPError
 from sqlalchemy.orm import joinedload
 from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 READ_SCORE_TIMEOUT = 30
 REPLAY_LATEST_VER = 30000016
@@ -194,7 +193,7 @@ class SpectatorHub(Hub[StoreClientState]):
             return
 
         fetcher = await get_fetcher()
-        async with AsyncSession(engine) as session:
+        async with with_db() as session:
             async with session.begin():
                 try:
                     beatmap = await Beatmap.get_or_fetch(
@@ -285,7 +284,7 @@ class SpectatorHub(Hub[StoreClientState]):
         assert store.checksum is not None
         assert store.ruleset_id is not None
         assert store.score is not None
-        async with AsyncSession(engine) as session:
+        async with with_db() as session:
             async with session:
                 start_time = time.time()
                 score_record = None
@@ -332,7 +331,7 @@ class SpectatorHub(Hub[StoreClientState]):
         self, user_id: int, state: SpectatorState, store: StoreClientState
     ) -> None:
         async def _add_failtime():
-            async with AsyncSession(engine) as session:
+            async with with_db() as session:
                 failtime = await session.get(FailTime, state.beatmap_id)
                 total_length = (
                     await session.exec(
@@ -366,7 +365,7 @@ class SpectatorHub(Hub[StoreClientState]):
                 return
             before_time = int(messages[0][1]["time"])
             await redis.delete(key)
-            async with AsyncSession(engine) as session:
+            async with with_db() as session:
                 gamemode = GameMode.from_int(ruleset_id).to_special_mode(mods)
                 statistics = (
                     await session.exec(
@@ -430,7 +429,7 @@ class SpectatorHub(Hub[StoreClientState]):
 
         self.add_to_group(client, self.group_id(target_id))
 
-        async with AsyncSession(engine) as session:
+        async with with_db() as session:
             async with session.begin():
                 username = (
                     await session.exec(select(User.username).where(User.id == user_id))

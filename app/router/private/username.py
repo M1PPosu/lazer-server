@@ -6,14 +6,13 @@ from app.auth import validate_username
 from app.config import settings
 from app.database.events import Event, EventType
 from app.database.lazer_user import User
-from app.dependencies.database import get_db
+from app.dependencies.database import Database
 from app.dependencies.user import get_client_user
 
 from .router import router
 
-from fastapi import Body, Depends, HTTPException, Security
+from fastapi import Body, HTTPException, Security
 from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 @router.post(
@@ -21,8 +20,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
     name="修改用户名",
 )
 async def user_rename(
+    session: Database,
     new_name: str = Body(..., description="新的用户名"),
-    session: AsyncSession = Depends(get_db),
     current_user: User = Security(get_client_user),
 ):
     """修改用户名

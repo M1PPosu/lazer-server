@@ -5,14 +5,13 @@ from typing import Literal
 
 from app.database.lazer_user import User
 from app.database.statistics import UserStatistics, UserStatisticsResp
-from app.dependencies.database import get_db
+from app.dependencies.database import Database
 from app.models.score import GameMode
 
 from .router import AllStrModel, router
 
-from fastapi import Depends, HTTPException, Query
+from fastapi import HTTPException, Query
 from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 class V1User(AllStrModel):
@@ -41,7 +40,7 @@ class V1User(AllStrModel):
 
     @classmethod
     async def from_db(
-        cls, session: AsyncSession, db_user: User, ruleset: GameMode | None = None
+        cls, session: Database, db_user: User, ruleset: GameMode | None = None
     ) -> "V1User":
         ruleset = ruleset or db_user.playmode
         current_statistics: UserStatistics | None = None
@@ -92,6 +91,7 @@ class V1User(AllStrModel):
     description="获取指定用户的信息。",
 )
 async def get_user(
+    session: Database,
     user: str = Query(..., alias="u", description="用户"),
     ruleset_id: int | None = Query(None, alias="m", description="Ruleset ID", ge=0),
     type: Literal["string", "id"] | None = Query(
@@ -100,7 +100,6 @@ async def get_user(
     event_days: int = Query(
         default=1, ge=1, le=31, description="从现在起所有事件的最大天数"
     ),
-    session: AsyncSession = Depends(get_db),
 ):
     db_user = (
         await session.exec(

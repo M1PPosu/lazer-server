@@ -4,13 +4,12 @@ from typing import TYPE_CHECKING
 
 from app.database import PlaylistBestScore, Score
 from app.database.playlist_best_score import get_position
-from app.dependencies.database import engine
+from app.dependencies.database import with_db
 from app.models.metadata_hub import MultiplayerRoomScoreSetEvent
 
 from .base import RedisSubscriber
 
 from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 if TYPE_CHECKING:
     from app.signalr.hub import MetadataHub
@@ -45,7 +44,7 @@ class ScoreSubscriber(RedisSubscriber):
     async def _notify_room_score_processed(self, score_id: int):
         if not self.metadata_hub:
             return
-        async with AsyncSession(engine) as session:
+        async with with_db() as session:
             score = await session.get(Score, score_id)
             if (
                 not score

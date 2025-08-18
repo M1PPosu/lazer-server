@@ -5,16 +5,15 @@ from typing import Literal
 
 from app.database.pp_best_score import PPBestScore
 from app.database.score import Score, get_leaderboard
-from app.dependencies.database import get_db
+from app.dependencies.database import Database
 from app.models.mods import int_to_mods, mod_to_save, mods_to_int
 from app.models.score import GameMode, LeaderboardType
 
 from .router import AllStrModel, router
 
-from fastapi import Depends, HTTPException, Query
+from fastapi import HTTPException, Query
 from sqlalchemy.orm import joinedload
 from sqlmodel import col, exists, select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 class V1Score(AllStrModel):
@@ -68,13 +67,13 @@ class V1Score(AllStrModel):
     description="获取指定用户的最好成绩。",
 )
 async def get_user_best(
+    session: Database,
     user: str = Query(..., alias="u", description="用户"),
     ruleset_id: int = Query(0, alias="m", description="Ruleset ID", ge=0),
     type: Literal["string", "id"] | None = Query(
         None, description="用户类型：string 用户名称 / id 用户 ID"
     ),
     limit: int = Query(10, ge=1, le=100, description="返回的成绩数量"),
-    session: AsyncSession = Depends(get_db),
 ):
     try:
         scores = (
@@ -104,13 +103,13 @@ async def get_user_best(
     description="获取指定用户的最近成绩。",
 )
 async def get_user_recent(
+    session: Database,
     user: str = Query(..., alias="u", description="用户"),
     ruleset_id: int = Query(0, alias="m", description="Ruleset ID", ge=0),
     type: Literal["string", "id"] | None = Query(
         None, description="用户类型：string 用户名称 / id 用户 ID"
     ),
     limit: int = Query(10, ge=1, le=100, description="返回的成绩数量"),
-    session: AsyncSession = Depends(get_db),
 ):
     try:
         scores = (
@@ -140,6 +139,7 @@ async def get_user_recent(
     description="获取指定谱面的成绩。",
 )
 async def get_scores(
+    session: Database,
     user: str | None = Query(None, alias="u", description="用户"),
     beatmap_id: int = Query(alias="b", description="谱面 ID"),
     ruleset_id: int = Query(0, alias="m", description="Ruleset ID", ge=0),
@@ -148,7 +148,6 @@ async def get_scores(
     ),
     limit: int = Query(10, ge=1, le=100, description="返回的成绩数量"),
     mods: int = Query(0, description="成绩的 MOD"),
-    session: AsyncSession = Depends(get_db),
 ):
     try:
         if user is not None:

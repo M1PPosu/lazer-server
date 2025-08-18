@@ -5,15 +5,14 @@ from typing import Literal
 from app.database import User
 from app.database.statistics import UserStatistics, UserStatisticsResp
 from app.dependencies import get_current_user
-from app.dependencies.database import get_db
+from app.dependencies.database import Database
 from app.models.score import GameMode
 
 from .router import router
 
-from fastapi import Depends, Path, Query, Security
+from fastapi import Path, Query, Security
 from pydantic import BaseModel
 from sqlmodel import col, select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 class CountryStatistics(BaseModel):
@@ -36,10 +35,10 @@ class CountryResponse(BaseModel):
     tags=["排行榜"],
 )
 async def get_country_ranking(
+    session: Database,
     ruleset: GameMode = Path(..., description="指定 ruleset"),
     page: int = Query(1, ge=1, description="页码"),  # TODO
     current_user: User = Security(get_current_user, scopes=["public"]),
-    session: AsyncSession = Depends(get_db),
 ):
     response = CountryResponse(ranking=[])
     countries = (await session.exec(select(User.country_code).distinct())).all()
@@ -85,6 +84,7 @@ class TopUsersResponse(BaseModel):
     tags=["排行榜"],
 )
 async def get_user_ranking(
+    session: Database,
     ruleset: GameMode = Path(..., description="指定 ruleset"),
     type: Literal["performance", "score"] = Path(
         ..., description="排名类型：performance 表现分 / score 计分成绩总分"
@@ -92,7 +92,6 @@ async def get_user_ranking(
     country: str | None = Query(None, description="国家代码"),
     page: int = Query(1, ge=1, description="页码"),
     current_user: User = Security(get_current_user, scopes=["public"]),
-    session: AsyncSession = Depends(get_db),
 ):
     wheres = [
         col(UserStatistics.mode) == ruleset,

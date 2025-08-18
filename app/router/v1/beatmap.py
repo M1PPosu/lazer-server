@@ -8,7 +8,7 @@ from app.database.beatmap_playcounts import BeatmapPlaycounts
 from app.database.beatmapset import Beatmapset
 from app.database.favourite_beatmapset import FavouriteBeatmapset
 from app.database.score import Score
-from app.dependencies.database import get_db, get_redis
+from app.dependencies.database import Database, get_redis
 from app.dependencies.fetcher import get_fetcher
 from app.fetcher import Fetcher
 from app.models.beatmap import BeatmapRankStatus, Genre, Language
@@ -149,6 +149,7 @@ class V1Beatmap(AllStrModel):
     description="根据指定条件搜索谱面。",
 )
 async def get_beatmaps(
+    session: Database,
     since: datetime | None = Query(None, description="自指定时间后拥有排行榜的谱面"),
     beatmapset_id: int | None = Query(None, alias="s", description="谱面集 ID"),
     beatmap_id: int | None = Query(None, alias="b", description="谱面 ID"),
@@ -163,7 +164,6 @@ async def get_beatmaps(
     checksum: str | None = Query(None, alias="h", description="谱面文件 MD5"),
     limit: int = Query(500, ge=1, le=500, description="返回结果数量限制"),
     mods: int = Query(0, description="应用到谱面属性的 MOD"),
-    session: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
     fetcher: Fetcher = Depends(get_fetcher),
 ):

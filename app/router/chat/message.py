@@ -11,7 +11,7 @@ from app.database.chat import (
     UserSilenceResp,
 )
 from app.database.lazer_user import User
-from app.dependencies.database import get_db, get_redis
+from app.dependencies.database import Database, get_redis
 from app.dependencies.param import BodyOrForm
 from app.dependencies.user import get_current_user
 from app.router.v2 import api_v2_router as router
@@ -23,7 +23,6 @@ from fastapi import Depends, HTTPException, Path, Query, Security
 from pydantic import BaseModel, Field
 from redis.asyncio import Redis
 from sqlmodel import col, select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 class KeepAliveResp(BaseModel):
@@ -38,12 +37,12 @@ class KeepAliveResp(BaseModel):
     tags=["聊天"],
 )
 async def keep_alive(
+    session: Database,
     history_since: int | None = Query(
         None, description="获取自此禁言 ID 之后的禁言记录"
     ),
     since: int | None = Query(None, description="获取自此消息 ID 之后的禁言记录"),
     current_user: User = Security(get_current_user, scopes=["chat.read"]),
-    session: AsyncSession = Depends(get_db),
 ):
     resp = KeepAliveResp()
     if history_since:
@@ -84,10 +83,10 @@ class MessageReq(BaseModel):
     tags=["聊天"],
 )
 async def send_message(
+    session: Database,
     channel: str = Path(..., description="频道 ID/名称"),
     req: MessageReq = Depends(BodyOrForm(MessageReq)),
     current_user: User = Security(get_current_user, scopes=["chat.write"]),
-    session: AsyncSession = Depends(get_db),
 ):
     db_channel = await ChatChannel.get(channel, session)
     if db_channel is None:
@@ -125,12 +124,12 @@ async def send_message(
     tags=["聊天"],
 )
 async def get_message(
+    session: Database,
     channel: str,
     limit: int = Query(50, ge=1, le=50, description="获取消息的数量"),
     since: int = Query(default=0, ge=0, description="获取自此消息 ID 之后的消息记录"),
     until: int | None = Query(None, description="获取自此消息 ID 之前的消息记录"),
     current_user: User = Security(get_current_user, scopes=["chat.read"]),
-    session: AsyncSession = Depends(get_db),
 ):
     db_channel = await ChatChannel.get(channel, session)
     if db_channel is None:
@@ -158,10 +157,10 @@ async def get_message(
     tags=["聊天"],
 )
 async def mark_as_read(
+    session: Database,
     channel: str = Path(..., description="频道 ID/名称"),
     message: int = Path(..., description="消息 ID"),
     current_user: User = Security(get_current_user, scopes=["chat.read"]),
-    session: AsyncSession = Depends(get_db),
 ):
     db_channel = await ChatChannel.get(channel, session)
     if db_channel is None:
@@ -191,9 +190,9 @@ class NewPMResp(BaseModel):
     tags=["聊天"],
 )
 async def create_new_pm(
+    session: Database,
     req: PMReq = Depends(BodyOrForm(PMReq)),
     current_user: User = Security(get_current_user, scopes=["chat.write"]),
-    session: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
 ):
     user_id = current_user.id

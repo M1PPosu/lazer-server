@@ -6,9 +6,9 @@ from app.database.chat import ChannelType, ChatChannel, ChatChannelResp, ChatMes
 from app.database.lazer_user import User
 from app.dependencies.database import (
     DBFactory,
-    engine,
     get_db_factory,
     get_redis,
+    with_db,
 )
 from app.dependencies.user import get_current_user
 from app.log import logger
@@ -200,7 +200,7 @@ class ChatServer:
             )
 
     async def join_room_channel(self, channel_id: int, user_id: int):
-        async with AsyncSession(engine) as session:
+        async with with_db() as session:
             channel = await ChatChannel.get(channel_id, session)
             if channel is None:
                 return
@@ -212,7 +212,7 @@ class ChatServer:
             await self.join_channel(user, channel, session)
 
     async def leave_room_channel(self, channel_id: int, user_id: int):
-        async with AsyncSession(engine) as session:
+        async with with_db() as session:
             channel = await ChatChannel.get(channel_id, session)
             if channel is None:
                 return
@@ -268,7 +268,7 @@ async def chat_websocket(
         token = authorization[7:]
         if (
             user := await get_current_user(
-                SecurityScopes(scopes=["chat.read"]), session, token_pw=token
+                session, SecurityScopes(scopes=["chat.read"]), token_pw=token
             )
         ) is None:
             await websocket.close(code=1008)

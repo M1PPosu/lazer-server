@@ -13,7 +13,7 @@ from app.database.playlist_best_score import PlaylistBestScore
 from app.database.playlists import Playlist
 from app.database.room import Room
 from app.database.score import Score
-from app.dependencies.database import engine, get_redis
+from app.dependencies.database import get_redis, with_db
 from app.models.metadata_hub import (
     TOTAL_SCORE_DISTRIBUTION_BINS,
     DailyChallengeInfo,
@@ -30,7 +30,6 @@ from app.service.subscribers.score_processed import ScoreSubscriber
 from .hub import Client, Hub
 
 from sqlmodel import col, select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 ONLINE_PRESENCE_WATCHERS_GROUP = "metadata:online-presence-watchers"
 
@@ -97,7 +96,7 @@ class MetadataHub(Hub[MetadataClientState]):
         redis = get_redis()
         if await redis.exists(f"metadata:online:{state.connection_id}"):
             await redis.delete(f"metadata:online:{state.connection_id}")
-        async with AsyncSession(engine) as session:
+        async with with_db() as session:
             async with session.begin():
                 user = (
                     await session.exec(
@@ -118,7 +117,7 @@ class MetadataHub(Hub[MetadataClientState]):
         user_id = int(client.connection_id)
         self.get_or_create_state(client)
 
-        async with AsyncSession(engine) as session:
+        async with with_db() as session:
             async with session.begin():
                 friends = (
                     await session.exec(
@@ -233,7 +232,7 @@ class MetadataHub(Hub[MetadataClientState]):
         return list(stats.playlist_item_stats.values())
 
     async def update_daily_challenge_stats(self, stats: MultiplayerRoomStats) -> None:
-        async with AsyncSession(engine) as session:
+        async with with_db() as session:
             playlist_ids = (
                 await session.exec(
                     select(Playlist.id).where(

@@ -11,7 +11,7 @@ from app.database.chat import (
     UserSilenceResp,
 )
 from app.database.lazer_user import User, UserResp
-from app.dependencies.database import get_db, get_redis
+from app.dependencies.database import Database, get_redis
 from app.dependencies.param import BodyOrForm
 from app.dependencies.user import get_current_user
 from app.router.v2 import api_v2_router as router
@@ -22,7 +22,6 @@ from fastapi import Depends, HTTPException, Path, Query, Security
 from pydantic import BaseModel, Field, model_validator
 from redis.asyncio import Redis
 from sqlmodel import col, select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 class UpdateResponse(BaseModel):
@@ -38,6 +37,7 @@ class UpdateResponse(BaseModel):
     tags=["聊天"],
 )
 async def get_update(
+    session: Database,
     history_since: int | None = Query(
         None, description="获取自此禁言 ID 之后的禁言记录"
     ),
@@ -46,7 +46,6 @@ async def get_update(
         ["presence", "silences"], alias="includes[]", description="要包含的更新类型"
     ),
     current_user: User = Security(get_current_user, scopes=["chat.read"]),
-    session: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
 ):
     resp = UpdateResponse()
@@ -101,10 +100,10 @@ async def get_update(
     tags=["聊天"],
 )
 async def join_channel(
+    session: Database,
     channel: str = Path(..., description="频道 ID/名称"),
     user: str = Path(..., description="用户 ID"),
     current_user: User = Security(get_current_user, scopes=["chat.write_manage"]),
-    session: AsyncSession = Depends(get_db),
 ):
     db_channel = await ChatChannel.get(channel, session)
 
@@ -121,10 +120,10 @@ async def join_channel(
     tags=["聊天"],
 )
 async def leave_channel(
+    session: Database,
     channel: str = Path(..., description="频道 ID/名称"),
     user: str = Path(..., description="用户 ID"),
     current_user: User = Security(get_current_user, scopes=["chat.write_manage"]),
-    session: AsyncSession = Depends(get_db),
 ):
     db_channel = await ChatChannel.get(channel, session)
 
@@ -142,8 +141,8 @@ async def leave_channel(
     tags=["聊天"],
 )
 async def get_channel_list(
+    session: Database,
     current_user: User = Security(get_current_user, scopes=["chat.read"]),
-    session: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
 ):
     channels = (
@@ -181,9 +180,9 @@ class GetChannelResp(BaseModel):
     tags=["聊天"],
 )
 async def get_channel(
+    session: Database,
     channel: str = Path(..., description="频道 ID/名称"),
     current_user: User = Security(get_current_user, scopes=["chat.read"]),
-    session: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
 ):
     db_channel = await ChatChannel.get(channel, session)
@@ -250,9 +249,9 @@ class CreateChannelReq(BaseModel):
     tags=["聊天"],
 )
 async def create_channel(
+    session: Database,
     req: CreateChannelReq = Depends(BodyOrForm(CreateChannelReq)),
     current_user: User = Security(get_current_user, scopes=["chat.write_manage"]),
-    session: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
 ):
     if req.type == "PM":

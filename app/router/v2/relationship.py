@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 from app.database import Relationship, RelationshipResp, RelationshipType, User
-from app.dependencies.database import get_db
+from app.dependencies.database import Database
 from app.dependencies.user import get_client_user, get_current_user
 
 from .router import router
 
-from fastapi import Depends, HTTPException, Path, Query, Request, Security
+from fastapi import HTTPException, Path, Query, Request, Security
 from pydantic import BaseModel
 from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 @router.get(
@@ -27,9 +26,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
     description="获取当前用户的屏蔽用户列表。",
 )
 async def get_relationship(
+    db: Database,
     request: Request,
     current_user: User = Security(get_current_user, scopes=["friends.read"]),
-    db: AsyncSession = Depends(get_db),
 ):
     relationship_type = (
         RelationshipType.FOLLOW
@@ -67,10 +66,10 @@ class AddFriendResp(BaseModel):
     description="**客户端专属**\n添加或更新与目标用户的屏蔽关系。",
 )
 async def add_relationship(
+    db: Database,
     request: Request,
     target: int = Query(description="目标用户 ID"),
     current_user: User = Security(get_client_user),
-    db: AsyncSession = Depends(get_db),
 ):
     assert current_user.id is not None
     relationship_type = (
@@ -141,10 +140,10 @@ async def add_relationship(
     description="**客户端专属**\n删除与目标用户的屏蔽关系。",
 )
 async def delete_relationship(
+    db: Database,
     request: Request,
     target: int = Path(..., description="目标用户 ID"),
     current_user: User = Security(get_client_user),
-    db: AsyncSession = Depends(get_db),
 ):
     relationship_type = (
         RelationshipType.BLOCK

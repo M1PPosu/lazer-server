@@ -32,7 +32,7 @@ from app.database.score import (
     process_score,
     process_user,
 )
-from app.dependencies.database import get_db, get_redis
+from app.dependencies.database import Database, get_redis
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.storage import get_storage_service
 from app.dependencies.user import get_client_user, get_current_user
@@ -220,6 +220,7 @@ class BeatmapScores(BaseModel):
     description="获取指定谱面在特定条件下的排行榜及当前用户成绩。",
 )
 async def get_beatmap_scores(
+    db: Database,
     beatmap_id: int = Path(description="谱面 ID"),
     mode: GameMode = Query(description="指定 auleset"),
     legacy_only: bool = Query(None, description="是否只查询 Stable 分数"),
@@ -233,7 +234,6 @@ async def get_beatmap_scores(
         ),
     ),
     current_user: User = Security(get_current_user, scopes=["public"]),
-    db: AsyncSession = Depends(get_db),
     limit: int = Query(50, ge=1, le=200, description="返回条数 (1-200)"),
 ):
     if legacy_only:
@@ -277,13 +277,13 @@ class BeatmapUserScore(BaseModel):
     description="获取指定用户在指定谱面上的最高成绩。",
 )
 async def get_user_beatmap_score(
+    db: Database,
     beatmap_id: int = Path(description="谱面 ID"),
     user_id: int = Path(description="用户 ID"),
     legacy_only: bool = Query(None, description="是否只查询 Stable 分数"),
     mode: GameMode | None = Query(None, description="指定 ruleset (可选)"),
     mods: str = Query(None, description="筛选使用的 Mods (暂未实现)"),
     current_user: User = Security(get_current_user, scopes=["public"]),
-    db: AsyncSession = Depends(get_db),
 ):
     if legacy_only:
         raise HTTPException(
@@ -322,12 +322,12 @@ async def get_user_beatmap_score(
     description="获取指定用户在指定谱面上的全部成绩列表。",
 )
 async def get_user_all_beatmap_scores(
+    db: Database,
     beatmap_id: int = Path(description="谱面 ID"),
     user_id: int = Path(description="用户 ID"),
     legacy_only: bool = Query(None, description="是否只查询 Stable 分数"),
     ruleset: GameMode | None = Query(None, description="指定 ruleset (可选)"),
     current_user: User = Security(get_current_user, scopes=["public"]),
-    db: AsyncSession = Depends(get_db),
 ):
     if legacy_only:
         raise HTTPException(
@@ -357,12 +357,12 @@ async def get_user_all_beatmap_scores(
 )
 async def create_solo_score(
     background_task: BackgroundTasks,
+    db: Database,
     beatmap_id: int = Path(description="谱面 ID"),
     version_hash: str = Form("", description="游戏版本哈希"),
     beatmap_hash: str = Form(description="谱面文件哈希"),
     ruleset_id: int = Form(..., ge=0, le=3, description="ruleset 数字 ID (0-3)"),
     current_user: User = Security(get_client_user),
-    db: AsyncSession = Depends(get_db),
 ):
     assert current_user.id is not None
     background_task.add_task(_preload_beatmap_for_pp_calculation, beatmap_id)
@@ -387,11 +387,11 @@ async def create_solo_score(
 )
 async def submit_solo_score(
     req: Request,
+    db: Database,
     beatmap_id: int = Path(description="谱面 ID"),
     token: int = Path(description="成绩令牌 ID"),
     info: SoloScoreSubmissionInfo = Body(description="成绩提交信息"),
     current_user: User = Security(get_client_user),
-    db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
     fetcher=Depends(get_fetcher),
 ):
@@ -407,6 +407,7 @@ async def submit_solo_score(
     description="**客户端专属**\n为房间游玩项目创建成绩提交令牌。",
 )
 async def create_playlist_score(
+    session: Database,
     background_task: BackgroundTasks,
     room_id: int,
     playlist_id: int,
@@ -415,7 +416,6 @@ async def create_playlist_score(
     ruleset_id: int = Form(..., ge=0, le=3, description="ruleset 数字 ID (0-3)"),
     version_hash: str = Form("", description="谱面版本哈希"),
     current_user: User = Security(get_client_user),
-    session: AsyncSession = Depends(get_db),
 ):
     assert current_user.id is not None
     room = await session.get(Room, room_id)
@@ -483,12 +483,12 @@ async def create_playlist_score(
     description="**客户端专属**\n提交房间游玩项目成绩。",
 )
 async def submit_playlist_score(
+    session: Database,
     room_id: int,
     playlist_id: int,
     token: int,
     info: SoloScoreSubmissionInfo,
     current_user: User = Security(get_client_user),
-    session: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
     fetcher: Fetcher = Depends(get_fetcher),
 ):
@@ -541,6 +541,7 @@ class IndexedScoreResp(MultiplayerScores):
     tags=["成绩"],
 )
 async def index_playlist_scores(
+    session: Database,
     room_id: int,
     playlist_id: int,
     limit: int = Query(50, ge=1, le=50, description="返回条数 (1-50)"),
@@ -548,7 +549,6 @@ async def index_playlist_scores(
         2000000, alias="cursor[total_score]", description="分页游标（上一页最低分）"
     ),
     current_user: User = Security(get_current_user, scopes=["public"]),
-    session: AsyncSession = Depends(get_db),
 ):
     room = await session.get(Room, room_id)
     if not room:
@@ -607,11 +607,11 @@ async def index_playlist_scores(
     tags=["成绩"],
 )
 async def show_playlist_score(
+    session: Database,
     room_id: int,
     playlist_id: int,
     score_id: int,
     current_user: User = Security(get_client_user),
-    session: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
 ):
     room = await session.get(Room, room_id)
@@ -678,11 +678,11 @@ async def show_playlist_score(
     tags=["成绩"],
 )
 async def get_user_playlist_score(
+    session: Database,
     room_id: int,
     playlist_id: int,
     user_id: int,
     current_user: User = Security(get_client_user),
-    session: AsyncSession = Depends(get_db),
 ):
     score_record = None
     start_time = time.time()
@@ -716,9 +716,9 @@ async def get_user_playlist_score(
     tags=["成绩"],
 )
 async def pin_score(
+    db: Database,
     score_id: int = Path(description="成绩 ID"),
     current_user: User = Security(get_client_user),
-    db: AsyncSession = Depends(get_db),
 ):
     score_record = (
         await db.exec(
@@ -758,9 +758,9 @@ async def pin_score(
     tags=["成绩"],
 )
 async def unpin_score(
+    db: Database,
     score_id: int = Path(description="成绩 ID"),
     current_user: User = Security(get_client_user),
-    db: AsyncSession = Depends(get_db),
 ):
     score_record = (
         await db.exec(
@@ -797,11 +797,11 @@ async def unpin_score(
     tags=["成绩"],
 )
 async def reorder_score_pin(
+    db: Database,
     score_id: int = Path(description="成绩 ID"),
     after_score_id: int | None = Body(default=None, description="放在该成绩之后"),
     before_score_id: int | None = Body(default=None, description="放在该成绩之前"),
     current_user: User = Security(get_client_user),
-    db: AsyncSession = Depends(get_db),
 ):
     score_record = (
         await db.exec(
@@ -892,8 +892,8 @@ async def reorder_score_pin(
 )
 async def download_score_replay(
     score_id: int,
+    db: Database,
     current_user: User = Security(get_current_user, scopes=["public"]),
-    db: AsyncSession = Depends(get_db),
     storage_service: StorageService = Depends(get_storage_service),
 ):
     score = (await db.exec(select(Score).where(Score.id == score_id))).first()

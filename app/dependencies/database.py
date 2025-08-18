@@ -3,9 +3,11 @@ from __future__ import annotations
 from collections.abc import AsyncIterator, Callable
 from contextvars import ContextVar
 import json
+from typing import Annotated
 
 from app.config import settings
 
+from fastapi import Depends
 from pydantic import BaseModel
 import redis.asyncio as redis
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -52,7 +54,12 @@ async def get_db():
         yield session
 
 
+def with_db():
+    return AsyncSession(engine)
+
+
 DBFactory = Callable[[], AsyncIterator[AsyncSession]]
+Database = Annotated[AsyncSession, Depends(get_db)]
 
 
 async def get_db_factory() -> DBFactory:

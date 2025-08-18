@@ -3,15 +3,14 @@ from __future__ import annotations
 from app.const import BANCHOBOT_ID
 from app.database.lazer_user import User
 from app.database.statistics import UserStatistics
-from app.dependencies.database import engine
+from app.dependencies.database import with_db
 from app.models.score import GameMode
 
 from sqlmodel import exists, select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 async def create_banchobot():
-    async with AsyncSession(engine) as session:
+    async with with_db() as session:
         is_exist = (
             await session.exec(select(exists()).where(User.id == BANCHOBOT_ID))
         ).first()

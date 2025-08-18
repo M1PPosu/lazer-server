@@ -4,7 +4,7 @@ import hashlib
 from io import BytesIO
 
 from app.database.lazer_user import User, UserProfileCover
-from app.dependencies.database import get_db
+from app.dependencies.database import Database
 from app.dependencies.storage import get_storage_service
 from app.dependencies.user import get_client_user
 from app.storage.base import StorageService
@@ -13,7 +13,6 @@ from .router import router
 
 from fastapi import Depends, File, HTTPException, Security
 from PIL import Image
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 @router.post(
@@ -21,10 +20,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
     name="上传头图",
 )
 async def upload_cover(
+    session: Database,
     content: bytes = File(...),
     current_user: User = Security(get_client_user),
     storage: StorageService = Depends(get_storage_service),
-    session: AsyncSession = Depends(get_db),
 ):
     """上传用户头图
 

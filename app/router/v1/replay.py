@@ -6,7 +6,7 @@ from typing import Literal
 
 from app.database.counts import ReplayWatchedCount
 from app.database.score import Score
-from app.dependencies.database import get_db
+from app.dependencies.database import Database
 from app.dependencies.storage import get_storage_service
 from app.models.mods import int_to_mods
 from app.models.score import GameMode
@@ -17,7 +17,6 @@ from .router import router
 from fastapi import Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlmodel import col, select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 class ReplayModel(BaseModel):
@@ -32,6 +31,7 @@ class ReplayModel(BaseModel):
     description="获取指定谱面的回放文件。",
 )
 async def download_replay(
+    session: Database,
     beatmap: int = Query(..., alias="b", description="谱面 ID"),
     user: str = Query(..., alias="u", description="用户"),
     ruleset_id: int | None = Query(
@@ -45,7 +45,6 @@ async def download_replay(
         None, description="用户类型：string 用户名称 / id 用户 ID"
     ),
     mods: int = Query(0, description="成绩的 MOD"),
-    session: AsyncSession = Depends(get_db),
     storage_service: StorageService = Depends(get_storage_service),
 ):
     mods_ = int_to_mods(mods)

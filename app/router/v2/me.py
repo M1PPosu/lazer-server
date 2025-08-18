@@ -3,13 +3,12 @@ from __future__ import annotations
 from app.database import User, UserResp
 from app.database.lazer_user import ALL_INCLUDED
 from app.dependencies import get_current_user
-from app.dependencies.database import get_db
+from app.dependencies.database import Database
 from app.models.score import GameMode
 
 from .router import router
 
-from fastapi import Depends, Path, Security
-from sqlmodel.ext.asyncio.session import AsyncSession
+from fastapi import Path, Security
 
 
 @router.get(
@@ -20,9 +19,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
     tags=["用户"],
 )
 async def get_user_info_with_ruleset(
+    session: Database,
     ruleset: GameMode = Path(description="指定 ruleset"),
     current_user: User = Security(get_current_user, scopes=["identify"]),
-    session: AsyncSession = Depends(get_db),
 ):
     return await UserResp.from_db(
         current_user,
@@ -40,8 +39,8 @@ async def get_user_info_with_ruleset(
     tags=["用户"],
 )
 async def get_user_info_default(
+    session: Database,
     current_user: User = Security(get_current_user, scopes=["identify"]),
-    session: AsyncSession = Depends(get_db),
 ):
     return await UserResp.from_db(
         current_user,

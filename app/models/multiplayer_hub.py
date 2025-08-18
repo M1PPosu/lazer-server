@@ -18,7 +18,7 @@ from typing import (
 )
 
 from app.database.beatmap import Beatmap
-from app.dependencies.database import engine
+from app.dependencies.database import with_db
 from app.dependencies.fetcher import get_fetcher
 from app.exception import InvokeException
 
@@ -41,7 +41,6 @@ from .signalr import (
 from pydantic import BaseModel, Field
 from sqlalchemy import update
 from sqlmodel import col
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 if TYPE_CHECKING:
     from app.database.room import Room
@@ -473,7 +472,7 @@ class MultiplayerQueue:
                     (item for item in self.room.playlist if not item.expired),
                     key=lambda x: x.id,
                 )
-        async with AsyncSession(engine) as session:
+        async with with_db() as session:
             for idx, item in enumerate(ordered_active_items):
                 if item.playlist_order == idx:
                     continue
@@ -522,7 +521,7 @@ class MultiplayerQueue:
         if item.freestyle and len(item.allowed_mods) > 0:
             raise InvokeException("Freestyle items cannot have allowed mods")
 
-        async with AsyncSession(engine) as session:
+        async with with_db() as session:
             fetcher = await get_fetcher()
             async with session:
                 beatmap = await Beatmap.get_or_fetch(
@@ -548,7 +547,7 @@ class MultiplayerQueue:
         if item.freestyle and len(item.allowed_mods) > 0:
             raise InvokeException("Freestyle items cannot have allowed mods")
 
-        async with AsyncSession(engine) as session:
+        async with with_db() as session:
             fetcher = await get_fetcher()
             async with session:
                 beatmap = await Beatmap.get_or_fetch(
@@ -622,7 +621,7 @@ class MultiplayerQueue:
                 "Attempted to remove an item which has already been played"
             )
 
-        async with AsyncSession(engine) as session:
+        async with with_db() as session:
             await Playlist.delete_item(item.id, self.room.room_id, session)
 
         found_item = next((i for i in self.room.playlist if i.id == item.id), None)
@@ -637,7 +636,7 @@ class MultiplayerQueue:
     async def finish_current_item(self):
         from app.database import Playlist
 
-        async with AsyncSession(engine) as session:
+        async with with_db() as session:
             played_at = datetime.now(UTC)
             await session.execute(
                 update(Playlist)

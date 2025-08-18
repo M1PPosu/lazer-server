@@ -6,7 +6,7 @@ import json
 from app.const import BANCHOBOT_ID
 from app.database.playlists import Playlist
 from app.database.room import Room
-from app.dependencies.database import engine, get_redis
+from app.dependencies.database import get_redis, with_db
 from app.dependencies.scheduler import get_scheduler
 from app.log import logger
 from app.models.metadata_hub import DailyChallengeInfo
@@ -16,13 +16,12 @@ from app.models.room import RoomCategory
 from .room import create_playlist_room
 
 from sqlmodel import col, select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 async def create_daily_challenge_room(
     beatmap: int, ruleset_id: int, duration: int, required_mods: list[APIMod] = []
 ) -> Room:
-    async with AsyncSession(engine) as session:
+    async with with_db() as session:
         today = datetime.now(UTC).date()
         return await create_playlist_room(
             session=session,
@@ -52,7 +51,7 @@ async def daily_challenge_job():
     key = f"daily_challenge:{now.date()}"
     if not await redis.exists(key):
         return
-    async with AsyncSession(engine) as session:
+    async with with_db() as session:
         room = (
             await session.exec(
                 select(Room).where(
