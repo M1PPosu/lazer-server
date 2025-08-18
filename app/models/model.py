@@ -17,7 +17,7 @@ class UTCBaseModel(BaseModel):
         return v
 
 
-Cursor = dict[str, int]
+Cursor = dict[str, int | float]
 
 
 class RespWithCursor(BaseModel):

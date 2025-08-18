@@ -21,6 +21,7 @@ from app.router import (
     signalr_router,
 )
 from app.router.redirect import redirect_router
+from app.scheduler.cache_scheduler import start_cache_scheduler, stop_cache_scheduler
 from app.service.beatmap_download_service import download_service
 from app.service.calculate_all_user_rank import calculate_user_rank
 from app.service.create_banchobot import create_banchobot
@@ -74,9 +75,11 @@ async def lifespan(app: FastAPI):
     await daily_challenge_job()
     await create_banchobot()
     await download_service.start_health_check()  # 启动下载服务健康检查
+    await start_cache_scheduler()  # 启动缓存调度器
     # on shutdown
     yield
     stop_scheduler()
+    await stop_cache_scheduler()  # 停止缓存调度器
     await download_service.stop_health_check()  # 停止下载服务健康检查
     await engine.dispose()
     await redis_client.aclose()
@@ -111,6 +114,7 @@ app.include_router(fetcher_router)
 app.include_router(file_router)
 app.include_router(auth_router)
 app.include_router(private_router)
+
 # CORS 配置
 origins = []
 for url in [*settings.cors_urls, settings.server_url]:

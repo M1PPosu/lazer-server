@@ -7,7 +7,7 @@ from urllib.parse import parse_qs
 from app.database import Beatmap, Beatmapset, BeatmapsetResp, FavouriteBeatmapset, User
 from app.database.beatmapset import SearchBeatmapsetsResp
 from app.dependencies.beatmap_download import get_beatmap_download_service
-from app.dependencies.database import engine, get_db
+from app.dependencies.database import engine, get_db, get_redis
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.geoip import get_client_ip, get_geoip_helper
 from app.dependencies.user import get_client_user, get_current_user
@@ -55,13 +55,37 @@ async def search_beatmapset(
     current_user: User = Security(get_current_user, scopes=["public"]),
     db: AsyncSession = Depends(get_db),
     fetcher: Fetcher = Depends(get_fetcher),
+    redis = Depends(get_redis),
 ):
     params = parse_qs(qs=request.url.query, keep_blank_values=True)
     cursor = {}
+
+    # 解析 cursor[field] 格式的参数
     for k, v in params.items():
         match = re.match(r"cursor\[(\w+)\]", k)
         if match:
-            cursor[match.group(1)] = v[0] if v else None
+            field_name = match.group(1)
+            field_value = v[0] if v else None
+            if field_value is not None:
+                # 转换为适当的类型
+                try:
+                    if field_name in ["approved_date", "id"]:
+                        cursor[field_name] = int(field_value)
+                    else:
+                        # 尝试转换为数字类型
+                        try:
+                            # 首先尝试转换为整数
+                            cursor[field_name] = int(field_value)
+                        except ValueError:
+                            try:
+                                # 然后尝试转换为浮点数
+                                cursor[field_name] = float(field_value)
+                            except ValueError:
+                                # 最后保持字符串
+                                cursor[field_name] = field_value
+                except ValueError:
+                    cursor[field_name] = field_value
+
     if (
         "recommended" in query.c
         or len(query.r) > 0
@@ -73,7 +97,7 @@ async def search_beatmapset(
         # TODO: search locally
         return SearchBeatmapsetsResp(total=0, beatmapsets=[])
     try:
-        sets = await fetcher.search_beatmapset(query, cursor)
+        sets = await fetcher.search_beatmapset(query, cursor, redis)
         background_tasks.add_task(_save_to_db, sets)
     except HTTPError as e:
         raise HTTPException(status_code=500, detail=str(e))

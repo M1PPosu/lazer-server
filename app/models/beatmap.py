@@ -202,3 +202,7 @@ class SearchQueryModel(BaseModel):
         default=False,
         description="不良内容",
     )
+    cursor_string: str | None = Field(
+        default=None,
+        description="游标字符串，用于分页",
+    )
