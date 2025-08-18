@@ -37,6 +37,7 @@ from app.dependencies.fetcher import get_fetcher
 from app.dependencies.storage import get_storage_service
 from app.dependencies.user import get_client_user, get_current_user
 from app.fetcher import Fetcher
+from app.log import logger
 from app.models.room import RoomCategory
 from app.models.score import (
     GameMode,
@@ -95,6 +96,14 @@ async def submit_score(
         if not score:
             raise HTTPException(status_code=404, detail="Score not found")
     else:
+        # 智能预取beatmap缓存（异步进行，不阻塞主流程）
+        try:
+            from app.service.beatmap_cache_service import get_beatmap_cache_service
+            cache_service = get_beatmap_cache_service(redis, fetcher)
+            await cache_service.smart_preload_for_score(beatmap)
+        except Exception as e:
+            logger.debug(f"Beatmap preload failed for {beatmap}: {e}")
+
         try:
             db_beatmap = await Beatmap.get_or_fetch(db, fetcher, bid=beatmap)
         except HTTPError:

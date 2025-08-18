@@ -5,7 +5,6 @@ import math
 from typing import TYPE_CHECKING, Any
 
 from app.calculator import (
-    calculate_pp,
     calculate_pp_weight,
     calculate_score_to_level,
     calculate_weighted_acc,
@@ -772,8 +771,10 @@ async def process_score(
         maximum_statistics=info.maximum_statistics,
     )
     if can_get_pp:
-        beatmap_raw = await fetcher.get_or_fetch_beatmap_raw(redis, beatmap_id)
-        pp = await calculate_pp(score, beatmap_raw, session)
+        from app.calculator import pre_fetch_and_calculate_pp
+        pp = await pre_fetch_and_calculate_pp(
+            score, beatmap_id, session, redis, fetcher
+        )
         score.pp = pp
     session.add(score)
     user_id = user.id
@@ -799,5 +800,5 @@ async def process_score(
             await session.refresh(score)
     await session.refresh(score_token)
     await session.refresh(user)
-    await redis.publish("score:processed", score.id)
+    await redis.publish("score:processed", str(score.id or 0))
     return score

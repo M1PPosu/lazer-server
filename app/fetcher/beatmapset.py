@@ -32,8 +32,6 @@ class BeatmapsetFetcher(BaseFetcher):
                 q="",
                 s="leaderboard",
                 sort=sort,  # type: ignore
-                # 不设置 nsfw 和 m，让它们使用默认值
-                # 这样 exclude_defaults=True 时它们会被排除
             )
             homepage_queries.append((query, {}))
 

@@ -86,26 +86,34 @@ async def calculate_pp(score: "Score", beatmap: str, session: AsyncSession) -> f
                 f"Error checking if beatmap {score.beatmap_id} is suspicious"
             )
 
-    map = rosu.Beatmap(content=beatmap)
-    mods = deepcopy(score.mods.copy())
-    parse_enum_to_str(int(score.gamemode), mods)
-    map.convert(score.gamemode.to_rosu(), mods)  # pyright: ignore[reportArgumentType]
-    perf = rosu.Performance(
-        mods=mods,
-        lazer=True,
-        accuracy=clamp(score.accuracy * 100, 0, 100),
-        combo=score.max_combo,
-        large_tick_hits=score.nlarge_tick_hit or 0,
-        slider_end_hits=score.nslider_tail_hit or 0,
-        small_tick_hits=score.nsmall_tick_hit or 0,
-        n_geki=score.ngeki,
-        n_katu=score.nkatu,
-        n300=score.n300,
-        n100=score.n100,
-        n50=score.n50,
-        misses=score.nmiss,
-    )
-    attrs = perf.calculate(map)
+    # 使用线程池执行计算密集型操作以避免阻塞事件循环
+    import asyncio
+    loop = asyncio.get_event_loop()
+    
+    def _calculate_pp_sync():
+        map = rosu.Beatmap(content=beatmap)
+        mods = deepcopy(score.mods.copy())
+        parse_enum_to_str(int(score.gamemode), mods)
+        map.convert(score.gamemode.to_rosu(), mods)  # pyright: ignore[reportArgumentType]
+        perf = rosu.Performance(
+            mods=mods,
+            lazer=True,
+            accuracy=clamp(score.accuracy * 100, 0, 100),
+            combo=score.max_combo,
+            large_tick_hits=score.nlarge_tick_hit or 0,
+            slider_end_hits=score.nslider_tail_hit or 0,
+            small_tick_hits=score.nsmall_tick_hit or 0,
+            n_geki=score.ngeki,
+            n_katu=score.nkatu,
+            n300=score.n300,
+            n100=score.n100,
+            n50=score.n50,
+            misses=score.nmiss,
+        )
+        return perf.calculate(map)
+    
+    # 在线程池中执行计算
+    attrs = await loop.run_in_executor(None, _calculate_pp_sync)
     pp = attrs.pp
 
     # mrekk bp1: 2048pp; ppy-sb top1 rxbp1: 2198pp
@@ -120,6 +128,132 @@ async def calculate_pp(score: "Score", beatmap: str, session: AsyncSession) -> f
         )
         return 0
     return pp
+
+
+async def pre_fetch_and_calculate_pp(
+    score: "Score",
+    beatmap_id: int,
+    session: AsyncSession,
+    redis,
+    fetcher
+) -> float:
+    """
+    优化版PP计算：预先获取beatmap文件并使用缓存
+    """
+    import asyncio
+
+    from app.database.beatmap import BannedBeatmaps
+
+    # 快速检查是否被封禁
+    if settings.suspicious_score_check:
+        beatmap_banned = (
+            await session.exec(
+                select(exists()).where(
+                    col(BannedBeatmaps.beatmap_id) == beatmap_id
+                )
+            )
+        ).first()
+        if beatmap_banned:
+            return 0
+
+    # 异步获取beatmap原始文件，利用已有的Redis缓存机制
+    try:
+        beatmap_raw = await fetcher.get_or_fetch_beatmap_raw(redis, beatmap_id)
+    except Exception as e:
+        logger.error(f"Failed to fetch beatmap {beatmap_id}: {e}")
+        return 0
+
+    # 在获取文件的同时，可以检查可疑beatmap
+    if settings.suspicious_score_check:
+        try:
+            # 将可疑检查也移到线程池中执行
+            def _check_suspicious():
+                return is_suspicious_beatmap(beatmap_raw)
+
+            loop = asyncio.get_event_loop()
+            is_sus = await loop.run_in_executor(None, _check_suspicious)
+            if is_sus:
+                session.add(BannedBeatmaps(beatmap_id=beatmap_id))
+                logger.warning(f"Beatmap {beatmap_id} is suspicious, banned")
+                return 0
+        except Exception:
+            logger.exception(f"Error checking if beatmap {beatmap_id} is suspicious")
+
+    # 调用已优化的PP计算函数
+    return await calculate_pp(score, beatmap_raw, session)
+
+
+async def batch_calculate_pp(
+    scores_data: list[tuple["Score", int]],
+    session: AsyncSession,
+    redis,
+    fetcher
+) -> list[float]:
+    """
+    批量计算PP：适用于重新计算或批量处理场景
+    Args:
+        scores_data: [(score, beatmap_id), ...] 的列表
+    Returns:
+        对应的PP值列表
+    """
+    import asyncio
+
+    from app.database.beatmap import BannedBeatmaps
+
+    if not scores_data:
+        return []
+
+    # 提取所有唯一的beatmap_id
+    unique_beatmap_ids = list({beatmap_id for _, beatmap_id in scores_data})
+
+    # 批量检查被封禁的beatmap
+    banned_beatmaps = set()
+    if settings.suspicious_score_check:
+        banned_results = await session.exec(
+            select(BannedBeatmaps.beatmap_id).where(
+                col(BannedBeatmaps.beatmap_id).in_(unique_beatmap_ids)
+            )
+        )
+        banned_beatmaps = set(banned_results.all())
+
+    # 并发获取所有需要的beatmap原始文件
+    async def fetch_beatmap_safe(beatmap_id: int) -> tuple[int, str | None]:
+        if beatmap_id in banned_beatmaps:
+            return beatmap_id, None
+        try:
+            content = await fetcher.get_or_fetch_beatmap_raw(redis, beatmap_id)
+            return beatmap_id, content
+        except Exception as e:
+            logger.error(f"Failed to fetch beatmap {beatmap_id}: {e}")
+            return beatmap_id, None
+
+    # 并发获取所有beatmap文件
+    fetch_tasks = [fetch_beatmap_safe(bid) for bid in unique_beatmap_ids]
+    fetch_results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
+
+    # 构建beatmap_id -> content的映射
+    beatmap_contents = {}
+    for result in fetch_results:
+        if isinstance(result, tuple):
+            beatmap_id, content = result
+            beatmap_contents[beatmap_id] = content
+
+    # 为每个score计算PP
+    pp_results = []
+    for score, beatmap_id in scores_data:
+        beatmap_content = beatmap_contents.get(beatmap_id)
+        if beatmap_content is None:
+            pp_results.append(0.0)
+            continue
+
+        try:
+            pp = await calculate_pp(score, beatmap_content, session)
+            pp_results.append(pp)
+        except Exception as e:
+            logger.error(f"Failed to calculate PP for score {score.id}: {e}")
+            pp_results.append(0.0)
+
+    return pp_results
 
 
 # https://osu.ppy.sh/wiki/Gameplay/Score/Total_score

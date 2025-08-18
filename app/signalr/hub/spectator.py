@@ -222,6 +222,10 @@ class SpectatorHub(Hub[StoreClientState]):
                     )
                 )
         logger.info(f"[SpectatorHub] {client.user_id} began playing {state.beatmap_id}")
+
+        # 预缓存beatmap文件以加速后续PP计算
+        await self._preload_beatmap_for_pp_calculation(state.beatmap_id)
+
         await self.broadcast_group_call(
             self.group_id(user_id),
             "UserBeganPlaying",
@@ -446,3 +450,50 @@ class SpectatorHub(Hub[StoreClientState]):
         if (target_client := self.get_client_by_id(str(target_id))) is not None:
             await self.call_noblock(target_client, "UserEndedWatching", user_id)
         logger.info(f"[SpectatorHub] {user_id} ended watching {target_id}")
+
+    async def _preload_beatmap_for_pp_calculation(self, beatmap_id: int) -> None:
+        """
+        预缓存beatmap文件以加速PP计算
+        当玩家开始游玩时异步预加载beatmap原始文件到Redis缓存
+        """
+        # 检查是否启用了beatmap预加载功能
+        if not settings.enable_beatmap_preload:
+            return
+
+        try:
+            # 异步获取fetcher和redis连接
+            from app.dependencies.database import get_redis
+            from app.dependencies.fetcher import get_fetcher
+
+            fetcher = get_fetcher()
+            redis = get_redis()
+
+            # 检查是否已经缓存，避免重复下载
+            cache_key = f"beatmap:raw:{beatmap_id}"
+            if await redis.exists(cache_key):
+                logger.debug(f"Beatmap {beatmap_id} already cached, skipping preload")
+                return
+
+            # 在后台异步预缓存beatmap文件，存储任务引用防止被回收
+            task = asyncio.create_task(
+                self._fetch_beatmap_background(fetcher, redis, beatmap_id)
+            )
+            # 任务完成后自动清理，避免内存泄漏
+            task.add_done_callback(lambda t: None)
+
+        except Exception as e:
+            # 预缓存失败不应该影响正常游戏流程
+            logger.warning(f"Failed to preload beatmap {beatmap_id}: {e}")
+
+    async def _fetch_beatmap_background(self, fetcher, redis, beatmap_id: int) -> None:
+        """
+        后台获取beatmap文件
+        """
+        try:
+            # 使用fetcher的get_or_fetch_beatmap_raw方法预缓存
+            await fetcher.get_or_fetch_beatmap_raw(redis, beatmap_id)
+            logger.debug(
+                f"Successfully preloaded beatmap {beatmap_id} for PP calculation"
+            )
+        except Exception as e:
+            logger.debug(f"Failed to preload beatmap {beatmap_id}: {e}")

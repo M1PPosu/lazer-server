@@ -137,6 +137,13 @@ class Settings(BaseSettings):
     enable_supporter_for_all_users: bool = False
     enable_all_beatmap_leaderboard: bool = False
     enable_all_beatmap_pp: bool = False
+    # 性能优化设置
+    enable_beatmap_preload: bool = True
+    beatmap_cache_expire_hours: int = 24
+    max_concurrent_pp_calculations: int = 10
+    enable_pp_calculation_threading: bool = True
+
+    # 反作弊设置
     suspicious_score_check: bool = True
     seasonal_backgrounds: Annotated[list[str], BeforeValidator(_parse_list)] = []
     banned_name: list[str] = [
