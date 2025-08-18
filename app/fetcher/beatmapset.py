@@ -27,13 +27,13 @@ class BeatmapsetFetcher(BaseFetcher):
         sorts = ["ranked_desc", "updated_desc", "favourites_desc", "plays_desc"]
 
         for sort in sorts:
-            # 第一页
+            # 第一页 - 使用最小参数集合以匹配用户请求
             query = SearchQueryModel(
                 q="",
                 s="leaderboard",
                 sort=sort,  # type: ignore
-                nsfw=False,
-                m=0
+                # 不设置 nsfw 和 m，让它们使用默认值
+                # 这样 exclude_defaults=True 时它们会被排除
             )
             homepage_queries.append((query, {}))
 
@@ -50,17 +50,42 @@ class BeatmapsetFetcher(BaseFetcher):
     @staticmethod
     def _generate_cache_key(query: SearchQueryModel, cursor: Cursor) -> str:
         """生成搜索缓存键"""
-        # 创建包含查询参数和 cursor 的字典
-        cache_data = {
-            **query.model_dump(
-                exclude_none=True, exclude_unset=True, exclude_defaults=True
-            ),
-            "cursor": cursor
-        }
+        # 只包含核心查询参数，忽略默认值
+        cache_data = {}
+
+        # 添加非默认/非空的查询参数
+        if query.q:
+            cache_data["q"] = query.q
+        if query.s != "leaderboard":  # 只有非默认值才加入
+            cache_data["s"] = query.s
+        if hasattr(query, "sort") and query.sort:
+            cache_data["sort"] = query.sort
+        if query.nsfw is not False:  # 只有非默认值才加入
+            cache_data["nsfw"] = query.nsfw
+        if query.m is not None:
+            cache_data["m"] = query.m
+        if query.c:
+            cache_data["c"] = query.c
+        if query.l != "any":  # 检查语言默认值
+            cache_data["l"] = query.l
+        if query.e:
+            cache_data["e"] = query.e
+        if query.r:
+            cache_data["r"] = query.r
+        if query.played is not False:
+            cache_data["played"] = query.played
+
+        # 添加 cursor
+        if cursor:
+            cache_data["cursor"] = cursor
 
         # 序列化为 JSON 并生成 MD5 哈希
         cache_json = json.dumps(cache_data, sort_keys=True, separators=(",", ":"))
         cache_hash = hashlib.md5(cache_json.encode()).hexdigest()
+
+        logger.opt(colors=True).debug(
+            f"<blue>[CacheKey]</blue> Query: {cache_data}, Hash: {cache_hash}"
+        )
 
         return f"beatmapset:search:{cache_hash}"
 
@@ -294,7 +319,7 @@ class BeatmapsetFetcher(BaseFetcher):
                     params=params,
                 )
 
-                # 处理响应中的cursor信息
+
                 if api_response.get("cursor"):
                     cursor_dict = api_response["cursor"]
                     api_response["cursor_string"] = self._encode_cursor(cursor_dict)
@@ -312,7 +337,7 @@ class BeatmapsetFetcher(BaseFetcher):
                     f"Warmed up cache for {query.sort} (TTL: {cache_ttl}s)"
                 )
 
-                # 预取前2页（也会遵循速率限制）
+
                 if api_response.get("cursor"):
                     await self.prefetch_next_pages(
                         query, api_response["cursor"], redis_client, pages=2
