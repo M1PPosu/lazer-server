@@ -158,6 +158,8 @@ async def create_room(
     user_id = current_user.id
     db_room = await create_playlist_room_from_api(db, room, user_id)
     await _participate_room(db_room.id, user_id, db_room, db, redis)
+    await db.commit()
+    await db.refresh(db_room)
     created_room = APICreatedRoom.model_validate(await RoomResp.from_db(db_room, db))
     created_room.error = ""
     return created_room
@@ -261,7 +263,8 @@ async def remove_user_from_room(
         ).first()
         if participated_user is not None:
             participated_user.left_at = datetime.now(UTC)
-        db_room.participant_count -= 1
+        if db_room.participant_count > 0:
+            db_room.participant_count -= 1
         await redis.publish("chat:room:left", f"{db_room.channel_id}:{user_id}")
         await db.commit()
         return None

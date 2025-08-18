@@ -413,6 +413,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                     host_id=room.room.host.user_id,
                 )
             )
+            await session.commit()
 
     async def setting_changed(self, room: ServerMultiplayerRoom, beatmap_changed: bool):
         await self.change_db_settings(room)
@@ -925,7 +926,8 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 db_room = await session.get(Room, room.room.room_id)
                 if db_room is None:
                     raise InvokeException("Room does not exist in database")
-                db_room.participant_count -= 1
+                if db_room.participant_count > 0:
+                    db_room.participant_count -= 1
 
         if len(room.room.users) == 0:
             await self.end_room(room)
