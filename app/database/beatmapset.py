@@ -258,6 +258,10 @@ class BeatmapsetResp(BeatmapsetBase):
             **beatmapset.model_dump(),
         }
 
+        # 确保 ratings 字段不为 null，避免客户端崩溃
+        if update.get("ratings") is None:
+            update["ratings"] = []
+
         beatmap_status = beatmapset.beatmap_status
         if (
             settings.enable_all_beatmap_leaderboard
