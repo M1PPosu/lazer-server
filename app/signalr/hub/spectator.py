@@ -6,7 +6,6 @@ import lzma
 import struct
 import time
 from typing import override
-from venv import logger
 
 from app.calculator import clamp
 from app.config import settings
@@ -19,6 +18,7 @@ from app.dependencies.database import engine, get_redis
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.storage import get_storage_service
 from app.exception import InvokeException
+from app.log import logger
 from app.models.mods import APIMod, mods_to_int
 from app.models.score import GameMode, LegacyReplaySoloScoreInfo, ScoreStatistics
 from app.models.spectator_hub import (

@@ -660,10 +660,6 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
 
         if user.state == state:
             return
-        logger.info(
-            f"[MultiplayerHub] {user.user_id}'s state "
-            f"changed from {user.state} to {state}"
-        )
         match state:
             case MultiplayerUserState.IDLE:
                 if user.state.is_playing:
@@ -691,6 +687,10 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         user: MultiplayerRoomUser,
         state: MultiplayerUserState,
     ):
+        logger.info(
+            f"[MultiplayerHub] {user.user_id}'s state "
+            f"changed from {user.state} to {state}"
+        )
         user.state = state
         await self.broadcast_group_call(
             self.group_id(room.room.room_id),
@@ -796,7 +796,6 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         if all(u.state != MultiplayerUserState.READY for u in room.users):
             raise InvokeException("Can't start match when no users are ready.")
 
-        logger.info(f"[MultiplayerHub] Room {room.room_id} match started")
         await self.start_match(server_room)
 
     async def start_match(self, room: ServerMultiplayerRoom):
@@ -804,6 +803,12 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             raise InvokeException("Can't start match when already in a running state.")
         if room.queue.current_item.expired:
             raise InvokeException("Current playlist item is expired")
+
+        if all(u.state != MultiplayerUserState.READY for u in room.room.users):
+            await room.queue.finish_current_item()
+
+        logger.info(f"[MultiplayerHub] Room {room.room.room_id} match started")
+
         ready_users = [
             u
             for u in room.room.users
@@ -813,12 +818,8 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 or u.state == MultiplayerUserState.IDLE
             )
         ]
-        await asyncio.gather(
-            *[
-                self.change_user_state(room, u, MultiplayerUserState.WAITING_FOR_LOAD)
-                for u in ready_users
-            ]
-        )
+        for u in ready_users:
+            await self.change_user_state(room, u, MultiplayerUserState.WAITING_FOR_LOAD)
         await self.change_room_state(
             room,
             MultiplayerRoomState.WAITING_FOR_LOAD,
