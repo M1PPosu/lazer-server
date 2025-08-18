@@ -2,6 +2,7 @@ from collections.abc import Sequence
 from datetime import UTC, date, datetime
 import json
 import math
+import sys
 from typing import TYPE_CHECKING, Any
 
 from app.calculator import (
@@ -328,22 +329,39 @@ async def get_leaderboard(
     mods: list[str] | None = None,
     user: User | None = None,
     limit: int = 50,
-) -> tuple[list[Score], Score | None]:
+) -> tuple[list[Score], Score | None, int]:
     mods = mods or []
     mode = mode.to_special_mode(mods)
 
     wheres = await _score_where(type, beatmap, mode, mods, user)
     if wheres is None:
-        return [], None
-    query = (
-        select(BestScore)
-        .where(*wheres)
-        .limit(limit)
-        .order_by(col(BestScore.total_score).desc())
-    )
-    if mods:
-        query = query.params(w=json.dumps(mods))
-    scores = [s.score for s in await session.exec(query)]
+        return [], None, 0
+    count = (await session.exec(select(func.count()).where(*wheres))).one()
+    scores: dict[int, Score] = {}
+    max_score = sys.maxsize
+    while limit > 0:
+        query = (
+            select(BestScore)
+            .where(*wheres, BestScore.total_score < max_score)
+            .limit(limit)
+            .order_by(col(BestScore.total_score).desc())
+        )
+        if mods:
+            query = query.params(w=json.dumps(mods))
+        extra_need = 0
+        for s in await session.exec(query):
+            if s.user_id in scores:
+                extra_need += 1
+                count -= 1
+                if s.total_score > scores[s.user_id].total_score:
+                    scores[s.user_id] = s.score
+            else:
+                scores[s.user_id] = s.score
+            if max_score > s.total_score:
+                max_score = s.total_score
+        limit = extra_need
+
+    result_scores = sorted(scores.values(), key=lambda u: u.total_score, reverse=True)
     user_score = None
     if user:
         self_query = (
@@ -366,9 +384,9 @@ async def get_leaderboard(
         user_bs = (await session.exec(self_query)).first()
         if user_bs:
             user_score = user_bs.score
-        if user_score and user_score not in scores:
-            scores.append(user_score)
-    return scores, user_score
+        if user_score and user_score not in result_scores:
+            result_scores.append(user_score)
+    return result_scores, user_score, count
 
 
 async def get_score_position_by_user(
@@ -719,7 +737,8 @@ async def process_user(
             statistics.hit_accuracy = acc_sum
     if add_to_db:
         session.add(mouthly_playcount)
-    await process_beatmap_playcount(session, user.id, score.beatmap_id)
+    with session.no_autoflush:
+        await process_beatmap_playcount(session, user.id, score.beatmap_id)
     await session.commit()
     await session.refresh(user)
 

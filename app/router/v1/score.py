@@ -167,7 +167,7 @@ async def get_scores(
                 )
             ).all()
         else:
-            scores, _ = await get_leaderboard(
+            scores, _, _ = await get_leaderboard(
                 session,
                 beatmap_id,
                 GameMode.from_int_extra(ruleset_id),

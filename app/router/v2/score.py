@@ -169,7 +169,8 @@ async def submit_score(
 
 class BeatmapScores(BaseModel):
     scores: list[ScoreResp]
-    userScore: ScoreResp | None = None
+    user_score: BeatmapUserScore | None = None
+    score_count: int = 0
 
 
 @router.get(
@@ -201,14 +202,21 @@ async def get_beatmap_scores(
             status_code=404, detail="this server only contains lazer scores"
         )
 
-    all_scores, user_score = await get_leaderboard(
+    all_scores, user_score, count = await get_leaderboard(
         db, beatmap_id, mode, type=type, user=current_user, limit=limit, mods=mods
     )
 
-    return BeatmapScores(
+    user_score_resp = await ScoreResp.from_db(db, user_score) if user_score else None
+    resp = BeatmapScores(
         scores=[await ScoreResp.from_db(db, score) for score in all_scores],
-        userScore=await ScoreResp.from_db(db, user_score) if user_score else None,
+        user_score=BeatmapUserScore(
+            score=user_score_resp, position=user_score_resp.rank_global or 0
+        )
+        if user_score_resp
+        else None,
+        score_count=count,
     )
+    return resp
 
 
 class BeatmapUserScore(BaseModel):
