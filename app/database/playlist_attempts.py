@@ -61,7 +61,7 @@ class ItemAttemptsCount(AsyncAttrs, ItemAttemptsCountBase, table=True):
         self.attempts = sum(score.attempts for score in playlist_scores)
         self.total_score = sum(score.total_score for score in playlist_scores)
         self.pp = sum(score.score.pp for score in playlist_scores)
-        self.completed = len(playlist_scores)
+        self.completed = len([score for score in playlist_scores if score.score.passed])
         self.accuracy = (
             sum(score.score.accuracy for score in playlist_scores) / self.completed
             if self.completed > 0
