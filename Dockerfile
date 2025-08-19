@@ -36,6 +36,9 @@ ENV PATH="/app/.venv/bin:${PATH}" \
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app /app
 
+RUN mkdir -p /app/logs
+VOLUME ["/app/logs"]
+
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 

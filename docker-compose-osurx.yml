@@ -29,7 +29,9 @@ services:
         condition: service_healthy
     volumes:
       - ./replays:/app/replays
+      - ./storage:/app/storage
       - ./static:/app/static
+      - ./logs:/app/logs
     restart: unless-stopped
     networks:
       - osu-network
