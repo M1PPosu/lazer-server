@@ -11,6 +11,7 @@ from app.calculator import (
     clamp,
 )
 from app.config import settings
+from app.const import BANCHOBOT_ID
 from app.database import BestScore, UserStatistics
 from app.database.beatmap import Beatmap
 from app.database.pp_best_score import PPBestScore
@@ -44,7 +45,10 @@ async def recalculate():
             logger.info(f"Recalculating for mode: {mode}")
             statistics_list = (
                 await session.exec(
-                    select(UserStatistics).where(UserStatistics.mode == mode)
+                    select(UserStatistics).where(
+                        UserStatistics.mode == mode,
+                        UserStatistics.user_id != BANCHOBOT_ID,
+                    )
                 )
             ).all()
             await asyncio.gather(
@@ -73,7 +77,7 @@ async def recalculate():
 
             await session.commit()
             logger.success(
-                f"Recalculated for mode: {mode}, total: {len(statistics_list)}"
+                f"Recalculated for mode: {mode}, total users: {len(statistics_list)}"
             )
 
 
@@ -94,7 +98,8 @@ async def _recalculate_pp(
         )
     ).all()
     prev: dict[int, PPBestScore] = {}
-    for score in scores:
+
+    async def cal(score: Score):
         time = 10
         beatmap_id = score.beatmap_id
         while time > 0:
@@ -135,8 +140,19 @@ async def _recalculate_pp(
                 )
                 break
         if time <= 0:
-            logger.error(f"Failed to fetch beatmap {beatmap_id} after 10 attempts")
-            score.pp = 0
+            logger.warning(
+                f"Failed to fetch beatmap {beatmap_id} after 10 attempts, "
+                "retrying later..."
+            )
+            return score
+
+    while len(scores) > 0:
+        results = await asyncio.gather(*[cal(s) for s in scores])
+        scores = [s for s in results if s is not None]
+        if len(scores) == 0:
+            break
+        await asyncio.sleep(30)
+        logger.info(f"Retry to calculate for {gamemode}, total: {len(scores)}")
 
     for best_score in prev.values():
         session.add(best_score)
