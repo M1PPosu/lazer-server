@@ -249,6 +249,8 @@ class UserResp(UserBase):
     team: Team | None = None
     session_verified: bool = True
     daily_challenge_user_stats: DailyChallengeStatsResp | None = None
+    default_group: str = ""
+    is_deleted: bool = False  # TODO
 
     # TODO: monthly_playcounts, unread_pm_count， rank_history, user_preferences
 
@@ -272,6 +274,7 @@ class UserResp(UserBase):
 
         u = cls.model_validate(obj.model_dump())
         u.id = obj.id
+        u.default_group = "bot" if u.is_bot else "default"
         u.country = Country(
             code=obj.country_code, name=COUNTRIES.get(obj.country_code, "Unknown")
         )
