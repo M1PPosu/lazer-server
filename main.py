@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime
 import os
@@ -7,7 +8,7 @@ import os
 from app.config import settings
 from app.dependencies.database import engine, redis_client
 from app.dependencies.fetcher import get_fetcher
-from app.dependencies.scheduler import init_scheduler, stop_scheduler
+from app.dependencies.scheduler import start_scheduler, stop_scheduler
 from app.log import logger
 from app.router import (
     api_v1_router,
@@ -66,11 +67,9 @@ async def lifespan(app: FastAPI):
     # on startup
     await get_fetcher()  # 初始化 fetcher
     await init_geoip()  # 初始化 GeoIP 数据库
-    if os.environ.get("RECALCULATE", "false").lower() == "true":
-        await recalculate()
     await create_rx_statistics()
     await calculate_user_rank(True)
-    init_scheduler()
+    start_scheduler()
     schedule_geoip_updates()  # 调度 GeoIP 定时更新任务
     await daily_challenge_job()
     await create_banchobot()
@@ -175,6 +174,10 @@ if settings.osu_web_client_secret == "your_osu_web_client_secret_here":
 
 if __name__ == "__main__":
     import uvicorn
+
+    if os.environ.get("RECALCULATE", "false").lower() == "true":
+        asyncio.run(recalculate())
+        exit()
 
     uvicorn.run(
         "main:app",

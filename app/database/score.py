@@ -537,7 +537,9 @@ def calculate_playtime(score: Score, beatmap_length: int) -> tuple[int, bool]:
         + (score.nsmall_tick_hit or 0)
     )
     total_obj = 0
-    for statistics, count in score.maximum_statistics.items():
+    for statistics, count in (
+        score.maximum_statistics.items() if score.maximum_statistics else {}
+    ):
         if not isinstance(statistics, HitResult):
             statistics = HitResult(statistics)
         if statistics.is_scorable():

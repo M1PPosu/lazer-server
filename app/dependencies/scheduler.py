@@ -10,7 +10,6 @@ scheduler: AsyncIOScheduler | None = None
 def init_scheduler():
     global scheduler
     scheduler = AsyncIOScheduler(timezone=UTC)
-    scheduler.start()
 
 
 def get_scheduler() -> AsyncIOScheduler:
@@ -18,6 +17,12 @@ def get_scheduler() -> AsyncIOScheduler:
     if scheduler is None:
         init_scheduler()
     return scheduler  # pyright: ignore[reportReturnType]
+
+
+def start_scheduler():
+    global scheduler
+    if scheduler is not None:
+        scheduler.start()
 
 
 def stop_scheduler():
