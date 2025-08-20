@@ -215,3 +215,35 @@ def get_speed_rate(mods: list[APIMod]):
         if mod["acronym"] in {"DT", "NC", "HT", "DC"}:
             rate *= mod.get("settings", {}).get("speed_change", 1.0)  # pyright: ignore[reportOperatorIssue]
     return rate
+
+
+def get_available_mods(ruleset_id: int, required_mods: list[APIMod]) -> list[APIMod]:
+    if ruleset_id not in API_MODS:
+        return []
+
+    ruleset_mods = API_MODS[ruleset_id]
+    required_mod_acronyms = {mod["acronym"] for mod in required_mods}
+
+    incompatible_mods = set()
+    for mod_acronym in required_mod_acronyms:
+        if mod_acronym in ruleset_mods:
+            incompatible_mods.update(ruleset_mods[mod_acronym]["IncompatibleMods"])
+
+    available_mods = []
+    for mod_acronym, mod_data in ruleset_mods.items():
+        if mod_acronym in required_mod_acronyms:
+            continue
+
+        if mod_acronym in incompatible_mods:
+            continue
+
+        if any(
+            required_acronym in mod_data["IncompatibleMods"]
+            for required_acronym in required_mod_acronyms
+        ):
+            continue
+
+        if mod_data.get("UserPlayable", False):
+            available_mods.append(mod_acronym)
+
+    return [APIMod(acronym=acronym) for acronym in available_mods]

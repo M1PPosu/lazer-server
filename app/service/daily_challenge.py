@@ -15,7 +15,7 @@ from app.dependencies.database import get_redis, with_db
 from app.dependencies.scheduler import get_scheduler
 from app.log import logger
 from app.models.metadata_hub import DailyChallengeInfo
-from app.models.mods import APIMod
+from app.models.mods import APIMod, get_available_mods
 from app.models.room import RoomCategory
 from app.utils import are_same_weeks
 
@@ -25,7 +25,11 @@ from sqlmodel import col, select
 
 
 async def create_daily_challenge_room(
-    beatmap: int, ruleset_id: int, duration: int, required_mods: list[APIMod] = []
+    beatmap: int,
+    ruleset_id: int,
+    duration: int,
+    required_mods: list[APIMod] = [],
+    allowed_mods: list[APIMod] = [],
 ) -> Room:
     async with with_db() as session:
         today = datetime.now(UTC).date()
@@ -41,6 +45,7 @@ async def create_daily_challenge_room(
                     ruleset_id=ruleset_id,
                     beatmap_id=beatmap,
                     required_mods=required_mods,
+                    allowed_mods=allowed_mods,
                 )
             ],
             category=RoomCategory.DAILY_CHALLENGE,
@@ -73,6 +78,7 @@ async def daily_challenge_job():
         beatmap = await redis.hget(key, "beatmap")  # pyright: ignore[reportGeneralTypeIssues]
         ruleset_id = await redis.hget(key, "ruleset_id")  # pyright: ignore[reportGeneralTypeIssues]
         required_mods = await redis.hget(key, "required_mods")  # pyright: ignore[reportGeneralTypeIssues]
+        allowed_mods = await redis.hget(key, "allowed_mods")  # pyright: ignore[reportGeneralTypeIssues]
 
         if beatmap is None or ruleset_id is None:
             logger.warning(
@@ -89,9 +95,14 @@ async def daily_challenge_job():
         beatmap_int = int(beatmap)
         ruleset_id_int = int(ruleset_id)
 
-        mods_list = []
+        required_mods_list = []
+        allowed_mods_list = []
         if required_mods:
-            mods_list = json.loads(required_mods)
+            required_mods_list = json.loads(required_mods)
+        if allowed_mods:
+            allowed_mods_list = json.loads(allowed_mods)
+        else:
+            allowed_mods_list = get_available_mods(ruleset_id_int, required_mods_list)
 
         next_day = (now + timedelta(days=1)).replace(
             hour=0, minute=0, second=0, microsecond=0
@@ -99,7 +110,8 @@ async def daily_challenge_job():
         room = await create_daily_challenge_room(
             beatmap=beatmap_int,
             ruleset_id=ruleset_id_int,
-            required_mods=mods_list,
+            required_mods=required_mods_list,
+            allowed_mods=allowed_mods_list,
             duration=int((next_day - now - timedelta(minutes=2)).total_seconds() / 60),
         )
         await MetadataHubs.broadcast_call(

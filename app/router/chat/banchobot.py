@@ -16,7 +16,7 @@ from app.database.score import Score
 from app.database.statistics import UserStatistics, get_rank
 from app.dependencies.fetcher import get_fetcher
 from app.exception import InvokeException
-from app.models.mods import APIMod, mod_to_save
+from app.models.mods import APIMod, get_available_mods, mod_to_save
 from app.models.multiplayer_hub import (
     ChangeTeamRequest,
     ServerMultiplayerRoom,
@@ -501,6 +501,7 @@ async def _mp_mods(
     required_mods = []
     allowed_mods = []
     freestyle = False
+    freemod = False
     for arg in args:
         arg = arg.upper()
         if arg == "NONE":
@@ -509,6 +510,8 @@ async def _mp_mods(
             break
         elif arg == "FREESTYLE":
             freestyle = True
+        elif arg == "FREEMOD":
+            freemod = True
         elif arg.startswith("+"):
             mod = arg.removeprefix("+")
             if len(mod) != 2:
@@ -524,10 +527,14 @@ async def _mp_mods(
         item = current_item.model_copy(deep=True)
         item.owner_id = signalr_client.user_id
         item.freestyle = freestyle
-        if not freestyle:
-            item.allowed_mods = allowed_mods
-        else:
+        if freestyle:
             item.allowed_mods = []
+        elif freemod:
+            item.allowed_mods = get_available_mods(
+                current_item.ruleset_id, required_mods
+            )
+        else:
+            item.allowed_mods = allowed_mods
         item.required_mods = required_mods
         if item.expired:
             item.id = 0
