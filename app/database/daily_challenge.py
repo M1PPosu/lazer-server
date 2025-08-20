@@ -1,7 +1,8 @@
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from app.models.model import UTCBaseModel
+from app.utils import are_adjacent_weeks
 
 from sqlmodel import (
     BigInteger,
@@ -11,7 +12,9 @@ from sqlmodel import (
     ForeignKey,
     Relationship,
     SQLModel,
+    select,
 )
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 if TYPE_CHECKING:
     from .lazer_user import User
@@ -56,3 +59,52 @@ class DailyChallengeStatsResp(DailyChallengeStatsBase):
         obj: DailyChallengeStats,
     ) -> "DailyChallengeStatsResp":
         return cls.model_validate(obj)
+
+
+async def process_daily_challenge_score(
+    session: AsyncSession, user_id: int, room_id: int
+):
+    from .playlist_best_score import PlaylistBestScore
+
+    score = (
+        await session.exec(
+            select(PlaylistBestScore).where(
+                PlaylistBestScore.user_id == user_id,
+                PlaylistBestScore.room_id == room_id,
+                PlaylistBestScore.playlist_id == 0,
+            )
+        )
+    ).first()
+    if not score or not score.score.passed:
+        return
+    stats = await session.get(DailyChallengeStats, user_id)
+    if not stats:
+        stats = DailyChallengeStats(user_id=user_id)
+        session.add(stats)
+
+    stats.playcount += 1
+    now = datetime.now(UTC)
+    if stats.last_update is None:
+        stats.daily_streak_best = 1
+        stats.daily_streak_current = 1
+    elif stats.last_update.replace(tzinfo=UTC).date() == now.date() - timedelta(days=1):
+        stats.daily_streak_current += 1
+        if stats.daily_streak_current > stats.daily_streak_best:
+            stats.daily_streak_best = stats.daily_streak_current
+    elif stats.last_update.replace(tzinfo=UTC).date() == now.date():
+        stats.playcount -= 1
+    else:
+        stats.daily_streak_current = 1
+    if stats.last_weekly_streak is None:
+        stats.weekly_streak_current = 1
+        stats.weekly_streak_best = 1
+    elif are_adjacent_weeks(stats.last_weekly_streak, now):
+        stats.weekly_streak_current += 1
+        if stats.weekly_streak_current > stats.weekly_streak_best:
+            stats.weekly_streak_best = stats.weekly_streak_current
+    elif stats.last_weekly_streak.replace(tzinfo=UTC).date() == now.date():
+        pass
+    else:
+        stats.weekly_streak_current = 1
+    stats.last_update = now
+    stats.last_weekly_streak = now

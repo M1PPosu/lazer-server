@@ -26,7 +26,7 @@ from app.scheduler.cache_scheduler import start_cache_scheduler, stop_cache_sche
 from app.service.beatmap_download_service import download_service
 from app.service.calculate_all_user_rank import calculate_user_rank
 from app.service.create_banchobot import create_banchobot
-from app.service.daily_challenge import daily_challenge_job
+from app.service.daily_challenge import daily_challenge_job, process_daily_challenge_top
 from app.service.geoip_scheduler import schedule_geoip_updates
 from app.service.init_geoip import init_geoip
 from app.service.osu_rx_statistics import create_rx_statistics
@@ -72,6 +72,7 @@ async def lifespan(app: FastAPI):
     start_scheduler()
     schedule_geoip_updates()  # 调度 GeoIP 定时更新任务
     await daily_challenge_job()
+    await process_daily_challenge_top()
     await create_banchobot()
     await download_service.start_health_check()  # 启动下载服务健康检查
     await start_cache_scheduler()  # 启动缓存调度器

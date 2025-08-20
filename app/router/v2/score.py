@@ -17,6 +17,7 @@ from app.database import (
     User,
 )
 from app.database.counts import ReplayWatchedCount
+from app.database.daily_challenge import process_daily_challenge_score
 from app.database.events import Event, EventType
 from app.database.playlist_attempts import ItemAttemptsCount
 from app.database.playlist_best_score import (
@@ -502,6 +503,10 @@ async def submit_playlist_score(
     ).first()
     if not item:
         raise HTTPException(status_code=404, detail="Playlist item not found")
+    room = await session.get(Room, room_id)
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    room_category = room.category
 
     user_id = current_user.id
     score_resp = await submit_score(
@@ -524,7 +529,11 @@ async def submit_playlist_score(
         session,
         redis,
     )
+    await session.commit()
+    if room_category == RoomCategory.DAILY_CHALLENGE and score_resp.passed:
+        await process_daily_challenge_score(session, user_id, room_id)
     await ItemAttemptsCount.get_or_create(room_id, user_id, session)
+    await session.commit()
     return score_resp
 
 
