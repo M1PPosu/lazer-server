@@ -79,15 +79,13 @@ class Mod(TypedDict):
 
 API_MODS: dict[Literal[0, 1, 2, 3], dict[str, Mod]] = {}
 
-
-def init_mods():
-    mods_file = STATIC_DIR / "mods.json"
-    raw_mods = json.loads(mods_file.read_text())
-    for ruleset in raw_mods:
-        ruleset_mods = {}
-        for mod in ruleset["Mods"]:
-            ruleset_mods[mod["Acronym"]] = mod
-        API_MODS[ruleset["RulesetID"]] = ruleset_mods
+mods_file = STATIC_DIR / "mods.json"
+raw_mods = json.loads(mods_file.read_text())
+for ruleset in raw_mods:
+    ruleset_mods = {}
+    for mod in ruleset["Mods"]:
+        ruleset_mods[mod["Acronym"]] = mod
+    API_MODS[ruleset["RulesetID"]] = ruleset_mods
 
 
 def int_to_mods(mods: int) -> list[APIMod]:

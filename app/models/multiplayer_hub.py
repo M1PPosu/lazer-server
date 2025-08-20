@@ -22,7 +22,7 @@ from app.dependencies.database import with_db
 from app.dependencies.fetcher import get_fetcher
 from app.exception import InvokeException
 
-from .mods import APIMod
+from .mods import API_MODS, APIMod
 from .room import (
     DownloadState,
     MatchType,
@@ -121,19 +121,9 @@ class PlaylistItem(BaseModel):
     star_rating: float
     freestyle: bool
 
-    def _get_api_mods(self):
-        from app.models.mods import API_MODS, init_mods
-
-        if not API_MODS:
-            init_mods()
-        return API_MODS
-
     def _validate_mod_for_ruleset(
         self, mod: APIMod, ruleset_key: int, context: str = "mod"
     ) -> None:
-        from typing import Literal, cast
-
-        API_MODS = self._get_api_mods()
         typed_ruleset_key = cast(Literal[0, 1, 2, 3], ruleset_key)
 
         # Check if mod is valid for ruleset
