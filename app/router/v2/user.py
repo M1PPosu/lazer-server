@@ -19,6 +19,7 @@ from app.database.pp_best_score import PPBestScore
 from app.database.score import Score, ScoreResp
 from app.dependencies.database import Database, get_redis
 from app.dependencies.user import get_current_user
+from app.log import logger
 from app.models.score import GameMode
 from app.models.user import BeatmapsetType
 from app.service.user_cache_service import get_user_cache_service
@@ -272,9 +273,13 @@ async def get_user_beatmapsets(
         raise HTTPException(400, detail="Invalid beatmapset type")
 
     # 异步缓存结果
-    asyncio.create_task(
-        cache_service.cache_user_beatmapsets(user_id, type.value, resp, limit, offset)
-    )
+    async def cache_beatmapsets():
+        try:
+            await cache_service.cache_user_beatmapsets(user_id, type.value, resp, limit, offset)
+        except Exception as e:
+            logger.error(f"Error caching user beatmapsets for user {user_id}, type {type.value}: {e}")
+    
+    asyncio.create_task(cache_beatmapsets())
 
     return resp
 

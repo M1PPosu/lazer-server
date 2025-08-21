@@ -219,3 +219,4 @@ osu-master/*
 geoip/*
 newrelic.ini
 logs/
+osu-server-spectator-master/*
