@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import asyncio
 
-from app.dependencies.database import get_redis
+from app.config import settings
+from app.dependencies.database import get_db, get_redis
 from app.dependencies.fetcher import get_fetcher
 from app.log import logger
 
 
-class BeatmapsetCacheScheduler:
-    """谱面集缓存调度器"""
+class CacheScheduler:
+    """缓存调度器 - 统一管理各种缓存任务"""
 
     def __init__(self):
         self.running = False
@@ -21,7 +22,7 @@ class BeatmapsetCacheScheduler:
 
         self.running = True
         self.task = asyncio.create_task(self._run_scheduler())
-        logger.info("BeatmapsetCacheScheduler started")
+        logger.info("CacheScheduler started")
 
     async def stop(self):
         """停止调度器"""
@@ -32,20 +33,47 @@ class BeatmapsetCacheScheduler:
                 await self.task
             except asyncio.CancelledError:
                 pass
-        logger.info("BeatmapsetCacheScheduler stopped")
+        logger.info("CacheScheduler stopped")
 
     async def _run_scheduler(self):
         """运行调度器主循环"""
         # 启动时立即执行一次预热
         await self._warmup_cache()
+        
+        # 启动时执行一次排行榜缓存刷新
+        await self._refresh_ranking_cache()
+
+        beatmap_cache_counter = 0
+        ranking_cache_counter = 0
+        
+        # 从配置文件获取间隔设置
+        check_interval = 5 * 60  # 5分钟检查间隔
+        beatmap_cache_interval = 30 * 60  # 30分钟beatmap缓存间隔
+        ranking_cache_interval = settings.ranking_cache_refresh_interval_minutes * 60  # 从配置读取
+        
+        beatmap_cache_cycles = beatmap_cache_interval // check_interval
+        ranking_cache_cycles = ranking_cache_interval // check_interval
 
         while self.running:
             try:
-                # 每30分钟执行一次缓存预热
-                await asyncio.sleep(30 * 60)  # 30分钟
+                # 每5分钟检查一次
+                await asyncio.sleep(check_interval)
 
-                if self.running:
+                if not self.running:
+                    break
+
+                beatmap_cache_counter += 1
+                ranking_cache_counter += 1
+
+                # beatmap缓存预热
+                if beatmap_cache_counter >= beatmap_cache_cycles:
                     await self._warmup_cache()
+                    beatmap_cache_counter = 0
+
+                # 排行榜缓存刷新
+                if ranking_cache_counter >= ranking_cache_cycles:
+                    await self._refresh_ranking_cache()
+                    ranking_cache_counter = 0
 
             except asyncio.CancelledError:
                 break
@@ -56,7 +84,7 @@ class BeatmapsetCacheScheduler:
     async def _warmup_cache(self):
         """执行缓存预热"""
         try:
-            logger.info("Starting cache warmup...")
+            logger.info("Starting beatmap cache warmup...")
 
             fetcher = await get_fetcher()
             redis = get_redis()
@@ -64,14 +92,45 @@ class BeatmapsetCacheScheduler:
             # 预热主页缓存
             await fetcher.warmup_homepage_cache(redis)
 
-            logger.info("Cache warmup completed successfully")
+            logger.info("Beatmap cache warmup completed successfully")
 
         except Exception as e:
-            logger.error(f"Cache warmup failed: {e}")
+            logger.error(f"Beatmap cache warmup failed: {e}")
+
+    async def _refresh_ranking_cache(self):
+        """刷新排行榜缓存"""
+        try:
+            logger.info("Starting ranking cache refresh...")
+
+            redis = get_redis()
+            
+            # 导入排行榜缓存服务
+            from app.service.ranking_cache_service import (
+                get_ranking_cache_service,
+                schedule_ranking_refresh_task,
+            )
+
+            # 获取数据库会话
+            async for session in get_db():
+                await schedule_ranking_refresh_task(session, redis)
+                break  # 只需要一次会话
+
+            logger.info("Ranking cache refresh completed successfully")
+
+        except Exception as e:
+            logger.error(f"Ranking cache refresh failed: {e}")
+
+
+# Beatmap缓存调度器（保持向后兼容）
+class BeatmapsetCacheScheduler(CacheScheduler):
+    """谱面集缓存调度器 - 为了向后兼容"""
+    pass
 
 
 # 全局调度器实例
-cache_scheduler = BeatmapsetCacheScheduler()
+cache_scheduler = CacheScheduler()
+# 保持向后兼容的别名
+beatmapset_cache_scheduler = BeatmapsetCacheScheduler()
 
 
 async def start_cache_scheduler():
