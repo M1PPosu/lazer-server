@@ -99,6 +99,7 @@ async def get_online_history() -> OnlineHistoryResponse:
         for data in history_data:
             try:
                 point_data = json.loads(data)
+                # 支持新旧格式的历史数据
                 history_points.append(OnlineHistoryPoint(
                     timestamp=datetime.fromisoformat(point_data["timestamp"]),
                     online_count=point_data["online_count"],
@@ -111,22 +112,18 @@ async def get_online_history() -> OnlineHistoryResponse:
         # 获取当前实时统计信息
         current_stats = await get_server_stats()
         
-        # 将当前实时数据作为最新的数据点添加到历史中
+        # 将当前实时数据作为最新的数据点添加到历史中（如果需要）
         current_point = OnlineHistoryPoint(
             timestamp=current_stats.timestamp,
             online_count=current_stats.online_users,
             playing_count=current_stats.playing_users
         )
         
-        # 检查是否需要添加当前数据点
-        # 如果最新的历史数据超过15分钟，则添加当前数据点
-        should_add_current = True
-        if history_points:
-            latest_history = max(history_points, key=lambda x: x.timestamp)
-            time_diff = (current_stats.timestamp - latest_history.timestamp).total_seconds()
-            should_add_current = time_diff > 15 * 60  # 15分钟
-        
-        if should_add_current:
+        # 如果历史数据为空或者最新数据超过15分钟，添加当前数据点
+        if not history_points or (
+            history_points and 
+            (current_stats.timestamp - max(history_points, key=lambda x: x.timestamp).timestamp).total_seconds() > 15 * 60
+        ):
             history_points.append(current_point)
         
         # 按时间排序（最新的在前）
@@ -147,28 +144,6 @@ async def get_online_history() -> OnlineHistoryResponse:
             history=[],
             current_stats=current_stats
         )
-
-@router.get("/stats/realtime", tags=["统计"])
-async def get_realtime_stats():
-    """
-    获取实时统计数据
-    
-    返回包含当前区间统计的增强实时数据
-    """
-    try:
-        from app.service.interval_stats import get_enhanced_current_stats
-        return await get_enhanced_current_stats()
-    except Exception as e:
-        logger.error(f"Error getting realtime stats: {e}")
-        # 回退到基础统计
-        stats = await get_server_stats()
-        return {
-            "registered_users": stats.registered_users,
-            "online_users": stats.online_users,
-            "playing_users": stats.playing_users,
-            "timestamp": stats.timestamp.isoformat(),
-            "interval_data": None
-        }
 
 async def _get_registered_users_count(redis) -> int:
     """获取注册用户总数（从缓存）"""
@@ -231,8 +206,8 @@ async def add_online_user(user_id: int) -> None:
         logger.debug(f"Added online user {user_id}")
         
         # 立即更新当前区间统计
-        from app.service.interval_stats import update_user_activity_stats
-        asyncio.create_task(update_user_activity_stats())
+        from app.service.enhanced_interval_stats import update_user_activity_in_interval
+        asyncio.create_task(update_user_activity_in_interval(user_id, is_playing=False))
         
     except Exception as e:
         logger.error(f"Error adding online user {user_id}: {e}")
@@ -259,8 +234,8 @@ async def add_playing_user(user_id: int) -> None:
         logger.debug(f"Added playing user {user_id}")
         
         # 立即更新当前区间统计
-        from app.service.interval_stats import update_user_activity_stats
-        asyncio.create_task(update_user_activity_stats())
+        from app.service.enhanced_interval_stats import update_user_activity_in_interval
+        asyncio.create_task(update_user_activity_in_interval(user_id, is_playing=True))
         
     except Exception as e:
         logger.error(f"Error adding playing user {user_id}: {e}")
@@ -274,7 +249,7 @@ async def remove_playing_user(user_id: int) -> None:
         logger.error(f"Error removing playing user {user_id}: {e}")
 
 async def record_hourly_stats() -> None:
-    """记录每小时统计数据"""
+    """记录统计数据 - 简化版本，主要作为fallback使用"""
     redis_sync = get_redis_message()
     redis_async = get_redis()
     try:
@@ -288,7 +263,10 @@ async def record_hourly_stats() -> None:
         history_point = {
             "timestamp": current_time.isoformat(),
             "online_count": online_count,
-            "playing_count": playing_count
+            "playing_count": playing_count,
+            "peak_online": online_count,
+            "peak_playing": playing_count,
+            "total_samples": 1
         }
         
         # 添加到历史记录
@@ -298,6 +276,6 @@ async def record_hourly_stats() -> None:
         # 设置过期时间为26小时，确保有足够缓冲
         await redis_async.expire(REDIS_ONLINE_HISTORY_KEY, 26 * 3600)
         
-        logger.info(f"Recorded hourly stats: online={online_count}, playing={playing_count} at {current_time.strftime('%H:%M:%S')}")
+        logger.info(f"Recorded fallback stats: online={online_count}, playing={playing_count} at {current_time.strftime('%H:%M:%S')}")
     except Exception as e:
-        logger.error(f"Error recording hourly stats: {e}")
+        logger.error(f"Error recording fallback stats: {e}")

@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from app.log import logger
 from app.router.v2.stats import record_hourly_stats, update_registered_users_count
 from app.service.stats_cleanup import cleanup_stale_online_users, refresh_redis_key_expiry
-from app.service.interval_stats import IntervalStatsManager, update_user_activity_stats
+from app.service.enhanced_interval_stats import EnhancedIntervalStatsManager
 
 
 class StatsScheduler:
@@ -49,10 +49,10 @@ class StatsScheduler:
         """统计数据记录循环 - 每30分钟记录一次"""
         # 启动时立即记录一次统计数据
         try:
-            await IntervalStatsManager.update_current_interval()
-            logger.info("Initial interval statistics updated on startup")
+            await EnhancedIntervalStatsManager.initialize_current_interval()
+            logger.info("Initial enhanced interval statistics initialized on startup")
         except Exception as e:
-            logger.error(f"Error updating initial interval stats: {e}")
+            logger.error(f"Error initializing enhanced interval stats: {e}")
         
         while self._running:
             try:
@@ -73,16 +73,16 @@ class StatsScheduler:
                     break
                 
                 # 完成当前区间并记录到历史
-                success = await IntervalStatsManager.finalize_current_interval()
-                if success:
-                    logger.info(f"Finalized interval statistics at {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}")
+                finalized_stats = await EnhancedIntervalStatsManager.finalize_interval()
+                if finalized_stats:
+                    logger.info(f"Finalized enhanced interval statistics at {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}")
                 else:
                     # 如果区间完成失败，使用原有方式记录
                     await record_hourly_stats()
                     logger.info(f"Recorded hourly statistics (fallback) at {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}")
                 
                 # 开始新的区间统计
-                await IntervalStatsManager.update_current_interval()
+                await EnhancedIntervalStatsManager.initialize_current_interval()
                 
             except Exception as e:
                 logger.error(f"Error in stats loop: {e}")
@@ -139,8 +139,8 @@ class StatsScheduler:
                 # 刷新Redis key过期时间
                 await refresh_redis_key_expiry()
                 
-                # 更新当前区间统计（每10分钟更新一次以保持数据新鲜）
-                await IntervalStatsManager.update_current_interval()
+                # 清理过期的区间数据
+                await EnhancedIntervalStatsManager.cleanup_old_intervals()
                 
             except Exception as e:
                 logger.error(f"Error in cleanup loop: {e}")
