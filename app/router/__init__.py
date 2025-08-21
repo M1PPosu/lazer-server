@@ -3,9 +3,9 @@ from __future__ import annotations
 from app.signalr import signalr_router as signalr_router
 
 from .auth import router as auth_router
-from .chat import chat_router as chat_router
 from .fetcher import fetcher_router as fetcher_router
 from .file import file_router as file_router
+from .notification import chat_router as chat_router
 from .private import private_router as private_router
 from .redirect import (
     redirect_api_router as redirect_api_router,

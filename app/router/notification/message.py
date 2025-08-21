@@ -14,6 +14,7 @@ from app.database.lazer_user import User
 from app.dependencies.database import Database, get_redis
 from app.dependencies.param import BodyOrForm
 from app.dependencies.user import get_current_user
+from app.models.notification import ChannelMessage, ChannelMessageTeam
 from app.router.v2 import api_v2_router as router
 
 from .banchobot import bot
@@ -113,6 +114,15 @@ async def send_message(
     )
     if is_bot_command:
         await bot.try_handle(current_user, db_channel, req.message, session)
+    if db_channel.type == ChannelType.PM:
+        user_ids = db_channel.name.split("_")[1:]
+        await server.new_private_notification(
+            ChannelMessage(
+                msg, current_user, [int(u) for u in user_ids], db_channel.type
+            )
+        )
+    elif db_channel.type == ChannelType.TEAM:
+        await server.new_private_notification(ChannelMessageTeam(msg, current_user))
     return resp
 
 

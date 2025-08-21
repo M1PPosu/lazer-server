@@ -190,6 +190,7 @@ class ChatMessageBase(UTCBaseModel, SQLModel):
 class ChatMessage(ChatMessageBase, table=True):
     __tablename__ = "chat_messages"  # pyright: ignore[reportAssignmentType]
     user: User = Relationship(sa_relationship_kwargs={"lazy": "joined"})
+    channel: ChatChannel = Relationship()
 
 
 class ChatMessageResp(ChatMessageBase):

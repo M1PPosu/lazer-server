@@ -118,3 +118,9 @@ def are_adjacent_weeks(dt1: datetime, dt2: datetime) -> bool:
 
 def are_same_weeks(dt1: datetime, dt2: datetime) -> bool:
     return dt1.isocalendar()[:2] == dt2.isocalendar()[:2]
+
+
+def truncate(text: str, limit: int = 100, ellipsis: str = "...") -> str:
+    if len(text) > limit:
+        return text[:limit] + ellipsis
+    return text

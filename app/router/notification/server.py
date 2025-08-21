@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+from typing import overload
 
 from app.database.chat import ChannelType, ChatChannel, ChatChannelResp, ChatMessageResp
 from app.database.lazer_user import User
+from app.database.notification import UserNotification, insert_notification
 from app.dependencies.database import (
     DBFactory,
     get_db_factory,
@@ -13,12 +15,14 @@ from app.dependencies.database import (
 from app.dependencies.user import get_current_user
 from app.log import logger
 from app.models.chat import ChatEvent
+from app.models.notification import NotificationDetail
 from app.service.subscribers.chat import ChatSubscriber
 
 from fastapi import APIRouter, Depends, Header, WebSocket, WebSocketDisconnect
 from fastapi.security import SecurityScopes
 from fastapi.websockets import WebSocketState
 from redis.asyncio import Redis
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
@@ -59,15 +63,24 @@ class ChatServer:
                 if channel:
                     await self.leave_channel(user, channel, session)
 
-    async def send_event(self, client: WebSocket, event: ChatEvent):
+    @overload
+    async def send_event(self, client: int, event: ChatEvent): ...
+
+    @overload
+    async def send_event(self, client: WebSocket, event: ChatEvent): ...
+
+    async def send_event(self, client: WebSocket | int, event: ChatEvent):
+        if isinstance(client, int):
+            client_ = self.connect_client.get(client)
+            if client_ is None:
+                return
+            client = client_
         if client.client_state == WebSocketState.CONNECTED:
             await client.send_text(event.model_dump_json())
 
     async def broadcast(self, channel_id: int, event: ChatEvent):
         for user_id in self.channels.get(channel_id, []):
-            client = self.connect_client.get(user_id)
-            if client:
-                await self.send_event(client, event)
+            await self.send_event(user_id, event)
 
     async def mark_as_read(self, channel_id: int, user_id: int, message_id: int):
         await self.redis.set(f"chat:{channel_id}:last_read:{user_id}", message_id)
@@ -80,9 +93,7 @@ class ChatServer:
             data={"messages": [message], "users": [message.sender]},
         )
         if is_bot_command:
-            client = self.connect_client.get(message.sender_id)
-            if client:
-                self._add_task(self.send_event(client, event))
+            self._add_task(self.send_event(message.sender_id, event))
         else:
             self._add_task(
                 self.broadcast(
@@ -123,15 +134,13 @@ class ChatServer:
                 if channel.type != ChannelType.PUBLIC
                 else None,
             )
-            client = self.connect_client.get(user.id)
-            if client:
-                await self.send_event(
-                    client,
-                    ChatEvent(
-                        event="chat.channel.join",
-                        data=channel_resp.model_dump(),
-                    ),
-                )
+            await self.send_event(
+                user.id,
+                ChatEvent(
+                    event="chat.channel.join",
+                    data=channel_resp.model_dump(),
+                ),
+            )
 
     async def join_channel(
         self, user: User, channel: ChatChannel, session: AsyncSession
@@ -154,15 +163,13 @@ class ChatServer:
             self.channels[channel_id] if channel.type != ChannelType.PUBLIC else None,
         )
 
-        client = self.connect_client.get(user_id)
-        if client:
-            await self.send_event(
-                client,
-                ChatEvent(
-                    event="chat.channel.join",
-                    data=channel_resp.model_dump(),
-                ),
-            )
+        await self.send_event(
+            user_id,
+            ChatEvent(
+                event="chat.channel.join",
+                data=channel_resp.model_dump(),
+            ),
+        )
 
         return channel_resp
 
@@ -189,15 +196,13 @@ class ChatServer:
             if channel.type != ChannelType.PUBLIC
             else None,
         )
-        client = self.connect_client.get(user_id)
-        if client:
-            await self.send_event(
-                client,
-                ChatEvent(
-                    event="chat.channel.part",
-                    data=channel_resp.model_dump(),
-                ),
-            )
+        await self.send_event(
+            user_id,
+            ChatEvent(
+                event="chat.channel.part",
+                data=channel_resp.model_dump(),
+            ),
+        )
 
     async def join_room_channel(self, channel_id: int, user_id: int):
         async with with_db() as session:
@@ -222,6 +227,28 @@ class ChatServer:
                 return
 
             await self.leave_channel(user, channel, session)
+
+    async def new_private_notification(self, detail: NotificationDetail):
+        async with with_db() as session:
+            id = await insert_notification(session, detail)
+            users = (
+                await session.exec(
+                    select(UserNotification).where(
+                        UserNotification.notification_id == id
+                    )
+                )
+            ).all()
+            for user_notification in users:
+                data = user_notification.notification.model_dump()
+                data["is_read"] = user_notification.is_read
+                data["details"] = user_notification.notification.details
+                await server.send_event(
+                    user_notification.user_id,
+                    ChatEvent(
+                        event="new",
+                        data=data,
+                    ),
+                )
 
 
 server = ChatServer()

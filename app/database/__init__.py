@@ -29,6 +29,7 @@ from .lazer_user import (
     UserResp,
 )
 from .multiplayer_event import MultiplayerEvent, MultiplayerEventResp
+from .notification import Notification, UserNotification
 from .playlist_attempts import (
     ItemAttemptsCount,
     ItemAttemptsResp,
@@ -86,6 +87,7 @@ __all__ = [
     "MultiplayerEvent",
     "MultiplayerEventResp",
     "MultiplayerScores",
+    "Notification",
     "OAuthClient",
     "OAuthToken",
     "PPBestScore",
@@ -120,6 +122,7 @@ __all__ = [
     "UserAchievement",
     "UserAchievementResp",
     "UserLoginLog",
+    "UserNotification",
     "UserResp",
     "UserStatistics",
     "UserStatisticsResp",
