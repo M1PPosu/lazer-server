@@ -36,12 +36,13 @@ async def schedule_user_cache_preload_task():
             # 获取最近24小时内活跃的用户（提交过成绩的用户）
             recent_time = datetime.now(UTC) - timedelta(hours=24)
 
+            score_count = func.count().label("score_count")
             active_user_ids = (
                 await session.exec(
-                    select(Score.user_id, func.count().label("score_count"))
+                    select(Score.user_id, score_count)
                     .where(col(Score.ended_at) >= recent_time)
                     .group_by(col(Score.user_id))
-                    .order_by(col("score_count").desc())
+                    .order_by(score_count.desc())  # 使用标签对象而不是字符串
                     .limit(settings.user_cache_max_preload_users)  # 使用配置中的限制
                 )
             ).all()
