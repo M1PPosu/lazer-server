@@ -292,6 +292,9 @@ class ScoreResp(ScoreBase):
 
     @classmethod
     async def from_db(cls, session: AsyncSession, score: Score) -> "ScoreResp":
+        # 确保 score 对象完全加载，避免懒加载问题
+        await session.refresh(score)
+        
         s = cls.model_validate(score.model_dump())
         assert score.id
         await score.awaitable_attrs.beatmap

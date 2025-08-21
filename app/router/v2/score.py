@@ -97,6 +97,9 @@ async def submit_score(
     item_id: int | None = None,
     room_id: int | None = None,
 ):
+    # 立即获取用户ID，避免后续的懒加载问题
+    user_id = current_user.id
+    
     if not info.passed:
         info.rank = Rank.F
     score_token = (
@@ -106,14 +109,14 @@ async def submit_score(
             .where(ScoreToken.id == token)
         )
     ).first()
-    if not score_token or score_token.user_id != current_user.id:
+    if not score_token or score_token.user_id != user_id:
         raise HTTPException(status_code=404, detail="Score token not found")
     if score_token.score_id:
         score = (
             await db.exec(
                 select(Score).where(
                     Score.id == score_token.score_id,
-                    Score.user_id == current_user.id,
+                    Score.user_id == user_id,
                 )
             )
         ).first()
@@ -169,6 +172,7 @@ async def submit_score(
             .where(Score.id == score_id)
         )).first()
         assert score is not None
+        
     resp = await ScoreResp.from_db(db, score)
     total_users = (await db.exec(select(func.count()).select_from(User))).first()
     assert total_users is not None
@@ -195,14 +199,15 @@ async def submit_score(
         await db.commit()
 
     # 成绩提交后刷新用户缓存 - 移至后台任务避免阻塞主流程
-    # 预先获取用户ID避免在后台任务中触发延迟加载
-    user_id = current_user.id
+    # 预先获取游戏模式，避免在后台任务中触发延迟加载
+    score_gamemode = score.gamemode
+    
     if user_id is not None:
         background_task.add_task(
             _refresh_user_cache_background,
             redis,
             user_id,
-            score.gamemode
+            score_gamemode
         )
     background_task.add_task(process_user_achievement, resp.id)
     return resp
@@ -414,10 +419,13 @@ async def create_solo_score(
     current_user: User = Security(get_client_user),
 ):
     assert current_user.id is not None
+    # 立即获取用户ID，避免懒加载问题
+    user_id = current_user.id
+    
     background_task.add_task(_preload_beatmap_for_pp_calculation, beatmap_id)
     async with db:
         score_token = ScoreToken(
-            user_id=current_user.id,
+            user_id=user_id,
             beatmap_id=beatmap_id,
             ruleset_id=GameMode.from_int(ruleset_id),
         )
@@ -469,6 +477,9 @@ async def create_playlist_score(
     current_user: User = Security(get_client_user),
 ):
     assert current_user.id is not None
+    # 立即获取用户ID，避免懒加载问题
+    user_id = current_user.id
+    
     room = await session.get(Room, room_id)
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
@@ -498,7 +509,7 @@ async def create_playlist_score(
     agg = await session.exec(
         select(ItemAttemptsCount).where(
             ItemAttemptsCount.room_id == room_id,
-            ItemAttemptsCount.user_id == current_user.id,
+            ItemAttemptsCount.user_id == user_id,
         )
     )
     agg = agg.first()
@@ -516,7 +527,7 @@ async def create_playlist_score(
     # 这里应该不用验证mod了吧。。。
     background_task.add_task(_preload_beatmap_for_pp_calculation, beatmap_id)
     score_token = ScoreToken(
-        user_id=current_user.id,
+        user_id=user_id,
         beatmap_id=beatmap_id,
         ruleset_id=GameMode.from_int(ruleset_id),
         playlist_item_id=playlist_id,
@@ -545,6 +556,10 @@ async def submit_playlist_score(
     fetcher: Fetcher = Depends(get_fetcher),
 ):
     assert current_user.id is not None
+    
+    # 立即获取用户ID，避免懒加载问题
+    user_id = current_user.id
+    
     item = (
         await session.exec(
             select(Playlist).where(
@@ -558,8 +573,6 @@ async def submit_playlist_score(
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
     room_category = room.category
-
-    user_id = current_user.id
     score_resp = await submit_score(
         background_task,
         info,
@@ -611,6 +624,9 @@ async def index_playlist_scores(
     ),
     current_user: User = Security(get_current_user, scopes=["public"]),
 ):
+    # 立即获取用户ID，避免懒加载问题
+    user_id = current_user.id
+    
     room = await session.get(Room, room_id)
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
@@ -637,7 +653,7 @@ async def index_playlist_scores(
     score_resp = [await ScoreResp.from_db(session, score.score) for score in scores]
     for score in score_resp:
         score.position = await get_position(room_id, playlist_id, score.id, session)
-        if score.user_id == current_user.id:
+        if score.user_id == user_id:
             user_score = score
 
     if room.category == RoomCategory.DAILY_CHALLENGE:
@@ -675,6 +691,9 @@ async def show_playlist_score(
     current_user: User = Security(get_client_user),
     redis: Redis = Depends(get_redis),
 ):
+    # 立即获取用户ID，避免懒加载问题
+    user_id = current_user.id
+    
     room = await session.get(Room, room_id)
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
@@ -781,11 +800,14 @@ async def pin_score(
     score_id: int = Path(description="成绩 ID"),
     current_user: User = Security(get_client_user),
 ):
+    # 立即获取用户ID，避免懒加载问题
+    user_id = current_user.id
+    
     score_record = (
         await db.exec(
             select(Score).where(
                 Score.id == score_id,
-                Score.user_id == current_user.id,
+                Score.user_id == user_id,
                 col(Score.passed).is_(True),
             )
         )
@@ -823,9 +845,12 @@ async def unpin_score(
     score_id: int = Path(description="成绩 ID"),
     current_user: User = Security(get_client_user),
 ):
+    # 立即获取用户ID，避免懒加载问题
+    user_id = current_user.id
+    
     score_record = (
         await db.exec(
-            select(Score).where(Score.id == score_id, Score.user_id == current_user.id)
+            select(Score).where(Score.id == score_id, Score.user_id == user_id)
         )
     ).first()
     if not score_record:
@@ -836,7 +861,7 @@ async def unpin_score(
     changed_score = (
         await db.exec(
             select(Score).where(
-                Score.user_id == current_user.id,
+                Score.user_id == user_id,
                 Score.pinned_order > score_record.pinned_order,
                 Score.gamemode == score_record.gamemode,
             )
@@ -864,9 +889,12 @@ async def reorder_score_pin(
     before_score_id: int | None = Body(default=None, description="放在该成绩之前"),
     current_user: User = Security(get_client_user),
 ):
+    # 立即获取用户ID，避免懒加载问题
+    user_id = current_user.id
+    
     score_record = (
         await db.exec(
-            select(Score).where(Score.id == score_id, Score.user_id == current_user.id)
+            select(Score).where(Score.id == score_id, Score.user_id == user_id)
         )
     ).first()
     if not score_record:
@@ -957,6 +985,9 @@ async def download_score_replay(
     current_user: User = Security(get_current_user, scopes=["public"]),
     storage_service: StorageService = Depends(get_storage_service),
 ):
+    # 立即获取用户ID，避免懒加载问题  
+    user_id = current_user.id
+    
     score = (await db.exec(select(Score).where(Score.id == score_id))).first()
     if not score:
         raise HTTPException(status_code=404, detail="Score not found")
@@ -967,11 +998,11 @@ async def download_score_replay(
         raise HTTPException(status_code=404, detail="Replay file not found")
 
     is_friend = (
-        score.user_id == current_user.id
+        score.user_id == user_id
         or (
             await db.exec(
                 select(exists()).where(
-                    Relationship.user_id == current_user.id,
+                    Relationship.user_id == user_id,
                     Relationship.target_id == score.user_id,
                     Relationship.type == RelationshipType.FOLLOW,
                 )
