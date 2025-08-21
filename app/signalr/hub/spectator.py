@@ -193,21 +193,67 @@ class SpectatorHub(Hub[StoreClientState]):
         
         # Send all current player states to the new client
         # This matches the official OnConnectedAsync behavior
-        active_states = [
-            (user_id, store.state)
-            for user_id, store in self.state.items()
-            if store.state is not None
-        ]
+        active_states = []
+        for user_id, store in self.state.items():
+            if store.state is not None:
+                active_states.append((user_id, store.state))
         
         if active_states:
             logger.debug(
                 f"[SpectatorHub] Sending {len(active_states)} active player states to {client.user_id}"
             )
-            tasks = [
-                self.call_noblock(client, "UserBeganPlaying", user_id, state)
-                for user_id, state in active_states
-            ]
-            await asyncio.gather(*tasks, return_exceptions=True)
+            # Send states sequentially to avoid overwhelming the client
+            for user_id, state in active_states:
+                try:
+                    await self.call_noblock(client, "UserBeganPlaying", user_id, state)
+                except Exception as e:
+                    logger.debug(f"[SpectatorHub] Failed to send state for user {user_id}: {e}")
+        
+        # Also sync with MultiplayerHub for cross-hub spectating
+        await self._sync_with_multiplayer_hub(client)
+
+    async def _sync_with_multiplayer_hub(self, client: Client) -> None:
+        """
+        Sync with MultiplayerHub to get active multiplayer game states.
+        This ensures spectators can see multiplayer games from other pages.
+        """
+        try:
+            # Import here to avoid circular imports
+            from app.signalr.hub import MultiplayerHubs
+            
+            # Check all active multiplayer rooms for playing users
+            for room_id, server_room in MultiplayerHubs.rooms.items():
+                for room_user in server_room.room.users:
+                    # If user is playing in multiplayer but we don't have their spectator state
+                    if (room_user.state.is_playing and 
+                        room_user.user_id not in self.state):
+                        
+                        # Create a synthetic SpectatorState for multiplayer players
+                        # This helps with cross-hub spectating
+                        try:
+                            synthetic_state = SpectatorState(
+                                beatmap_id=server_room.queue.current_item.beatmap_id,
+                                ruleset_id=room_user.ruleset_id or 0,  # Default to osu!
+                                mods=room_user.mods,
+                                state=SpectatedUserState.Playing,
+                                maximum_statistics={}
+                            )
+                            
+                            await self.call_noblock(
+                                client,
+                                "UserBeganPlaying",
+                                room_user.user_id,
+                                synthetic_state,
+                            )
+                            logger.debug(
+                                f"[SpectatorHub] Sent synthetic multiplayer state for user {room_user.user_id}"
+                            )
+                        except Exception as e:
+                            logger.debug(f"[SpectatorHub] Failed to create synthetic state: {e}")
+                            
+        except Exception as e:
+            logger.debug(f"[SpectatorHub] Failed to sync with MultiplayerHub: {e}")
+            # This is not critical, so we don't raise the exception
 
     async def BeginPlaySession(
         self, client: Client, score_token: int, state: SpectatorState
