@@ -47,6 +47,7 @@ from app.models.score import (
     Rank,
     SoloScoreSubmissionInfo,
 )
+from app.service.user_cache_service import get_user_cache_service
 from app.storage.base import StorageService
 from app.storage.local import LocalStorageService
 
@@ -182,6 +183,17 @@ async def submit_score(
         }
         db.add(rank_event)
         await db.commit()
+    
+    # 成绩提交后刷新用户缓存
+    try:
+        user_cache_service = get_user_cache_service(redis)
+        if current_user.id is not None:
+            await user_cache_service.refresh_user_cache_on_score_submit(
+                db, current_user.id, score.gamemode
+            )
+    except Exception as e:
+        logger.error(f"Failed to refresh user cache after score submit: {e}")
+    
     background_task.add_task(process_user_achievement, resp.id)
     return resp
 

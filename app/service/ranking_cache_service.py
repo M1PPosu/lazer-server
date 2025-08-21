@@ -421,7 +421,7 @@ class RankingCacheService:
                 select(User.country_code, func.count().label("user_count"))
                 .where(col(User.is_active).is_(True))
                 .group_by(User.country_code)
-                .order_by(col("user_count").desc())
+                .order_by(func.count().desc())
                 .limit(settings.ranking_cache_top_countries)
             )
         ).all()

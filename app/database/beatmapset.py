@@ -7,8 +7,8 @@ from app.models.score import GameMode
 
 from .lazer_user import BASE_INCLUDES, User, UserResp
 
-from pydantic import BaseModel, model_validator
-from sqlalchemy import JSON, Column, DateTime, Text
+from pydantic import BaseModel, field_validator, model_validator
+from sqlalchemy import Boolean, JSON, Column, DateTime, Text
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlmodel import Field, Relationship, SQLModel, col, exists, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -73,16 +73,16 @@ class BeatmapsetBase(SQLModel):
     artist_unicode: str = Field(index=True)
     covers: BeatmapCovers | None = Field(sa_column=Column(JSON))
     creator: str = Field(index=True)
-    nsfw: bool = Field(default=False)
+    nsfw: bool = Field(default=False, sa_column=Column(Boolean))
     play_count: int = Field(index=True)
     preview_url: str
     source: str = Field(default="")
 
-    spotlight: bool = Field(default=False)
+    spotlight: bool = Field(default=False, sa_column=Column(Boolean))
     title: str = Field(index=True)
     title_unicode: str = Field(index=True)
     user_id: int = Field(index=True)
-    video: bool = Field(index=True)
+    video: bool = Field(sa_column=Column(Boolean, index=True))
 
     # optional
     # converts: list[Beatmap] = Relationship(back_populates="beatmapset")
@@ -102,13 +102,13 @@ class BeatmapsetBase(SQLModel):
 
     # BeatmapsetExtended
     bpm: float = Field(default=0.0)
-    can_be_hyped: bool = Field(default=False)
-    discussion_locked: bool = Field(default=False)
+    can_be_hyped: bool = Field(default=False, sa_column=Column(Boolean))
+    discussion_locked: bool = Field(default=False, sa_column=Column(Boolean))
     last_updated: datetime = Field(sa_column=Column(DateTime, index=True))
     ranked_date: datetime | None = Field(
         default=None, sa_column=Column(DateTime, index=True)
     )
-    storyboard: bool = Field(default=False, index=True)
+    storyboard: bool = Field(default=False, sa_column=Column(Boolean, index=True))
     submitted_date: datetime = Field(sa_column=Column(DateTime, index=True))
     tags: str = Field(default="", sa_column=Column(Text))
 
@@ -133,7 +133,7 @@ class Beatmapset(AsyncAttrs, BeatmapsetBase, table=True):
     hype_current: int = Field(default=0)
     hype_required: int = Field(default=0)
     availability_info: str | None = Field(default=None)
-    download_disabled: bool = Field(default=False)
+    download_disabled: bool = Field(default=False, sa_column=Column(Boolean))
     favourites: list["FavouriteBeatmapset"] = Relationship(back_populates="beatmapset")
 
     @classmethod
@@ -204,6 +204,14 @@ class BeatmapsetResp(BeatmapsetBase):
     has_favourited: bool = False
     favourite_count: int = 0
     recent_favourites: list[UserResp] = Field(default_factory=list)
+
+    @field_validator('nsfw', 'spotlight', 'video', 'can_be_hyped', 'discussion_locked', 'storyboard', 'discussion_enabled', 'is_scoreable', 'has_favourited', mode='before')
+    @classmethod
+    def validate_bool_fields(cls, v):
+        """将整数 0/1 转换为布尔值，处理数据库中的布尔字段"""
+        if isinstance(v, int):
+            return bool(v)
+        return v
 
     @model_validator(mode="after")
     def fix_genre_language(self) -> Self:

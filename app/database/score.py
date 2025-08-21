@@ -45,8 +45,9 @@ from .relationship import (
 )
 from .score_token import ScoreToken
 
+from pydantic import field_validator
 from redis.asyncio import Redis
-from sqlalchemy import Column, ColumnExpressionArgument, DateTime
+from sqlalchemy import Boolean, Column, ColumnExpressionArgument, DateTime
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql.elements import ColumnElement
@@ -79,13 +80,13 @@ class ScoreBase(AsyncAttrs, SQLModel, UTCBaseModel):
         default=0, sa_column=Column(BigInteger)
     )  # solo_score
     ended_at: datetime = Field(sa_column=Column(DateTime))
-    has_replay: bool
+    has_replay: bool = Field(sa_column=Column(Boolean))
     max_combo: int
     mods: list[APIMod] = Field(sa_column=Column(JSON))
-    passed: bool
+    passed: bool = Field(sa_column=Column(Boolean))
     playlist_item_id: int | None = Field(default=None)  # multiplayer
     pp: float = Field(default=0.0)
-    preserve: bool = Field(default=True)
+    preserve: bool = Field(default=True, sa_column=Column(Boolean))
     rank: Rank
     room_id: int | None = Field(default=None)  # multiplayer
     started_at: datetime = Field(sa_column=Column(DateTime))
@@ -175,6 +176,14 @@ class ScoreResp(ScoreBase):
     scores_around: "ScoreAround | None" = None
     ranked: bool = False
     current_user_attributes: CurrentUserAttributes | None = None
+
+    @field_validator('has_replay', 'passed', 'preserve', 'is_perfect_combo', 'legacy_perfect', 'processed', 'ranked', mode='before')
+    @classmethod
+    def validate_bool_fields(cls, v):
+        """将整数 0/1 转换为布尔值，处理数据库中的布尔字段"""
+        if isinstance(v, int):
+            return bool(v)
+        return v
 
     @classmethod
     async def from_db(cls, session: AsyncSession, score: Score) -> "ScoreResp":

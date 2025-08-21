@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
+from app.config import settings
 from app.const import BANCHOBOT_ID
 from app.database import (
     BeatmapPlaycounts,
@@ -15,10 +17,11 @@ from app.database.events import EventResp
 from app.database.lazer_user import SEARCH_INCLUDED
 from app.database.pp_best_score import PPBestScore
 from app.database.score import Score, ScoreResp
-from app.dependencies.database import Database
+from app.dependencies.database import Database, get_redis
 from app.dependencies.user import get_current_user
 from app.models.score import GameMode
 from app.models.user import BeatmapsetType
+from app.service.user_cache_service import get_user_cache_service
 
 from .router import router
 
@@ -51,23 +54,55 @@ async def get_users(
         default=False, description="是否包含各模式的统计信息"
     ),  # TODO: future use
 ):
+    redis = get_redis()
+    cache_service = get_user_cache_service(redis)
+    
     if user_ids:
-        searched_users = (
-            await session.exec(select(User).limit(50).where(col(User.id).in_(user_ids)))
-        ).all()
+        # 先尝试从缓存获取
+        cached_users = []
+        uncached_user_ids = []
+        
+        for user_id in user_ids[:50]:  # 限制50个
+            cached_user = await cache_service.get_user_from_cache(user_id)
+            if cached_user:
+                cached_users.append(cached_user)
+            else:
+                uncached_user_ids.append(user_id)
+        
+        # 查询未缓存的用户
+        if uncached_user_ids:
+            searched_users = (
+                await session.exec(select(User).where(col(User.id).in_(uncached_user_ids)))
+            ).all()
+            
+            # 将查询到的用户添加到缓存并返回
+            for searched_user in searched_users:
+                if searched_user.id != BANCHOBOT_ID:
+                    user_resp = await UserResp.from_db(
+                        searched_user,
+                        session,
+                        include=SEARCH_INCLUDED,
+                    )
+                    cached_users.append(user_resp)
+                    # 异步缓存，不阻塞响应
+                    asyncio.create_task(cache_service.cache_user(user_resp))
+        
+        return BatchUserResponse(users=cached_users)
     else:
         searched_users = (await session.exec(select(User).limit(50))).all()
-    return BatchUserResponse(
-        users=[
-            await UserResp.from_db(
-                searched_user,
-                session,
-                include=SEARCH_INCLUDED,
-            )
-            for searched_user in searched_users
-            if searched_user.id != BANCHOBOT_ID
-        ]
-    )
+        users = []
+        for searched_user in searched_users:
+            if searched_user.id != BANCHOBOT_ID:
+                user_resp = await UserResp.from_db(
+                    searched_user,
+                    session,
+                    include=SEARCH_INCLUDED,
+                )
+                users.append(user_resp)
+                # 异步缓存
+                asyncio.create_task(cache_service.cache_user(user_resp))
+        
+        return BatchUserResponse(users=users)
 
 
 @router.get(
@@ -83,6 +118,16 @@ async def get_user_info_ruleset(
     ruleset: GameMode | None = Path(description="指定 ruleset"),
     # current_user: User = Security(get_current_user, scopes=["public"]),
 ):
+    redis = get_redis()
+    cache_service = get_user_cache_service(redis)
+    
+    # 如果是数字ID，先尝试从缓存获取
+    if user_id.isdigit():
+        user_id_int = int(user_id)
+        cached_user = await cache_service.get_user_from_cache(user_id_int, ruleset)
+        if cached_user:
+            return cached_user
+    
     searched_user = (
         await session.exec(
             select(User).where(
@@ -94,12 +139,18 @@ async def get_user_info_ruleset(
     ).first()
     if not searched_user or searched_user.id == BANCHOBOT_ID:
         raise HTTPException(404, detail="User not found")
-    return await UserResp.from_db(
+    
+    user_resp = await UserResp.from_db(
         searched_user,
         session,
         include=SEARCH_INCLUDED,
         ruleset=ruleset,
     )
+    
+    # 异步缓存结果
+    asyncio.create_task(cache_service.cache_user(user_resp, ruleset))
+    
+    return user_resp
 
 
 @router.get("/users/{user_id}/", response_model=UserResp, include_in_schema=False)
@@ -115,6 +166,16 @@ async def get_user_info(
     user_id: str = Path(description="用户 ID 或用户名"),
     # current_user: User = Security(get_current_user, scopes=["public"]),
 ):
+    redis = get_redis()
+    cache_service = get_user_cache_service(redis)
+    
+    # 如果是数字ID，先尝试从缓存获取
+    if user_id.isdigit():
+        user_id_int = int(user_id)
+        cached_user = await cache_service.get_user_from_cache(user_id_int)
+        if cached_user:
+            return cached_user
+    
     searched_user = (
         await session.exec(
             select(User).where(
@@ -126,11 +187,17 @@ async def get_user_info(
     ).first()
     if not searched_user or searched_user.id == BANCHOBOT_ID:
         raise HTTPException(404, detail="User not found")
-    return await UserResp.from_db(
+    
+    user_resp = await UserResp.from_db(
         searched_user,
         session,
         include=SEARCH_INCLUDED,
     )
+    
+    # 异步缓存结果
+    asyncio.create_task(cache_service.cache_user(user_resp))
+    
+    return user_resp
 
 
 @router.get(
@@ -148,6 +215,20 @@ async def get_user_beatmapsets(
     limit: int = Query(100, ge=1, le=1000, description="返回条数 (1-1000)"),
     offset: int = Query(0, ge=0, description="偏移量"),
 ):
+    redis = get_redis()
+    cache_service = get_user_cache_service(redis)
+    
+    # 先尝试从缓存获取
+    cached_result = await cache_service.get_user_beatmapsets_from_cache(
+        user_id, type.value, limit, offset
+    )
+    if cached_result is not None:
+        # 根据类型恢复对象
+        if type == BeatmapsetType.MOST_PLAYED:
+            return [BeatmapPlaycountsResp(**item) for item in cached_result]
+        else:
+            return [BeatmapsetResp(**item) for item in cached_result]
+    
     user = await session.get(User, user_id)
     if not user or user.id == BANCHOBOT_ID:
         raise HTTPException(404, detail="User not found")
@@ -190,6 +271,11 @@ async def get_user_beatmapsets(
     else:
         raise HTTPException(400, detail="Invalid beatmapset type")
 
+    # 异步缓存结果
+    asyncio.create_task(
+        cache_service.cache_user_beatmapsets(user_id, type.value, resp, limit, offset)
+    )
+
     return resp
 
 
@@ -218,6 +304,17 @@ async def get_user_scores(
     offset: int = Query(0, ge=0, description="偏移量"),
     current_user: User = Security(get_current_user, scopes=["public"]),
 ):
+    redis = get_redis()
+    cache_service = get_user_cache_service(redis)
+    
+    # 先尝试从缓存获取（对于recent类型使用较短的缓存时间）
+    cache_expire = 30 if type == "recent" else settings.user_scores_cache_expire_seconds
+    cached_scores = await cache_service.get_user_scores_from_cache(
+        user_id, type, mode, limit, offset
+    )
+    if cached_scores is not None:
+        return cached_scores
+    
     db_user = await session.get(User, user_id)
     if not db_user or db_user.id == BANCHOBOT_ID:
         raise HTTPException(404, detail="User not found")
@@ -253,13 +350,23 @@ async def get_user_scores(
     ).all()
     if not scores:
         return []
-    return [
+    
+    score_responses = [
         await ScoreResp.from_db(
             session,
             score,
         )
         for score in scores
     ]
+    
+    # 异步缓存结果
+    asyncio.create_task(
+        cache_service.cache_user_scores(
+            user_id, type, score_responses, mode, limit, offset, cache_expire
+        )
+    )
+    
+    return score_responses
 
 
 @router.get(

@@ -149,6 +149,14 @@ class Settings(BaseSettings):
     ranking_cache_refresh_interval_minutes: int = 10  # 排行榜缓存刷新间隔（分钟）
     ranking_cache_max_pages: int = 20  # 最多缓存的页数
     ranking_cache_top_countries: int = 20  # 缓存前N个国家的排行榜
+    
+    # 用户缓存设置
+    enable_user_cache_preload: bool = True  # 启用用户缓存预加载
+    user_cache_expire_seconds: int = 300  # 用户信息缓存过期时间（秒）
+    user_scores_cache_expire_seconds: int = 60  # 用户成绩缓存过期时间（秒）
+    user_beatmapsets_cache_expire_seconds: int = 600  # 用户谱面集缓存过期时间（秒）
+    user_cache_max_preload_users: int = 200  # 最多预加载的用户数量
+    user_cache_concurrent_limit: int = 10  # 并发缓存用户的限制
 
     # 反作弊设置
     suspicious_score_check: bool = True

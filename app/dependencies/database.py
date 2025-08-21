@@ -28,9 +28,11 @@ def json_serializer(value):
 engine = create_async_engine(
     settings.database_url,
     json_serializer=json_serializer,
-    pool_size=20,
-    max_overflow=20,
+    pool_size=30,  # 增加连接池大小
+    max_overflow=50,  # 增加最大溢出连接数
     pool_timeout=30.0,
+    pool_recycle=3600,  # 1小时回收连接
+    pool_pre_ping=True,  # 启用连接预检查
 )
 
 # Redis 连接
