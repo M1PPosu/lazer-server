@@ -183,7 +183,7 @@ async def submit_score(
         }
         db.add(rank_event)
         await db.commit()
-    
+
     # 成绩提交后刷新用户缓存
     try:
         user_cache_service = get_user_cache_service(redis)
@@ -193,7 +193,7 @@ async def submit_score(
             )
     except Exception as e:
         logger.error(f"Failed to refresh user cache after score submit: {e}")
-    
+
     background_task.add_task(process_user_achievement, resp.id)
     return resp
 

@@ -88,6 +88,7 @@ async def calculate_pp(score: "Score", beatmap: str, session: AsyncSession) -> f
 
     # 使用线程池执行计算密集型操作以避免阻塞事件循环
     import asyncio
+
     loop = asyncio.get_event_loop()
 
     def _calculate_pp_sync():
@@ -131,11 +132,7 @@ async def calculate_pp(score: "Score", beatmap: str, session: AsyncSession) -> f
 
 
 async def pre_fetch_and_calculate_pp(
-    score: "Score",
-    beatmap_id: int,
-    session: AsyncSession,
-    redis,
-    fetcher
+    score: "Score", beatmap_id: int, session: AsyncSession, redis, fetcher
 ) -> float:
     """
     优化版PP计算：预先获取beatmap文件并使用缓存
@@ -148,9 +145,7 @@ async def pre_fetch_and_calculate_pp(
     if settings.suspicious_score_check:
         beatmap_banned = (
             await session.exec(
-                select(exists()).where(
-                    col(BannedBeatmaps.beatmap_id) == beatmap_id
-                )
+                select(exists()).where(col(BannedBeatmaps.beatmap_id) == beatmap_id)
             )
         ).first()
         if beatmap_banned:
@@ -184,10 +179,7 @@ async def pre_fetch_and_calculate_pp(
 
 
 async def batch_calculate_pp(
-    scores_data: list[tuple["Score", int]],
-    session: AsyncSession,
-    redis,
-    fetcher
+    scores_data: list[tuple["Score", int]], session: AsyncSession, redis, fetcher
 ) -> list[float]:
     """
     批量计算PP：适用于重新计算或批量处理场景

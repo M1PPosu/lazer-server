@@ -1,15 +1,15 @@
 """
 用户缓存预热任务调度器
 """
+
 from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime, timedelta
 
 from app.config import settings
-from app.database import User
 from app.database.score import Score
-from app.dependencies.database import get_db, get_redis
+from app.dependencies.database import get_redis
 from app.log import logger
 from app.service.user_cache_service import get_user_cache_service
 
@@ -25,16 +25,17 @@ async def schedule_user_cache_preload_task():
 
     try:
         logger.info("Starting user cache preload task...")
-        
+
         redis = get_redis()
         cache_service = get_user_cache_service(redis)
-        
+
         # 使用独立的数据库会话
         from app.dependencies.database import with_db
+
         async with with_db() as session:
             # 获取最近24小时内活跃的用户（提交过成绩的用户）
             recent_time = datetime.now(UTC) - timedelta(hours=24)
-            
+
             active_user_ids = (
                 await session.exec(
                     select(Score.user_id, func.count().label("score_count"))
@@ -44,7 +45,7 @@ async def schedule_user_cache_preload_task():
                     .limit(settings.user_cache_max_preload_users)  # 使用配置中的限制
                 )
             ).all()
-            
+
             if active_user_ids:
                 user_ids = [row[0] for row in active_user_ids]
                 await cache_service.preload_user_cache(session, user_ids)
@@ -62,17 +63,18 @@ async def schedule_user_cache_warmup_task():
     """定时用户缓存预热任务 - 预加载排行榜前100用户"""
     try:
         logger.info("Starting user cache warmup task...")
-        
+
         redis = get_redis()
         cache_service = get_user_cache_service(redis)
-        
+
         # 使用独立的数据库会话
         from app.dependencies.database import with_db
+
         async with with_db() as session:
             # 获取全球排行榜前100的用户
             from app.database.statistics import UserStatistics
             from app.models.score import GameMode
-            
+
             for mode in GameMode:
                 try:
                     top_users = (
@@ -83,15 +85,15 @@ async def schedule_user_cache_warmup_task():
                             .limit(100)
                         )
                     ).all()
-                    
+
                     if top_users:
                         user_ids = list(top_users)
                         await cache_service.preload_user_cache(session, user_ids)
                         logger.info(f"Warmed cache for top 100 users in {mode}")
-                        
+
                         # 避免过载，稍微延迟
                         await asyncio.sleep(1)
-                        
+
                 except Exception as e:
                     logger.error(f"Failed to warm cache for {mode}: {e}")
                     continue
@@ -106,13 +108,13 @@ async def schedule_user_cache_cleanup_task():
     """定时用户缓存清理任务"""
     try:
         logger.info("Starting user cache cleanup task...")
-        
+
         redis = get_redis()
-        
+
         # 清理过期的用户缓存（Redis会自动处理TTL，这里主要记录统计信息）
         cache_service = get_user_cache_service(redis)
         stats = await cache_service.get_cache_stats()
-        
+
         logger.info(f"User cache stats: {stats}")
         logger.info("User cache cleanup task completed successfully")
 

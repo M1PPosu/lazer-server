@@ -4,7 +4,6 @@ import asyncio
 from datetime import datetime
 from typing import Literal
 
-from app.config import settings
 from app.database.lazer_user import User
 from app.database.statistics import UserStatistics, UserStatisticsResp
 from app.dependencies.database import Database, get_redis
@@ -56,7 +55,7 @@ class V1User(AllStrModel):
         # 确保 user_id 不为 None
         if db_user.id is None:
             raise ValueError("User ID cannot be None")
-            
+
         ruleset = ruleset or db_user.playmode
         current_statistics: UserStatistics | None = None
         for i in await db_user.awaitable_attrs.statistics:
@@ -118,26 +117,28 @@ async def get_user(
 ):
     redis = get_redis()
     cache_service = get_user_cache_service(redis)
-    
+
     # 确定查询方式和用户ID
     is_id_query = type == "id" or user.isdigit()
-    
+
     # 解析 ruleset
     ruleset = GameMode.from_int_extra(ruleset_id) if ruleset_id else None
-    
+
     # 如果是 ID 查询，先尝试从缓存获取
     cached_v1_user = None
     user_id_for_cache = None
-    
+
     if is_id_query:
         try:
             user_id_for_cache = int(user)
-            cached_v1_user = await cache_service.get_v1_user_from_cache(user_id_for_cache, ruleset)
+            cached_v1_user = await cache_service.get_v1_user_from_cache(
+                user_id_for_cache, ruleset
+            )
             if cached_v1_user:
                 return [V1User(**cached_v1_user)]
         except (ValueError, TypeError):
             pass  # 不是有效的用户ID，继续数据库查询
-    
+
     # 从数据库查询用户
     db_user = (
         await session.exec(
@@ -146,23 +147,23 @@ async def get_user(
             )
         )
     ).first()
-    
+
     if not db_user:
         return []
-    
+
     try:
         # 生成用户数据
         v1_user = await V1User.from_db(session, db_user, ruleset)
-        
+
         # 异步缓存结果（如果有用户ID）
         if db_user.id is not None:
             user_data = v1_user.model_dump()
             asyncio.create_task(
                 cache_service.cache_v1_user(user_data, db_user.id, ruleset)
             )
-        
+
         return [v1_user]
-        
+
     except KeyError:
         raise HTTPException(400, "Invalid request")
     except ValueError as e:

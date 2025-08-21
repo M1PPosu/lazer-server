@@ -136,7 +136,7 @@ class UserBase(UTCBaseModel, SQLModel):
     is_qat: bool = False
     is_bng: bool = False
 
-    @field_validator('playmode', mode='before')
+    @field_validator("playmode", mode="before")
     @classmethod
     def validate_playmode(cls, v):
         """将字符串转换为 GameMode 枚举"""

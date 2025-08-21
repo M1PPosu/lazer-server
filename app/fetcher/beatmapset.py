@@ -101,6 +101,7 @@ class BeatmapsetFetcher(BaseFetcher):
             return json.loads(cursor_json)
         except Exception:
             return {}
+
     async def get_beatmapset(self, beatmap_set_id: int) -> BeatmapsetResp:
         logger.opt(colors=True).debug(
             f"<blue>[BeatmapsetFetcher]</blue> get_beatmapset: <y>{beatmap_set_id}</y>"
@@ -164,9 +165,7 @@ class BeatmapsetFetcher(BaseFetcher):
         # 将结果缓存 15 分钟
         cache_ttl = 15 * 60  # 15 分钟
         await redis_client.set(
-            cache_key,
-            json.dumps(api_response, separators=(",", ":")),
-            ex=cache_ttl
+            cache_key, json.dumps(api_response, separators=(",", ":")), ex=cache_ttl
         )
 
         logger.opt(colors=True).debug(
@@ -178,10 +177,12 @@ class BeatmapsetFetcher(BaseFetcher):
 
         # 智能预取：只在用户明确搜索时才预取，避免过多API请求
         # 且只在有搜索词或特定条件时预取，避免首页浏览时的过度预取
-        if (api_response.get("cursor") and
-            (query.q or query.s != "leaderboard" or cursor)):
+        if api_response.get("cursor") and (
+            query.q or query.s != "leaderboard" or cursor
+        ):
             # 在后台预取下1页（减少预取量）
             import asyncio
+
             # 不立即创建任务，而是延迟一段时间再预取
             async def delayed_prefetch():
                 await asyncio.sleep(3.0)  # 延迟3秒
@@ -200,8 +201,11 @@ class BeatmapsetFetcher(BaseFetcher):
         return resp
 
     async def prefetch_next_pages(
-        self, query: SearchQueryModel, current_cursor: Cursor,
-        redis_client: redis.Redis, pages: int = 3
+        self,
+        query: SearchQueryModel,
+        current_cursor: Cursor,
+        redis_client: redis.Redis,
+        pages: int = 3,
     ) -> None:
         """预取下几页内容"""
         if not current_cursor:
@@ -269,7 +273,7 @@ class BeatmapsetFetcher(BaseFetcher):
                 await redis_client.set(
                     next_cache_key,
                     json.dumps(api_response, separators=(",", ":")),
-                    ex=prefetch_ttl
+                    ex=prefetch_ttl,
                 )
 
                 logger.opt(colors=True).debug(
@@ -317,7 +321,6 @@ class BeatmapsetFetcher(BaseFetcher):
                     params=params,
                 )
 
-
                 if api_response.get("cursor"):
                     cursor_dict = api_response["cursor"]
                     api_response["cursor_string"] = self._encode_cursor(cursor_dict)
@@ -327,14 +330,13 @@ class BeatmapsetFetcher(BaseFetcher):
                 await redis_client.set(
                     cache_key,
                     json.dumps(api_response, separators=(",", ":")),
-                    ex=cache_ttl
+                    ex=cache_ttl,
                 )
 
                 logger.opt(colors=True).info(
                     f"<magenta>[BeatmapsetFetcher]</magenta> "
                     f"Warmed up cache for {query.sort} (TTL: {cache_ttl}s)"
                 )
-
 
                 if api_response.get("cursor"):
                     await self.prefetch_next_pages(

@@ -8,7 +8,7 @@ from app.models.score import GameMode
 from .lazer_user import BASE_INCLUDES, User, UserResp
 
 from pydantic import BaseModel, field_validator, model_validator
-from sqlalchemy import Boolean, JSON, Column, DateTime, Text
+from sqlalchemy import JSON, Boolean, Column, DateTime, Text
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlmodel import Field, Relationship, SQLModel, col, exists, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -205,7 +205,18 @@ class BeatmapsetResp(BeatmapsetBase):
     favourite_count: int = 0
     recent_favourites: list[UserResp] = Field(default_factory=list)
 
-    @field_validator('nsfw', 'spotlight', 'video', 'can_be_hyped', 'discussion_locked', 'storyboard', 'discussion_enabled', 'is_scoreable', 'has_favourited', mode='before')
+    @field_validator(
+        "nsfw",
+        "spotlight",
+        "video",
+        "can_be_hyped",
+        "discussion_locked",
+        "storyboard",
+        "discussion_enabled",
+        "is_scoreable",
+        "has_favourited",
+        mode="before",
+    )
     @classmethod
     def validate_bool_fields(cls, v):
         """将整数 0/1 转换为布尔值，处理数据库中的布尔字段"""

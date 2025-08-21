@@ -100,7 +100,7 @@ class ScoreBase(AsyncAttrs, SQLModel, UTCBaseModel):
         sa_column=Column(JSON), default_factory=dict
     )
 
-    @field_validator('maximum_statistics', mode='before')
+    @field_validator("maximum_statistics", mode="before")
     @classmethod
     def validate_maximum_statistics(cls, v):
         """处理 maximum_statistics 字段中的字符串键，转换为 HitResult 枚举"""
@@ -151,7 +151,7 @@ class Score(ScoreBase, table=True):
     gamemode: GameMode = Field(index=True)
     pinned_order: int = Field(default=0, exclude=True)
 
-    @field_validator('gamemode', mode='before')
+    @field_validator("gamemode", mode="before")
     @classmethod
     def validate_gamemode(cls, v):
         """将字符串转换为 GameMode 枚举"""
@@ -209,7 +209,16 @@ class ScoreResp(ScoreBase):
     ranked: bool = False
     current_user_attributes: CurrentUserAttributes | None = None
 
-    @field_validator('has_replay', 'passed', 'preserve', 'is_perfect_combo', 'legacy_perfect', 'processed', 'ranked', mode='before')
+    @field_validator(
+        "has_replay",
+        "passed",
+        "preserve",
+        "is_perfect_combo",
+        "legacy_perfect",
+        "processed",
+        "ranked",
+        mode="before",
+    )
     @classmethod
     def validate_bool_fields(cls, v):
         """将整数 0/1 转换为布尔值，处理数据库中的布尔字段"""
@@ -217,7 +226,7 @@ class ScoreResp(ScoreBase):
             return bool(v)
         return v
 
-    @field_validator('statistics', 'maximum_statistics', mode='before')
+    @field_validator("statistics", "maximum_statistics", mode="before")
     @classmethod
     def validate_statistics_fields(cls, v):
         """处理统计字段中的字符串键，转换为 HitResult 枚举"""

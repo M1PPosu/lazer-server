@@ -142,14 +142,14 @@ class Settings(BaseSettings):
     beatmap_cache_expire_hours: int = 24
     max_concurrent_pp_calculations: int = 10
     enable_pp_calculation_threading: bool = True
-    
+
     # 排行榜缓存设置
     enable_ranking_cache: bool = True
     ranking_cache_expire_minutes: int = 10  # 排行榜缓存过期时间（分钟）
     ranking_cache_refresh_interval_minutes: int = 10  # 排行榜缓存刷新间隔（分钟）
     ranking_cache_max_pages: int = 20  # 最多缓存的页数
     ranking_cache_top_countries: int = 20  # 缓存前N个国家的排行榜
-    
+
     # 用户缓存设置
     enable_user_cache_preload: bool = True  # 启用用户缓存预加载
     user_cache_expire_seconds: int = 300  # 用户信息缓存过期时间（秒）

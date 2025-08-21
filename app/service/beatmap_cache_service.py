@@ -2,6 +2,7 @@
 Beatmap缓存预取服务
 用于提前缓存热门beatmap，减少成绩计算时的获取延迟
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -155,9 +156,7 @@ def get_beatmap_cache_service(redis: Redis, fetcher: "Fetcher") -> BeatmapCacheS
 
 
 async def schedule_preload_task(
-    session: AsyncSession,
-    redis: Redis,
-    fetcher: "Fetcher"
+    session: AsyncSession, redis: Redis, fetcher: "Fetcher"
 ):
     """
     定时预加载任务

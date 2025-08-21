@@ -44,7 +44,7 @@ class UserStatisticsBase(SQLModel):
     replays_watched_by_others: int = Field(default=0)
     is_ranked: bool = Field(default=True)
 
-    @field_validator('mode', mode='before')
+    @field_validator("mode", mode="before")
     @classmethod
     def validate_mode(cls, v):
         """将字符串转换为 GameMode 枚举"""

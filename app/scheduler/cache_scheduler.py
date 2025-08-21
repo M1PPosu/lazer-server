@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 
 from app.config import settings
-from app.dependencies.database import get_db, get_redis
+from app.dependencies.database import get_redis
 from app.dependencies.fetcher import get_fetcher
 from app.log import logger
 from app.scheduler.user_cache_scheduler import (
@@ -44,10 +44,10 @@ class CacheScheduler:
         """运行调度器主循环"""
         # 启动时立即执行一次预热
         await self._warmup_cache()
-        
+
         # 启动时执行一次排行榜缓存刷新
         await self._refresh_ranking_cache()
-        
+
         # 启动时执行一次用户缓存预热
         await self._warmup_user_cache()
 
@@ -55,14 +55,16 @@ class CacheScheduler:
         ranking_cache_counter = 0
         user_cache_counter = 0
         user_cleanup_counter = 0
-        
+
         # 从配置文件获取间隔设置
         check_interval = 5 * 60  # 5分钟检查间隔
         beatmap_cache_interval = 30 * 60  # 30分钟beatmap缓存间隔
-        ranking_cache_interval = settings.ranking_cache_refresh_interval_minutes * 60  # 从配置读取
+        ranking_cache_interval = (
+            settings.ranking_cache_refresh_interval_minutes * 60
+        )  # 从配置读取
         user_cache_interval = 15 * 60  # 15分钟用户缓存预加载间隔
         user_cleanup_interval = 60 * 60  # 60分钟用户缓存清理间隔
-        
+
         beatmap_cache_cycles = beatmap_cache_interval // check_interval
         ranking_cache_cycles = ranking_cache_interval // check_interval
         user_cache_cycles = user_cache_interval // check_interval
@@ -90,12 +92,12 @@ class CacheScheduler:
                 if ranking_cache_counter >= ranking_cache_cycles:
                     await self._refresh_ranking_cache()
                     ranking_cache_counter = 0
-                
+
                 # 用户缓存预加载
                 if user_cache_counter >= user_cache_cycles:
                     await self._preload_user_cache()
                     user_cache_counter = 0
-                
+
                 # 用户缓存清理
                 if user_cleanup_counter >= user_cleanup_cycles:
                     await self._cleanup_user_cache()
@@ -129,15 +131,14 @@ class CacheScheduler:
             logger.info("Starting ranking cache refresh...")
 
             redis = get_redis()
-            
+
             # 导入排行榜缓存服务
+            # 使用独立的数据库会话
+            from app.dependencies.database import with_db
             from app.service.ranking_cache_service import (
-                get_ranking_cache_service,
                 schedule_ranking_refresh_task,
             )
 
-            # 使用独立的数据库会话
-            from app.dependencies.database import with_db
             async with with_db() as session:
                 await schedule_ranking_refresh_task(session, redis)
 
@@ -171,6 +172,7 @@ class CacheScheduler:
 # Beatmap缓存调度器（保持向后兼容）
 class BeatmapsetCacheScheduler(CacheScheduler):
     """谱面集缓存调度器 - 为了向后兼容"""
+
     pass
 
 

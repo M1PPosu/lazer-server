@@ -45,24 +45,24 @@ async def get_country_ranking(
     # 获取 Redis 连接和缓存服务
     redis = get_redis()
     cache_service = get_ranking_cache_service(redis)
-    
+
     # 尝试从缓存获取数据
     cached_data = await cache_service.get_cached_country_ranking(ruleset, page)
-    
+
     if cached_data:
         # 从缓存返回数据
         return CountryResponse(
             ranking=[CountryStatistics.model_validate(item) for item in cached_data]
         )
-    
+
     # 缓存未命中，从数据库查询
     response = CountryResponse(ranking=[])
     countries = (await session.exec(select(User.country_code).distinct())).all()
-    
+
     for country in countries:
         if not country:  # 跳过空的国家代码
             continue
-            
+
         statistics = (
             await session.exec(
                 select(UserStatistics).where(
@@ -73,10 +73,10 @@ async def get_country_ranking(
                 )
             )
         ).all()
-        
+
         if not statistics:  # 跳过没有数据的国家
             continue
-        
+
         pp = 0
         country_stats = CountryStatistics(
             code=country,
@@ -92,27 +92,28 @@ async def get_country_ranking(
             pp += stat.pp
         country_stats.performance = round(pp)
         response.ranking.append(country_stats)
-    
+
     response.ranking.sort(key=lambda x: x.performance, reverse=True)
-    
+
     # 分页处理
     page_size = 50
     start_idx = (page - 1) * page_size
     end_idx = start_idx + page_size
-    
+
     # 获取当前页的数据
     current_page_data = response.ranking[start_idx:end_idx]
-    
+
     # 异步缓存数据（不等待完成）
     cache_data = [item.model_dump() for item in current_page_data]
     cache_task = cache_service.cache_country_ranking(
         ruleset, cache_data, page, ttl=settings.ranking_cache_expire_minutes * 60
     )
-    
+
     # 创建后台任务来缓存数据
     import asyncio
+
     asyncio.create_task(cache_task)
-    
+
     # 返回当前页的结果
     response.ranking = current_page_data
     return response
@@ -142,20 +143,16 @@ async def get_user_ranking(
     # 获取 Redis 连接和缓存服务
     redis = get_redis()
     cache_service = get_ranking_cache_service(redis)
-    
+
     # 尝试从缓存获取数据
-    cached_data = await cache_service.get_cached_ranking(
-        ruleset, type, country, page
-    )
-    
+    cached_data = await cache_service.get_cached_ranking(ruleset, type, country, page)
+
     if cached_data:
         # 从缓存返回数据
         return TopUsersResponse(
-            ranking=[
-                UserStatisticsResp.model_validate(item) for item in cached_data
-            ]
+            ranking=[UserStatisticsResp.model_validate(item) for item in cached_data]
         )
-    
+
     # 缓存未命中，从数据库查询
     wheres = [
         col(UserStatistics.mode) == ruleset,
@@ -170,7 +167,7 @@ async def get_user_ranking(
         order_by = col(UserStatistics.ranked_score).desc()
     if country:
         wheres.append(col(UserStatistics.user).has(country_code=country.upper()))
-    
+
     statistics_list = await session.exec(
         select(UserStatistics)
         .where(*wheres)
@@ -178,7 +175,7 @@ async def get_user_ranking(
         .limit(50)
         .offset(50 * (page - 1))
     )
-    
+
     # 转换为响应格式
     ranking_data = []
     for statistics in statistics_list:
@@ -186,18 +183,24 @@ async def get_user_ranking(
             statistics, session, None, include
         )
         ranking_data.append(user_stats_resp)
-    
+
     # 异步缓存数据（不等待完成）
     # 使用配置文件中的TTL设置
     cache_data = [item.model_dump() for item in ranking_data]
     cache_task = cache_service.cache_ranking(
-        ruleset, type, cache_data, country, page, ttl=settings.ranking_cache_expire_minutes * 60
+        ruleset,
+        type,
+        cache_data,
+        country,
+        page,
+        ttl=settings.ranking_cache_expire_minutes * 60,
     )
-    
+
     # 创建后台任务来缓存数据
     import asyncio
+
     asyncio.create_task(cache_task)
-    
+
     resp = TopUsersResponse(ranking=ranking_data)
     return resp
 

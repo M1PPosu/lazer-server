@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import time
-from typing import Optional
 
 from app.dependencies.database import get_redis
 from app.log import logger
@@ -11,6 +10,7 @@ from httpx import AsyncClient
 
 class TokenAuthError(Exception):
     """Token 授权失败异常"""
+
     pass
 
 
@@ -55,7 +55,7 @@ class BaseFetcher:
         return await self._request_with_retry(url, method, **kwargs)
 
     async def _request_with_retry(
-        self, url: str, method: str = "GET", max_retries: Optional[int] = None, **kwargs
+        self, url: str, method: str = "GET", max_retries: int | None = None, **kwargs
     ) -> dict:
         """
         带重试机制的请求方法
@@ -64,7 +64,7 @@ class BaseFetcher:
             max_retries = self.max_retries
 
         last_error = None
-        
+
         for attempt in range(max_retries + 1):
             try:
                 # 检查 token 是否过期
@@ -126,7 +126,9 @@ class BaseFetcher:
                     )
                     continue
                 else:
-                    logger.error(f"Request failed after {max_retries + 1} attempts: {e}")
+                    logger.error(
+                        f"Request failed after {max_retries + 1} attempts: {e}"
+                    )
                     break
 
         # 如果所有重试都失败了
@@ -194,9 +196,13 @@ class BaseFetcher:
                     f"fetcher:refresh_token:{self.client_id}",
                     self.refresh_token,
                 )
-                logger.info(f"Successfully refreshed access token for client {self.client_id}")
+                logger.info(
+                    f"Successfully refreshed access token for client {self.client_id}"
+                )
         except Exception as e:
-            logger.error(f"Failed to refresh access token for client {self.client_id}: {e}")
+            logger.error(
+                f"Failed to refresh access token for client {self.client_id}: {e}"
+            )
             # 清除无效的 token，要求重新授权
             self.access_token = ""
             self.refresh_token = ""
@@ -204,7 +210,9 @@ class BaseFetcher:
             redis = get_redis()
             await redis.delete(f"fetcher:access_token:{self.client_id}")
             await redis.delete(f"fetcher:refresh_token:{self.client_id}")
-            logger.warning(f"Cleared invalid tokens. Please re-authorize: {self.authorize_url}")
+            logger.warning(
+                f"Cleared invalid tokens. Please re-authorize: {self.authorize_url}"
+            )
             raise
 
     async def _trigger_reauthorization(self) -> None:
@@ -216,18 +224,18 @@ class BaseFetcher:
             f"Authentication failed after {self._auth_retry_count} attempts. "
             f"Triggering reauthorization for client {self.client_id}"
         )
-        
+
         # 清除内存中的 token
         self.access_token = ""
         self.refresh_token = ""
         self.token_expiry = 0
         self._auth_retry_count = 0  # 重置重试计数器
-        
+
         # 清除 Redis 中的 token
         redis = get_redis()
         await redis.delete(f"fetcher:access_token:{self.client_id}")
         await redis.delete(f"fetcher:refresh_token:{self.client_id}")
-        
+
         logger.warning(
             f"All tokens cleared for client {self.client_id}. "
             f"Please re-authorize using: {self.authorize_url}"
