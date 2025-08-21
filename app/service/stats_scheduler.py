@@ -58,15 +58,22 @@ class StatsScheduler:
             try:
                 # 计算下次记录时间（下个30分钟整点）
                 now = datetime.utcnow()
-                minutes_until_next = 30 - (now.minute % 30)
-                next_record_time = now.replace(second=0, microsecond=0) + timedelta(minutes=minutes_until_next)
                 
-                # 计算需要等待的秒数
-                sleep_seconds = (next_record_time - now).total_seconds()
+                # 计算当前区间边界
+                current_minute = (now.minute // 30) * 30
+                current_interval_end = now.replace(minute=current_minute, second=0, microsecond=0) + timedelta(minutes=30)
                 
-                # 确保至少等待30分钟，但不超过31分钟（防止时间漂移）
-                sleep_seconds = max(min(sleep_seconds, 31 * 60), 30 * 60)
+                # 如果已经过了当前区间结束时间，立即处理
+                if now >= current_interval_end:
+                    current_interval_end += timedelta(minutes=30)
                 
+                # 计算需要等待的时间（到下个区间结束）
+                sleep_seconds = (current_interval_end - now).total_seconds()
+                
+                # 确保至少等待1分钟，最多等待31分钟
+                sleep_seconds = max(min(sleep_seconds, 31 * 60), 60)
+                
+                logger.debug(f"Next interval finalization in {sleep_seconds/60:.1f} minutes at {current_interval_end.strftime('%H:%M:%S')}")
                 await asyncio.sleep(sleep_seconds)
                 
                 if not self._running:

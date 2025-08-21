@@ -199,11 +199,15 @@ class EnhancedIntervalStatsManager:
                 current_time = datetime.utcnow()
                 current_interval_start, _ = EnhancedIntervalStatsManager.get_current_interval_boundaries()
                 
-                # 从当前区间开始往前推，创建历史数据点
+                # 从当前区间开始往前推，创建历史数据点（确保时间对齐到30分钟边界）
                 fill_points = []
                 for i in range(needed_points):
-                    # 每次往前推30分钟
+                    # 每次往前推30分钟，确保时间对齐
                     point_time = current_interval_start - timedelta(minutes=30 * (i + 1))
+                    
+                    # 确保时间对齐到30分钟边界
+                    aligned_minute = (point_time.minute // 30) * 30
+                    point_time = point_time.replace(minute=aligned_minute, second=0, microsecond=0)
                     
                     history_point = {
                         "timestamp": point_time.isoformat(),
@@ -255,7 +259,7 @@ class EnhancedIntervalStatsManager:
     
     @staticmethod
     async def add_user_to_interval(user_id: int, is_playing: bool = False) -> None:
-        """添加用户到当前区间统计"""
+        """添加用户到当前区间统计 - 实时更新当前运行的区间"""
         redis_sync = get_redis_message()
         redis_async = get_redis()
         
@@ -273,15 +277,17 @@ class EnhancedIntervalStatsManager:
                 await _redis_exec(redis_sync.sadd, playing_key, str(user_id))
                 await redis_async.expire(playing_key, 35 * 60)
             
-            # 异步更新区间统计
-            asyncio.create_task(EnhancedIntervalStatsManager._update_interval_stats())
+            # 立即更新区间统计（同步更新，确保数据实时性）
+            await EnhancedIntervalStatsManager._update_interval_stats()
+            
+            logger.debug(f"Added user {user_id} to current interval {current_interval.start_time.strftime('%H:%M')}-{current_interval.end_time.strftime('%H:%M')}")
             
         except Exception as e:
             logger.error(f"Error adding user {user_id} to interval: {e}")
     
     @staticmethod
     async def _update_interval_stats() -> None:
-        """更新当前区间统计（内部方法）"""
+        """更新当前区间统计 - 立即同步更新"""
         redis_sync = get_redis_message()
         redis_async = get_redis()
         
@@ -325,13 +331,15 @@ class EnhancedIntervalStatsManager:
             stats.unique_online_users = unique_online
             stats.unique_playing_users = unique_playing
             
-            # 保存更新的统计数据
+            # 立即保存更新的统计数据
             await _redis_exec(
                 redis_sync.set,
                 current_interval.interval_key,
                 json.dumps(stats.to_dict())
             )
             await redis_async.expire(current_interval.interval_key, 35 * 60)
+            
+            logger.debug(f"Updated interval stats: online={unique_online}, playing={unique_playing}, peak_online={stats.peak_online_count}, peak_playing={stats.peak_playing_count}")
             
         except Exception as e:
             logger.error(f"Error updating interval stats: {e}")
@@ -356,9 +364,9 @@ class EnhancedIntervalStatsManager:
             
             stats = IntervalStats.from_dict(json.loads(stats_data))
             
-            # 创建历史记录点（使用独特用户数作为主要统计）
+            # 创建历史记录点（使用区间结束时间作为时间戳，确保时间对齐）
             history_point = {
-                "timestamp": stats.end_time.isoformat(),
+                "timestamp": current_interval.end_time.isoformat(),
                 "online_count": stats.unique_online_users,
                 "playing_count": stats.unique_playing_users,
                 "peak_online": stats.peak_online_count,

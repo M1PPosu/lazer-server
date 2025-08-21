@@ -40,6 +40,9 @@ class OnlineHistoryPoint(BaseModel):
     timestamp: datetime
     online_count: int
     playing_count: int
+    peak_online: int | None = None  # 峰值在线数（增强数据）
+    peak_playing: int | None = None  # 峰值游玩数（增强数据）
+    total_samples: int | None = None  # 采样次数（增强数据）
 
 class OnlineHistoryResponse(BaseModel):
     """24小时在线历史响应模型"""
@@ -87,8 +90,6 @@ async def get_online_history() -> OnlineHistoryResponse:
     返回过去24小时内每小时的在线用户数和游玩用户数统计，
     包含当前实时数据作为最新数据点
     """
-    redis = get_redis()
-    
     try:
         # 获取历史数据 - 使用同步Redis客户端
         redis_sync = get_redis_message()
@@ -103,7 +104,10 @@ async def get_online_history() -> OnlineHistoryResponse:
                 history_points.append(OnlineHistoryPoint(
                     timestamp=datetime.fromisoformat(point_data["timestamp"]),
                     online_count=point_data["online_count"],
-                    playing_count=point_data["playing_count"]
+                    playing_count=point_data["playing_count"],
+                    peak_online=point_data.get("peak_online"),  # 新字段，可能不存在
+                    peak_playing=point_data.get("peak_playing"),  # 新字段，可能不存在
+                    total_samples=point_data.get("total_samples")  # 新字段，可能不存在
                 ))
             except (json.JSONDecodeError, KeyError, ValueError) as e:
                 logger.warning(f"Invalid history data point: {data}, error: {e}")
@@ -112,19 +116,19 @@ async def get_online_history() -> OnlineHistoryResponse:
         # 获取当前实时统计信息
         current_stats = await get_server_stats()
         
-        # 将当前实时数据作为最新的数据点添加到历史中（如果需要）
-        current_point = OnlineHistoryPoint(
-            timestamp=current_stats.timestamp,
-            online_count=current_stats.online_users,
-            playing_count=current_stats.playing_users
-        )
-        
         # 如果历史数据为空或者最新数据超过15分钟，添加当前数据点
         if not history_points or (
             history_points and 
             (current_stats.timestamp - max(history_points, key=lambda x: x.timestamp).timestamp).total_seconds() > 15 * 60
         ):
-            history_points.append(current_point)
+            history_points.append(OnlineHistoryPoint(
+                timestamp=current_stats.timestamp,
+                online_count=current_stats.online_users,
+                playing_count=current_stats.playing_users,
+                peak_online=current_stats.online_users,  # 当前实时数据作为峰值
+                peak_playing=current_stats.playing_users,
+                total_samples=1
+            ))
         
         # 按时间排序（最新的在前）
         history_points.sort(key=lambda x: x.timestamp, reverse=True)
@@ -144,6 +148,7 @@ async def get_online_history() -> OnlineHistoryResponse:
             history=[],
             current_stats=current_stats
         )
+
 
 async def _get_registered_users_count(redis) -> int:
     """获取注册用户总数（从缓存）"""
