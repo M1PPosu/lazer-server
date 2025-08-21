@@ -141,7 +141,6 @@ class ScoreBase(AsyncAttrs, SQLModel, UTCBaseModel):
         if hasattr(v, 'value'):
             return v.value
         return str(v)
-        return v
 
     # optional
     # TODO: current_user_attributes
@@ -276,7 +275,7 @@ class ScoreResp(ScoreBase):
             return converted
         return v
 
-    @field_serializer("statistics", "maximum_statistics", when_used="json")
+    @field_serializer("statistics", when_used="json")
     def serialize_statistics_fields(self, v):
         """序列化统计字段，确保枚举值正确转换为字符串"""
         if isinstance(v, dict):
@@ -290,13 +289,6 @@ class ScoreResp(ScoreBase):
                     serialized[str(key)] = value
             return serialized
         return v
-
-    @field_serializer("gamemode", when_used="json")
-    def serialize_gamemode(self, v):
-        """序列化游戏模式，确保枚举值正确转换为字符串"""
-        if hasattr(v, 'value'):
-            return v.value
-        return str(v)
 
     @classmethod
     async def from_db(cls, session: AsyncSession, score: Score) -> "ScoreResp":
