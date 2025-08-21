@@ -163,24 +163,25 @@ async def get_rank(
     if rank is None:
         return None
 
-    today = datetime.now(UTC).date()
-    rank_history = (
-        await session.exec(
-            select(RankHistory).where(
-                RankHistory.user_id == statistics.user_id,
-                RankHistory.mode == statistics.mode,
-                RankHistory.date == today,
+    if country is None:
+        today = datetime.now(UTC).date()
+        rank_history = (
+            await session.exec(
+                select(RankHistory).where(
+                    RankHistory.user_id == statistics.user_id,
+                    RankHistory.mode == statistics.mode,
+                    RankHistory.date == today,
+                )
             )
-        )
-    ).first()
-    if rank_history is None:
-        rank_history = RankHistory(
-            user_id=statistics.user_id,
-            mode=statistics.mode,
-            date=today,
-            rank=rank,
-        )
-        session.add(rank_history)
-    else:
-        rank_history.rank = rank
+        ).first()
+        if rank_history is None:
+            rank_history = RankHistory(
+                user_id=statistics.user_id,
+                mode=statistics.mode,
+                date=today,
+                rank=rank,
+            )
+            session.add(rank_history)
+        else:
+            rank_history.rank = rank
     return rank
