@@ -470,14 +470,16 @@ class MultiplayerQueue:
 
     async def update_current_item(self):
         upcoming_items = self.upcoming_items
-        next_item = (
-            upcoming_items[0]
-            if upcoming_items
-            else max(
+        if upcoming_items:
+            # 优先选择未过期的项目
+            next_item = upcoming_items[0]
+        else:
+            # 如果所有项目都过期了，选择最近添加的项目（played_at 为 None 或最新的）
+            # 优先选择 expired=False 的项目，然后是 played_at 最晚的
+            next_item = max(
                 self.room.playlist,
-                key=lambda i: i.played_at or datetime.min,
+                key=lambda i: (not i.expired, i.played_at or datetime.min),
             )
-        )
         self.current_index = self.room.playlist.index(next_item)
         last_id = self.room.settings.playlist_item_id
         self.room.settings.playlist_item_id = next_item.id
