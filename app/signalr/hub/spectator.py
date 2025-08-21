@@ -165,22 +165,49 @@ class SpectatorHub(Hub[StoreClientState]):
 
     @override
     async def _clean_state(self, state: StoreClientState) -> None:
+        """
+        Enhanced cleanup based on official osu-server-spectator implementation.
+        Properly notifies watched users when spectator disconnects.
+        """
         if state.state:
             await self._end_session(int(state.connection_id), state.state, state)
-        for target in self.waited_clients:
-            target_client = self.get_client_by_id(target)
-            if target_client:
+        
+        # Critical fix: Notify all watched users that this spectator has disconnected
+        # This matches the official CleanUpState implementation
+        user_id = int(state.connection_id)
+        for watched_user_id in state.watched_user:
+            if (target_client := self.get_client_by_id(str(watched_user_id))) is not None:
                 await self.call_noblock(
-                    target_client, "UserEndedWatching", int(state.connection_id)
+                    target_client, "UserEndedWatching", user_id
+                )
+                logger.debug(
+                    f"[SpectatorHub] Notified {watched_user_id} that {user_id} stopped watching"
                 )
 
     async def on_client_connect(self, client: Client) -> None:
-        tasks = [
-            self.call_noblock(client, "UserBeganPlaying", user_id, store.state)
+        """
+        Enhanced connection handling based on official implementation.
+        Send all active player states to newly connected clients.
+        """
+        logger.info(f"[SpectatorHub] Client {client.user_id} connected")
+        
+        # Send all current player states to the new client
+        # This matches the official OnConnectedAsync behavior
+        active_states = [
+            (user_id, store.state)
             for user_id, store in self.state.items()
             if store.state is not None
         ]
-        await asyncio.gather(*tasks)
+        
+        if active_states:
+            logger.debug(
+                f"[SpectatorHub] Sending {len(active_states)} active player states to {client.user_id}"
+            )
+            tasks = [
+                self.call_noblock(client, "UserBeganPlaying", user_id, state)
+                for user_id, state in active_states
+            ]
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     async def BeginPlaySession(
         self, client: Client, score_token: int, state: SpectatorState
@@ -382,20 +409,30 @@ class SpectatorHub(Hub[StoreClientState]):
 
         if state.state == SpectatedUserState.Playing:
             state.state = SpectatedUserState.Quit
-        exit_time = max(frame.time for frame in store.score.replay_frames) // 1000  # pyright: ignore[reportOptionalMemberAccess]
+            logger.debug(f"[SpectatorHub] Changed state from Playing to Quit for user {user_id}")
+        
+        # Calculate exit time safely
+        exit_time = 0
+        if store.score and store.score.replay_frames:
+            exit_time = max(frame.time for frame in store.score.replay_frames) // 1000
 
-        task = asyncio.create_task(
-            _edit_playtime(
-                store.score_token,  # pyright: ignore[reportArgumentType]
-                store.ruleset_id,  # pyright: ignore[reportArgumentType]
-                store.score.score_info.mods,  # pyright: ignore[reportOptionalMemberAccess]
+        # Background task for playtime editing - only if we have valid data
+        if store.score_token and store.ruleset_id and store.score:
+            task = asyncio.create_task(
+                _edit_playtime(
+                    store.score_token,
+                    store.ruleset_id,
+                    store.score.score_info.mods,
+                )
             )
-        )
-        self.tasks.add(task)
-        task.add_done_callback(self.tasks.discard)
+            self.tasks.add(task)
+            task.add_done_callback(self.tasks.discard)
+        
+        # Background task for failtime tracking - only for failed/quit states with valid data
         if (
-            state.state == SpectatedUserState.Failed
-            or state.state == SpectatedUserState.Quit
+            state.beatmap_id is not None
+            and exit_time > 0
+            and state.state in (SpectatedUserState.Failed, SpectatedUserState.Quit)
         ):
             task = asyncio.create_task(_add_failtime())
             self.tasks.add(task)
@@ -413,39 +450,77 @@ class SpectatorHub(Hub[StoreClientState]):
         )
 
     async def StartWatchingUser(self, client: Client, target_id: int) -> None:
+        """
+        Enhanced StartWatchingUser based on official osu-server-spectator implementation.
+        Properly handles state synchronization and watcher notifications.
+        """
         user_id = int(client.connection_id)
-        target_store = self.state.get(target_id)
+        
         logger.info(f"[SpectatorHub] {user_id} started watching {target_id}")
-        if target_store and target_store.state:
-            logger.debug(f"[SpectatorHub] {target_id} is {target_store.state}")
-            await self.call_noblock(
-                client,
-                "UserBeganPlaying",
-                target_id,
-                target_store.state,
-            )
+        
+        try:
+            # Get target user's current state if it exists
+            target_store = self.state.get(target_id)
+            if target_store and target_store.state:
+                logger.debug(f"[SpectatorHub] {target_id} is currently {target_store.state.state}")
+                # Send current state to the watcher immediately
+                await self.call_noblock(
+                    client,
+                    "UserBeganPlaying",
+                    target_id,
+                    target_store.state,
+                )
+        except Exception as e:
+            # User isn't tracked or error occurred - this is not critical
+            logger.debug(f"[SpectatorHub] Could not get state for {target_id}: {e}")
+
+        # Add watcher to our tracked users
         store = self.get_or_create_state(client)
         store.watched_user.add(target_id)
 
+        # Add to SignalR group for this target user
         self.add_to_group(client, self.group_id(target_id))
 
-        async with with_db() as session:
-            async with session.begin():
+        # Get watcher's username and notify the target user
+        try:
+            async with with_db() as session:
                 username = (
                     await session.exec(select(User.username).where(User.id == user_id))
                 ).first()
                 if not username:
+                    logger.warning(f"[SpectatorHub] Could not find username for user {user_id}")
                     return
+
+            # Notify target user that someone started watching
             if (target_client := self.get_client_by_id(str(target_id))) is not None:
+                # Create watcher info array (matches official format)
+                watcher_info = [[user_id, username]]
                 await self.call_noblock(
-                    target_client, "UserStartedWatching", [[user_id, username]]
+                    target_client, "UserStartedWatching", watcher_info
                 )
+                logger.debug(f"[SpectatorHub] Notified {target_id} that {username} started watching")
+        except Exception as e:
+            logger.error(f"[SpectatorHub] Error notifying target user {target_id}: {e}")
 
     async def EndWatchingUser(self, client: Client, target_id: int) -> None:
+        """
+        Enhanced EndWatchingUser based on official osu-server-spectator implementation.
+        Properly cleans up watcher state and notifies target user.
+        """
         user_id = int(client.connection_id)
+        
+        logger.info(f"[SpectatorHub] {user_id} ended watching {target_id}")
+        
+        # Remove from SignalR group
         self.remove_from_group(client, self.group_id(target_id))
+        
+        # Remove from our tracked watched users
         store = self.get_or_create_state(client)
         store.watched_user.discard(target_id)
+        
+        # Notify target user that watcher stopped watching
         if (target_client := self.get_client_by_id(str(target_id))) is not None:
             await self.call_noblock(target_client, "UserEndedWatching", user_id)
-        logger.info(f"[SpectatorHub] {user_id} ended watching {target_id}")
+            logger.debug(f"[SpectatorHub] Notified {target_id} that {user_id} stopped watching")
+        else:
+            logger.debug(f"[SpectatorHub] Target user {target_id} not found for end watching notification")
