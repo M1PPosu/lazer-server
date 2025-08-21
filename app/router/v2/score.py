@@ -199,7 +199,8 @@ async def submit_score(
         await db.commit()
 
     # 成绩提交后刷新用户缓存 - 移至后台任务避免阻塞主流程
-    # 预先获取游戏模式，避免在后台任务中触发延迟加载
+    # 确保score对象已刷新，避免在后台任务中触发延迟加载
+    await db.refresh(score)
     score_gamemode = score.gamemode
     
     if user_id is not None:
