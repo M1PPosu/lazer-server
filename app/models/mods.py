@@ -80,7 +80,7 @@ class Mod(TypedDict):
 API_MODS: dict[Literal[0, 1, 2, 3], dict[str, Mod]] = {}
 
 mods_file = STATIC_DIR / "mods.json"
-raw_mods = json.loads(mods_file.read_text())
+raw_mods = json.loads(mods_file.read_text(encoding="utf-8"))
 for ruleset in raw_mods:
     ruleset_mods = {}
     for mod in ruleset["Mods"]:
