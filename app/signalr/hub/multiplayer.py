@@ -163,6 +163,11 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
     @override
     async def _clean_state(self, state: MultiplayerClientState):
         user_id = int(state.connection_id)
+        
+        # Remove from online user tracking
+        from app.router.v2.stats import remove_online_user
+        asyncio.create_task(remove_online_user(user_id))
+        
         if state.room_id != 0 and state.room_id in self.rooms:
             server_room = self.rooms[state.room_id]
             room = server_room.room
@@ -171,6 +176,14 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 await self.make_user_leave(
                     self.get_client_by_id(str(user_id)), server_room, user
                 )
+
+    async def on_client_connect(self, client: Client) -> None:
+        """Track online users when connecting to multiplayer hub"""
+        logger.info(f"[MultiplayerHub] Client {client.user_id} connected")
+        
+        # Track online user
+        from app.router.v2.stats import add_online_user
+        asyncio.create_task(add_online_user(client.user_id))
 
     def _ensure_in_room(self, client: Client) -> ServerMultiplayerRoom:
         store = self.get_or_create_state(client)

@@ -91,8 +91,14 @@ class MetadataHub(Hub[MetadataClientState]):
 
     @override
     async def _clean_state(self, state: MetadataClientState) -> None:
+        user_id = int(state.connection_id)
+        
+        # Remove from online user tracking
+        from app.router.v2.stats import remove_online_user
+        asyncio.create_task(remove_online_user(user_id))
+        
         if state.pushable:
-            await asyncio.gather(*self.broadcast_tasks(int(state.connection_id), None))
+            await asyncio.gather(*self.broadcast_tasks(user_id, None))
         redis = get_redis()
         if await redis.exists(f"metadata:online:{state.connection_id}"):
             await redis.delete(f"metadata:online:{state.connection_id}")
@@ -116,6 +122,10 @@ class MetadataHub(Hub[MetadataClientState]):
     async def on_client_connect(self, client: Client) -> None:
         user_id = int(client.connection_id)
         self.get_or_create_state(client)
+
+        # Track online user
+        from app.router.v2.stats import add_online_user
+        asyncio.create_task(add_online_user(user_id))
 
         async with with_db() as session:
             async with session.begin():

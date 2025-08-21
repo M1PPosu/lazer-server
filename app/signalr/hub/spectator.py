@@ -169,12 +169,17 @@ class SpectatorHub(Hub[StoreClientState]):
         Enhanced cleanup based on official osu-server-spectator implementation.
         Properly notifies watched users when spectator disconnects.
         """
+        user_id = int(state.connection_id)
+        
+        # Remove from online and playing tracking
+        from app.router.v2.stats import remove_online_user
+        asyncio.create_task(remove_online_user(user_id))
+        
         if state.state:
-            await self._end_session(int(state.connection_id), state.state, state)
+            await self._end_session(user_id, state.state, state)
         
         # Critical fix: Notify all watched users that this spectator has disconnected
         # This matches the official CleanUpState implementation
-        user_id = int(state.connection_id)
         for watched_user_id in state.watched_user:
             if (target_client := self.get_client_by_id(str(watched_user_id))) is not None:
                 await self.call_noblock(
@@ -190,6 +195,10 @@ class SpectatorHub(Hub[StoreClientState]):
         Send all active player states to newly connected clients.
         """
         logger.info(f"[SpectatorHub] Client {client.user_id} connected")
+        
+        # Track online user
+        from app.router.v2.stats import add_online_user
+        asyncio.create_task(add_online_user(client.user_id))
         
         # Send all current player states to the new client
         # This matches the official OnConnectedAsync behavior
@@ -295,6 +304,10 @@ class SpectatorHub(Hub[StoreClientState]):
                 )
         logger.info(f"[SpectatorHub] {client.user_id} began playing {state.beatmap_id}")
 
+        # Track playing user
+        from app.router.v2.stats import add_playing_user
+        asyncio.create_task(add_playing_user(user_id))
+
         # # 预缓存beatmap文件以加速后续PP计算
         # await self._preload_beatmap_for_pp_calculation(state.beatmap_id)
 
@@ -343,6 +356,11 @@ class SpectatorHub(Hub[StoreClientState]):
         ) and any(k.is_hit() and v > 0 for k, v in score.score_info.statistics.items()):
             await self._process_score(store, client)
         await self._end_session(user_id, state, store)
+        
+        # Remove from playing user tracking
+        from app.router.v2.stats import remove_playing_user
+        asyncio.create_task(remove_playing_user(user_id))
+        
         store.state = None
         store.beatmap_status = None
         store.checksum = None
