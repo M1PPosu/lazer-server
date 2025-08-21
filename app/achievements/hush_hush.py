@@ -96,7 +96,7 @@ async def prepared(
     beatmap: Beatmap,
 ) -> bool:
     # PFC any map, using the mods specified: NF
-    if score.rank != Rank.X or score.rank != Rank.XH:
+    if score.rank != Rank.X and score.rank != Rank.XH:
         return False
     mods_ = mod_to_save(score.mods)
     if "NF" not in mods_:
@@ -110,7 +110,7 @@ async def reckless_adandon(
     beatmap: Beatmap,
 ) -> bool:
     # PFC any map, using the mods specified: HR, SD, that is star 3+ after mods.
-    if score.rank != Rank.X or score.rank != Rank.XH:
+    if score.rank != Rank.X and score.rank != Rank.XH:
         return False
     mods_ = mod_to_save(score.mods)
     if "HR" not in mods_ or "SD" not in mods_:
