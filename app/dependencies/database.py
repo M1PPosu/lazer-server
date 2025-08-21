@@ -11,6 +11,7 @@ from app.config import settings
 from fastapi import Depends
 from pydantic import BaseModel
 import redis.asyncio as redis
+import redis as sync_redis
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -37,6 +38,9 @@ engine = create_async_engine(
 
 # Redis 连接
 redis_client = redis.from_url(settings.redis_url, decode_responses=True)
+
+# Redis 消息缓存连接 (db1) - 使用同步客户端在线程池中执行
+redis_message_client = sync_redis.from_url(settings.redis_url, decode_responses=True, db=1)
 
 
 # 数据库依赖
@@ -78,6 +82,11 @@ async def get_db_factory() -> DBFactory:
 # Redis 依赖
 def get_redis():
     return redis_client
+
+
+def get_redis_message():
+    """获取消息专用的 Redis 客户端 (db1)"""
+    return redis_message_client
 
 
 def get_redis_pubsub():

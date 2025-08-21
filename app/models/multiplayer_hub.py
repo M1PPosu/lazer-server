@@ -151,7 +151,6 @@ class PlaylistItem(BaseModel):
     def _check_mod_compatibility(self, mods: list[APIMod], ruleset_key: int) -> None:
         from typing import Literal, cast
 
-        API_MODS = self._get_api_mods()
         typed_ruleset_key = cast(Literal[0, 1, 2, 3], ruleset_key)
 
         for i, mod1 in enumerate(mods):
@@ -168,7 +167,6 @@ class PlaylistItem(BaseModel):
     def _check_required_allowed_compatibility(self, ruleset_key: int) -> None:
         from typing import Literal, cast
 
-        API_MODS = self._get_api_mods()
         typed_ruleset_key = cast(Literal[0, 1, 2, 3], ruleset_key)
         allowed_acronyms = {mod["acronym"] for mod in self.allowed_mods}
 
@@ -212,8 +210,6 @@ class PlaylistItem(BaseModel):
         Returns (is_valid, valid_mods).
         """
         from typing import Literal, cast
-
-        API_MODS = self._get_api_mods()
 
         ruleset_id = user.ruleset_id if user.ruleset_id is not None else self.ruleset_id
         ruleset_key = cast(Literal[0, 1, 2, 3], ruleset_id)
@@ -386,7 +382,7 @@ class MultiplayerRoom(BaseModel):
             match_state=None,
             playlist=playlist,
             active_countdowns=[],
-            channel_id=room.channel_id,
+            channel_id=room.channel_id or 0,
         )
 
 

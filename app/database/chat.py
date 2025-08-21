@@ -59,12 +59,17 @@ class ChatChannel(ChatChannelBase, table=True):
         cls, channel: str | int, session: AsyncSession
     ) -> "ChatChannel | None":
         if isinstance(channel, int) or channel.isdigit():
-            channel_ = await session.get(ChatChannel, channel)
+            # 使用查询而不是 get() 来确保对象完全加载
+            result = await session.exec(
+                select(ChatChannel).where(ChatChannel.channel_id == int(channel))
+            )
+            channel_ = result.first()
             if channel_ is not None:
                 return channel_
-        return (
-            await session.exec(select(ChatChannel).where(ChatChannel.name == channel))
-        ).first()
+        result = await session.exec(
+            select(ChatChannel).where(ChatChannel.name == channel)
+        )
+        return result.first()
 
     @classmethod
     async def get_pm_channel(
@@ -235,6 +240,7 @@ class UserSilenceResp(SQLModel):
 
     @classmethod
     def from_db(cls, db_silence: SilenceUser) -> "UserSilenceResp":
+        assert db_silence.id is not None
         return cls(
             id=db_silence.id,
             user_id=db_silence.user_id,

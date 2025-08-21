@@ -32,6 +32,7 @@ from app.service.init_geoip import init_geoip
 from app.service.load_achievements import load_achievements
 from app.service.osu_rx_statistics import create_rx_statistics
 from app.service.recalculate import recalculate
+from app.service.redis_message_system import redis_message_system
 
 # 检查 New Relic 配置文件是否存在，如果存在则初始化 New Relic
 newrelic_config_path = os.path.join(os.path.dirname(__file__), "newrelic.ini")
@@ -77,10 +78,12 @@ async def lifespan(app: FastAPI):
     await create_banchobot()
     await download_service.start_health_check()  # 启动下载服务健康检查
     await start_cache_scheduler()  # 启动缓存调度器
+    redis_message_system.start()  # 启动 Redis 消息系统
     load_achievements()
     # on shutdown
     yield
     stop_scheduler()
+    redis_message_system.stop()  # 停止 Redis 消息系统
     await stop_cache_scheduler()  # 停止缓存调度器
     await download_service.stop_health_check()  # 停止下载服务健康检查
     await engine.dispose()

@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import json
+import uuid
+from datetime import datetime
+from typing import Optional
+
 from app.database import ChatMessageResp
 from app.database.chat import (
     ChannelType,
@@ -11,11 +16,14 @@ from app.database.chat import (
     UserSilenceResp,
 )
 from app.database.lazer_user import User
-from app.dependencies.database import Database, get_redis
+from app.dependencies.database import Database, get_redis, get_redis_message
 from app.dependencies.param import BodyOrForm
 from app.dependencies.user import get_current_user
 from app.models.notification import ChannelMessage, ChannelMessageTeam
 from app.router.v2 import api_v2_router as router
+from app.service.optimized_message import optimized_message_service
+from app.service.redis_message_system import redis_message_system
+from app.log import logger
 
 from .banchobot import bot
 from .server import server
@@ -89,42 +97,73 @@ async def send_message(
     req: MessageReq = Depends(BodyOrForm(MessageReq)),
     current_user: User = Security(get_current_user, scopes=["chat.write"]),
 ):
-    db_channel = await ChatChannel.get(channel, session)
+    # 使用明确的查询来获取 channel，避免延迟加载
+    if channel.isdigit():
+        db_channel = (
+            await session.exec(
+                select(ChatChannel).where(ChatChannel.channel_id == int(channel))
+            )
+        ).first()
+    else:
+        db_channel = (
+            await session.exec(
+                select(ChatChannel).where(ChatChannel.name == channel)
+            )
+        ).first()
+    
     if db_channel is None:
         raise HTTPException(status_code=404, detail="Channel not found")
 
-    assert db_channel.channel_id
+    # 立即提取所有需要的属性，避免后续延迟加载
+    channel_id = db_channel.channel_id
+    channel_type = db_channel.type
+    channel_name = db_channel.name
+    
+    assert channel_id is not None
     assert current_user.id
-    msg = ChatMessage(
-        channel_id=db_channel.channel_id,
+    
+    # 使用 Redis 消息系统发送消息 - 立即返回
+    resp = await redis_message_system.send_message(
+        channel_id=channel_id,
+        user=current_user,
         content=req.message,
-        sender_id=current_user.id,
-        type=MessageType.ACTION if req.is_action else MessageType.PLAIN,
-        uuid=req.uuid,
+        is_action=req.is_action,
+        user_uuid=req.uuid
     )
-    session.add(msg)
-    await session.commit()
-    await session.refresh(msg)
-    await session.refresh(current_user)
-    await session.refresh(db_channel)
-    resp = await ChatMessageResp.from_db(msg, session, current_user)
+    
+    # 立即广播消息给所有客户端
     is_bot_command = req.message.startswith("!")
     await server.send_message_to_channel(
-        resp, is_bot_command and db_channel.type == ChannelType.PUBLIC
+        resp, is_bot_command and channel_type == ChannelType.PUBLIC
     )
+    
+    # 处理机器人命令
     if is_bot_command:
         await bot.try_handle(current_user, db_channel, req.message, session)
-    if db_channel.type == ChannelType.PM:
-        user_ids = db_channel.name.split("_")[1:]
-        await server.new_private_notification(
-            ChannelMessage.init(
-                msg, current_user, [int(u) for u in user_ids], db_channel.type
+    
+    # 为通知系统创建临时 ChatMessage 对象（仅适用于私聊和团队频道）
+    if channel_type in [ChannelType.PM, ChannelType.TEAM]:
+        temp_msg = ChatMessage(
+            message_id=resp.message_id,  # 使用 Redis 系统生成的ID
+            channel_id=channel_id,
+            content=req.message,
+            sender_id=current_user.id,
+            type=MessageType.ACTION if req.is_action else MessageType.PLAIN,
+            uuid=req.uuid,
+        )
+        
+        if channel_type == ChannelType.PM:
+            user_ids = channel_name.split("_")[1:]
+            await server.new_private_notification(
+                ChannelMessage.init(
+                    temp_msg, current_user, [int(u) for u in user_ids], channel_type
+                )
             )
-        )
-    elif db_channel.type == ChannelType.TEAM:
-        await server.new_private_notification(
-            ChannelMessageTeam.init(msg, current_user)
-        )
+        elif channel_type == ChannelType.TEAM:
+            await server.new_private_notification(
+                ChannelMessageTeam.init(temp_msg, current_user)
+            )
+    
     return resp
 
 
@@ -143,21 +182,46 @@ async def get_message(
     until: int | None = Query(None, description="获取自此消息 ID 之前的消息记录"),
     current_user: User = Security(get_current_user, scopes=["chat.read"]),
 ):
-    db_channel = await ChatChannel.get(channel, session)
+    # 使用明确的查询获取 channel，避免延迟加载
+    if channel.isdigit():
+        db_channel = (
+            await session.exec(
+                select(ChatChannel).where(ChatChannel.channel_id == int(channel))
+            )
+        ).first()
+    else:
+        db_channel = (
+            await session.exec(
+                select(ChatChannel).where(ChatChannel.name == channel)
+            )
+        ).first()
+    
     if db_channel is None:
         raise HTTPException(status_code=404, detail="Channel not found")
-    messages = await session.exec(
-        select(ChatMessage)
-        .where(
-            ChatMessage.channel_id == db_channel.channel_id,
-            col(ChatMessage.message_id) > since,
-            col(ChatMessage.message_id) < until if until is not None else True,
-        )
-        .order_by(col(ChatMessage.timestamp).desc())
-        .limit(limit)
-    )
+
+    # 提取必要的属性避免惰性加载
+    channel_id = db_channel.channel_id
+    assert channel_id is not None
+
+    # 使用 Redis 消息系统获取消息
+    try:
+        messages = await redis_message_system.get_messages(channel_id, limit, since)
+        return messages
+    except Exception as e:
+        logger.warning(f"Failed to get messages from Redis system: {e}")
+        # 回退到传统数据库查询
+        pass
+
+    # 回退到数据库查询
+    query = select(ChatMessage).where(ChatMessage.channel_id == channel_id)
+    if since > 0:
+        query = query.where(col(ChatMessage.message_id) > since)
+    if until is not None:
+        query = query.where(col(ChatMessage.message_id) < until)
+    
+    query = query.order_by(col(ChatMessage.message_id).desc()).limit(limit)
+    messages = (await session.exec(query)).all()
     resp = [await ChatMessageResp.from_db(msg, session) for msg in messages]
-    resp.reverse()
     return resp
 
 
@@ -174,12 +238,28 @@ async def mark_as_read(
     message: int = Path(..., description="消息 ID"),
     current_user: User = Security(get_current_user, scopes=["chat.read"]),
 ):
-    db_channel = await ChatChannel.get(channel, session)
+    # 使用明确的查询获取 channel，避免延迟加载
+    if channel.isdigit():
+        db_channel = (
+            await session.exec(
+                select(ChatChannel).where(ChatChannel.channel_id == int(channel))
+            )
+        ).first()
+    else:
+        db_channel = (
+            await session.exec(
+                select(ChatChannel).where(ChatChannel.name == channel)
+            )
+        ).first()
+    
     if db_channel is None:
         raise HTTPException(status_code=404, detail="Channel not found")
-    assert db_channel.channel_id
+    
+    # 立即提取需要的属性
+    channel_id = db_channel.channel_id
+    assert channel_id
     assert current_user.id
-    await server.mark_as_read(db_channel.channel_id, current_user.id, message)
+    await server.mark_as_read(channel_id, current_user.id, message)
 
 
 class PMReq(BaseModel):
