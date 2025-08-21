@@ -163,7 +163,11 @@ async def submit_score(
             has_pp,
             has_leaderboard,
         )
-        score = (await db.exec(select(Score).where(Score.id == score_id))).first()
+        score = (await db.exec(
+            select(Score)
+            .options(joinedload(Score.user))  # pyright: ignore[reportArgumentType]
+            .where(Score.id == score_id)
+        )).first()
         assert score is not None
     resp = await ScoreResp.from_db(db, score)
     total_users = (await db.exec(select(func.count()).select_from(User))).first()
@@ -191,11 +195,13 @@ async def submit_score(
         await db.commit()
 
     # 成绩提交后刷新用户缓存 - 移至后台任务避免阻塞主流程
-    if current_user.id is not None:
+    # 预先获取用户ID避免在后台任务中触发延迟加载
+    user_id = current_user.id
+    if user_id is not None:
         background_task.add_task(
             _refresh_user_cache_background,
             redis,
-            current_user.id,
+            user_id,
             score.gamemode
         )
     background_task.add_task(process_user_achievement, resp.id)
