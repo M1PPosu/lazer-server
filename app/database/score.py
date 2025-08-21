@@ -45,7 +45,7 @@ from .relationship import (
 )
 from .score_token import ScoreToken
 
-from pydantic import field_validator
+from pydantic import field_validator, field_serializer
 from redis.asyncio import Redis
 from sqlalchemy import Boolean, Column, ColumnExpressionArgument, DateTime
 from sqlalchemy.ext.asyncio import AsyncAttrs
@@ -120,6 +120,29 @@ class ScoreBase(AsyncAttrs, SQLModel, UTCBaseModel):
             return converted
         return v
 
+    @field_serializer("maximum_statistics", when_used="json")
+    def serialize_maximum_statistics(self, v):
+        """序列化 maximum_statistics 字段，确保枚举值正确转换为字符串"""
+        if isinstance(v, dict):
+            serialized = {}
+            for key, value in v.items():
+                if hasattr(key, 'value'):
+                    # 如果是枚举，使用其值
+                    serialized[key.value] = value
+                else:
+                    # 否则直接使用键
+                    serialized[str(key)] = value
+            return serialized
+        return v
+
+    @field_serializer("rank", when_used="json")
+    def serialize_rank(self, v):
+        """序列化等级，确保枚举值正确转换为字符串"""
+        if hasattr(v, 'value'):
+            return v.value
+        return str(v)
+        return v
+
     # optional
     # TODO: current_user_attributes
 
@@ -162,6 +185,13 @@ class Score(ScoreBase, table=True):
                 # 如果转换失败，返回默认值
                 return GameMode.OSU
         return v
+
+    @field_serializer("gamemode", when_used="json")
+    def serialize_gamemode(self, v):
+        """序列化游戏模式，确保枚举值正确转换为字符串"""
+        if hasattr(v, 'value'):
+            return v.value
+        return str(v)
 
     # optional
     beatmap: Beatmap = Relationship()
@@ -245,6 +275,28 @@ class ScoreResp(ScoreBase):
                     converted[key] = value
             return converted
         return v
+
+    @field_serializer("statistics", "maximum_statistics", when_used="json")
+    def serialize_statistics_fields(self, v):
+        """序列化统计字段，确保枚举值正确转换为字符串"""
+        if isinstance(v, dict):
+            serialized = {}
+            for key, value in v.items():
+                if hasattr(key, 'value'):
+                    # 如果是枚举，使用其值
+                    serialized[key.value] = value
+                else:
+                    # 否则直接使用键
+                    serialized[str(key)] = value
+            return serialized
+        return v
+
+    @field_serializer("gamemode", when_used="json")
+    def serialize_gamemode(self, v):
+        """序列化游戏模式，确保枚举值正确转换为字符串"""
+        if hasattr(v, 'value'):
+            return v.value
+        return str(v)
 
     @classmethod
     async def from_db(cls, session: AsyncSession, score: Score) -> "ScoreResp":

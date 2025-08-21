@@ -7,7 +7,7 @@ from app.config import settings
 
 from .mods import API_MODS, APIMod
 
-from pydantic import BaseModel, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator, field_serializer
 
 if TYPE_CHECKING:
     import rosu_pp_py as rosu
@@ -205,6 +205,28 @@ class SoloScoreSubmissionInfo(BaseModel):
                 raise ValueError(f"Invalid mod: {mod['acronym']}")
             incompatible_mods.update(setting_mods["IncompatibleMods"])
         return mods
+
+    @field_serializer("statistics", "maximum_statistics", when_used="json")
+    def serialize_statistics(self, v):
+        """序列化统计字段，确保枚举值正确转换为字符串"""
+        if isinstance(v, dict):
+            serialized = {}
+            for key, value in v.items():
+                if hasattr(key, 'value'):
+                    # 如果是枚举，使用其值
+                    serialized[key.value] = value
+                else:
+                    # 否则直接使用键
+                    serialized[str(key)] = value
+            return serialized
+        return v
+
+    @field_serializer("rank", when_used="json")
+    def serialize_rank(self, v):
+        """序列化等级，确保枚举值正确转换为字符串"""
+        if hasattr(v, 'value'):
+            return v.value
+        return str(v)
 
 
 class LegacyReplaySoloScoreInfo(TypedDict):

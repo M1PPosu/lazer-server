@@ -34,7 +34,7 @@ from app.database.score import (
     process_score,
     process_user,
 )
-from app.dependencies.database import Database, get_redis, with_db
+from app.dependencies.database import Database, get_redis
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.storage import get_storage_service
 from app.dependencies.user import get_client_user, get_current_user
@@ -75,8 +75,14 @@ READ_SCORE_TIMEOUT = 10
 
 
 async def process_user_achievement(score_id: int):
-    async with with_db() as session:
+    from sqlmodel.ext.asyncio.session import AsyncSession
+    from app.dependencies.database import engine
+    
+    session = AsyncSession(engine)
+    try:
         await process_achievements(session, get_redis(), score_id)
+    finally:
+        await session.close()
 
 
 async def submit_score(
@@ -184,18 +190,35 @@ async def submit_score(
         db.add(rank_event)
         await db.commit()
 
-    # 成绩提交后刷新用户缓存
-    try:
-        user_cache_service = get_user_cache_service(redis)
-        if current_user.id is not None:
-            await user_cache_service.refresh_user_cache_on_score_submit(
-                db, current_user.id, score.gamemode
-            )
-    except Exception as e:
-        logger.error(f"Failed to refresh user cache after score submit: {e}")
-
+    # 成绩提交后刷新用户缓存 - 移至后台任务避免阻塞主流程
+    if current_user.id is not None:
+        background_task.add_task(
+            _refresh_user_cache_background,
+            redis,
+            current_user.id,
+            score.gamemode
+        )
     background_task.add_task(process_user_achievement, resp.id)
     return resp
+
+
+async def _refresh_user_cache_background(redis: Redis, user_id: int, mode: GameMode):
+    """后台任务：刷新用户缓存"""
+    try:
+        from sqlmodel.ext.asyncio.session import AsyncSession
+        from app.dependencies.database import engine
+        
+        user_cache_service = get_user_cache_service(redis)
+        # 创建独立的数据库会话
+        session = AsyncSession(engine)
+        try:
+            await user_cache_service.refresh_user_cache_on_score_submit(
+                session, user_id, mode
+            )
+        finally:
+            await session.close()
+    except Exception as e:
+        logger.error(f"Failed to refresh user cache after score submit: {e}")
 
 
 async def _preload_beatmap_for_pp_calculation(beatmap_id: int) -> None:
