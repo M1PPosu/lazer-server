@@ -170,21 +170,22 @@ class SpectatorHub(Hub[StoreClientState]):
         Properly notifies watched users when spectator disconnects.
         """
         user_id = int(state.connection_id)
-        
+
         # Remove from online and playing tracking
         from app.router.v2.stats import remove_online_user
+
         asyncio.create_task(remove_online_user(user_id))
-        
+
         if state.state:
             await self._end_session(user_id, state.state, state)
-        
+
         # Critical fix: Notify all watched users that this spectator has disconnected
         # This matches the official CleanUpState implementation
         for watched_user_id in state.watched_user:
-            if (target_client := self.get_client_by_id(str(watched_user_id))) is not None:
-                await self.call_noblock(
-                    target_client, "UserEndedWatching", user_id
-                )
+            if (
+                target_client := self.get_client_by_id(str(watched_user_id))
+            ) is not None:
+                await self.call_noblock(target_client, "UserEndedWatching", user_id)
                 logger.debug(
                     f"[SpectatorHub] Notified {watched_user_id} that {user_id} stopped watching"
                 )
@@ -195,18 +196,19 @@ class SpectatorHub(Hub[StoreClientState]):
         Send all active player states to newly connected clients.
         """
         logger.info(f"[SpectatorHub] Client {client.user_id} connected")
-        
+
         # Track online user
         from app.router.v2.stats import add_online_user
+
         asyncio.create_task(add_online_user(client.user_id))
-        
+
         # Send all current player states to the new client
         # This matches the official OnConnectedAsync behavior
         active_states = []
         for user_id, store in self.state.items():
             if store.state is not None:
                 active_states.append((user_id, store.state))
-        
+
         if active_states:
             logger.debug(
                 f"[SpectatorHub] Sending {len(active_states)} active player states to {client.user_id}"
@@ -216,8 +218,10 @@ class SpectatorHub(Hub[StoreClientState]):
                 try:
                     await self.call_noblock(client, "UserBeganPlaying", user_id, state)
                 except Exception as e:
-                    logger.debug(f"[SpectatorHub] Failed to send state for user {user_id}: {e}")
-        
+                    logger.debug(
+                        f"[SpectatorHub] Failed to send state for user {user_id}: {e}"
+                    )
+
         # Also sync with MultiplayerHub for cross-hub spectating
         await self._sync_with_multiplayer_hub(client)
 
@@ -229,14 +233,15 @@ class SpectatorHub(Hub[StoreClientState]):
         try:
             # Import here to avoid circular imports
             from app.signalr.hub import MultiplayerHubs
-            
+
             # Check all active multiplayer rooms for playing users
             for room_id, server_room in MultiplayerHubs.rooms.items():
                 for room_user in server_room.room.users:
                     # If user is playing in multiplayer but we don't have their spectator state
-                    if (room_user.state.is_playing and 
-                        room_user.user_id not in self.state):
-                        
+                    if (
+                        room_user.state.is_playing
+                        and room_user.user_id not in self.state
+                    ):
                         # Create a synthetic SpectatorState for multiplayer players
                         # This helps with cross-hub spectating
                         try:
@@ -245,9 +250,9 @@ class SpectatorHub(Hub[StoreClientState]):
                                 ruleset_id=room_user.ruleset_id or 0,  # Default to osu!
                                 mods=room_user.mods,
                                 state=SpectatedUserState.Playing,
-                                maximum_statistics={}
+                                maximum_statistics={},
                             )
-                            
+
                             await self.call_noblock(
                                 client,
                                 "UserBeganPlaying",
@@ -258,8 +263,10 @@ class SpectatorHub(Hub[StoreClientState]):
                                 f"[SpectatorHub] Sent synthetic multiplayer state for user {room_user.user_id}"
                             )
                         except Exception as e:
-                            logger.debug(f"[SpectatorHub] Failed to create synthetic state: {e}")
-                            
+                            logger.debug(
+                                f"[SpectatorHub] Failed to create synthetic state: {e}"
+                            )
+
         except Exception as e:
             logger.debug(f"[SpectatorHub] Failed to sync with MultiplayerHub: {e}")
             # This is not critical, so we don't raise the exception
@@ -306,6 +313,7 @@ class SpectatorHub(Hub[StoreClientState]):
 
         # Track playing user
         from app.router.v2.stats import add_playing_user
+
         asyncio.create_task(add_playing_user(user_id))
 
         # # 预缓存beatmap文件以加速后续PP计算
@@ -356,11 +364,12 @@ class SpectatorHub(Hub[StoreClientState]):
         ) and any(k.is_hit() and v > 0 for k, v in score.score_info.statistics.items()):
             await self._process_score(store, client)
         await self._end_session(user_id, state, store)
-        
+
         # Remove from playing user tracking
         from app.router.v2.stats import remove_playing_user
+
         asyncio.create_task(remove_playing_user(user_id))
-        
+
         store.state = None
         store.beatmap_status = None
         store.checksum = None
@@ -473,8 +482,10 @@ class SpectatorHub(Hub[StoreClientState]):
 
         if state.state == SpectatedUserState.Playing:
             state.state = SpectatedUserState.Quit
-            logger.debug(f"[SpectatorHub] Changed state from Playing to Quit for user {user_id}")
-        
+            logger.debug(
+                f"[SpectatorHub] Changed state from Playing to Quit for user {user_id}"
+            )
+
         # Calculate exit time safely
         exit_time = 0
         if store.score and store.score.replay_frames:
@@ -491,7 +502,7 @@ class SpectatorHub(Hub[StoreClientState]):
             )
             self.tasks.add(task)
             task.add_done_callback(self.tasks.discard)
-        
+
         # Background task for failtime tracking - only for failed/quit states with valid data
         if (
             state.beatmap_id is not None
@@ -519,14 +530,16 @@ class SpectatorHub(Hub[StoreClientState]):
         Properly handles state synchronization and watcher notifications.
         """
         user_id = int(client.connection_id)
-        
+
         logger.info(f"[SpectatorHub] {user_id} started watching {target_id}")
-        
+
         try:
             # Get target user's current state if it exists
             target_store = self.state.get(target_id)
             if target_store and target_store.state:
-                logger.debug(f"[SpectatorHub] {target_id} is currently {target_store.state.state}")
+                logger.debug(
+                    f"[SpectatorHub] {target_id} is currently {target_store.state.state}"
+                )
                 # Send current state to the watcher immediately
                 await self.call_noblock(
                     client,
@@ -552,7 +565,9 @@ class SpectatorHub(Hub[StoreClientState]):
                     await session.exec(select(User.username).where(User.id == user_id))
                 ).first()
                 if not username:
-                    logger.warning(f"[SpectatorHub] Could not find username for user {user_id}")
+                    logger.warning(
+                        f"[SpectatorHub] Could not find username for user {user_id}"
+                    )
                     return
 
             # Notify target user that someone started watching
@@ -562,7 +577,9 @@ class SpectatorHub(Hub[StoreClientState]):
                 await self.call_noblock(
                     target_client, "UserStartedWatching", watcher_info
                 )
-                logger.debug(f"[SpectatorHub] Notified {target_id} that {username} started watching")
+                logger.debug(
+                    f"[SpectatorHub] Notified {target_id} that {username} started watching"
+                )
         except Exception as e:
             logger.error(f"[SpectatorHub] Error notifying target user {target_id}: {e}")
 
@@ -572,19 +589,23 @@ class SpectatorHub(Hub[StoreClientState]):
         Properly cleans up watcher state and notifies target user.
         """
         user_id = int(client.connection_id)
-        
+
         logger.info(f"[SpectatorHub] {user_id} ended watching {target_id}")
-        
+
         # Remove from SignalR group
         self.remove_from_group(client, self.group_id(target_id))
-        
+
         # Remove from our tracked watched users
         store = self.get_or_create_state(client)
         store.watched_user.discard(target_id)
-        
+
         # Notify target user that watcher stopped watching
         if (target_client := self.get_client_by_id(str(target_id))) is not None:
             await self.call_noblock(target_client, "UserEndedWatching", user_id)
-            logger.debug(f"[SpectatorHub] Notified {target_id} that {user_id} stopped watching")
+            logger.debug(
+                f"[SpectatorHub] Notified {target_id} that {user_id} stopped watching"
+            )
         else:
-            logger.debug(f"[SpectatorHub] Target user {target_id} not found for end watching notification")
+            logger.debug(
+                f"[SpectatorHub] Target user {target_id} not found for end watching notification"
+            )

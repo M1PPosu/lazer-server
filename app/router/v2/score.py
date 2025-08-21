@@ -75,9 +75,10 @@ READ_SCORE_TIMEOUT = 10
 
 
 async def process_user_achievement(score_id: int):
-    from sqlmodel.ext.asyncio.session import AsyncSession
     from app.dependencies.database import engine
-    
+
+    from sqlmodel.ext.asyncio.session import AsyncSession
+
     session = AsyncSession(engine)
     try:
         await process_achievements(session, get_redis(), score_id)
@@ -99,7 +100,7 @@ async def submit_score(
 ):
     # 立即获取用户ID，避免后续的懒加载问题
     user_id = current_user.id
-    
+
     if not info.passed:
         info.rank = Rank.F
     score_token = (
@@ -166,13 +167,15 @@ async def submit_score(
             has_pp,
             has_leaderboard,
         )
-        score = (await db.exec(
-            select(Score)
-            .options(joinedload(Score.user))  # pyright: ignore[reportArgumentType]
-            .where(Score.id == score_id)
-        )).first()
+        score = (
+            await db.exec(
+                select(Score)
+                .options(joinedload(Score.user))  # pyright: ignore[reportArgumentType]
+                .where(Score.id == score_id)
+            )
+        ).first()
         assert score is not None
-        
+
     resp = await ScoreResp.from_db(db, score)
     total_users = (await db.exec(select(func.count()).select_from(User))).first()
     assert total_users is not None
@@ -202,13 +205,10 @@ async def submit_score(
     # 确保score对象已刷新，避免在后台任务中触发延迟加载
     await db.refresh(score)
     score_gamemode = score.gamemode
-    
+
     if user_id is not None:
         background_task.add_task(
-            _refresh_user_cache_background,
-            redis,
-            user_id,
-            score_gamemode
+            _refresh_user_cache_background, redis, user_id, score_gamemode
         )
     background_task.add_task(process_user_achievement, resp.id)
     return resp
@@ -217,9 +217,10 @@ async def submit_score(
 async def _refresh_user_cache_background(redis: Redis, user_id: int, mode: GameMode):
     """后台任务：刷新用户缓存"""
     try:
-        from sqlmodel.ext.asyncio.session import AsyncSession
         from app.dependencies.database import engine
-        
+
+        from sqlmodel.ext.asyncio.session import AsyncSession
+
         user_cache_service = get_user_cache_service(redis)
         # 创建独立的数据库会话
         session = AsyncSession(engine)
@@ -422,7 +423,7 @@ async def create_solo_score(
     assert current_user.id is not None
     # 立即获取用户ID，避免懒加载问题
     user_id = current_user.id
-    
+
     background_task.add_task(_preload_beatmap_for_pp_calculation, beatmap_id)
     async with db:
         score_token = ScoreToken(
@@ -480,7 +481,7 @@ async def create_playlist_score(
     assert current_user.id is not None
     # 立即获取用户ID，避免懒加载问题
     user_id = current_user.id
-    
+
     room = await session.get(Room, room_id)
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
@@ -557,10 +558,10 @@ async def submit_playlist_score(
     fetcher: Fetcher = Depends(get_fetcher),
 ):
     assert current_user.id is not None
-    
+
     # 立即获取用户ID，避免懒加载问题
     user_id = current_user.id
-    
+
     item = (
         await session.exec(
             select(Playlist).where(
@@ -627,7 +628,7 @@ async def index_playlist_scores(
 ):
     # 立即获取用户ID，避免懒加载问题
     user_id = current_user.id
-    
+
     room = await session.get(Room, room_id)
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
@@ -694,7 +695,7 @@ async def show_playlist_score(
 ):
     # 立即获取用户ID，避免懒加载问题
     user_id = current_user.id
-    
+
     room = await session.get(Room, room_id)
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
@@ -803,7 +804,7 @@ async def pin_score(
 ):
     # 立即获取用户ID，避免懒加载问题
     user_id = current_user.id
-    
+
     score_record = (
         await db.exec(
             select(Score).where(
@@ -848,7 +849,7 @@ async def unpin_score(
 ):
     # 立即获取用户ID，避免懒加载问题
     user_id = current_user.id
-    
+
     score_record = (
         await db.exec(
             select(Score).where(Score.id == score_id, Score.user_id == user_id)
@@ -892,7 +893,7 @@ async def reorder_score_pin(
 ):
     # 立即获取用户ID，避免懒加载问题
     user_id = current_user.id
-    
+
     score_record = (
         await db.exec(
             select(Score).where(Score.id == score_id, Score.user_id == user_id)
@@ -986,9 +987,9 @@ async def download_score_replay(
     current_user: User = Security(get_current_user, scopes=["public"]),
     storage_service: StorageService = Depends(get_storage_service),
 ):
-    # 立即获取用户ID，避免懒加载问题  
+    # 立即获取用户ID，避免懒加载问题
     user_id = current_user.id
-    
+
     score = (await db.exec(select(Score).where(Score.id == score_id))).first()
     if not score:
         raise HTTPException(status_code=404, detail="Score not found")

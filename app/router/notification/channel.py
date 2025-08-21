@@ -62,7 +62,7 @@ async def get_update(
             if db_channel:
                 # 提取必要的属性避免惰性加载
                 channel_type = db_channel.type
-                
+
                 resp.presence.append(
                     await ChatChannelResp.from_db(
                         db_channel,
@@ -122,9 +122,7 @@ async def join_channel(
         ).first()
     else:
         db_channel = (
-            await session.exec(
-                select(ChatChannel).where(ChatChannel.name == channel)
-            )
+            await session.exec(select(ChatChannel).where(ChatChannel.name == channel))
         ).first()
 
     if db_channel is None:
@@ -154,9 +152,7 @@ async def leave_channel(
         ).first()
     else:
         db_channel = (
-            await session.exec(
-                select(ChatChannel).where(ChatChannel.name == channel)
-            )
+            await session.exec(select(ChatChannel).where(ChatChannel.name == channel))
         ).first()
 
     if db_channel is None:
@@ -187,7 +183,7 @@ async def get_channel_list(
         # 提取必要的属性避免惰性加载
         channel_id = channel.channel_id
         channel_type = channel.type
-        
+
         assert channel_id is not None
         results.append(
             await ChatChannelResp.from_db(
@@ -230,19 +226,17 @@ async def get_channel(
         ).first()
     else:
         db_channel = (
-            await session.exec(
-                select(ChatChannel).where(ChatChannel.name == channel)
-            )
+            await session.exec(select(ChatChannel).where(ChatChannel.name == channel))
         ).first()
-    
+
     if db_channel is None:
         raise HTTPException(status_code=404, detail="Channel not found")
-    
+
     # 立即提取需要的属性
     channel_id = db_channel.channel_id
     channel_type = db_channel.type
     channel_name = db_channel.name
-    
+
     assert channel_id is not None
 
     users = []
@@ -325,7 +319,9 @@ async def create_channel(
         channel_name = f"pm_{current_user.id}_{req.target_id}"
     else:
         channel_name = req.channel.name if req.channel else "Unnamed Channel"
-        result = await session.exec(select(ChatChannel).where(ChatChannel.name == channel_name))
+        result = await session.exec(
+            select(ChatChannel).where(ChatChannel.name == channel_name)
+        )
         channel = result.first()
 
     if channel is None:
@@ -350,11 +346,11 @@ async def create_channel(
         await server.batch_join_channel([*target_users, current_user], channel, session)
 
     await server.join_channel(current_user, channel, session)
-    
+
     # 提取必要的属性避免惰性加载
     channel_id = channel.channel_id
     assert channel_id
-    
+
     return await ChatChannelResp.from_db(
         channel,
         session,

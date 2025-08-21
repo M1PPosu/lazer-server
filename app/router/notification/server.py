@@ -96,8 +96,10 @@ class ChatServer:
     async def send_message_to_channel(
         self, message: ChatMessageResp, is_bot_command: bool = False
     ):
-        logger.info(f"Sending message to channel {message.channel_id}, message_id: {message.message_id}, is_bot_command: {is_bot_command}")
-        
+        logger.info(
+            f"Sending message to channel {message.channel_id}, message_id: {message.message_id}, is_bot_command: {is_bot_command}"
+        )
+
         event = ChatEvent(
             event="chat.message.new",
             data={"messages": [message], "users": [message.sender]},
@@ -107,24 +109,32 @@ class ChatServer:
             self._add_task(self.send_event(message.sender_id, event))
         else:
             # 总是广播消息，无论是临时ID还是真实ID
-            logger.info(f"Broadcasting message to all users in channel {message.channel_id}")
+            logger.info(
+                f"Broadcasting message to all users in channel {message.channel_id}"
+            )
             self._add_task(
                 self.broadcast(
                     message.channel_id,
                     event,
                 )
             )
-        
+
         # 只有真实消息 ID（正数且非零）才进行标记已读和设置最后消息
         # Redis 消息系统生成的ID都是正数，所以这里应该都能正常处理
         if message.message_id and message.message_id > 0:
             await self.mark_as_read(
                 message.channel_id, message.sender_id, message.message_id
             )
-            await self.redis.set(f"chat:{message.channel_id}:last_msg", message.message_id)
-            logger.info(f"Updated last message ID for channel {message.channel_id} to {message.message_id}")
+            await self.redis.set(
+                f"chat:{message.channel_id}:last_msg", message.message_id
+            )
+            logger.info(
+                f"Updated last message ID for channel {message.channel_id} to {message.message_id}"
+            )
         else:
-            logger.debug(f"Skipping last message update for message ID: {message.message_id}")
+            logger.debug(
+                f"Skipping last message update for message ID: {message.message_id}"
+            )
 
     async def batch_join_channel(
         self, users: list[User], channel: ChatChannel, session: AsyncSession
@@ -340,11 +350,9 @@ async def chat_websocket(
         server.connect(user_id, websocket)
         # 使用明确的查询避免延迟加载
         db_channel = (
-            await session.exec(
-                select(ChatChannel).where(ChatChannel.channel_id == 1)
-            )
+            await session.exec(select(ChatChannel).where(ChatChannel.channel_id == 1))
         ).first()
         if db_channel is not None:
             await server.join_channel(user, db_channel, session)
-        
+
         await _listen_stop(websocket, user_id, factory)

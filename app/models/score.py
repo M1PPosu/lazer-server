@@ -7,7 +7,7 @@ from app.config import settings
 
 from .mods import API_MODS, APIMod
 
-from pydantic import BaseModel, Field, ValidationInfo, field_validator, field_serializer
+from pydantic import BaseModel, Field, ValidationInfo, field_serializer, field_validator
 
 if TYPE_CHECKING:
     import rosu_pp_py as rosu
@@ -212,7 +212,7 @@ class SoloScoreSubmissionInfo(BaseModel):
         if isinstance(v, dict):
             serialized = {}
             for key, value in v.items():
-                if hasattr(key, 'value'):
+                if hasattr(key, "value"):
                     # 如果是枚举，使用其值
                     serialized[key.value] = value
                 else:
@@ -224,7 +224,7 @@ class SoloScoreSubmissionInfo(BaseModel):
     @field_serializer("rank", when_used="json")
     def serialize_rank(self, v):
         """序列化等级，确保枚举值正确转换为字符串"""
-        if hasattr(v, 'value'):
+        if hasattr(v, "value"):
             return v.value
         return str(v)
 

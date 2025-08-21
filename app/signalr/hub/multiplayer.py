@@ -163,11 +163,12 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
     @override
     async def _clean_state(self, state: MultiplayerClientState):
         user_id = int(state.connection_id)
-        
+
         # Remove from online user tracking
         from app.router.v2.stats import remove_online_user
+
         asyncio.create_task(remove_online_user(user_id))
-        
+
         if state.room_id != 0 and state.room_id in self.rooms:
             server_room = self.rooms[state.room_id]
             room = server_room.room
@@ -180,9 +181,10 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
     async def on_client_connect(self, client: Client) -> None:
         """Track online users when connecting to multiplayer hub"""
         logger.info(f"[MultiplayerHub] Client {client.user_id} connected")
-        
+
         # Track online user
         from app.router.v2.stats import add_online_user
+
         asyncio.create_task(add_online_user(client.user_id))
 
     def _ensure_in_room(self, client: Client) -> ServerMultiplayerRoom:
@@ -292,11 +294,11 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         room.users.append(user)
         self.add_to_group(client, self.group_id(room_id))
         await server_room.match_type_handler.handle_join(user)
-        
+
         # Critical fix: Send current room and gameplay state to new user
         # This ensures spectators joining ongoing games get proper state sync
         await self._send_room_state_to_new_user(client, server_room)
-        
+
         await self.event_logger.player_joined(room_id, user.user_id)
 
         async with with_db() as session:
@@ -669,16 +671,22 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 # Enhanced spectator validation - allow transitions from more states
                 # This matches official osu-server-spectator behavior
                 if old not in (
-                    MultiplayerUserState.IDLE, 
+                    MultiplayerUserState.IDLE,
                     MultiplayerUserState.READY,
                     MultiplayerUserState.RESULTS,  # Allow spectating after results
                 ):
                     # Allow spectating during gameplay states only if the room is in appropriate state
-                    if not (old.is_playing and room.room.state in (
-                        MultiplayerRoomState.WAITING_FOR_LOAD,
-                        MultiplayerRoomState.PLAYING
-                    )):
-                        raise InvokeException(f"Cannot change state from {old} to {new}")
+                    if not (
+                        old.is_playing
+                        and room.room.state
+                        in (
+                            MultiplayerRoomState.WAITING_FOR_LOAD,
+                            MultiplayerRoomState.PLAYING,
+                        )
+                    ):
+                        raise InvokeException(
+                            f"Cannot change state from {old} to {new}"
+                        )
             case _:
                 raise InvokeException(f"Invalid state transition from {old} to {new}")
 
@@ -691,7 +699,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
 
         if user.state == state:
             return
-        
+
         # Special handling for state changes during gameplay
         match state:
             case MultiplayerUserState.IDLE:
@@ -704,15 +712,15 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         logger.info(
             f"[MultiplayerHub] User {user.user_id} changing state from {user.state} to {state}"
         )
-        
+
         await self.validate_user_stare(
             server_room,
             user.state,
             state,
         )
-        
+
         await self.change_user_state(server_room, user, state)
-        
+
         # Enhanced spectator handling based on official implementation
         if state == MultiplayerUserState.SPECTATING:
             await self.handle_spectator_state_change(client, server_room, user)
@@ -738,24 +746,21 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         )
 
     async def handle_spectator_state_change(
-        self, 
-        client: Client, 
-        room: ServerMultiplayerRoom, 
-        user: MultiplayerRoomUser
+        self, client: Client, room: ServerMultiplayerRoom, user: MultiplayerRoomUser
     ):
         """
         Handle special logic for users entering spectator mode during ongoing gameplay.
         Based on official osu-server-spectator implementation.
         """
         room_state = room.room.state
-        
+
         # If switching to spectating during gameplay, immediately request load
         if room_state == MultiplayerRoomState.WAITING_FOR_LOAD:
             logger.info(
                 f"[MultiplayerHub] Spectator {user.user_id} joining during load phase"
             )
             await self.call_noblock(client, "LoadRequested")
-            
+
         elif room_state == MultiplayerRoomState.PLAYING:
             logger.info(
                 f"[MultiplayerHub] Spectator {user.user_id} joining during active gameplay"
@@ -763,9 +768,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             await self.call_noblock(client, "LoadRequested")
 
     async def _send_current_gameplay_state_to_spectator(
-        self, 
-        client: Client, 
-        room: ServerMultiplayerRoom
+        self, client: Client, room: ServerMultiplayerRoom
     ):
         """
         Send current gameplay state information to a newly joined spectator.
@@ -773,12 +776,8 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         """
         try:
             # Send current room state
-            await self.call_noblock(
-                client, 
-                "RoomStateChanged", 
-                room.room.state
-            )
-            
+            await self.call_noblock(client, "RoomStateChanged", room.room.state)
+
             # Send current user states for all players
             for room_user in room.room.users:
                 if room_user.state.is_playing:
@@ -788,7 +787,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                         room_user.user_id,
                         room_user.state,
                     )
-                    
+
             logger.debug(
                 f"[MultiplayerHub] Sent current gameplay state to spectator {client.user_id}"
             )
@@ -798,9 +797,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             )
 
     async def _send_room_state_to_new_user(
-        self, 
-        client: Client, 
-        room: ServerMultiplayerRoom
+        self, client: Client, room: ServerMultiplayerRoom
     ):
         """
         Send complete room state to a newly joined user.
@@ -809,23 +806,19 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         try:
             # Send current room state
             if room.room.state != MultiplayerRoomState.OPEN:
-                await self.call_noblock(
-                    client,
-                    "RoomStateChanged", 
-                    room.room.state
-                )
-                
+                await self.call_noblock(client, "RoomStateChanged", room.room.state)
+
             # If room is in gameplay state, send LoadRequested immediately
             if room.room.state in (
                 MultiplayerRoomState.WAITING_FOR_LOAD,
-                MultiplayerRoomState.PLAYING
+                MultiplayerRoomState.PLAYING,
             ):
                 logger.info(
                     f"[MultiplayerHub] Sending LoadRequested to user {client.user_id} "
                     f"joining ongoing game (room state: {room.room.state})"
                 )
                 await self.call_noblock(client, "LoadRequested")
-                
+
             # Send all user states to help with synchronization
             for room_user in room.room.users:
                 if room_user.user_id != client.user_id:  # Don't send own state
@@ -835,11 +828,11 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                         room_user.user_id,
                         room_user.state,
                     )
-                    
+
             # Critical addition: Send current playing users to SpectatorHub for cross-hub sync
             # This ensures spectators can watch multiplayer players properly
             await self._sync_with_spectator_hub(client, room)
-                    
+
             logger.debug(
                 f"[MultiplayerHub] Sent complete room state to new user {client.user_id}"
             )
@@ -849,9 +842,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             )
 
     async def _sync_with_spectator_hub(
-        self, 
-        client: Client, 
-        room: ServerMultiplayerRoom
+        self, client: Client, room: ServerMultiplayerRoom
     ):
         """
         Sync with SpectatorHub to ensure cross-hub spectating works properly.
@@ -860,7 +851,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         try:
             # Import here to avoid circular imports
             from app.signalr.hub import SpectatorHubs
-            
+
             # For each playing user in the room, check if they have SpectatorHub state
             # and notify the new client about their playing status
             for room_user in room.room.users:
@@ -878,7 +869,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                             f"[MultiplayerHub] Synced spectator state for user {room_user.user_id} "
                             f"to new client {client.user_id}"
                         )
-                        
+
         except Exception as e:
             logger.debug(f"[MultiplayerHub] Failed to sync with SpectatorHub: {e}")
             # This is not critical, so we don't raise the exception

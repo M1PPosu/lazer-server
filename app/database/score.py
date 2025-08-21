@@ -45,7 +45,7 @@ from .relationship import (
 )
 from .score_token import ScoreToken
 
-from pydantic import field_validator, field_serializer
+from pydantic import field_serializer, field_validator
 from redis.asyncio import Redis
 from sqlalchemy import Boolean, Column, ColumnExpressionArgument, DateTime
 from sqlalchemy.ext.asyncio import AsyncAttrs
@@ -126,7 +126,7 @@ class ScoreBase(AsyncAttrs, SQLModel, UTCBaseModel):
         if isinstance(v, dict):
             serialized = {}
             for key, value in v.items():
-                if hasattr(key, 'value'):
+                if hasattr(key, "value"):
                     # 如果是枚举，使用其值
                     serialized[key.value] = value
                 else:
@@ -138,7 +138,7 @@ class ScoreBase(AsyncAttrs, SQLModel, UTCBaseModel):
     @field_serializer("rank", when_used="json")
     def serialize_rank(self, v):
         """序列化等级，确保枚举值正确转换为字符串"""
-        if hasattr(v, 'value'):
+        if hasattr(v, "value"):
             return v.value
         return str(v)
 
@@ -188,7 +188,7 @@ class Score(ScoreBase, table=True):
     @field_serializer("gamemode", when_used="json")
     def serialize_gamemode(self, v):
         """序列化游戏模式，确保枚举值正确转换为字符串"""
-        if hasattr(v, 'value'):
+        if hasattr(v, "value"):
             return v.value
         return str(v)
 
@@ -281,7 +281,7 @@ class ScoreResp(ScoreBase):
         if isinstance(v, dict):
             serialized = {}
             for key, value in v.items():
-                if hasattr(key, 'value'):
+                if hasattr(key, "value"):
                     # 如果是枚举，使用其值
                     serialized[key.value] = value
                 else:
@@ -294,7 +294,7 @@ class ScoreResp(ScoreBase):
     async def from_db(cls, session: AsyncSession, score: Score) -> "ScoreResp":
         # 确保 score 对象完全加载，避免懒加载问题
         await session.refresh(score)
-        
+
         s = cls.model_validate(score.model_dump())
         assert score.id
         await score.awaitable_attrs.beatmap
