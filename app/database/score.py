@@ -100,6 +100,26 @@ class ScoreBase(AsyncAttrs, SQLModel, UTCBaseModel):
         sa_column=Column(JSON), default_factory=dict
     )
 
+    @field_validator('maximum_statistics', mode='before')
+    @classmethod
+    def validate_maximum_statistics(cls, v):
+        """处理 maximum_statistics 字段中的字符串键，转换为 HitResult 枚举"""
+        if isinstance(v, dict):
+            converted = {}
+            for key, value in v.items():
+                if isinstance(key, str):
+                    try:
+                        # 尝试将字符串转换为 HitResult 枚举
+                        enum_key = HitResult(key)
+                        converted[enum_key] = value
+                    except ValueError:
+                        # 如果转换失败，跳过这个键值对
+                        continue
+                else:
+                    converted[key] = value
+            return converted
+        return v
+
     # optional
     # TODO: current_user_attributes
 
@@ -130,6 +150,18 @@ class Score(ScoreBase, table=True):
     nsmall_tick_hit: int | None = Field(default=None, exclude=True)
     gamemode: GameMode = Field(index=True)
     pinned_order: int = Field(default=0, exclude=True)
+
+    @field_validator('gamemode', mode='before')
+    @classmethod
+    def validate_gamemode(cls, v):
+        """将字符串转换为 GameMode 枚举"""
+        if isinstance(v, str):
+            try:
+                return GameMode(v)
+            except ValueError:
+                # 如果转换失败，返回默认值
+                return GameMode.OSU
+        return v
 
     # optional
     beatmap: Beatmap = Relationship()
@@ -183,6 +215,26 @@ class ScoreResp(ScoreBase):
         """将整数 0/1 转换为布尔值，处理数据库中的布尔字段"""
         if isinstance(v, int):
             return bool(v)
+        return v
+
+    @field_validator('statistics', 'maximum_statistics', mode='before')
+    @classmethod
+    def validate_statistics_fields(cls, v):
+        """处理统计字段中的字符串键，转换为 HitResult 枚举"""
+        if isinstance(v, dict):
+            converted = {}
+            for key, value in v.items():
+                if isinstance(key, str):
+                    try:
+                        # 尝试将字符串转换为 HitResult 枚举
+                        enum_key = HitResult(key)
+                        converted[enum_key] = value
+                    except ValueError:
+                        # 如果转换失败，跳过这个键值对
+                        continue
+                else:
+                    converted[key] = value
+            return converted
         return v
 
     @classmethod

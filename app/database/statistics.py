@@ -6,6 +6,7 @@ from app.models.score import GameMode
 
 from .rank_history import RankHistory
 
+from pydantic import field_validator
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlmodel import (
     BigInteger,
@@ -42,6 +43,18 @@ class UserStatisticsBase(SQLModel):
     play_time: int = Field(default=0, sa_column=Column(BigInteger))
     replays_watched_by_others: int = Field(default=0)
     is_ranked: bool = Field(default=True)
+
+    @field_validator('mode', mode='before')
+    @classmethod
+    def validate_mode(cls, v):
+        """将字符串转换为 GameMode 枚举"""
+        if isinstance(v, str):
+            try:
+                return GameMode(v)
+            except ValueError:
+                # 如果转换失败，返回默认值
+                return GameMode.OSU
+        return v
 
 
 class UserStatistics(AsyncAttrs, UserStatisticsBase, table=True):

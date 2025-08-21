@@ -17,6 +17,7 @@ from .statistics import UserStatistics, UserStatisticsResp
 from .team import Team, TeamMember
 from .user_account_history import UserAccountHistory, UserAccountHistoryResp
 
+from pydantic import field_validator
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlmodel import (
     JSON,
@@ -134,6 +135,18 @@ class UserBase(UTCBaseModel, SQLModel):
     is_gmt: bool = False
     is_qat: bool = False
     is_bng: bool = False
+
+    @field_validator('playmode', mode='before')
+    @classmethod
+    def validate_playmode(cls, v):
+        """将字符串转换为 GameMode 枚举"""
+        if isinstance(v, str):
+            try:
+                return GameMode(v)
+            except ValueError:
+                # 如果转换失败，返回默认值
+                return GameMode.OSU
+        return v
 
 
 class User(AsyncAttrs, UserBase, table=True):

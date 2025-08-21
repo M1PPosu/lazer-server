@@ -22,6 +22,20 @@ if TYPE_CHECKING:
     pass
 
 
+class DateTimeEncoder(json.JSONEncoder):
+    """自定义 JSON 编码器，支持 datetime 序列化"""
+    
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
+
+
+def safe_json_dumps(data) -> str:
+    """安全的 JSON 序列化，支持 datetime 对象"""
+    return json.dumps(data, cls=DateTimeEncoder, ensure_ascii=False, separators=(",", ":"))
+
+
 class RankingCacheService:
     """用户排行榜缓存服务"""
 
@@ -95,7 +109,7 @@ class RankingCacheService:
                 ttl = settings.ranking_cache_expire_minutes * 60
             await self.redis.set(
                 cache_key,
-                json.dumps(ranking_data, separators=(",", ":")),
+                safe_json_dumps(ranking_data),
                 ex=ttl
             )
             logger.debug(f"Cached ranking data for {cache_key}")
@@ -136,7 +150,7 @@ class RankingCacheService:
                 ttl = settings.ranking_cache_expire_minutes * 60 * 6  # 6倍时间
             await self.redis.set(
                 cache_key,
-                json.dumps(stats, separators=(",", ":")),
+                safe_json_dumps(stats),
                 ex=ttl
             )
             logger.debug(f"Cached stats for {cache_key}")
@@ -174,7 +188,7 @@ class RankingCacheService:
                 ttl = settings.ranking_cache_expire_minutes * 60
             await self.redis.set(
                 cache_key,
-                json.dumps(ranking_data, separators=(",", ":")),
+                safe_json_dumps(ranking_data),
                 ex=ttl
             )
             logger.debug(f"Cached country ranking data for {cache_key}")
@@ -207,7 +221,7 @@ class RankingCacheService:
                 ttl = settings.ranking_cache_expire_minutes * 60 * 6  # 6倍时间
             await self.redis.set(
                 cache_key,
-                json.dumps(stats, separators=(",", ":")),
+                safe_json_dumps(stats),
                 ex=ttl
             )
             logger.debug(f"Cached country stats for {cache_key}")
@@ -283,13 +297,15 @@ class RankingCacheService:
                     if not statistics_data:
                         break  # 没有更多数据
                     
-                    # 转换为响应格式
+                    # 转换为响应格式并确保正确序列化
                     ranking_data = []
                     for statistics in statistics_data:
                         user_stats_resp = await UserStatisticsResp.from_db(
                             statistics, session, None, include
                         )
-                        ranking_data.append(user_stats_resp.model_dump())
+                        # 将 UserStatisticsResp 转换为字典，处理所有序列化问题
+                        user_dict = json.loads(user_stats_resp.model_dump_json())
+                        ranking_data.append(user_dict)
                     
                     # 缓存这一页的数据
                     await self.cache_ranking(
