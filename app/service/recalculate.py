@@ -4,11 +4,11 @@ import asyncio
 import math
 
 from app.calculator import (
-    calculate_pp,
     calculate_score_to_level,
     calculate_weighted_acc,
     calculate_weighted_pp,
     clamp,
+    pre_fetch_and_calculate_pp,
 )
 from app.config import settings
 from app.const import BANCHOBOT_ID
@@ -114,11 +114,14 @@ async def _recalculate_pp(
             ranked = db_beatmap.beatmap_status.has_pp() | settings.enable_all_beatmap_pp
             if not ranked or not mods_can_get_pp(int(score.gamemode), score.mods):
                 score.pp = 0
-                break
+                return
             try:
-                beatmap_raw = await fetcher.get_or_fetch_beatmap_raw(redis, beatmap_id)
-                pp = await calculate_pp(score, beatmap_raw, session)
+                pp = await pre_fetch_and_calculate_pp(
+                    score, beatmap_id, session, redis, fetcher
+                )
                 score.pp = pp
+                if pp == 0:
+                    return
                 if score.beatmap_id not in prev or prev[score.beatmap_id].pp < pp:
                     best_score = PPBestScore(
                         user_id=user_id,
@@ -129,7 +132,7 @@ async def _recalculate_pp(
                         gamemode=score.gamemode,
                     )
                     prev[score.beatmap_id] = best_score
-                break
+                return
             except HTTPError:
                 time -= 1
                 await asyncio.sleep(2)
@@ -138,7 +141,7 @@ async def _recalculate_pp(
                 logger.exception(
                     f"Error calculating pp for score {score.id} on beatmap {beatmap_id}"
                 )
-                break
+                return
         if time <= 0:
             logger.warning(
                 f"Failed to fetch beatmap {beatmap_id} after 10 attempts, "

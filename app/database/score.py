@@ -813,7 +813,7 @@ async def process_score(
     user_id = user.id
     await session.commit()
     await session.refresh(score)
-    if can_get_pp:
+    if can_get_pp and score.pp != 0:
         previous_pp_best = await get_user_best_pp_in_beatmap(
             session, beatmap_id, user_id, score.gamemode
         )
