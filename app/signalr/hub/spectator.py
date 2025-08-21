@@ -237,7 +237,7 @@ class SpectatorHub(Hub[StoreClientState]):
             # Check all active multiplayer rooms for playing users
             for room_id, server_room in MultiplayerHubs.rooms.items():
                 for room_user in server_room.room.users:
-                    # If user is playing in multiplayer but we don't have their spectator state
+                    # Send state for users who are playing or in results
                     if (
                         room_user.state.is_playing
                         and room_user.user_id not in self.state
@@ -265,6 +265,35 @@ class SpectatorHub(Hub[StoreClientState]):
                         except Exception as e:
                             logger.debug(
                                 f"[SpectatorHub] Failed to create synthetic state: {e}"
+                            )
+                    
+                    # Critical addition: Notify about finished players in multiplayer games
+                    elif (
+                        room_user.state == MultiplayerUserState.RESULTS
+                        and room_user.user_id not in self.state
+                    ):
+                        try:
+                            # Create a synthetic finished state
+                            finished_state = SpectatorState(
+                                beatmap_id=server_room.queue.current_item.beatmap_id,
+                                ruleset_id=room_user.ruleset_id or 0,
+                                mods=room_user.mods,
+                                state=SpectatedUserState.Passed,  # Assume passed for results
+                                maximum_statistics={},
+                            )
+
+                            await self.call_noblock(
+                                client,
+                                "UserFinishedPlaying",
+                                room_user.user_id,
+                                finished_state,
+                            )
+                            logger.debug(
+                                f"[SpectatorHub] Sent synthetic finished state for user {room_user.user_id}"
+                            )
+                        except Exception as e:
+                            logger.debug(
+                                f"[SpectatorHub] Failed to create synthetic finished state: {e}"
                             )
 
         except Exception as e:

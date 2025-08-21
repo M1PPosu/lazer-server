@@ -666,7 +666,13 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 if old != MultiplayerUserState.PLAYING:
                     raise InvokeException(f"Cannot change state from {old} to {new}")
             case MultiplayerUserState.RESULTS:
-                raise InvokeException(f"Cannot change state from {old} to {new}")
+                # Allow server-managed transitions to RESULTS state
+                # This includes spectators who need to see results
+                if old not in (
+                    MultiplayerUserState.FINISHED_PLAY,
+                    MultiplayerUserState.SPECTATING,  # Allow spectators to see results
+                ):
+                    raise InvokeException(f"Cannot change state from {old} to {new}")
             case MultiplayerUserState.SPECTATING:
                 # Enhanced spectator validation - allow transitions from more states
                 # This matches official osu-server-spectator behavior
@@ -766,6 +772,9 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 f"[MultiplayerHub] Spectator {user.user_id} joining during active gameplay"
             )
             await self.call_noblock(client, "LoadRequested")
+            
+        # Also sync the spectator with current game state
+        await self._send_current_gameplay_state_to_spectator(client, room)
 
     async def _send_current_gameplay_state_to_spectator(
         self, client: Client, room: ServerMultiplayerRoom
@@ -780,13 +789,22 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
 
             # Send current user states for all players
             for room_user in room.room.users:
-                if room_user.state.is_playing:
+                if room_user.state.is_playing or room_user.state == MultiplayerUserState.RESULTS:
                     await self.call_noblock(
                         client,
                         "UserStateChanged",
                         room_user.user_id,
                         room_user.state,
                     )
+                    
+            # If the room is in OPEN state but we have users in RESULTS state,
+            # this means the game just finished and we should send ResultsReady
+            if (room.room.state == MultiplayerRoomState.OPEN and 
+                any(u.state == MultiplayerUserState.RESULTS for u in room.room.users)):
+                logger.debug(
+                    f"[MultiplayerHub] Sending ResultsReady to new spectator {client.user_id}"
+                )
+                await self.call_noblock(client, "ResultsReady")
 
             logger.debug(
                 f"[MultiplayerHub] Sent current gameplay state to spectator {client.user_id}"
@@ -829,6 +847,15 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                         room_user.state,
                     )
 
+            # Critical fix: If room is OPEN but has users in RESULTS state,
+            # send ResultsReady to new joiners (including spectators)
+            if (room.room.state == MultiplayerRoomState.OPEN and 
+                any(u.state == MultiplayerUserState.RESULTS for u in room.room.users)):
+                logger.info(
+                    f"[MultiplayerHub] Sending ResultsReady to newly joined user {client.user_id}"
+                )
+                await self.call_noblock(client, "ResultsReady")
+
             # Critical addition: Send current playing users to SpectatorHub for cross-hub sync
             # This ensures spectators can watch multiplayer players properly
             await self._sync_with_spectator_hub(client, room)
@@ -852,8 +879,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             # Import here to avoid circular imports
             from app.signalr.hub import SpectatorHubs
 
-            # For each playing user in the room, check if they have SpectatorHub state
-            # and notify the new client about their playing status
+            # For each user in the room, check their state and sync appropriately
             for room_user in room.room.users:
                 if room_user.state.is_playing:
                     spectator_state = SpectatorHubs.state.get(room_user.user_id)
@@ -868,6 +894,35 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                         logger.debug(
                             f"[MultiplayerHub] Synced spectator state for user {room_user.user_id} "
                             f"to new client {client.user_id}"
+                        )
+                
+                # Critical addition: Notify SpectatorHub about users in RESULTS state
+                elif room_user.state == MultiplayerUserState.RESULTS:
+                    # Create a synthetic finished state for cross-hub spectating
+                    try:
+                        from app.models.spectator_hub import SpectatedUserState, SpectatorState
+                        
+                        finished_state = SpectatorState(
+                            beatmap_id=room.queue.current_item.beatmap_id,
+                            ruleset_id=room_user.ruleset_id or 0,
+                            mods=room_user.mods,
+                            state=SpectatedUserState.Passed,  # Assume passed for results
+                            maximum_statistics={},
+                        )
+
+                        await self.call_noblock(
+                            client,
+                            "UserFinishedPlaying",
+                            room_user.user_id,
+                            finished_state,
+                        )
+                        logger.debug(
+                            f"[MultiplayerHub] Sent synthetic finished state for user {room_user.user_id} "
+                            f"to client {client.user_id}"
+                        )
+                    except Exception as e:
+                        logger.debug(
+                            f"[MultiplayerHub] Failed to create synthetic finished state: {e}"
                         )
 
         except Exception as e:
@@ -913,6 +968,8 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                     u.state != MultiplayerUserState.PLAYING for u in room.room.users
                 ):
                     any_user_finished_playing = False
+                    
+                    # Handle finished players first
                     for u in filter(
                         lambda u: u.state == MultiplayerUserState.FINISHED_PLAY,
                         room.room.users,
@@ -921,11 +978,32 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                         await self.change_user_state(
                             room, u, MultiplayerUserState.RESULTS
                         )
+                    
+                    # Critical fix: Handle spectators who should also see results
+                    # Move spectators to RESULTS state so they can see the results screen
+                    for u in filter(
+                        lambda u: u.state == MultiplayerUserState.SPECTATING,
+                        room.room.users,
+                    ):
+                        logger.debug(
+                            f"[MultiplayerHub] Moving spectator {u.user_id} to RESULTS state"
+                        )
+                        await self.change_user_state(
+                            room, u, MultiplayerUserState.RESULTS
+                        )
+                    
                     await self.change_room_state(room, MultiplayerRoomState.OPEN)
+                    
+                    # Send ResultsReady to all room members
                     await self.broadcast_group_call(
                         self.group_id(room.room.room_id),
                         "ResultsReady",
                     )
+                    
+                    # Critical addition: Notify SpectatorHub about finished games
+                    # This ensures cross-hub spectating works properly
+                    await self._notify_spectator_hub_game_ended(room)
+                    
                     if any_user_finished_playing:
                         await self.event_logger.game_completed(
                             room.room.room_id,
@@ -1428,3 +1506,43 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 ]
             )
         await room.stop_all_countdowns(MatchStartCountdown)
+
+    async def _notify_spectator_hub_game_ended(self, room: ServerMultiplayerRoom):
+        """
+        Notify SpectatorHub about ended multiplayer game.
+        This ensures cross-hub spectating works properly when games end.
+        """
+        try:
+            # Import here to avoid circular imports
+            from app.signalr.hub import SpectatorHubs
+            from app.models.spectator_hub import SpectatedUserState, SpectatorState
+
+            # For each user who finished the game, notify SpectatorHub
+            for room_user in room.room.users:
+                if room_user.state == MultiplayerUserState.RESULTS:
+                    # Create a synthetic finished state
+                    finished_state = SpectatorState(
+                        beatmap_id=room.queue.current_item.beatmap_id,
+                        ruleset_id=room_user.ruleset_id or 0,
+                        mods=room_user.mods,
+                        state=SpectatedUserState.Passed,  # Assume passed for results
+                        maximum_statistics={},
+                    )
+
+                    # Notify all SpectatorHub watchers that this user finished
+                    await SpectatorHubs.broadcast_group_call(
+                        SpectatorHubs.group_id(room_user.user_id),
+                        "UserFinishedPlaying",
+                        room_user.user_id,
+                        finished_state,
+                    )
+                    
+                    logger.debug(
+                        f"[MultiplayerHub] Notified SpectatorHub that user {room_user.user_id} finished game"
+                    )
+
+        except Exception as e:
+            logger.debug(
+                f"[MultiplayerHub] Failed to notify SpectatorHub about game end: {e}"
+            )
+            # This is not critical, so we don't raise the exception
