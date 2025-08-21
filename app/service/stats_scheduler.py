@@ -59,25 +59,26 @@ class StatsScheduler:
 
         while self._running:
             try:
-                # 计算下次记录时间（下个30分钟整点）
+                # 计算下次区间结束时间
                 now = datetime.utcnow()
-
-                # 计算当前区间边界
+                
+                # 计算当前区间的结束时间
                 current_minute = (now.minute // 30) * 30
-                current_interval_end = now.replace(
-                    minute=current_minute, second=0, microsecond=0
-                ) + timedelta(minutes=30)
-
-                # 如果已经过了当前区间结束时间，立即处理
+                current_interval_end = now.replace(minute=current_minute, second=0, microsecond=0) + timedelta(minutes=30)
+                
+                # 如果当前时间已经超过了当前区间结束时间，说明需要等待下一个区间结束
                 if now >= current_interval_end:
                     current_interval_end += timedelta(minutes=30)
-
-                # 计算需要等待的时间（到下个区间结束）
+                
+                # 计算需要等待的时间
                 sleep_seconds = (current_interval_end - now).total_seconds()
-
-                # 确保至少等待1分钟，最多等待31分钟
-                sleep_seconds = max(min(sleep_seconds, 31 * 60), 60)
-
+                
+                # 添加小的缓冲时间，确保区间真正结束后再处理
+                sleep_seconds += 10  # 额外等待10秒
+                
+                # 限制等待时间范围
+                sleep_seconds = max(min(sleep_seconds, 32 * 60), 10)
+                
                 logger.debug(
                     f"Next interval finalization in {sleep_seconds / 60:.1f} minutes at {current_interval_end.strftime('%H:%M:%S')}"
                 )

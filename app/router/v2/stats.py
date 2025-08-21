@@ -40,9 +40,6 @@ class OnlineHistoryPoint(BaseModel):
     timestamp: datetime
     online_count: int
     playing_count: int
-    peak_online: int | None = None  # 峰值在线数（增强数据）
-    peak_playing: int | None = None  # 峰值游玩数（增强数据）
-    total_samples: int | None = None  # 采样次数（增强数据）
 
 class OnlineHistoryResponse(BaseModel):
     """24小时在线历史响应模型"""
@@ -100,14 +97,11 @@ async def get_online_history() -> OnlineHistoryResponse:
         for data in history_data:
             try:
                 point_data = json.loads(data)
-                # 支持新旧格式的历史数据
+                # 只保留基本字段
                 history_points.append(OnlineHistoryPoint(
                     timestamp=datetime.fromisoformat(point_data["timestamp"]),
                     online_count=point_data["online_count"],
-                    playing_count=point_data["playing_count"],
-                    peak_online=point_data.get("peak_online"),  # 新字段，可能不存在
-                    peak_playing=point_data.get("peak_playing"),  # 新字段，可能不存在
-                    total_samples=point_data.get("total_samples")  # 新字段，可能不存在
+                    playing_count=point_data["playing_count"]
                 ))
             except (json.JSONDecodeError, KeyError, ValueError) as e:
                 logger.warning(f"Invalid history data point: {data}, error: {e}")
@@ -124,10 +118,7 @@ async def get_online_history() -> OnlineHistoryResponse:
             history_points.append(OnlineHistoryPoint(
                 timestamp=current_stats.timestamp,
                 online_count=current_stats.online_users,
-                playing_count=current_stats.playing_users,
-                peak_online=current_stats.online_users,  # 当前实时数据作为峰值
-                peak_playing=current_stats.playing_users,
-                total_samples=1
+                playing_count=current_stats.playing_users
             ))
         
         # 按时间排序（最新的在前）
@@ -325,10 +316,7 @@ async def record_hourly_stats() -> None:
         history_point = {
             "timestamp": current_time.isoformat(),
             "online_count": online_count,
-            "playing_count": playing_count,
-            "peak_online": online_count,
-            "peak_playing": playing_count,
-            "total_samples": 1
+            "playing_count": playing_count
         }
         
         # 添加到历史记录

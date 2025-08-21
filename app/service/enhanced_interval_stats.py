@@ -228,10 +228,7 @@ class EnhancedIntervalStatsManager:
                     history_point = {
                         "timestamp": point_time.isoformat(),
                         "online_count": 0,
-                        "playing_count": 0,
-                        "peak_online": 0,
-                        "peak_playing": 0,
-                        "total_samples": 0,
+                        "playing_count": 0
                     }
                     fill_points.append(json.dumps(history_point))
 
@@ -388,36 +385,40 @@ class EnhancedIntervalStatsManager:
 
     @staticmethod
     async def finalize_interval() -> IntervalStats | None:
-        """完成当前区间统计并保存到历史"""
+        """完成上一个已结束的区间统计并保存到历史"""
         redis_sync = get_redis_message()
         redis_async = get_redis()
 
         try:
-            current_interval = (
-                await EnhancedIntervalStatsManager.get_current_interval_info()
+            # 获取上一个已完成区间（当前区间的前一个）
+            current_start, current_end = EnhancedIntervalStatsManager.get_current_interval_boundaries()
+            # 上一个区间开始时间是当前区间开始时间减去30分钟
+            previous_start = current_start - timedelta(minutes=30)
+            previous_end = current_start  # 上一个区间的结束时间就是当前区间的开始时间
+            
+            interval_key = EnhancedIntervalStatsManager.generate_interval_key(previous_start)
+            
+            previous_interval = IntervalInfo(
+                start_time=previous_start,
+                end_time=previous_end,
+                interval_key=interval_key
             )
-
-            # 最后一次更新统计
-            await EnhancedIntervalStatsManager._update_interval_stats()
 
             # 获取最终统计数据
             stats_data = await _redis_exec(
-                redis_sync.get, current_interval.interval_key
+                redis_sync.get, previous_interval.interval_key
             )
             if not stats_data:
-                logger.warning("No interval stats found to finalize")
+                logger.warning(f"No interval stats found to finalize for {previous_interval.start_time.strftime('%H:%M')}")
                 return None
 
             stats = IntervalStats.from_dict(json.loads(stats_data))
 
-            # 创建历史记录点（使用区间结束时间作为时间戳，确保时间对齐）
+            # 创建历史记录点（使用区间开始时间作为时间戳）
             history_point = {
-                "timestamp": current_interval.end_time.isoformat(),
+                "timestamp": previous_interval.start_time.isoformat(),
                 "online_count": stats.unique_online_users,
-                "playing_count": stats.unique_playing_users,
-                "peak_online": stats.peak_online_count,
-                "peak_playing": stats.peak_playing_count,
-                "total_samples": stats.total_samples,
+                "playing_count": stats.unique_playing_users
             }
 
             # 添加到历史记录
