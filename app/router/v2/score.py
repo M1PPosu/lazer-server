@@ -16,6 +16,7 @@ from app.database import (
     ScoreTokenResp,
     User,
 )
+from app.database.achievement import process_achievements
 from app.database.counts import ReplayWatchedCount
 from app.database.daily_challenge import process_daily_challenge_score
 from app.database.events import Event, EventType
@@ -33,7 +34,7 @@ from app.database.score import (
     process_score,
     process_user,
 )
-from app.dependencies.database import Database, get_redis
+from app.dependencies.database import Database, get_redis, with_db
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.storage import get_storage_service
 from app.dependencies.user import get_client_user, get_current_user
@@ -59,7 +60,6 @@ from fastapi import (
     HTTPException,
     Path,
     Query,
-    Request,
     Security,
 )
 from fastapi.responses import FileResponse, RedirectResponse
@@ -73,7 +73,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 READ_SCORE_TIMEOUT = 10
 
 
+async def process_user_achievement(score_id: int):
+    async with with_db() as session:
+        await process_achievements(session, get_redis(), score_id)
+
+
 async def submit_score(
+    background_task: BackgroundTasks,
     info: SoloScoreSubmissionInfo,
     beatmap: int,
     token: int,
@@ -176,6 +182,7 @@ async def submit_score(
         }
         db.add(rank_event)
         await db.commit()
+    background_task.add_task(process_user_achievement, resp.id)
     return resp
 
 
@@ -387,7 +394,7 @@ async def create_solo_score(
     description="**客户端专属**\n使用令牌提交单曲成绩。",
 )
 async def submit_solo_score(
-    req: Request,
+    background_task: BackgroundTasks,
     db: Database,
     beatmap_id: int = Path(description="谱面 ID"),
     token: int = Path(description="成绩令牌 ID"),
@@ -397,7 +404,9 @@ async def submit_solo_score(
     fetcher=Depends(get_fetcher),
 ):
     assert current_user.id is not None
-    return await submit_score(info, beatmap_id, token, current_user, db, redis, fetcher)
+    return await submit_score(
+        background_task, info, beatmap_id, token, current_user, db, redis, fetcher
+    )
 
 
 @router.post(
@@ -484,6 +493,7 @@ async def create_playlist_score(
     description="**客户端专属**\n提交房间游玩项目成绩。",
 )
 async def submit_playlist_score(
+    background_task: BackgroundTasks,
     session: Database,
     room_id: int,
     playlist_id: int,
@@ -510,6 +520,7 @@ async def submit_playlist_score(
 
     user_id = current_user.id
     score_resp = await submit_score(
+        background_task,
         info,
         item.beatmap_id,
         token,

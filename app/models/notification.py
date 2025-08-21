@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Self
 
 from app.utils import truncate
+
+from .achievement import Achievement
+from .score import GameMode
 
 from pydantic import BaseModel, PrivateAttr
 from sqlmodel import select
@@ -109,21 +112,23 @@ class ChannelMessageBase(NotificationDetail):
     _user: "User" = PrivateAttr()
     _receiver: list[int] = PrivateAttr()
 
-    def __init__(
-        self,
+    @classmethod
+    def init(
+        cls,
         message: "ChatMessage",
         user: "User",
         receiver: list[int],
         channel_type: "ChannelType",
-    ) -> None:
-        super().__init__(
+    ) -> Self:
+        instance = cls(
             title=truncate(message.content, CONTENT_TRUNCATE),
             type=channel_type.value.lower(),
             cover_url=user.avatar_url,
         )
-        self._message = message
-        self._user = user
-        self._receiver = receiver
+        instance._message = message
+        instance._user = user
+        instance._receiver = receiver
+        return instance
 
     async def get_receivers(self, session: AsyncSession) -> list[int]:
         return self._receiver
@@ -142,25 +147,21 @@ class ChannelMessageBase(NotificationDetail):
 
 
 class ChannelMessage(ChannelMessageBase):
-    def __init__(
-        self,
-        message: "ChatMessage",
-        user: "User",
-        receiver: list[int],
-        channel_type: "ChannelType",
-    ) -> None:
-        super().__init__(message, user, receiver, channel_type)
-
     @property
     def name(self) -> NotificationName:
         return NotificationName.CHANNEL_MESSAGE
 
 
 class ChannelMessageTeam(ChannelMessageBase):
-    def __init__(self, message: "ChatMessage", user: "User") -> None:
+    @classmethod
+    def init(
+        cls,
+        message: "ChatMessage",
+        user: "User",
+    ) -> ChannelMessageTeam:
         from app.database import ChannelType
 
-        super().__init__(message, user, [], ChannelType.TEAM)
+        return super().init(message, user, [], ChannelType.TEAM)
 
     @property
     def name(self) -> NotificationName:
@@ -182,3 +183,48 @@ class ChannelMessageTeam(ChannelMessageBase):
             )
         ).all()
         return list(user_ids)
+
+
+class UserAchievementUnlock(NotificationDetail):
+    achievement_id: int
+    achievement_mode: str
+    cover_url: str
+    slug: str
+    title: str
+    description: str
+    user_id: int
+
+    @classmethod
+    def init(cls, achievement: Achievement, user_id: int, mode: "GameMode") -> Self:
+        instance = cls(
+            title=achievement.name,
+            cover_url=achievement.url,
+            slug=achievement.assets_id,
+            achievement_id=achievement.id,
+            achievement_mode=mode.value.lower(),
+            description=achievement.desc,
+            user_id=user_id,
+        )
+        return instance
+
+    async def get_receivers(self, session: AsyncSession) -> list[int]:
+        return [self.user_id]
+
+    @property
+    def name(self) -> NotificationName:
+        return NotificationName.USER_ACHIEVEMENT_UNLOCK
+
+    @property
+    def object_id(self) -> int:
+        return self.achievement_id
+
+    @property
+    def source_user_id(self) -> int:
+        return self.user_id
+
+    @property
+    def object_type(self) -> str:
+        return "achievement"
+
+
+NotificationDetails = ChannelMessage | ChannelMessageTeam | UserAchievementUnlock

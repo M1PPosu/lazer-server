@@ -35,12 +35,22 @@ class RedisSubscriber:
                 ignore_subscribe_messages=True, timeout=None
             )
             if message is not None and message["type"] == "message":
-                matched_handlers = []
+                matched_handlers: list[Callable[[str, str], Awaitable[Any]]] = []
+
                 if message["channel"] in self.handlers:
                     matched_handlers.extend(self.handlers[message["channel"]])
+
+                chan = message["channel"]
                 for pattern, handlers in self.handlers.items():
-                    if fnmatch(message["channel"], pattern):
-                        matched_handlers.extend(handlers)
+                    if pattern == chan:
+                        continue
+                    if not any(ch in pattern for ch in "*?[]"):
+                        continue
+                    if fnmatch(chan, pattern):
+                        for h in handlers:
+                            if h not in matched_handlers:
+                                matched_handlers.append(h)
+
                 if matched_handlers:
                     await asyncio.gather(
                         *[

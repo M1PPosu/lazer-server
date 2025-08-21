@@ -1,8 +1,15 @@
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from app.config import settings
+from app.models.achievement import MEDALS, Achievement
 from app.models.model import UTCBaseModel
+from app.models.notification import UserAchievementUnlock
 
+from .events import Event, EventType
+
+from redis.asyncio import Redis
+from sqlalchemy.orm import joinedload
 from sqlmodel import (
     BigInteger,
     Column,
@@ -11,14 +18,16 @@ from sqlmodel import (
     ForeignKey,
     Relationship,
     SQLModel,
+    select,
 )
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 if TYPE_CHECKING:
     from .lazer_user import User
 
 
 class UserAchievementBase(SQLModel, UTCBaseModel):
-    achievement_id: int = Field(primary_key=True)
+    achievement_id: int
     achieved_at: datetime = Field(
         default=datetime.now(UTC), sa_column=Column(DateTime(timezone=True))
     )
@@ -38,3 +47,54 @@ class UserAchievementResp(UserAchievementBase):
     @classmethod
     def from_db(cls, db_model: UserAchievement) -> "UserAchievementResp":
         return cls.model_validate(db_model)
+
+
+async def process_achievements(session: AsyncSession, redis: Redis, score_id: int):
+    from .score import Score
+
+    score = await session.get(Score, score_id, options=[joinedload(Score.beatmap)])
+    if not score:
+        return
+    achieved = (
+        await session.exec(
+            select(UserAchievement.achievement_id).where(
+                UserAchievement.user_id == score.user_id
+            )
+        )
+    ).all()
+    not_achieved = {k: v for k, v in MEDALS.items() if k.id not in achieved}
+    result: list[Achievement] = []
+    now = datetime.now(UTC)
+    for k, v in not_achieved.items():
+        if await v(session, score, score.beatmap):
+            result.append(k)
+    for r in result:
+        session.add(
+            UserAchievement(
+                achievement_id=r.id,
+                user_id=score.user_id,
+                achieved_at=now,
+            )
+        )
+        await redis.publish(
+            "chat:notification",
+            UserAchievementUnlock.init(
+                r, score.user_id, score.gamemode
+            ).model_dump_json(),
+        )
+        event = Event(
+            created_at=now,
+            type=EventType.ACHIEVEMENT,
+            user_id=score.user_id,
+            event_payload={
+                "achievement": UserAchievementResp(
+                    achievement_id=r.id, achieved_at=now
+                ).model_dump(),
+                "user": {
+                    "username": score.user.username,
+                    "url": settings.web_url + "users/" + str(score.user.id),
+                },
+            },
+        )
+        session.add(event)
+    await session.commit()

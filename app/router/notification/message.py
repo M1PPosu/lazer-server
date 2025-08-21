@@ -117,12 +117,14 @@ async def send_message(
     if db_channel.type == ChannelType.PM:
         user_ids = db_channel.name.split("_")[1:]
         await server.new_private_notification(
-            ChannelMessage(
+            ChannelMessage.init(
                 msg, current_user, [int(u) for u in user_ids], db_channel.type
             )
         )
     elif db_channel.type == ChannelType.TEAM:
-        await server.new_private_notification(ChannelMessageTeam(msg, current_user))
+        await server.new_private_notification(
+            ChannelMessageTeam.init(msg, current_user)
+        )
     return resp
 
 

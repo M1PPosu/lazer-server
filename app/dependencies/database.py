@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator, Callable
 from contextvars import ContextVar
+from datetime import datetime
 import json
 from typing import Annotated
 
@@ -18,6 +19,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 def json_serializer(value):
     if isinstance(value, BaseModel | SQLModel):
         return value.model_dump_json()
+    elif isinstance(value, datetime):
+        return value.isoformat()
     return json.dumps(value)
 
 

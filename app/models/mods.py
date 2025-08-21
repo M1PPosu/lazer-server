@@ -153,6 +153,22 @@ for i in range(4, 10):
     RANKED_MODS[3][f"{i}K"] = {}
 
 
+def mods_can_get_pp_vanilla(ruleset_id: int, mods: list[APIMod]) -> bool:
+    ranked_mods = RANKED_MODS[ruleset_id]
+    for mod in mods:
+        mod["settings"] = mod.get("settings", {})
+        if (settings := ranked_mods.get(mod["acronym"])) is None:
+            return False
+        if settings == {}:
+            continue
+        for setting, value in mod["settings"].items():
+            if (expected_value := settings.get(setting)) is None:
+                return False
+            if expected_value != NO_CHECK and value != expected_value:
+                return False
+    return True
+
+
 def mods_can_get_pp(ruleset_id: int, mods: list[APIMod]) -> bool:
     if app_settings.enable_all_mods_pp:
         return True
