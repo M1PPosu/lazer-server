@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.log import logger
 from app.router.v2.stats import record_hourly_stats, update_registered_users_count
+from app.service.stats_cleanup import cleanup_stale_online_users, refresh_redis_key_expiry
+from app.service.interval_stats import IntervalStatsManager, update_user_activity_stats
 
 
 class StatsScheduler:
@@ -14,6 +16,7 @@ class StatsScheduler:
         self._running = False
         self._stats_task: asyncio.Task | None = None
         self._registered_task: asyncio.Task | None = None
+        self._cleanup_task: asyncio.Task | None = None
     
     def start(self) -> None:
         """启动调度器"""
@@ -23,6 +26,7 @@ class StatsScheduler:
         self._running = True
         self._stats_task = asyncio.create_task(self._stats_loop())
         self._registered_task = asyncio.create_task(self._registered_users_loop())
+        self._cleanup_task = asyncio.create_task(self._cleanup_loop())
         logger.info("Stats scheduler started")
     
     def stop(self) -> None:
@@ -36,32 +40,112 @@ class StatsScheduler:
             self._stats_task.cancel()
         if self._registered_task:
             self._registered_task.cancel()
+        if self._cleanup_task:
+            self._cleanup_task.cancel()
             
         logger.info("Stats scheduler stopped")
     
     async def _stats_loop(self) -> None:
         """统计数据记录循环 - 每30分钟记录一次"""
+        # 启动时立即记录一次统计数据
+        try:
+            await IntervalStatsManager.update_current_interval()
+            logger.info("Initial interval statistics updated on startup")
+        except Exception as e:
+            logger.error(f"Error updating initial interval stats: {e}")
+        
         while self._running:
             try:
-                await record_hourly_stats()
-                logger.debug("Recorded hourly statistics")
+                # 计算下次记录时间（下个30分钟整点）
+                now = datetime.utcnow()
+                minutes_until_next = 30 - (now.minute % 30)
+                next_record_time = now.replace(second=0, microsecond=0) + timedelta(minutes=minutes_until_next)
+                
+                # 计算需要等待的秒数
+                sleep_seconds = (next_record_time - now).total_seconds()
+                
+                # 确保至少等待30分钟，但不超过31分钟（防止时间漂移）
+                sleep_seconds = max(min(sleep_seconds, 31 * 60), 30 * 60)
+                
+                await asyncio.sleep(sleep_seconds)
+                
+                if not self._running:
+                    break
+                
+                # 完成当前区间并记录到历史
+                success = await IntervalStatsManager.finalize_current_interval()
+                if success:
+                    logger.info(f"Finalized interval statistics at {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}")
+                else:
+                    # 如果区间完成失败，使用原有方式记录
+                    await record_hourly_stats()
+                    logger.info(f"Recorded hourly statistics (fallback) at {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}")
+                
+                # 开始新的区间统计
+                await IntervalStatsManager.update_current_interval()
+                
             except Exception as e:
                 logger.error(f"Error in stats loop: {e}")
-            
-            # 等待30分钟
-            await asyncio.sleep(30 * 60)
+                # 出错时等待5分钟再重试
+                await asyncio.sleep(5 * 60)
     
     async def _registered_users_loop(self) -> None:
         """注册用户数更新循环 - 每5分钟更新一次"""
+        # 启动时立即更新一次注册用户数
+        try:
+            await update_registered_users_count()
+            logger.info("Initial registered users count updated on startup")
+        except Exception as e:
+            logger.error(f"Error updating initial registered users count: {e}")
+            
         while self._running:
+            # 等待5分钟
+            await asyncio.sleep(5 * 60)
+            
+            if not self._running:
+                break
+                
             try:
                 await update_registered_users_count()
                 logger.debug("Updated registered users count")
             except Exception as e:
                 logger.error(f"Error in registered users loop: {e}")
+
+    async def _cleanup_loop(self) -> None:
+        """清理循环 - 每10分钟清理一次过期用户"""
+        # 启动时立即执行一次清理
+        try:
+            online_cleaned, playing_cleaned = await cleanup_stale_online_users()
+            if online_cleaned > 0 or playing_cleaned > 0:
+                logger.info(f"Initial cleanup: removed {online_cleaned} stale online users, {playing_cleaned} stale playing users")
             
-            # 等待5分钟
-            await asyncio.sleep(5 * 60)
+            await refresh_redis_key_expiry()
+        except Exception as e:
+            logger.error(f"Error in initial cleanup: {e}")
+            
+        while self._running:
+            # 等待10分钟
+            await asyncio.sleep(10 * 60)
+            
+            if not self._running:
+                break
+                
+            try:
+                # 清理过期用户
+                online_cleaned, playing_cleaned = await cleanup_stale_online_users()
+                if online_cleaned > 0 or playing_cleaned > 0:
+                    logger.info(f"Cleanup: removed {online_cleaned} stale online users, {playing_cleaned} stale playing users")
+                
+                # 刷新Redis key过期时间
+                await refresh_redis_key_expiry()
+                
+                # 更新当前区间统计（每10分钟更新一次以保持数据新鲜）
+                await IntervalStatsManager.update_current_interval()
+                
+            except Exception as e:
+                logger.error(f"Error in cleanup loop: {e}")
+                # 出错时等待2分钟再重试
+                await asyncio.sleep(2 * 60)
 
 
 # 全局调度器实例
