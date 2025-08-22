@@ -9,6 +9,7 @@ from . import (  # pyright: ignore[reportUnusedImport]  # noqa: F401
     relationship,
     room,
     score,
+    session_verify,
     user,
 )
 from .router import router as api_v2_router

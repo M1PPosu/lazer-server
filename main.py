@@ -23,6 +23,7 @@ from app.router import (
 )
 from app.router.redirect import redirect_router
 from app.scheduler.cache_scheduler import start_cache_scheduler, stop_cache_scheduler
+from app.scheduler.database_cleanup_scheduler import start_database_cleanup_scheduler, stop_database_cleanup_scheduler
 from app.service.beatmap_download_service import download_service
 from app.service.calculate_all_user_rank import calculate_user_rank
 from app.service.create_banchobot import create_banchobot
@@ -79,6 +80,7 @@ async def lifespan(app: FastAPI):
     await create_banchobot()
     await download_service.start_health_check()  # 启动下载服务健康检查
     await start_cache_scheduler()  # 启动缓存调度器
+    await start_database_cleanup_scheduler()  # 启动数据库清理调度器
     redis_message_system.start()  # 启动 Redis 消息系统
     start_stats_scheduler()  # 启动统计调度器
     load_achievements()
@@ -88,6 +90,7 @@ async def lifespan(app: FastAPI):
     redis_message_system.stop()  # 停止 Redis 消息系统
     stop_stats_scheduler()  # 停止统计调度器
     await stop_cache_scheduler()  # 停止缓存调度器
+    await stop_database_cleanup_scheduler()  # 停止数据库清理调度器
     await download_service.stop_health_check()  # 停止下载服务健康检查
     await engine.dispose()
     await redis_client.aclose()

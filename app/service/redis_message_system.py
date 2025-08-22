@@ -65,6 +65,17 @@ class RedisMessageSystem:
         if not user.id:
             raise ValueError("User ID is required")
 
+        # 获取频道类型以判断是否需要存储到数据库
+        async with with_db() as session:
+            from app.database.chat import ChatChannel, ChannelType
+            from sqlmodel import select
+            
+            channel_result = await session.exec(
+                select(ChatChannel.type).where(ChatChannel.channel_id == channel_id)
+            )
+            channel_type = channel_result.first()
+            is_multiplayer = channel_type == ChannelType.MULTIPLAYER
+
         # 准备消息数据
         message_data = {
             "message_id": message_id,
@@ -76,6 +87,7 @@ class RedisMessageSystem:
             "uuid": user_uuid or "",
             "status": "cached",  # Redis 缓存状态
             "created_at": time.time(),
+            "is_multiplayer": is_multiplayer,  # 标记是否为多人房间消息
         }
 
         # 立即存储到 Redis
@@ -118,9 +130,14 @@ class RedisMessageSystem:
             uuid=user_uuid,
         )
 
-        logger.info(
-            f"Message {message_id} sent to Redis cache for channel {channel_id}"
-        )
+        if is_multiplayer:
+            logger.info(
+                f"Multiplayer message {message_id} sent to Redis cache for channel {channel_id}, will not be persisted to database"
+            )
+        else:
+            logger.info(
+                f"Message {message_id} sent to Redis cache for channel {channel_id}"
+            )
         return response
 
     async def get_messages(
@@ -222,6 +239,9 @@ class RedisMessageSystem:
     ):
         """存储消息到 Redis"""
         try:
+            # 检查是否是多人房间消息
+            is_multiplayer = message_data.get("is_multiplayer", False)
+            
             # 存储消息数据
             await self._redis_exec(
                 self.redis.hset,
@@ -267,10 +287,14 @@ class RedisMessageSystem:
                 self.redis.zremrangebyrank, channel_messages_key, 0, -1001
             )
 
-            # 添加到待持久化队列
-            await self._redis_exec(
-                self.redis.lpush, "pending_messages", f"{channel_id}:{message_id}"
-            )
+            # 只有非多人房间消息才添加到待持久化队列
+            if not is_multiplayer:
+                await self._redis_exec(
+                    self.redis.lpush, "pending_messages", f"{channel_id}:{message_id}"
+                )
+                logger.debug(f"Message {message_id} added to persistence queue")
+            else:
+                logger.debug(f"Message {message_id} in multiplayer room, skipped persistence queue")
 
         except Exception as e:
             logger.error(f"Failed to store message to Redis: {e}")
@@ -474,6 +498,19 @@ class RedisMessageSystem:
                         if isinstance(v, bytes):
                             v = v.decode("utf-8")
                         message_data[k] = v
+
+                    # 检查是否是多人房间消息，如果是则跳过数据库存储
+                    is_multiplayer = message_data.get("is_multiplayer", "False") == "True"
+                    if is_multiplayer:
+                        # 多人房间消息不存储到数据库，直接标记为已跳过
+                        await self._redis_exec(
+                            self.redis.hset,
+                            f"msg:{channel_id}:{message_id}",
+                            "status",
+                            "skipped_multiplayer",
+                        )
+                        logger.debug(f"Message {message_id} in multiplayer room skipped from database storage")
+                        continue
 
                     # 检查消息是否已存在于数据库
                     existing = await session.get(ChatMessage, int(message_id))

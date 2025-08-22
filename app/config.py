@@ -117,6 +117,22 @@ class Settings(BaseSettings):
     # 日志设置
     log_level: str = "INFO"
 
+    # 邮件服务设置
+    smtp_server: str = "localhost"
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    from_email: str = "noreply@example.com"
+    from_name: str = "osu! server"
+    
+    # 邮件验证功能开关
+    enable_email_verification: bool = Field(
+        default=True, description="是否启用邮件验证功能"
+    )
+    enable_email_sending: bool = Field(
+        default=False, description="是否真实发送邮件（False时仅模拟发送）"
+    )
+
     # Sentry 配置
     sentry_dsn: HttpUrl | None = None
 

@@ -475,6 +475,25 @@ class UserResp(UserBase):
             )
         ).one()
 
+        # 检查会话验证状态
+        # 如果邮件验证功能被禁用，则始终设置 session_verified 为 true
+        from app.config import settings
+        if not settings.enable_email_verification:
+            u.session_verified = True
+        else:
+            # 如果用户有未验证的登录会话，则设置 session_verified 为 false
+            from .email_verification import LoginSession
+            unverified_session = (
+                await session.exec(
+                    select(LoginSession).where(
+                        LoginSession.user_id == obj.id,
+                        LoginSession.is_verified == False,
+                        LoginSession.expires_at > datetime.now(UTC)
+                    )
+                )
+            ).first()
+            u.session_verified = unverified_session is None
+
         return u
 
 

@@ -23,6 +23,7 @@ from .counts import (
     ReplayWatchedCount,
 )
 from .daily_challenge import DailyChallengeStats, DailyChallengeStatsResp
+from .email_verification import EmailVerification, LoginSession
 from .favourite_beatmapset import FavouriteBeatmapset
 from .lazer_user import (
     User,
