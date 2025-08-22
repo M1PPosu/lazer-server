@@ -14,6 +14,7 @@ from app.config import settings
 from app.database import User
 from app.dependencies.database import with_db
 from app.service.email_service import EmailService
+from app.service.email_queue import email_queue  # 导入邮件队列
 from app.log import logger
 from app.auth import get_password_hash, invalidate_user_tokens
 
@@ -134,17 +135,8 @@ class PasswordResetService:
                 return False, "服务暂时不可用，请稍后重试"
     
     async def send_password_reset_email(self, email: str, code: str, username: str) -> bool:
-        """发送密码重置邮件"""
+        """发送密码重置邮件（使用邮件队列）"""
         try:
-            from email.mime.text import MIMEText
-            from email.mime.multipart import MIMEMultipart
-            import smtplib
-            
-            msg = MIMEMultipart()
-            msg['From'] = f"{self.email_service.from_name} <{self.email_service.from_email}>"
-            msg['To'] = email
-            msg['Subject'] = "密码重置 - Password Reset"
-            
             # HTML 邮件内容
             html_content = f"""
 <!DOCTYPE html>
@@ -254,26 +246,44 @@ class PasswordResetService:
 </html>
             """
             
-            msg.attach(MIMEText(html_content, 'html', 'utf-8'))
+            # 纯文本内容（作为备用）
+            plain_content = f"""
+你好 {username}！
+
+我们收到了您的密码重置请求。如果这是您本人操作，请使用以下验证码重置密码：
+
+{code}
+
+这个验证码将在10分钟后过期。
+
+安全提醒：
+- 请不要与任何人分享这个验证码
+- 如果您没有请求密码重置，请立即忽略这封邮件
+- 验证码只能使用一次
+- 建议设置一个强密码以保护您的账户安全
+
+如果您有任何问题，请联系我们的支持团队。
+
+© 2025 g0v0! Private Server. 此邮件由系统自动发送，请勿回复。
+"""
+
+            # 添加邮件到队列
+            subject = "密码重置 - Password Reset"
+            metadata = {"type": "password_reset", "email": email, "code": code}
             
-            # 发送邮件
-            if not getattr(settings, 'enable_email_sending', True):
-                # 邮件发送功能禁用时只记录日志，不实际发送
-                logger.info(f"[Password Reset] Mock sending reset code to {email}: {code}")
-                return True
+            await email_queue.enqueue_email(
+                to_email=email,
+                subject=subject,
+                content=plain_content,
+                html_content=html_content,
+                metadata=metadata
+            )
             
-            with smtplib.SMTP(self.email_service.smtp_server, self.email_service.smtp_port) as server:
-                if self.email_service.smtp_username and self.email_service.smtp_password:
-                    server.starttls()
-                    server.login(self.email_service.smtp_username, self.email_service.smtp_password)
-                
-                server.send_message(msg)
-            
-            logger.info(f"[Password Reset] Successfully sent reset code to {email}")
+            logger.info(f"[Password Reset] Enqueued reset code email to {email}")
             return True
             
         except Exception as e:
-            logger.error(f"[Password Reset] Failed to send email: {e}")
+            logger.error(f"[Password Reset] Failed to enqueue email: {e}")
             return False
     
     async def reset_password(

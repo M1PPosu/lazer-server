@@ -11,6 +11,7 @@ from typing import Optional
 
 from app.database.email_verification import EmailVerification, LoginSession
 from app.service.email_service import email_service
+from app.service.email_queue import email_queue  # 导入邮件队列
 from app.log import logger
 from app.config import settings
 
@@ -26,6 +27,163 @@ class EmailVerificationService:
     def generate_verification_code() -> str:
         """生成8位验证码"""
         return ''.join(secrets.choice(string.digits) for _ in range(8))
+    
+    @staticmethod
+    async def send_verification_email_via_queue(email: str, code: str, username: str, user_id: int) -> bool:
+        """使用邮件队列发送验证邮件
+        
+        Args:
+            email: 接收验证码的邮箱地址
+            code: 验证码
+            username: 用户名
+            user_id: 用户ID
+        
+        Returns:
+            是否成功将邮件加入队列
+        """
+        try:
+            # HTML 邮件内容
+            html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        .container {{
+            max-width: 600px;
+            margin: 0 auto;
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+        }}
+        .header {{
+            background: linear-gradient(135deg, #ff66aa, #ff9966);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 10px 10px 0 0;
+        }}
+        .content {{
+            background: #f9f9f9;
+            padding: 30px;
+            border: 1px solid #ddd;
+        }}
+        .code {{
+            background: #fff;
+            border: 2px solid #ff66aa;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 3px;
+            margin: 20px 0;
+            color: #333;
+        }}
+        .footer {{
+            background: #333;
+            color: #fff;
+            padding: 15px;
+            text-align: center;
+            border-radius: 0 0 10px 10px;
+            font-size: 12px;
+        }}
+        .warning {{
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 15px 0;
+            color: #856404;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>osu! 邮箱验证</h1>
+            <p>Email Verification</p>
+        </div>
+        
+        <div class="content">
+            <h2>你好 {username}！</h2>
+            <p>请使用以下验证码验证您的账户：</p>
+            
+            <div class="code">{code}</div>
+            
+            <p>验证码将在 <strong>10 分钟内有效</strong>。</p>
+            
+            <div class="warning">
+                <p><strong>重要提示：</strong></p>
+                <ul>
+                    <li>请不要与任何人分享此验证码</li>
+                    <li>如果您没有请求验证码，请忽略此邮件</li>
+                    <li>为了账户安全，请勿在其他网站使用相同的密码</li>
+                </ul>
+            </div>
+            
+            <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+            
+            <h3>Hello {username}!</h3>
+            <p>Please use the following verification code to verify your account:</p>
+            
+            <p>This verification code will be valid for <strong>10 minutes</strong>.</p>
+            
+            <p><strong>Important:</strong> Do not share this verification code with anyone. If you did not request this code, please ignore this email.</p>
+        </div>
+        
+        <div class="footer">
+            <p>© 2025 g0v0! Private Server. 此邮件由系统自动发送，请勿回复。</p>
+            <p>This email was sent automatically, please do not reply.</p>
+        </div>
+    </div>
+</body>
+</html>
+            """
+            
+            # 纯文本备用内容
+            plain_content = f"""
+你好 {username}！
+
+请使用以下验证码验证您的账户：
+
+{code}
+
+验证码将在10分钟内有效。
+
+重要提示：
+- 请不要与任何人分享此验证码
+- 如果您没有请求验证码，请忽略此邮件
+- 为了账户安全，请勿在其他网站使用相同的密码
+
+Hello {username}!
+Please use the following verification code to verify your account.
+This verification code will be valid for 10 minutes.
+
+© 2025 g0v0! Private Server. 此邮件由系统自动发送，请勿回复。
+This email was sent automatically, please do not reply.
+"""
+            
+            # 将邮件加入队列
+            subject = "邮箱验证 - Email Verification"
+            metadata = {
+                "type": "email_verification",
+                "user_id": user_id,
+                "code": code
+            }
+            
+            await email_queue.enqueue_email(
+                to_email=email,
+                subject=subject,
+                content=plain_content,
+                html_content=html_content,
+                metadata=metadata
+            )
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"[Email Verification] Failed to enqueue email: {e}")
+            return False
     
     @staticmethod
     def generate_session_token() -> str:
@@ -106,14 +264,14 @@ class EmailVerificationService:
                 db, redis, user_id, email, ip_address, user_agent
             )
             
-            # 发送邮件
-            success = await email_service.send_verification_email(email, code, username)
+            # 使用邮件队列发送验证邮件
+            success = await EmailVerificationService.send_verification_email_via_queue(email, code, username, user_id)
             
             if success:
-                logger.info(f"[Email Verification] Successfully sent verification email to {email} (user: {username})")
+                logger.info(f"[Email Verification] Successfully enqueued verification email to {email} (user: {username})")
                 return True
             else:
-                logger.error(f"[Email Verification] Failed to send verification email: {email} (user: {username})")
+                logger.error(f"[Email Verification] Failed to enqueue verification email: {email} (user: {username})")
                 return False
                 
         except Exception as e:

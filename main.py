@@ -28,6 +28,7 @@ from app.service.beatmap_download_service import download_service
 from app.service.calculate_all_user_rank import calculate_user_rank
 from app.service.create_banchobot import create_banchobot
 from app.service.daily_challenge import daily_challenge_job, process_daily_challenge_top
+from app.service.email_queue import start_email_processor, stop_email_processor
 from app.service.geoip_scheduler import schedule_geoip_updates
 from app.service.init_geoip import init_geoip
 from app.service.load_achievements import load_achievements
@@ -78,6 +79,7 @@ async def lifespan(app: FastAPI):
     await daily_challenge_job()
     await process_daily_challenge_top()
     await create_banchobot()
+    await start_email_processor()  # 启动邮件队列处理器
     await download_service.start_health_check()  # 启动下载服务健康检查
     await start_cache_scheduler()  # 启动缓存调度器
     await start_database_cleanup_scheduler()  # 启动数据库清理调度器
@@ -92,6 +94,7 @@ async def lifespan(app: FastAPI):
     await stop_cache_scheduler()  # 停止缓存调度器
     await stop_database_cleanup_scheduler()  # 停止数据库清理调度器
     await download_service.stop_health_check()  # 停止下载服务健康检查
+    await stop_email_processor()  # 停止邮件队列处理器
     await engine.dispose()
     await redis_client.aclose()
 
