@@ -41,7 +41,7 @@ class EventType(str, Enum):
 class Event(UTCBaseModel, SQLModel, table=True):
     __tablename__: str = "user_events"
     id: int = Field(default=None, primary_key=True)
-    created_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True), default=utcnow))
+    created_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True)))
     type: EventType
     event_payload: dict = Field(exclude=True, default_factory=dict, sa_column=Column(JSON))
     user_id: int | None = Field(
