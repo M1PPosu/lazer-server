@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from enum import Enum
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, ClassVar, Self
 
 from app.utils import truncate
 
@@ -16,7 +16,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 CONTENT_TRUNCATE = 36
 
 if TYPE_CHECKING:
-    from app.database import ChannelType, ChatMessage, User
+    from app.database import ChannelType, ChatMessage, TeamRequest, User
 
 
 # https://github.com/ppy/osu-web/blob/master/app/Models/Notification.php
@@ -78,10 +78,7 @@ class NotificationName(str, Enum):
 
 
 class NotificationDetail(BaseModel):
-    @property
-    @abstractmethod
-    def name(self) -> NotificationName:
-        raise NotImplementedError
+    name: ClassVar[NotificationName]
 
     @property
     @abstractmethod
@@ -104,9 +101,9 @@ class NotificationDetail(BaseModel):
 
 
 class ChannelMessageBase(NotificationDetail):
-    title: str = ""
-    type: str = ""
-    cover_url: str = ""
+    title: str
+    type: str
+    cover_url: str
 
     _message: "ChatMessage" = PrivateAttr()
     _user: "User" = PrivateAttr()
@@ -147,9 +144,7 @@ class ChannelMessageBase(NotificationDetail):
 
 
 class ChannelMessage(ChannelMessageBase):
-    @property
-    def name(self) -> NotificationName:
-        return NotificationName.CHANNEL_MESSAGE
+    name: ClassVar[NotificationName] = NotificationName.CHANNEL_MESSAGE
 
 
 class ChannelMessageTeam(ChannelMessageBase):
@@ -163,9 +158,7 @@ class ChannelMessageTeam(ChannelMessageBase):
 
         return super().init(message, user, [], ChannelType.TEAM)
 
-    @property
-    def name(self) -> NotificationName:
-        return NotificationName.CHANNEL_TEAM
+    name: ClassVar[NotificationName] = NotificationName.CHANNEL_TEAM
 
     async def get_receivers(self, session: AsyncSession) -> list[int]:
         from app.database import TeamMember
@@ -210,9 +203,7 @@ class UserAchievementUnlock(NotificationDetail):
     async def get_receivers(self, session: AsyncSession) -> list[int]:
         return [self.user_id]
 
-    @property
-    def name(self) -> NotificationName:
-        return NotificationName.USER_ACHIEVEMENT_UNLOCK
+    name: ClassVar[NotificationName] = NotificationName.USER_ACHIEVEMENT_UNLOCK
 
     @property
     def object_id(self) -> int:
@@ -227,4 +218,66 @@ class UserAchievementUnlock(NotificationDetail):
         return "achievement"
 
 
-NotificationDetails = ChannelMessage | ChannelMessageTeam | UserAchievementUnlock
+class TeamApplicationBase(NotificationDetail):
+    cover_url: str
+    title: str
+
+    _team_request: "TeamRequest" = PrivateAttr()
+
+    @classmethod
+    def init(cls, team_request: "TeamRequest") -> Self:
+        instance = cls(
+            title=team_request.team.name,
+            cover_url=team_request.team.flag_url or "",
+        )
+        instance._team_request = team_request
+        return instance
+
+    async def get_receivers(self, session: AsyncSession) -> list[int]:
+        return [self._team_request.user_id]
+
+    @property
+    def object_id(self) -> int:
+        return self._team_request.team_id
+
+    @property
+    def source_user_id(self) -> int:
+        return self._team_request.user_id
+
+    @property
+    def object_type(self) -> str:
+        return "team"
+
+
+class TeamApplicationAccept(TeamApplicationBase):
+    name: ClassVar[NotificationName] = NotificationName.TEAM_APPLICATION_ACCEPT
+
+
+class TeamApplicationReject(TeamApplicationBase):
+    name: ClassVar[NotificationName] = NotificationName.TEAM_APPLICATION_REJECT
+
+
+class TeamApplicationStore(TeamApplicationBase):
+    name: ClassVar[NotificationName] = NotificationName.TEAM_APPLICATION_STORE
+
+    async def get_receivers(self, session: AsyncSession) -> list[int]:
+        return [self._team_request.team.leader_id]
+
+    @classmethod
+    def init(cls, team_request: "TeamRequest") -> Self:
+        instance = cls(
+            title=team_request.user.username,
+            cover_url=team_request.team.flag_url or "",
+        )
+        instance._team_request = team_request
+        return instance
+
+
+NotificationDetails = (
+    ChannelMessage
+    | ChannelMessageTeam
+    | UserAchievementUnlock
+    | TeamApplicationAccept
+    | TeamApplicationReject
+    | TeamApplicationStore
+)

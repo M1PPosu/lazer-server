@@ -31,6 +31,7 @@ from .lazer_user import (
 )
 from .multiplayer_event import MultiplayerEvent, MultiplayerEventResp
 from .notification import Notification, UserNotification
+from .password_reset import PasswordReset
 from .playlist_attempts import (
     ItemAttemptsCount,
     ItemAttemptsResp,
@@ -56,7 +57,7 @@ from .statistics import (
     UserStatistics,
     UserStatisticsResp,
 )
-from .team import Team, TeamMember
+from .team import Team, TeamMember, TeamRequest
 from .user_account_history import (
     UserAccountHistory,
     UserAccountHistoryResp,
@@ -81,9 +82,11 @@ __all__ = [
     "CountResp",
     "DailyChallengeStats",
     "DailyChallengeStatsResp",
+    "EmailVerification",
     "FavouriteBeatmapset",
     "ItemAttemptsCount",
     "ItemAttemptsResp",
+    "LoginSession",
     "MonthlyPlaycounts",
     "MultiplayerEvent",
     "MultiplayerEventResp",
@@ -92,6 +95,7 @@ __all__ = [
     "OAuthClient",
     "OAuthToken",
     "PPBestScore",
+    "PasswordReset",
     "Playlist",
     "PlaylistAggregateScore",
     "PlaylistBestScore",
@@ -115,6 +119,7 @@ __all__ = [
     "ScoreTokenResp",
     "Team",
     "TeamMember",
+    "TeamRequest",
     "User",
     "UserAccountHistory",
     "UserAccountHistoryResp",

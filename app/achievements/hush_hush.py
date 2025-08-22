@@ -379,7 +379,7 @@ async def deliberation(
         return False
     if (
         not beatmap.beatmap_status.has_pp()
-        or beatmap.beatmap_status != BeatmapRankStatus.LOVED
+        and beatmap.beatmap_status != BeatmapRankStatus.LOVED
     ):
         return False
 

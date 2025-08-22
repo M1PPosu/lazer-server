@@ -1,18 +1,17 @@
 from __future__ import annotations
 
 import hashlib
-from io import BytesIO
 
 from app.database.lazer_user import User, UserProfileCover
 from app.dependencies.database import Database
 from app.dependencies.storage import get_storage_service
 from app.dependencies.user import get_client_user
 from app.storage.base import StorageService
+from app.utils import check_image
 
 from .router import router
 
-from fastapi import Depends, File, HTTPException, Security
-from PIL import Image
+from fastapi import Depends, File, Security
 
 
 @router.post(
@@ -39,20 +38,7 @@ async def upload_cover(
     """
 
     # check file
-    if len(content) > 10 * 1024 * 1024:  # 10MB limit
-        raise HTTPException(status_code=400, detail="File size exceeds 10MB limit")
-    elif len(content) == 0:
-        raise HTTPException(status_code=400, detail="File cannot be empty")
-    try:
-        with Image.open(BytesIO(content)) as img:
-            if img.format not in ["PNG", "JPEG", "GIF"]:
-                raise HTTPException(status_code=400, detail="Invalid image format")
-            if img.size[0] > 3000 or img.size[1] > 2000:
-                raise HTTPException(
-                    status_code=400, detail="Image size exceeds 3000x2000 pixels"
-                )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error processing image: {e}")
+    check_image(content, 10 * 1024 * 1024, 3000, 2000)
 
     filehash = hashlib.sha256(content).hexdigest()
     storage_path = f"cover/{current_user.id}_{filehash}.png"
