@@ -34,6 +34,8 @@ async def process_category_mod(
         return False
     if not beatmap.beatmap_status.has_leaderboard():
         return False
+    if len(score.mods) == 0:
+        return False
     api_mods = {
         k
         for k, v in API_MODS[int(score.gamemode)].items()  # pyright: ignore[reportArgumentType]
