@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable, Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 import functools
 import inspect
 from io import BytesIO
@@ -270,3 +270,7 @@ class BackgroundTasks:
 
 
 bg_tasks = BackgroundTasks()
+
+
+def utcnow() -> datetime:
+    return datetime.now(tz=UTC)

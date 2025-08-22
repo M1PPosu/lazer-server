@@ -1,10 +1,11 @@
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from app.config import settings
 from app.models.achievement import MEDALS, Achievement
 from app.models.model import UTCBaseModel
 from app.models.notification import UserAchievementUnlock
+from app.utils import utcnow
 
 from .events import Event, EventType
 
@@ -28,7 +29,7 @@ if TYPE_CHECKING:
 
 class UserAchievementBase(SQLModel, UTCBaseModel):
     achievement_id: int
-    achieved_at: datetime = Field(default=datetime.now(UTC), sa_column=Column(DateTime(timezone=True)))
+    achieved_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True)))
 
 
 class UserAchievement(UserAchievementBase, table=True):
@@ -56,7 +57,7 @@ async def process_achievements(session: AsyncSession, redis: Redis, score_id: in
     ).all()
     not_achieved = {k: v for k, v in MEDALS.items() if k.id not in achieved}
     result: list[Achievement] = []
-    now = datetime.now(UTC)
+    now = utcnow()
     for k, v in not_achieved.items():
         if await v(session, score, score.beatmap):
             result.append(k)

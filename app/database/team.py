@@ -1,7 +1,8 @@
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from app.models.model import UTCBaseModel
+from app.utils import utcnow
 
 from sqlalchemy import Column, DateTime
 from sqlmodel import BigInteger, Field, ForeignKey, Relationship, SQLModel
@@ -18,7 +19,7 @@ class Team(SQLModel, UTCBaseModel, table=True):
     short_name: str = Field(max_length=10)
     flag_url: str | None = Field(default=None)
     cover_url: str | None = Field(default=None)
-    created_at: datetime = Field(default=datetime.now(UTC), sa_column=Column(DateTime))
+    created_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime))
     leader_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id")))
 
     leader: "User" = Relationship()
@@ -30,7 +31,7 @@ class TeamMember(SQLModel, UTCBaseModel, table=True):
 
     user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), primary_key=True))
     team_id: int = Field(foreign_key="teams.id")
-    joined_at: datetime = Field(default_factory=datetime.utcnow, sa_column=Column(DateTime))
+    joined_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime))
 
     user: "User" = Relationship(back_populates="team_membership", sa_relationship_kwargs={"lazy": "joined"})
     team: "Team" = Relationship(back_populates="members", sa_relationship_kwargs={"lazy": "joined"})
@@ -41,7 +42,7 @@ class TeamRequest(SQLModel, UTCBaseModel, table=True):
 
     user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), primary_key=True))
     team_id: int = Field(foreign_key="teams.id", primary_key=True)
-    requested_at: datetime = Field(default=datetime.now(UTC), sa_column=Column(DateTime))
+    requested_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime))
 
     user: "User" = Relationship(sa_relationship_kwargs={"lazy": "joined"})
     team: "Team" = Relationship(sa_relationship_kwargs={"lazy": "joined"})

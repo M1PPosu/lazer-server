@@ -1,7 +1,8 @@
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 
 from app.models.model import UTCBaseModel
+from app.utils import utcnow
 
 from sqlmodel import (
     JSON,
@@ -24,7 +25,7 @@ class MultiplayerEventBase(SQLModel, UTCBaseModel):
         sa_column=Column(
             DateTime(timezone=True),
         ),
-        default=datetime.now(UTC),
+        default_factory=utcnow,
     )
     event_type: str = Field(index=True)
 
@@ -40,7 +41,7 @@ class MultiplayerEvent(MultiplayerEventBase, table=True):
         sa_column=Column(
             DateTime(timezone=True),
         ),
-        default=datetime.now(UTC),
+        default_factory=utcnow,
     )
     event_detail: dict[str, Any] | None = Field(
         sa_column=Column(JSON),

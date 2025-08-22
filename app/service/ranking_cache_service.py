@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
+from datetime import datetime
 import json
 from typing import TYPE_CHECKING, Literal
 
@@ -14,6 +14,7 @@ from app.config import settings
 from app.database.statistics import UserStatistics, UserStatisticsResp
 from app.log import logger
 from app.models.score import GameMode
+from app.utils import utcnow
 
 from redis.asyncio import Redis
 from sqlmodel import col, select
@@ -258,7 +259,7 @@ class RankingCacheService:
             # 计算统计信息
             stats = {
                 "total_users": total_users,
-                "last_updated": datetime.now(UTC).isoformat(),
+                "last_updated": utcnow().isoformat(),
                 "type": type,
                 "ruleset": ruleset,
                 "country": country,
@@ -370,7 +371,7 @@ class RankingCacheService:
             # 计算统计信息
             stats = {
                 "total_countries": len(country_stats_list),
-                "last_updated": datetime.now(UTC).isoformat(),
+                "last_updated": utcnow().isoformat(),
                 "ruleset": ruleset,
             }
 

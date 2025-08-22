@@ -6,11 +6,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
 from app.dependencies.database import get_redis
 from app.log import logger
 from app.router.private.stats import add_online_user
+from app.utils import utcnow
 
 
 class OnlineStatusManager:
@@ -37,7 +36,7 @@ class OnlineStatusManager:
 
             # 3. 设置最后活跃时间戳
             last_seen_key = f"user:last_seen:{user_id}"
-            await redis.set(last_seen_key, int(datetime.utcnow().timestamp()), ex=7200)
+            await redis.set(last_seen_key, int(utcnow().timestamp()), ex=7200)
 
             logger.debug(f"[OnlineStatusManager] User {user_id} set online via {hub_type}")
 
@@ -62,7 +61,7 @@ class OnlineStatusManager:
 
             # 刷新最后活跃时间
             last_seen_key = f"user:last_seen:{user_id}"
-            await redis.set(last_seen_key, int(datetime.utcnow().timestamp()), ex=7200)
+            await redis.set(last_seen_key, int(utcnow().timestamp()), ex=7200)
 
             logger.debug(f"[OnlineStatusManager] Refreshed online status for user {user_id}")
 

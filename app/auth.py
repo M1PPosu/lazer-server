@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 import hashlib
 import re
 import secrets
@@ -12,6 +12,7 @@ from app.database import (
     User,
 )
 from app.log import logger
+from app.utils import utcnow
 
 import bcrypt
 from jose import JWTError, jwt
@@ -150,9 +151,9 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     """创建访问令牌"""
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.now(UTC) + expires_delta
+        expire = utcnow() + expires_delta
     else:
-        expire = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
+        expire = utcnow() + timedelta(minutes=settings.access_token_expire_minutes)
 
     to_encode.update({"exp": expire, "random": secrets.token_hex(16)})
     encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
@@ -206,7 +207,7 @@ async def store_token(
     expires_in: int,
 ) -> OAuthToken:
     """存储令牌到数据库"""
-    expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
+    expires_at = utcnow() + timedelta(seconds=expires_in)
 
     # 删除用户的旧令牌
     statement = select(OAuthToken).where(OAuthToken.user_id == user_id, OAuthToken.client_id == client_id)
@@ -238,7 +239,7 @@ async def get_token_by_access_token(db: AsyncSession, access_token: str) -> OAut
     """根据访问令牌获取令牌记录"""
     statement = select(OAuthToken).where(
         OAuthToken.access_token == access_token,
-        OAuthToken.expires_at > datetime.utcnow(),
+        OAuthToken.expires_at > utcnow(),
     )
     return (await db.exec(statement)).first()
 
@@ -247,7 +248,7 @@ async def get_token_by_refresh_token(db: AsyncSession, refresh_token: str) -> OA
     """根据刷新令牌获取令牌记录"""
     statement = select(OAuthToken).where(
         OAuthToken.refresh_token == refresh_token,
-        OAuthToken.expires_at > datetime.utcnow(),
+        OAuthToken.expires_at > utcnow(),
     )
     return (await db.exec(statement)).first()
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date
 import math
 import time
 
@@ -50,6 +50,7 @@ from app.models.score import (
 from app.service.user_cache_service import get_user_cache_service
 from app.storage.base import StorageService
 from app.storage.local import LocalStorageService
+from app.utils import utcnow
 
 from .router import router
 
@@ -166,7 +167,7 @@ async def submit_score(
     total_users = (await db.exec(select(func.count()).select_from(User))).one()
     if resp.rank_global is not None and resp.rank_global <= min(math.ceil(float(total_users) * 0.01), 50):
         rank_event = Event(
-            created_at=datetime.now(UTC),
+            created_at=utcnow(),
             type=EventType.RANK,
             user_id=score.user_id,
             user=score.user,
@@ -451,7 +452,7 @@ async def create_playlist_score(
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
     db_room_time = room.ends_at.replace(tzinfo=UTC) if room.ends_at else None
-    if db_room_time and db_room_time < datetime.now(UTC).replace(tzinfo=UTC):
+    if db_room_time and db_room_time < utcnow().replace(tzinfo=UTC):
         raise HTTPException(status_code=400, detail="Room has ended")
     item = (await session.exec(select(Playlist).where(Playlist.id == playlist_id, Playlist.room_id == room_id))).first()
     if not item:

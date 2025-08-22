@@ -4,10 +4,11 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 
 from app.database.email_verification import EmailVerification, LoginSession
 from app.log import logger
+from app.utils import utcnow
 
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -29,7 +30,7 @@ class DatabaseCleanupService:
         """
         try:
             # 查找过期的验证码记录
-            current_time = datetime.now(UTC)
+            current_time = utcnow()
 
             stmt = select(EmailVerification).where(EmailVerification.expires_at < current_time)
             result = await db.exec(stmt)
@@ -66,7 +67,7 @@ class DatabaseCleanupService:
         """
         try:
             # 查找过期的登录会话记录
-            current_time = datetime.now(UTC)
+            current_time = utcnow()
 
             stmt = select(LoginSession).where(LoginSession.expires_at < current_time)
             result = await db.exec(stmt)
@@ -104,7 +105,7 @@ class DatabaseCleanupService:
         """
         try:
             # 查找指定天数前的已使用验证码记录
-            cutoff_time = datetime.now(UTC) - timedelta(days=days_old)
+            cutoff_time = utcnow() - timedelta(days=days_old)
 
             stmt = select(EmailVerification).where(col(EmailVerification.is_used).is_(True))
             result = await db.exec(stmt)
@@ -147,7 +148,7 @@ class DatabaseCleanupService:
         """
         try:
             # 查找指定天数前的已验证会话记录
-            cutoff_time = datetime.now(UTC) - timedelta(days=days_old)
+            cutoff_time = utcnow() - timedelta(days=days_old)
 
             stmt = select(LoginSession).where(col(LoginSession.is_verified).is_(True))
             result = await db.exec(stmt)
@@ -225,7 +226,7 @@ class DatabaseCleanupService:
             dict: 统计信息
         """
         try:
-            current_time = datetime.now(UTC)
+            current_time = utcnow()
             cutoff_7_days = current_time - timedelta(days=7)
             cutoff_30_days = current_time - timedelta(days=30)
 

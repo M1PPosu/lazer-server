@@ -1,11 +1,10 @@
 from datetime import (
-    UTC,
     date as dt,
-    datetime,
 )
 from typing import TYPE_CHECKING, Optional
 
 from app.models.score import GameMode
+from app.utils import utcnow
 
 from pydantic import BaseModel
 from sqlmodel import (
@@ -33,7 +32,7 @@ class RankHistory(SQLModel, table=True):
     mode: GameMode
     rank: int
     date: dt = Field(
-        default_factory=lambda: datetime.now(UTC).date(),
+        default_factory=lambda: utcnow().date(),
         sa_column=Column(Date, index=True),
     )
 
@@ -48,7 +47,7 @@ class RankTop(SQLModel, table=True):
     mode: GameMode
     rank: int
     date: dt = Field(
-        default_factory=lambda: datetime.now(UTC).date(),
+        default_factory=lambda: utcnow().date(),
         sa_column=Column(Date, index=True),
     )
 

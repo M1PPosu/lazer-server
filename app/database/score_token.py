@@ -2,6 +2,7 @@ from datetime import datetime
 
 from app.models.model import UTCBaseModel
 from app.models.score import GameMode
+from app.utils import utcnow
 
 from .beatmap import Beatmap
 from .lazer_user import User
@@ -15,8 +16,8 @@ class ScoreTokenBase(SQLModel, UTCBaseModel):
     score_id: int | None = Field(sa_column=Column(BigInteger), default=None)
     ruleset_id: GameMode
     playlist_item_id: int | None = Field(default=None)  # playlist
-    created_at: datetime = Field(default_factory=datetime.utcnow, sa_column=Column(DateTime))
-    updated_at: datetime = Field(default_factory=datetime.utcnow, sa_column=Column(DateTime))
+    created_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime))
+    updated_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime))
 
 
 class ScoreToken(ScoreTokenBase, table=True):

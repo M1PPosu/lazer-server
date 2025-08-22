@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from typing import override
 
 from app.database import Room
@@ -44,6 +44,7 @@ from app.models.room import (
     RoomStatus,
 )
 from app.models.score import GameMode
+from app.utils import utcnow
 
 from .hub import Client, Hub
 
@@ -233,7 +234,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 item = room.playlist[0]
                 item.owner_id = client.user_id
                 room.room_id = db_room.id
-                starts_at = db_room.starts_at or datetime.now(UTC)
+                starts_at = db_room.starts_at or utcnow()
                 beatmap_exists = await session.exec(select(exists().where(col(Beatmap.id) == item.beatmap_id)))
                 if not beatmap_exists.one():
                     fetcher = await get_fetcher()
@@ -306,7 +307,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                     session.add(participated_user)
                 else:
                     participated_user.left_at = None
-                    participated_user.joined_at = datetime.now(UTC)
+                    participated_user.joined_at = utcnow()
 
                 db_room = await session.get(Room, room_id)
                 if db_room is None:
@@ -1056,7 +1057,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                     )
                 ).first()
                 if participated_user is not None:
-                    participated_user.left_at = datetime.now(UTC)
+                    participated_user.left_at = utcnow()
 
                 db_room = await session.get(Room, room.room.room_id)
                 if db_room is None:
@@ -1087,7 +1088,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 .where(col(Room.id) == room.room.room_id)
                 .values(
                     name=room.room.settings.name,
-                    ends_at=datetime.now(UTC),
+                    ends_at=utcnow(),
                     type=room.room.settings.match_type,
                     queue_mode=room.room.settings.queue_mode,
                     auto_skip=room.room.settings.auto_skip,

@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 from collections import defaultdict
 from collections.abc import Coroutine
-from datetime import UTC, datetime
 import math
 from typing import override
 
@@ -27,6 +26,7 @@ from app.models.metadata_hub import (
 )
 from app.models.room import RoomCategory
 from app.service.subscribers.score_processed import ScoreSubscriber
+from app.utils import utcnow
 
 from .hub import Client, Hub
 
@@ -41,11 +41,11 @@ class MetadataHub(Hub[MetadataClientState]):
         self.subscriber = ScoreSubscriber()
         self.subscriber.metadata_hub = self
         self._daily_challenge_stats: MultiplayerRoomStats | None = None
-        self._today = datetime.now(UTC).date()
+        self._today = utcnow().date()
         self._lock = asyncio.Lock()
 
     def get_daily_challenge_stats(self, daily_challenge_room: int) -> MultiplayerRoomStats:
-        if self._daily_challenge_stats is None or self._today != datetime.now(UTC).date():
+        if self._daily_challenge_stats is None or self._today != utcnow().date():
             self._daily_challenge_stats = MultiplayerRoomStats(
                 room_id=daily_challenge_room,
                 playlist_item_stats={},
@@ -98,7 +98,7 @@ class MetadataHub(Hub[MetadataClientState]):
         async with with_db() as session:
             async with session.begin():
                 user = (await session.exec(select(User).where(User.id == int(state.connection_id)))).one()
-                user.last_visit = datetime.now(UTC)
+                user.last_visit = utcnow()
                 await session.commit()
 
     @override
@@ -149,7 +149,7 @@ class MetadataHub(Hub[MetadataClientState]):
                 daily_challenge_room = (
                     await session.exec(
                         select(Room).where(
-                            col(Room.ends_at) > datetime.now(UTC),
+                            col(Room.ends_at) > utcnow(),
                             Room.category == RoomCategory.DAILY_CHALLENGE,
                         )
                     )

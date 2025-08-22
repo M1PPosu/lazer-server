@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from enum import IntEnum
 from typing import (
     TYPE_CHECKING,
@@ -21,6 +21,7 @@ from app.database.beatmap import Beatmap
 from app.dependencies.database import with_db
 from app.dependencies.fetcher import get_fetcher
 from app.exception import InvokeException
+from app.utils import utcnow
 
 from .mods import API_MODS, APIMod
 from .room import (
@@ -558,7 +559,7 @@ class MultiplayerQueue:
         from app.database import Playlist
 
         async with with_db() as session:
-            played_at = datetime.now(UTC)
+            played_at = utcnow()
             await session.execute(
                 update(Playlist)
                 .where(

@@ -7,7 +7,7 @@ import json
 
 from app.dependencies.database import get_redis, get_redis_message
 from app.log import logger
-from app.utils import bg_tasks
+from app.utils import bg_tasks, utcnow
 
 from .router import router
 
@@ -74,7 +74,7 @@ async def get_server_stats() -> ServerStats:
             registered_users=registered_count,
             online_users=online_count,
             playing_users=playing_count,
-            timestamp=datetime.utcnow(),
+            timestamp=utcnow(),
         )
     except Exception as e:
         logger.error(f"Error getting server stats: {e}")
@@ -83,7 +83,7 @@ async def get_server_stats() -> ServerStats:
             registered_users=0,
             online_users=0,
             playing_users=0,
-            timestamp=datetime.utcnow(),
+            timestamp=utcnow(),
         )
 
 
@@ -158,7 +158,7 @@ async def get_stats_debug_info():
     try:
         from app.service.enhanced_interval_stats import EnhancedIntervalStatsManager
 
-        current_time = datetime.utcnow()
+        current_time = utcnow()
         current_interval = await EnhancedIntervalStatsManager.get_current_interval_info()
         interval_stats = await EnhancedIntervalStatsManager.get_current_interval_stats()
 
@@ -334,7 +334,7 @@ async def record_hourly_stats() -> None:
         online_count = await _get_online_users_count(redis_async)
         playing_count = await _get_playing_users_count(redis_async)
 
-        current_time = datetime.utcnow()
+        current_time = utcnow()
         history_point = {
             "timestamp": current_time.isoformat(),
             "online_count": online_count,

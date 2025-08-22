@@ -1,5 +1,7 @@
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import TYPE_CHECKING
+
+from app.utils import utcnow
 
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlmodel import (
@@ -25,7 +27,7 @@ class RoomParticipatedUser(AsyncAttrs, SQLModel, table=True):
     user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), nullable=False))
     joined_at: datetime = Field(
         sa_column=Column(DateTime(timezone=True), nullable=False),
-        default=datetime.now(UTC),
+        default_factory=utcnow,
     )
     left_at: datetime | None = Field(sa_column=Column(DateTime(timezone=True), nullable=True), default=None)
 

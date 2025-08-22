@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 import secrets
 import string
 
@@ -12,6 +12,7 @@ from app.config import settings
 from app.database.email_verification import EmailVerification, LoginSession
 from app.log import logger
 from app.service.email_queue import email_queue  # 导入邮件队列
+from app.utils import utcnow
 
 from redis.asyncio import Redis
 from sqlmodel import col, select
@@ -200,7 +201,7 @@ This email was sent automatically, please do not reply.
             select(EmailVerification).where(
                 EmailVerification.user_id == user_id,
                 col(EmailVerification.is_used).is_(False),
-                EmailVerification.expires_at > datetime.now(UTC),
+                EmailVerification.expires_at > utcnow(),
             )
         )
         existing = existing_result.first()
@@ -217,7 +218,7 @@ This email was sent automatically, please do not reply.
             user_id=user_id,
             email=email,
             verification_code=code,
-            expires_at=datetime.now(UTC) + timedelta(minutes=10),  # 10分钟过期
+            expires_at=utcnow() + timedelta(minutes=10),  # 10分钟过期
             ip_address=ip_address,
             user_agent=user_agent,
         )
@@ -306,7 +307,7 @@ This email was sent automatically, please do not reply.
                     EmailVerification.user_id == user_id,
                     EmailVerification.verification_code == code,
                     col(EmailVerification.is_used).is_(False),
-                    EmailVerification.expires_at > datetime.now(UTC),
+                    EmailVerification.expires_at > utcnow(),
                 )
             )
 
@@ -316,7 +317,7 @@ This email was sent automatically, please do not reply.
 
             # 标记为已使用
             verification.is_used = True
-            verification.used_at = datetime.now(UTC)
+            verification.used_at = utcnow()
 
             # 同时更新对应的登录会话状态
             await LoginSessionService.mark_session_verified(db, user_id)
@@ -397,7 +398,7 @@ class LoginSessionService:
             user_agent=None,
             country_code=country_code,
             is_new_location=is_new_location,
-            expires_at=datetime.now(UTC) + timedelta(hours=24),  # 24小时过期
+            expires_at=utcnow() + timedelta(hours=24),  # 24小时过期
             is_verified=not is_new_location,  # 新位置需要验证
         )
 
@@ -446,7 +447,7 @@ class LoginSessionService:
             session = result.first()
             if session:
                 session.is_verified = True
-                session.verified_at = datetime.now(UTC)
+                session.verified_at = utcnow()
                 await db.commit()
 
             logger.info(f"[Login Session] User {user_id} session verification successful")
@@ -463,7 +464,7 @@ class LoginSessionService:
         """检查是否为新位置登录"""
         try:
             # 查看过去30天内是否有相同IP或相同国家的登录记录
-            thirty_days_ago = datetime.now(UTC) - timedelta(days=30)
+            thirty_days_ago = utcnow() - timedelta(days=30)
 
             result = await db.exec(
                 select(LoginSession).where(
@@ -492,7 +493,7 @@ class LoginSessionService:
                 select(LoginSession).where(
                     LoginSession.user_id == user_id,
                     col(LoginSession.is_verified).is_(False),
-                    LoginSession.expires_at > datetime.now(UTC),
+                    LoginSession.expires_at > utcnow(),
                 )
             )
 
@@ -501,7 +502,7 @@ class LoginSessionService:
             # 标记所有会话为已验证
             for session in sessions:
                 session.is_verified = True
-                session.verified_at = datetime.now(UTC)
+                session.verified_at = utcnow()
 
             if sessions:
                 logger.info(f"[Login Session] Marked {len(sessions)} session(s) as verified for user {user_id}")

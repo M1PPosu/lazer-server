@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Literal
 
 from app.database.pp_best_score import PPBestScore
@@ -8,6 +8,7 @@ from app.database.score import Score, get_leaderboard
 from app.dependencies.database import Database
 from app.models.mods import int_to_mods, mod_to_save, mods_to_int
 from app.models.score import GameMode, LeaderboardType
+from app.utils import utcnow
 
 from .router import AllStrModel, router
 
@@ -112,7 +113,7 @@ async def get_user_recent(
                 .where(
                     Score.user_id == user if type == "id" or user.isdigit() else col(Score.user).has(username=user),
                     Score.gamemode == GameMode.from_int_extra(ruleset_id),
-                    Score.ended_at > datetime.now(UTC) - timedelta(hours=24),
+                    Score.ended_at > utcnow() - timedelta(hours=24),
                 )
                 .order_by(col(Score.pp).desc())
                 .options(joinedload(Score.beatmap))

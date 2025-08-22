@@ -1,7 +1,8 @@
-from datetime import UTC, datetime
+from datetime import datetime
 from enum import Enum
 
 from app.models.model import UTCBaseModel
+from app.utils import utcnow
 
 from sqlmodel import BigInteger, Column, Field, ForeignKey, Integer, SQLModel
 
@@ -17,7 +18,7 @@ class UserAccountHistoryBase(SQLModel, UTCBaseModel):
     description: str | None = None
     length: int
     permanent: bool = False
-    timestamp: datetime = Field(default=datetime.now(UTC))
+    timestamp: datetime = Field(default_factory=utcnow)
     type: UserAccountHistoryType
 
 

@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import datetime
 
 from app.database.playlist_attempts import PlaylistAggregateScore
 from app.database.room_participated_user import RoomParticipatedUser
@@ -12,6 +12,7 @@ from app.models.room import (
     RoomPlaylistItemStats,
     RoomStatus,
 )
+from app.utils import utcnow
 
 from .lazer_user import User, UserResp
 from .playlists import Playlist, PlaylistResp
@@ -39,7 +40,7 @@ class RoomBase(SQLModel, UTCBaseModel):
         sa_column=Column(
             DateTime(timezone=True),
         ),
-        default=datetime.now(UTC),
+        default_factory=utcnow,
     )
     ends_at: datetime | None = Field(
         sa_column=Column(

@@ -5,13 +5,14 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 
 from app.config import settings
 from app.database.score import Score
 from app.dependencies.database import get_redis
 from app.log import logger
 from app.service.user_cache_service import get_user_cache_service
+from app.utils import utcnow
 
 from sqlmodel import col, func, select
 
@@ -34,7 +35,7 @@ async def schedule_user_cache_preload_task():
 
         async with with_db() as session:
             # 获取最近24小时内活跃的用户（提交过成绩的用户）
-            recent_time = datetime.now(UTC) - timedelta(hours=24)
+            recent_time = utcnow() - timedelta(hours=24)
 
             score_count = func.count().label("score_count")
             active_user_ids = (

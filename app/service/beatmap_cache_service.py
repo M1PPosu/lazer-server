@@ -6,11 +6,12 @@ Beatmap缓存预取服务
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from app.config import settings
 from app.log import logger
+from app.utils import utcnow
 
 from redis.asyncio import Redis
 from sqlmodel import col, func, select
@@ -40,7 +41,7 @@ class BeatmapCacheService:
             logger.info(f"Starting preload of top {limit} popular beatmaps")
 
             # 获取过去24小时内最热门的beatmap
-            recent_time = datetime.now(UTC) - timedelta(hours=24)
+            recent_time = utcnow() - timedelta(hours=24)
 
             from app.database.score import Score
 

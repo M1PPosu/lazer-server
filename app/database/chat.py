@@ -1,9 +1,10 @@
-from datetime import UTC, datetime
+from datetime import datetime
 from enum import Enum
 from typing import Self
 
 from app.database.lazer_user import RANKING_INCLUDES, User, UserResp
 from app.models.model import UTCBaseModel
+from app.utils import utcnow
 
 from pydantic import BaseModel
 from redis.asyncio import Redis
@@ -170,7 +171,7 @@ class ChatMessageBase(UTCBaseModel, SQLModel):
     content: str = Field(sa_column=Column(VARCHAR(1000)))
     message_id: int = Field(index=True, primary_key=True, default=None)
     sender_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True))
-    timestamp: datetime = Field(sa_column=Column(DateTime, index=True), default=datetime.now(UTC))
+    timestamp: datetime = Field(sa_column=Column(DateTime, index=True), default_factory=utcnow)
     type: MessageType = Field(default=MessageType.PLAIN, index=True, exclude=True)
     uuid: str | None = Field(default=None)
 
@@ -208,7 +209,7 @@ class SilenceUser(UTCBaseModel, SQLModel, table=True):
     channel_id: int = Field(foreign_key="chat_channels.channel_id", index=True)
     until: datetime | None = Field(sa_column=Column(DateTime, index=True), default=None)
     reason: str | None = Field(default=None, sa_column=Column(VARCHAR(255), index=True))
-    banned_at: datetime = Field(sa_column=Column(DateTime, index=True), default=datetime.now(UTC))
+    banned_at: datetime = Field(sa_column=Column(DateTime, index=True), default_factory=utcnow)
 
 
 class UserSilenceResp(SQLModel):

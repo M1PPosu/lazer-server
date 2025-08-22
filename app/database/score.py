@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 import json
 import math
 import sys
@@ -31,6 +31,7 @@ from app.models.score import (
     ScoreStatistics,
     SoloScoreSubmissionInfo,
 )
+from app.utils import utcnow
 
 from .beatmap import Beatmap, BeatmapResp
 from .beatmap_playcounts import process_beatmap_playcount
@@ -733,7 +734,7 @@ async def process_user(
                 if i < score_range and displaced_position > score_range and displaced_position is not None:
                     # Create rank lost event for the displaced user
                     rank_lost_event = Event(
-                        created_at=datetime.now(UTC),
+                        created_at=utcnow(),
                         type=EventType.RANK_LOST,
                         user_id=displaced_score.user_id,
                     )
@@ -843,7 +844,7 @@ async def process_score(
         total_score=info.total_score,
         total_score_without_mods=info.total_score_without_mods,
         beatmap_id=beatmap_id,
-        ended_at=datetime.now(UTC),
+        ended_at=utcnow(),
         gamemode=gamemode,
         started_at=score_token.created_at,
         user_id=user.id,

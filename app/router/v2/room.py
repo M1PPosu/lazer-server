@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC
 from typing import Literal
 
 from app.database.beatmap import Beatmap, BeatmapResp
@@ -17,6 +17,7 @@ from app.dependencies.user import get_client_user, get_current_user
 from app.models.room import RoomCategory, RoomStatus
 from app.service.room import create_playlist_room_from_api
 from app.signalr.hub import MultiplayerHubs
+from app.utils import utcnow
 
 from .router import router
 
@@ -50,7 +51,7 @@ async def get_all_rooms(
 ):
     resp_list: list[RoomResp] = []
     where_clauses: list[ColumnElement[bool]] = [col(Room.category) == category]
-    now = datetime.now(UTC)
+    now = utcnow()
     if status is not None:
         where_clauses.append(col(Room.status) == status)
     if mode == "open":
@@ -112,12 +113,12 @@ async def _participate_room(room_id: int, user_id: int, db_room: Room, session: 
         participated_user = RoomParticipatedUser(
             room_id=room_id,
             user_id=user_id,
-            joined_at=datetime.now(UTC),
+            joined_at=utcnow(),
         )
         session.add(participated_user)
     else:
         participated_user.left_at = None
-        participated_user.joined_at = datetime.now(UTC)
+        participated_user.joined_at = utcnow()
     db_room.participant_count += 1
 
     await redis.publish("chat:room:joined", f"{db_room.channel_id}:{user_id}")
@@ -185,7 +186,7 @@ async def delete_room(
     if db_room is None:
         raise HTTPException(404, "Room not found")
     else:
-        db_room.ends_at = datetime.now(UTC)
+        db_room.ends_at = utcnow()
         await db.commit()
         return None
 
@@ -238,7 +239,7 @@ async def remove_user_from_room(
             )
         ).first()
         if participated_user is not None:
-            participated_user.left_at = datetime.now(UTC)
+            participated_user.left_at = utcnow()
         if db_room.participant_count > 0:
             db_room.participant_count -= 1
         await redis.publish("chat:room:left", f"{db_room.channel_id}:{user_id}")

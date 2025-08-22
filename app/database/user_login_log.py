@@ -4,6 +4,8 @@ User Login Log Database Model
 
 from datetime import datetime
 
+from app.utils import utcnow
+
 from sqlmodel import Field, SQLModel
 
 
@@ -16,7 +18,7 @@ class UserLoginLog(SQLModel, table=True):
     user_id: int = Field(index=True, description="User ID")
     ip_address: str = Field(max_length=45, index=True, description="IP address (supports IPv4 and IPv6)")
     user_agent: str | None = Field(default=None, max_length=500, description="User agent information")
-    login_time: datetime = Field(default_factory=datetime.utcnow, description="Login time")
+    login_time: datetime = Field(default_factory=utcnow, description="Login time")
 
     # GeoIP information
     country_code: str | None = Field(default=None, max_length=2, description="Country code")

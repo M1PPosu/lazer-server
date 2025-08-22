@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from typing import Literal
 
 from app.config import settings
@@ -22,6 +22,7 @@ from app.log import logger
 from app.models.score import GameMode
 from app.models.user import BeatmapsetType
 from app.service.user_cache_service import get_user_cache_service
+from app.utils import utcnow
 
 from .router import router
 
@@ -338,7 +339,7 @@ async def get_user_scores(
         where_clause &= exists().where(col(PPBestScore.score_id) == Score.id)
         order_by = col(Score.pp).desc()
     elif type == "recent":
-        where_clause &= Score.ended_at > datetime.now(UTC) - timedelta(hours=24)
+        where_clause &= Score.ended_at > utcnow() - timedelta(hours=24)
         order_by = col(Score.ended_at).desc()
     elif type == "firsts":
         # TODO

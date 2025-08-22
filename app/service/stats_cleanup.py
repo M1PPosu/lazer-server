@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from app.dependencies.database import get_redis, get_redis_message
 from app.log import logger
@@ -9,6 +9,7 @@ from app.router.private.stats import (
     REDIS_PLAYING_USERS_KEY,
     _redis_exec,
 )
+from app.utils import utcnow
 
 
 async def cleanup_stale_online_users() -> tuple[int, int]:
@@ -25,7 +26,7 @@ async def cleanup_stale_online_users() -> tuple[int, int]:
         playing_users = await _redis_exec(redis_sync.smembers, REDIS_PLAYING_USERS_KEY)
 
         # 检查在线用户的最后活动时间
-        current_time = datetime.utcnow()
+        current_time = utcnow()
         stale_threshold = current_time - timedelta(hours=2)  # 2小时无活动视为过期  # noqa: F841
 
         # 对于在线用户，我们检查metadata在线标记

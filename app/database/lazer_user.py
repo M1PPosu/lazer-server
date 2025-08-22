@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 import json
 from typing import TYPE_CHECKING, NotRequired, TypedDict
 
@@ -6,6 +6,7 @@ from app.models.model import UTCBaseModel
 from app.models.score import GameMode
 from app.models.user import Country, Page
 from app.path import STATIC_DIR
+from app.utils import utcnow
 
 from .achievement import UserAchievement, UserAchievementResp
 from .beatmap_playcounts import BeatmapPlaycounts
@@ -75,7 +76,7 @@ class UserBase(UTCBaseModel, SQLModel):
     is_active: bool = True
     is_bot: bool = False
     is_supporter: bool = False
-    last_visit: datetime | None = Field(default=datetime.now(UTC), sa_column=Column(DateTime(timezone=True)))
+    last_visit: datetime | None = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True)))
     pm_friends_only: bool = False
     profile_colour: str | None = None
     username: str = Field(max_length=32, unique=True, index=True)
@@ -99,7 +100,7 @@ class UserBase(UTCBaseModel, SQLModel):
     discord: str | None = None
     has_supported: bool = False
     interests: str | None = None
-    join_date: datetime = Field(default=datetime.now(UTC))
+    join_date: datetime = Field(default_factory=utcnow)
     location: str | None = None
     max_blocks: int = 50
     max_friends: int = 500
@@ -408,7 +409,7 @@ class UserResp(UserBase):
                     Score.user_id == obj.id,
                     Score.gamemode == ruleset,
                     col(Score.passed).is_(True),
-                    Score.ended_at > datetime.now(UTC) - timedelta(hours=24),
+                    Score.ended_at > utcnow() - timedelta(hours=24),
                 )
             )
         ).one()
@@ -437,7 +438,7 @@ class UserResp(UserBase):
                     select(LoginSession).where(
                         LoginSession.user_id == obj.id,
                         col(LoginSession.is_verified).is_(False),
-                        LoginSession.expires_at > datetime.now(UTC),
+                        LoginSession.expires_at > utcnow(),
                     )
                 )
             ).first()

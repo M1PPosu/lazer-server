@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
-
 from app.config import settings
 from app.database.lazer_user import User
 from app.database.notification import Notification, UserNotification
@@ -9,6 +7,7 @@ from app.dependencies.database import Database
 from app.dependencies.user import get_client_user
 from app.models.chat import ChatEvent
 from app.router.v2 import api_v2_router as router
+from app.utils import utcnow
 
 from . import channel, message  # noqa: F401
 from .server import (
@@ -135,7 +134,7 @@ async def mark_notifications_as_read(
             data={
                 "notifications": [i.model_dump() for i in identities],
                 "read_count": len(user_notifications),
-                "timestamp": datetime.now(UTC).isoformat(),
+                "timestamp": utcnow().isoformat(),
             },
         ),
     )

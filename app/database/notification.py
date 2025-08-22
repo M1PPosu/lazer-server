@@ -1,7 +1,8 @@
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 
 from app.models.notification import NotificationDetail, NotificationName
+from app.utils import utcnow
 
 from sqlmodel import (
     JSON,
@@ -54,7 +55,7 @@ async def insert_notification(session: AsyncSession, detail: NotificationDetail)
         object_id=detail.object_id,
         source_user_id=detail.source_user_id,
         details=detail.model_dump(),
-        created_at=datetime.now(UTC),
+        created_at=utcnow(),
     )
     session.add(notification)
     await session.commit()

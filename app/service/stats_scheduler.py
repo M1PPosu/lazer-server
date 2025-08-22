@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from app.log import logger
 from app.router.private.stats import record_hourly_stats, update_registered_users_count
@@ -10,6 +10,7 @@ from app.service.stats_cleanup import (
     cleanup_stale_online_users,
     refresh_redis_key_expiry,
 )
+from app.utils import utcnow
 
 
 class StatsScheduler:
@@ -60,7 +61,7 @@ class StatsScheduler:
         while self._running:
             try:
                 # 计算下次区间结束时间
-                now = datetime.utcnow()
+                now = utcnow()
 
                 # 计算当前区间的结束时间
                 current_minute = (now.minute // 30) * 30
@@ -93,15 +94,11 @@ class StatsScheduler:
                 # 完成当前区间并记录到历史
                 finalized_stats = await EnhancedIntervalStatsManager.finalize_interval()
                 if finalized_stats:
-                    logger.info(
-                        f"Finalized enhanced interval statistics at {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
-                    )
+                    logger.info(f"Finalized enhanced interval statistics at {utcnow().strftime('%Y-%m-%d %H:%M:%S')}")
                 else:
                     # 如果区间完成失败，使用原有方式记录
                     await record_hourly_stats()
-                    logger.info(
-                        f"Recorded hourly statistics (fallback) at {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
-                    )
+                    logger.info(f"Recorded hourly statistics (fallback) at {utcnow().strftime('%Y-%m-%d %H:%M:%S')}")
 
                 # 开始新的区间统计
                 await EnhancedIntervalStatsManager.initialize_current_interval()

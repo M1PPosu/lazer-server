@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from datetime import datetime
 from pathlib import Path
 
 from app.config import settings
@@ -38,7 +37,7 @@ from app.service.online_status_maintenance import schedule_online_status_mainten
 from app.service.osu_rx_statistics import create_rx_statistics
 from app.service.redis_message_system import redis_message_system
 from app.service.stats_scheduler import start_stats_scheduler, stop_stats_scheduler
-from app.utils import bg_tasks
+from app.utils import bg_tasks, utcnow
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -157,7 +156,7 @@ async def root():
 @app.get("/health", include_in_schema=False)
 async def health_check():
     """健康检查端点"""
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "ok", "timestamp": utcnow().isoformat()}
 
 
 @app.exception_handler(RequestValidationError)

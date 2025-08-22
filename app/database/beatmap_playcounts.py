@@ -1,7 +1,7 @@
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from app.database.events import Event, EventType
+from app.utils import utcnow
 
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncAttrs
@@ -71,7 +71,7 @@ async def process_beatmap_playcount(session: AsyncSession, user_id: int, beatmap
         existing_playcount.playcount += 1
         if existing_playcount.playcount % 100 == 0:
             playcount_event = Event(
-                created_at=datetime.now(UTC),
+                created_at=utcnow(),
                 type=EventType.BEATMAP_PLAYCOUNT,
                 user_id=user_id,
             )

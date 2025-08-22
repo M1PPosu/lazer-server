@@ -3,6 +3,7 @@ import secrets
 from typing import TYPE_CHECKING
 
 from app.models.model import UTCBaseModel
+from app.utils import utcnow
 
 from sqlalchemy import Column, DateTime
 from sqlmodel import (
@@ -30,7 +31,7 @@ class OAuthToken(UTCBaseModel, SQLModel, table=True):
     token_type: str = Field(default="Bearer", max_length=20)
     scope: str = Field(default="*", max_length=100)
     expires_at: datetime = Field(sa_column=Column(DateTime))
-    created_at: datetime = Field(default_factory=datetime.utcnow, sa_column=Column(DateTime))
+    created_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime))
 
     user: "User" = Relationship()
 

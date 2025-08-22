@@ -5,11 +5,11 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
 
 from app.database.user_login_log import UserLoginLog
 from app.dependencies.geoip import get_client_ip, get_geoip_helper, normalize_ip
 from app.log import logger
+from app.utils import utcnow
 
 from fastapi import Request
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -56,7 +56,7 @@ class LoginLogService:
             user_id=user_id,
             ip_address=ip_address,
             user_agent=user_agent,
-            login_time=datetime.utcnow(),
+            login_time=utcnow(),
             login_success=login_success,
             login_method=login_method,
             notes=notes,

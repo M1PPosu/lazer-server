@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime
 import json
 import secrets
 import string
@@ -15,6 +15,7 @@ from app.dependencies.database import with_db
 from app.log import logger
 from app.service.email_queue import email_queue  # 导入邮件队列
 from app.service.email_service import EmailService
+from app.utils import utcnow
 
 from redis.asyncio import Redis
 from sqlmodel import select
@@ -88,7 +89,7 @@ class PasswordResetService:
                 "user_id": user.id,
                 "email": email,
                 "reset_code": reset_code,
-                "created_at": datetime.now(UTC).isoformat(),
+                "created_at": utcnow().isoformat(),
                 "ip_address": ip_address,
                 "user_agent": user_agent,
                 "used": False,
@@ -346,7 +347,7 @@ class PasswordResetService:
             try:
                 # 先标记验证码为已使用（在数据库操作之前）
                 reset_data["used"] = True
-                reset_data["used_at"] = datetime.now(UTC).isoformat()
+                reset_data["used_at"] = utcnow().isoformat()
 
                 # 保存用户ID用于日志记录
                 user_id = user.id
@@ -391,7 +392,7 @@ class PasswordResetService:
 
                     # 计算剩余的TTL时间
                     created_at = datetime.fromisoformat(reset_data.get("created_at", ""))
-                    elapsed = (datetime.now(UTC) - created_at).total_seconds()
+                    elapsed = (utcnow() - created_at).total_seconds()
                     remaining_ttl = max(0, 600 - int(elapsed))  # 600秒总过期时间
 
                     if remaining_ttl > 0:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, timedelta
 import json
 from math import ceil
 
@@ -17,7 +17,7 @@ from app.log import logger
 from app.models.metadata_hub import DailyChallengeInfo
 from app.models.mods import APIMod, get_available_mods
 from app.models.room import RoomCategory
-from app.utils import are_same_weeks
+from app.utils import are_same_weeks, utcnow
 
 from .room import create_playlist_room
 
@@ -32,7 +32,7 @@ async def create_daily_challenge_room(
     allowed_mods: list[APIMod] = [],
 ) -> Room:
     async with with_db() as session:
-        today = datetime.now(UTC).date()
+        today = utcnow().date()
         return await create_playlist_room(
             session=session,
             name=str(today),
@@ -57,7 +57,7 @@ async def create_daily_challenge_room(
 async def daily_challenge_job():
     from app.signalr.hub import MetadataHubs
 
-    now = datetime.now(UTC)
+    now = utcnow()
     redis = get_redis()
     key = f"daily_challenge:{now.date()}"
     if not await redis.exists(key):
@@ -67,7 +67,7 @@ async def daily_challenge_job():
             await session.exec(
                 select(Room).where(
                     Room.category == RoomCategory.DAILY_CHALLENGE,
-                    col(Room.ends_at) > datetime.now(UTC),
+                    col(Room.ends_at) > utcnow(),
                 )
             )
         ).first()
@@ -87,7 +87,7 @@ async def daily_challenge_job():
             get_scheduler().add_job(
                 daily_challenge_job,
                 "date",
-                run_date=datetime.now(UTC) + timedelta(minutes=5),
+                run_date=utcnow() + timedelta(minutes=5),
             )
             return
 
@@ -121,14 +121,14 @@ async def daily_challenge_job():
     get_scheduler().add_job(
         daily_challenge_job,
         "date",
-        run_date=datetime.now(UTC) + timedelta(minutes=5),
+        run_date=utcnow() + timedelta(minutes=5),
     )
 
 
 @get_scheduler().scheduled_job("cron", hour=0, minute=1, second=0, id="daily_challenge_last_top")
 async def process_daily_challenge_top():
     async with with_db() as session:
-        now = datetime.now(UTC)
+        now = utcnow()
         room = (
             await session.exec(
                 select(Room).where(

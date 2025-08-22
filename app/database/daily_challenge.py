@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from app.models.model import UTCBaseModel
-from app.utils import are_adjacent_weeks
+from app.utils import are_adjacent_weeks, utcnow
 
 from sqlmodel import (
     BigInteger,
@@ -79,7 +79,7 @@ async def process_daily_challenge_score(session: AsyncSession, user_id: int, roo
         session.add(stats)
 
     stats.playcount += 1
-    now = datetime.now(UTC)
+    now = utcnow()
     if stats.last_update is None:
         stats.daily_streak_best = 1
         stats.daily_streak_current = 1

@@ -1,19 +1,20 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 
 from app.database import RankHistory, UserStatistics
 from app.database.rank_history import RankTop
 from app.dependencies.database import with_db
 from app.dependencies.scheduler import get_scheduler
 from app.models.score import GameMode
+from app.utils import utcnow
 
 from sqlmodel import col, exists, select, update
 
 
 @get_scheduler().scheduled_job("cron", hour=0, minute=0, second=0, id="calculate_user_rank")
 async def calculate_user_rank(is_today: bool = False):
-    today = datetime.now(UTC).date()
+    today = utcnow().date()
     target_date = today if is_today else today - timedelta(days=1)
     async with with_db() as session:
         for gamemode in GameMode:

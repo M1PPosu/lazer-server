@@ -3,6 +3,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 
 from app.models.model import UTCBaseModel
+from app.utils import utcnow
 
 from pydantic import model_serializer
 from sqlmodel import (
@@ -40,7 +41,7 @@ class EventType(str, Enum):
 class Event(UTCBaseModel, SQLModel, table=True):
     __tablename__: str = "user_events"
     id: int = Field(default=None, primary_key=True)
-    created_at: datetime = Field(sa_column=Column(DateTime(timezone=True), default=datetime.now(UTC)))
+    created_at: datetime = Field(sa_column=Column(DateTime(timezone=True), default_factory=utcnow))
     type: EventType
     event_payload: dict = Field(exclude=True, default_factory=dict, sa_column=Column(JSON))
     user_id: int | None = Field(

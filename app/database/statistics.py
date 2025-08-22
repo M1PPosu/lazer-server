@@ -1,8 +1,9 @@
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 import math
 from typing import TYPE_CHECKING
 
 from app.models.score import GameMode
+from app.utils import utcnow
 
 from .rank_history import RankHistory
 
@@ -134,7 +135,7 @@ class UserStatisticsResp(UserStatisticsBase):
             rank_best = (
                 await session.exec(
                     select(func.max(RankHistory.rank)).where(
-                        RankHistory.date > datetime.now(UTC) - timedelta(days=30),
+                        RankHistory.date > utcnow() - timedelta(days=30),
                         RankHistory.user_id == obj.user_id,
                     )
                 )
@@ -171,7 +172,7 @@ async def get_rank(session: AsyncSession, statistics: UserStatistics, country: s
         return None
 
     if country is None:
-        today = datetime.now(UTC).date()
+        today = utcnow().date()
         rank_history = (
             await session.exec(
                 select(RankHistory).where(

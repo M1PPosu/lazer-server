@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 import re
 from typing import Literal
 
@@ -36,6 +36,7 @@ from app.service.email_verification_service import (
 )
 from app.service.login_log_service import LoginLogService
 from app.service.password_reset_service import password_reset_service
+from app.utils import utcnow
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import JSONResponse
@@ -156,8 +157,8 @@ async def register_user(
             pw_bcrypt=get_password_hash(user_password),
             priv=1,  # 普通用户权限
             country_code=country_code,  # 根据 IP 地理位置设置国家
-            join_date=datetime.now(UTC),
-            last_visit=datetime.now(UTC),
+            join_date=utcnow(),
+            last_visit=utcnow(),
             is_supporter=settings.enable_supporter_for_all_users,
             support_level=int(settings.enable_supporter_for_all_users),
         )

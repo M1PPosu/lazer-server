@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
-
 from app.auth import validate_username
 from app.config import settings
 from app.database.events import Event, EventType
 from app.database.lazer_user import User
 from app.dependencies.database import Database
 from app.dependencies.user import get_client_user
+from app.utils import utcnow
 
 from .router import router
 
@@ -47,7 +46,7 @@ async def user_rename(
     current_user.username = new_name
     current_user.previous_usernames = previous_username
     rename_event = Event(
-        created_at=datetime.now(UTC),
+        created_at=utcnow(),
         type=EventType.USERNAME_CHANGE,
         user_id=current_user.id,
         user=current_user,

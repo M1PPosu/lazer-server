@@ -16,6 +16,7 @@ from app.router.private.stats import (
     _get_playing_users_count,
     _redis_exec,
 )
+from app.utils import utcnow
 
 # Redis keys for interval statistics
 INTERVAL_STATS_BASE_KEY = "server:interval_stats"
@@ -34,7 +35,7 @@ class IntervalInfo:
 
     def is_current(self) -> bool:
         """检查是否是当前区间"""
-        now = datetime.utcnow()
+        now = utcnow()
         return self.start_time <= now < self.end_time
 
     def to_dict(self) -> dict:
@@ -101,7 +102,7 @@ class EnhancedIntervalStatsManager:
     @staticmethod
     def get_current_interval_boundaries() -> tuple[datetime, datetime]:
         """获取当前30分钟区间的边界"""
-        now = datetime.utcnow()
+        now = utcnow()
         # 计算区间开始时间（向下取整到最近的30分钟）
         minute = (now.minute // 30) * 30
         start_time = now.replace(minute=minute, second=0, microsecond=0)
@@ -157,7 +158,7 @@ class EnhancedIntervalStatsManager:
                 peak_online_count=0,
                 peak_playing_count=0,
                 total_samples=0,
-                created_at=datetime.utcnow(),
+                created_at=utcnow(),
             )
 
             await _redis_exec(
@@ -195,7 +196,7 @@ class EnhancedIntervalStatsManager:
                 needed_points = 48 - history_length
 
                 # 从当前时间往前推，创建缺失的时间点（都填充为0）
-                current_time = datetime.utcnow()  # noqa: F841
+                current_time = utcnow()  # noqa: F841
                 current_interval_start, _ = EnhancedIntervalStatsManager.get_current_interval_boundaries()
 
                 # 从当前区间开始往前推，创建历史数据点（确保时间对齐到30分钟边界）
@@ -323,7 +324,7 @@ class EnhancedIntervalStatsManager:
                     peak_online_count=current_online,
                     peak_playing_count=current_playing,
                     total_samples=1,
-                    created_at=datetime.utcnow(),
+                    created_at=utcnow(),
                 )
 
             # 更新独特用户数
@@ -431,7 +432,7 @@ class EnhancedIntervalStatsManager:
 
         try:
             # 删除过期的区间统计数据（超过2小时的）
-            cutoff_time = datetime.utcnow() - timedelta(hours=2)
+            cutoff_time = utcnow() - timedelta(hours=2)
             pattern = f"{INTERVAL_STATS_BASE_KEY}:*"
 
             keys = await redis_async.keys(pattern)

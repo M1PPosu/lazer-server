@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 
 from app.database.beatmap import Beatmap
 from app.database.chat import ChannelType, ChatChannel
@@ -8,6 +8,7 @@ from app.database.playlists import Playlist
 from app.database.room import APIUploadedRoom, Room
 from app.dependencies.fetcher import get_fetcher
 from app.models.room import MatchType, QueueMode, RoomCategory, RoomStatus
+from app.utils import utcnow
 
 from sqlalchemy import exists
 from sqlmodel import col, select
@@ -17,7 +18,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 async def create_playlist_room_from_api(session: AsyncSession, room: APIUploadedRoom, host_id: int) -> Room:
     db_room = room.to_room()
     db_room.host_id = host_id
-    db_room.starts_at = datetime.now(UTC)
+    db_room.starts_at = utcnow()
     db_room.ends_at = db_room.starts_at + timedelta(minutes=db_room.duration if db_room.duration is not None else 0)
     session.add(db_room)
     await session.commit()
@@ -52,8 +53,8 @@ async def create_playlist_room(
         name=name,
         category=category,
         duration=duration,
-        starts_at=datetime.now(UTC),
-        ends_at=datetime.now(UTC) + timedelta(minutes=duration),
+        starts_at=utcnow(),
+        ends_at=utcnow() + timedelta(minutes=duration),
         participant_count=0,
         max_attempts=max_attempts,
         type=MatchType.PLAYLISTS,

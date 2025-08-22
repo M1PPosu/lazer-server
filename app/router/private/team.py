@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 import hashlib
 
 from app.database.lazer_user import BASE_INCLUDES, User, UserResp
@@ -15,7 +14,7 @@ from app.models.notification import (
 )
 from app.router.notification import server
 from app.storage.base import StorageService
-from app.utils import check_image
+from app.utils import check_image, utcnow
 
 from .router import router
 
@@ -53,7 +52,7 @@ async def create_team(
     check_image(flag, 2 * 1024 * 1024, 240, 120)
     check_image(cover, 10 * 1024 * 1024, 3000, 2000)
 
-    now = datetime.now(UTC)
+    now = utcnow()
     team = Team(name=name, short_name=short_name, leader_id=user_id, created_at=now)
     session.add(team)
     await session.commit()
@@ -196,7 +195,7 @@ async def request_join_team(
         )
     ).first():
         raise HTTPException(status_code=409, detail="Join request already exists")
-    team_request = TeamRequest(user_id=current_user.id, team_id=team_id, requested_at=datetime.now(UTC))
+    team_request = TeamRequest(user_id=current_user.id, team_id=team_id, requested_at=utcnow())
     session.add(team_request)
     await session.commit()
     await session.refresh(team_request)
@@ -233,7 +232,7 @@ async def handle_request(
         if (await session.exec(select(exists()).where(TeamMember.user_id == user_id))).first():
             raise HTTPException(status_code=409, detail="User is already a member of the team")
 
-        session.add(TeamMember(user_id=user_id, team_id=team_id, joined_at=datetime.now(UTC)))
+        session.add(TeamMember(user_id=user_id, team_id=team_id, joined_at=utcnow()))
 
         await server.new_private_notification(TeamApplicationAccept.init(team_request))
     else:
