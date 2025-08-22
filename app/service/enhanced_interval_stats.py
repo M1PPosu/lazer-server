@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 import json
 
 from app.dependencies.database import get_redis, get_redis_message
@@ -387,9 +387,7 @@ class EnhancedIntervalStatsManager:
 
             # 添加到历史记录
             await _redis_exec(redis_sync.lpush, REDIS_ONLINE_HISTORY_KEY, json.dumps(history_point))
-            # 只保留48个数据点（24小时，每30分钟一个点）
             await _redis_exec(redis_sync.ltrim, REDIS_ONLINE_HISTORY_KEY, 0, 47)
-            # 设置过期时间为26小时，确保有足够缓冲
             await redis_async.expire(REDIS_ONLINE_HISTORY_KEY, 26 * 3600)
 
             logger.info(
@@ -444,7 +442,8 @@ class EnhancedIntervalStatsManager:
                     else:
                         key_str = key
                     time_part = key_str.split(":")[-1]  # YYYYMMDD_HHMM格式
-                    key_time = datetime.strptime(time_part, "%Y%m%d_%H%M")
+                    # 将时区无关的datetime转换为UTC时区感知的datetime进行比较
+                    key_time = datetime.strptime(time_part, "%Y%m%d_%H%M").replace(tzinfo=UTC)
 
                     if key_time < cutoff_time:
                         await redis_async.delete(key)

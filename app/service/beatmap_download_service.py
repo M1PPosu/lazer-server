@@ -141,8 +141,8 @@ class BeatmapDownloadService:
                 # 根据不同端点类型判断健康状态
                 is_healthy = False
                 if endpoint.name == "Sayobot":
-                    # Sayobot 端点返回 304 (Not Modified) 表示正常
-                    is_healthy = response.status_code in [200, 304]
+                    # Sayobot 端点返回 200, 302 (Redirect), 304 (Not Modified) 表示正常
+                    is_healthy = response.status_code in [200, 302, 304]
                 else:
                     # 其他端点返回 200 表示正常
                     is_healthy = response.status_code == 200
