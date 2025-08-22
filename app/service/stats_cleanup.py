@@ -48,17 +48,19 @@ async def cleanup_stale_online_users() -> tuple[int, int]:
             online_cleaned = len(stale_online_users)
             logger.info(f"Cleaned {online_cleaned} stale online users")
 
-        # 对于游玩用户，我们也检查对应的spectator状态
+        # 对于游玩用户，我们使用更保守的清理策略
+        # 只有当用户明确不在任何hub连接中时才移除
         stale_playing_users = []
         for user_id in playing_users:
             user_id_str = (
                 user_id.decode() if isinstance(user_id, bytes) else str(user_id)
             )
-
-            # 如果用户不在在线用户列表中，说明已经离线，也应该从游玩列表中移除
-            if user_id_str in stale_online_users or user_id_str not in [
-                u.decode() if isinstance(u, bytes) else str(u) for u in online_users
-            ]:
+            metadata_key = f"metadata:online:{user_id_str}"
+            
+            # 只有当metadata在线标记完全不存在且用户也不在在线列表中时，
+            # 才认为用户真正离线
+            if (not await redis_async.exists(metadata_key) and 
+                user_id_str not in [u.decode() if isinstance(u, bytes) else str(u) for u in online_users]):
                 stale_playing_users.append(user_id_str)
 
         # 清理过期的游玩用户

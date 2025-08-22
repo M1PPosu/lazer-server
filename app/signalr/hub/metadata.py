@@ -14,6 +14,7 @@ from app.database.playlists import Playlist
 from app.database.room import Room
 from app.database.score import Score
 from app.dependencies.database import get_redis, with_db
+from app.log import logger
 from app.models.metadata_hub import (
     TOTAL_SCORE_DISTRIBUTION_BINS,
     DailyChallengeInfo,
@@ -93,16 +94,13 @@ class MetadataHub(Hub[MetadataClientState]):
     async def _clean_state(self, state: MetadataClientState) -> None:
         user_id = int(state.connection_id)
 
-        # Remove from online user tracking
-        from app.router.v2.stats import remove_online_user
-
-        asyncio.create_task(remove_online_user(user_id))
+        # Use centralized offline status management
+        from app.service.online_status_manager import online_status_manager
+        await online_status_manager.set_user_offline(user_id)
 
         if state.pushable:
             await asyncio.gather(*self.broadcast_tasks(user_id, None))
-        redis = get_redis()
-        if await redis.exists(f"metadata:online:{state.connection_id}"):
-            await redis.delete(f"metadata:online:{state.connection_id}")
+        
         async with with_db() as session:
             async with session.begin():
                 user = (
@@ -122,12 +120,16 @@ class MetadataHub(Hub[MetadataClientState]):
 
     async def on_client_connect(self, client: Client) -> None:
         user_id = int(client.connection_id)
-        self.get_or_create_state(client)
+        store = self.get_or_create_state(client)
 
-        # Track online user
-        from app.router.v2.stats import add_online_user
+        # Use centralized online status management
+        from app.service.online_status_manager import online_status_manager
+        await online_status_manager.set_user_online(user_id, "metadata")
 
-        asyncio.create_task(add_online_user(user_id))
+        # CRITICAL FIX: Set online status IMMEDIATELY upon connection
+        # This matches the C# official implementation behavior
+        store.status = OnlineStatus.ONLINE
+        logger.info(f"[MetadataHub] Set user {user_id} status to ONLINE upon connection")
 
         async with with_db() as session:
             async with session.begin():
@@ -175,8 +177,23 @@ class MetadataHub(Hub[MetadataClientState]):
                             room_id=daily_challenge_room.id,
                         ),
                     )
-        redis = get_redis()
-        await redis.set(f"metadata:online:{user_id}", "")
+        
+        # CRITICAL FIX: Immediately broadcast the user's online status to all watchers
+        # This ensures the user appears as "currently online" right after connection
+        # Similar to the C# implementation's immediate broadcast logic
+        online_presence_tasks = self.broadcast_tasks(user_id, store)
+        if online_presence_tasks:
+            await asyncio.gather(*online_presence_tasks)
+            logger.info(f"[MetadataHub] Broadcasted online status for user {user_id} to watchers")
+        
+        # Also send the user's own presence update to confirm online status
+        await self.call_noblock(
+            client,
+            "UserPresenceUpdated",
+            user_id,
+            store.for_push,
+        )
+        logger.info(f"[MetadataHub] User {user_id} is now ONLINE and visible to other clients")
 
     async def UpdateStatus(self, client: Client, status: int) -> None:
         status_ = OnlineStatus(status)
@@ -214,19 +231,22 @@ class MetadataHub(Hub[MetadataClientState]):
         await asyncio.gather(*tasks)
 
     async def BeginWatchingUserPresence(self, client: Client) -> None:
+        # Critical fix: Send all currently online users to the new watcher
+        # Must use for_push to get the correct UserPresence format
         await asyncio.gather(
             *[
                 self.call_noblock(
                     client,
                     "UserPresenceUpdated",
                     user_id,
-                    store,
+                    store.for_push,  # Fixed: use for_push instead of store
                 )
                 for user_id, store in self.state.items()
                 if store.pushable
             ]
         )
         self.add_to_group(client, self.online_presence_watchers_group())
+        logger.info(f"[MetadataHub] Client {client.connection_id} now watching user presence, sent {len([s for s in self.state.values() if s.pushable])} online users")
 
     async def EndWatchingUserPresence(self, client: Client) -> None:
         self.remove_from_group(client, self.online_presence_watchers_group())

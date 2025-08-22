@@ -171,10 +171,9 @@ class SpectatorHub(Hub[StoreClientState]):
         """
         user_id = int(state.connection_id)
 
-        # Remove from online and playing tracking
-        from app.router.v2.stats import remove_online_user
-
-        asyncio.create_task(remove_online_user(user_id))
+        # Use centralized offline status management
+        from app.service.online_status_manager import online_status_manager
+        await online_status_manager.set_user_offline(user_id)
 
         if state.state:
             await self._end_session(user_id, state.state, state)
@@ -197,10 +196,9 @@ class SpectatorHub(Hub[StoreClientState]):
         """
         logger.info(f"[SpectatorHub] Client {client.user_id} connected")
 
-        # Track online user
-        from app.router.v2.stats import add_online_user
-
-        asyncio.create_task(add_online_user(client.user_id))
+        # Use centralized online status management
+        from app.service.online_status_manager import online_status_manager
+        await online_status_manager.set_user_online(client.user_id, "spectator")
 
         # Send all current player states to the new client
         # This matches the official OnConnectedAsync behavior
@@ -269,7 +267,7 @@ class SpectatorHub(Hub[StoreClientState]):
                     
                     # Critical addition: Notify about finished players in multiplayer games
                     elif (
-                        room_user.state == MultiplayerUserState.RESULTS
+                        hasattr(room_user.state, 'name') and room_user.state.name == 'RESULTS'
                         and room_user.user_id not in self.state
                     ):
                         try:
@@ -340,10 +338,15 @@ class SpectatorHub(Hub[StoreClientState]):
                 )
         logger.info(f"[SpectatorHub] {client.user_id} began playing {state.beatmap_id}")
 
-        # Track playing user
+        # Track playing user and maintain online status
         from app.router.v2.stats import add_playing_user
+        from app.service.online_status_manager import online_status_manager
 
         asyncio.create_task(add_playing_user(user_id))
+        
+        # Critical fix: Maintain metadata online presence during gameplay
+        # This ensures the user appears online while playing
+        await online_status_manager.refresh_user_online_status(user_id, "playing")
 
         # # 预缓存beatmap文件以加速后续PP计算
         # await self._preload_beatmap_for_pp_calculation(state.beatmap_id)
@@ -357,21 +360,25 @@ class SpectatorHub(Hub[StoreClientState]):
 
     async def SendFrameData(self, client: Client, frame_data: FrameDataBundle) -> None:
         user_id = int(client.connection_id)
-        state = self.get_or_create_state(client)
-        if not state.score:
+        store = self.get_or_create_state(client)
+        if store.state is None or store.score is None:
             return
-        state.score.score_info.accuracy = frame_data.header.accuracy
-        state.score.score_info.combo = frame_data.header.combo
-        state.score.score_info.max_combo = frame_data.header.max_combo
-        state.score.score_info.statistics = frame_data.header.statistics
-        state.score.score_info.total_score = frame_data.header.total_score
-        state.score.score_info.mods = frame_data.header.mods
-        state.score.replay_frames.extend(frame_data.frames)
+
+        # Critical fix: Refresh online status during active gameplay
+        # This prevents users from appearing offline while playing
+        from app.service.online_status_manager import online_status_manager
+        await online_status_manager.refresh_user_online_status(user_id, "playing_active")
+
+        header = frame_data.header
+        score_info = store.score.score_info
+        score_info.accuracy = header.accuracy
+        score_info.combo = header.combo
+        score_info.max_combo = header.max_combo
+        score_info.statistics = header.statistics
+        store.score.replay_frames.extend(frame_data.frames)
+
         await self.broadcast_group_call(
-            self.group_id(user_id),
-            "UserSentFrames",
-            user_id,
-            frame_data,
+            self.group_id(user_id), "UserSentFrames", user_id, frame_data
         )
 
     async def EndPlaySession(self, client: Client, state: SpectatorState) -> None:

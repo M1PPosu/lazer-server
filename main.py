@@ -36,6 +36,7 @@ from app.service.osu_rx_statistics import create_rx_statistics
 from app.service.recalculate import recalculate
 from app.service.redis_message_system import redis_message_system
 from app.service.stats_scheduler import start_stats_scheduler, stop_stats_scheduler
+from app.service.online_status_maintenance import schedule_online_status_maintenance
 
 # 检查 New Relic 配置文件是否存在，如果存在则初始化 New Relic
 newrelic_config_path = os.path.join(os.path.dirname(__file__), "newrelic.ini")
@@ -85,6 +86,7 @@ async def lifespan(app: FastAPI):
     await start_database_cleanup_scheduler()  # 启动数据库清理调度器
     redis_message_system.start()  # 启动 Redis 消息系统
     start_stats_scheduler()  # 启动统计调度器
+    schedule_online_status_maintenance()  # 启动在线状态维护任务
     load_achievements()
     # on shutdown
     yield
