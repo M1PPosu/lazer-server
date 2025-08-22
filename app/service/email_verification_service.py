@@ -388,13 +388,18 @@ class LoginSessionService:
         is_new_location: bool = False
     ) -> LoginSession:
         """创建登录会话"""
+        from app.utils import simplify_user_agent
+        
         session_token = EmailVerificationService.generate_session_token()
+        
+        # 简化 User-Agent 字符串
+        simplified_user_agent = simplify_user_agent(user_agent, max_length=250)
         
         session = LoginSession(
             user_id=user_id,
             session_token=session_token,
             ip_address=ip_address,
-            user_agent=user_agent,
+            user_agent=simplified_user_agent,
             country_code=country_code,
             is_new_location=is_new_location,
             expires_at=datetime.now(UTC) + timedelta(hours=24),  # 24小时过期

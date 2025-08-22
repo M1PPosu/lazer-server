@@ -146,3 +146,80 @@ def check_image(content: bytes, size: int, width: int, height: int) -> None:
                 )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error processing image: {e}")
+
+
+def simplify_user_agent(user_agent: str | None, max_length: int = 200) -> str | None:
+    """
+    简化 User-Agent 字符串，只保留 osu! 和关键设备系统信息浏览器
+    
+    Args:
+        user_agent: 原始 User-Agent 字符串
+        max_length: 最大长度限制
+        
+    Returns:
+        简化后的 User-Agent 字符串，或 None
+    """
+    import re
+    
+    if not user_agent:
+        return None
+        
+    # 如果长度在限制内，直接返回
+    if len(user_agent) <= max_length:
+        return user_agent
+    
+    # 提取操作系统信息
+    os_info = ""
+    os_patterns = [
+        r'(Windows[^;)]*)',
+        r'(Mac OS[^;)]*)',
+        r'(Linux[^;)]*)',
+        r'(Android[^;)]*)',
+        r'(iOS[^;)]*)',
+        r'(iPhone[^;)]*)',
+        r'(iPad[^;)]*)'
+    ]
+    
+    for pattern in os_patterns:
+        match = re.search(pattern, user_agent, re.IGNORECASE)
+        if match:
+            os_info = match.group(1).strip()
+            break
+    
+    # 提取浏览器信息
+    browser_info = ""
+    browser_patterns = [
+        r'(osu![^)]*)',  # osu! 客户端
+        r'(Chrome/[\d.]+)',
+        r'(Firefox/[\d.]+)',
+        r'(Safari/[\d.]+)',
+        r'(Edge/[\d.]+)',
+        r'(Opera/[\d.]+)'
+    ]
+    
+    for pattern in browser_patterns:
+        match = re.search(pattern, user_agent, re.IGNORECASE)
+        if match:
+            browser_info = match.group(1).strip()
+            # 如果找到了 osu! 客户端，优先使用
+            if 'osu!' in browser_info.lower():
+                break
+    
+    # 构建简化的 User-Agent
+    parts = []
+    if os_info:
+        parts.append(os_info)
+    if browser_info:
+        parts.append(browser_info)
+    
+    if parts:
+        simplified = '; '.join(parts)
+    else:
+        # 如果没有识别到关键信息，截断原始字符串
+        simplified = user_agent[:max_length-3] + "..."
+    
+    # 确保不超过最大长度
+    if len(simplified) > max_length:
+        simplified = simplified[:max_length-3] + "..."
+    
+    return simplified

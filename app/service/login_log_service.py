@@ -45,8 +45,10 @@ class LoginLogService:
         raw_ip = get_client_ip(request)
         ip_address = normalize_ip(raw_ip)
 
-        # 获取User-Agent
-        user_agent = request.headers.get("User-Agent", "")
+        # 获取并简化User-Agent
+        from app.utils import simplify_user_agent
+        raw_user_agent = request.headers.get("User-Agent", "")
+        user_agent = simplify_user_agent(raw_user_agent, max_length=500)
 
         # 创建基本的登录记录
         login_log = UserLoginLog(

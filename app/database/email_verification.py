@@ -35,7 +35,7 @@ class LoginSession(SQLModel, table=True):
     user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), nullable=False, index=True))
     session_token: str = Field(unique=True, index=True)  # 会话令牌
     ip_address: str = Field()  # 登录IP
-    user_agent: str | None = Field(default=None)
+    user_agent: str | None = Field(default=None, max_length=250)
     country_code: str | None = Field(default=None)
     is_verified: bool = Field(default=False)  # 是否已验证
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
