@@ -156,13 +156,14 @@ async def process_daily_challenge_top():
             stats = await session.get(DailyChallengeStats, score.user_id)
             if stats is None:  # not execute
                 return
-
-            if total_score_count < 10 or ceil(i + 1 / total_score_count) <= 0.1:
-                stats.top_10p_placements += 1
-            if total_score_count < 2 or ceil(i + 1 / total_score_count) <= 0.5:
-                stats.top_50p_placements += 1
+            if stats.last_update is None or stats.last_update.replace(tzinfo=UTC).date() != now.date():
+                if total_score_count < 10 or ceil(i + 1 / total_score_count) <= 0.1:
+                    stats.top_10p_placements += 1
+                if total_score_count < 2 or ceil(i + 1 / total_score_count) <= 0.5:
+                    stats.top_50p_placements += 1
             s.append(s)
             participated_users.append(score.user_id)
+            stats.last_update = now
         await session.commit()
         del s
 
@@ -176,3 +177,4 @@ async def process_daily_challenge_top():
                 stats.last_weekly_streak.replace(tzinfo=UTC), now - timedelta(days=7)
             ):
                 stats.weekly_streak_current = 0
+            stats.last_update = now

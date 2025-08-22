@@ -24,6 +24,7 @@ class DailyChallengeStatsBase(SQLModel, UTCBaseModel):
     daily_streak_best: int = Field(default=0)
     daily_streak_current: int = Field(default=0)
     last_update: datetime | None = Field(default=None, sa_column=Column(DateTime))
+    last_day_streak: datetime | None = Field(default=None, sa_column=Column(DateTime))
     last_weekly_streak: datetime | None = Field(default=None, sa_column=Column(DateTime))
     playcount: int = Field(default=0)
     top_10p_placements: int = Field(default=0)
@@ -103,4 +104,5 @@ async def process_daily_challenge_score(session: AsyncSession, user_id: int, roo
     else:
         stats.weekly_streak_current = 1
     stats.last_update = now
+    stats.last_day_streak = now
     stats.last_weekly_streak = now
