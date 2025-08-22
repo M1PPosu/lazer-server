@@ -188,6 +188,7 @@ class Hub[TState: UserState]:
             await method(client)
 
     async def send_packet(self, client: Client, packet: Packet) -> None:
+        logger.trace(f"[SignalR] send to {client.connection_id} packet {packet}")
         try:
             await client.send_packet(packet)
         except WebSocketDisconnect as e:
