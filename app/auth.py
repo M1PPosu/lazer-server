@@ -176,6 +176,27 @@ def generate_refresh_token() -> str:
     return "".join(secrets.choice(characters) for _ in range(length))
 
 
+async def invalidate_user_tokens(db: AsyncSession, user_id: int) -> int:
+    """使指定用户的所有令牌失效
+    
+    返回删除的令牌数量
+    """
+    # 使用 select 先获取所有令牌
+    stmt = select(OAuthToken).where(OAuthToken.user_id == user_id)
+    result = await db.exec(stmt)
+    tokens = result.all()
+    
+    # 逐个删除令牌
+    count = 0
+    for token in tokens:
+        await db.delete(token)
+        count += 1
+    
+    # 提交更改
+    await db.commit()
+    return count
+
+
 def verify_token(token: str) -> dict | None:
     """验证访问令牌"""
     try:

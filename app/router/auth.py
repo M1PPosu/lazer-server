@@ -35,6 +35,7 @@ from app.service.email_verification_service import (
     EmailVerificationService,
     LoginSessionService
 )
+from app.service.password_reset_service import password_reset_service
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import JSONResponse
@@ -560,4 +561,96 @@ async def oauth_token(
             expires_in=settings.access_token_expire_minutes * 60,
             refresh_token=refresh_token_str,
             scope=" ".join(scopes),
+        )
+
+
+@router.post(
+    "/password-reset/request",
+    name="请求密码重置",
+    description="通过邮箱请求密码重置验证码"
+)
+async def request_password_reset(
+    request: Request,
+    email: str = Form(..., description="邮箱地址"),
+    redis: Redis = Depends(get_redis),
+):
+    """
+    请求密码重置
+    """
+    from app.dependencies.geoip import get_client_ip
+    
+    # 获取客户端信息
+    ip_address = get_client_ip(request)
+    user_agent = request.headers.get("User-Agent", "")
+    
+    # 请求密码重置
+    success, message = await password_reset_service.request_password_reset(
+        email=email.lower().strip(),
+        ip_address=ip_address,
+        user_agent=user_agent,
+        redis=redis
+    )
+    
+    if success:
+        return JSONResponse(
+            status_code=200,
+            content={
+                "success": True,
+                "message": message
+            }
+        )
+    else:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "error": message
+            }
+        )
+
+
+@router.post(
+    "/password-reset/reset",
+    name="重置密码",
+    description="使用验证码重置密码"
+)
+async def reset_password(
+    request: Request,
+    email: str = Form(..., description="邮箱地址"),
+    reset_code: str = Form(..., description="重置验证码"),
+    new_password: str = Form(..., description="新密码"),
+    redis: Redis = Depends(get_redis),
+):
+    """
+    重置密码
+    """
+    from app.dependencies.geoip import get_client_ip
+    
+    # 获取客户端信息
+    ip_address = get_client_ip(request)
+    
+    # 重置密码
+    success, message = await password_reset_service.reset_password(
+        email=email.lower().strip(),
+        reset_code=reset_code.strip(),
+        new_password=new_password,
+        ip_address=ip_address,
+        redis=redis
+    )
+    
+    if success:
+        return JSONResponse(
+            status_code=200,
+            content={
+                "success": True,
+                "message": message
+            }
+        )
+    else:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "error": message
+            }
         )

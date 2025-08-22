@@ -98,7 +98,7 @@ class EmailService:
 <body>
     <div class="container">
         <div class="header">
-            <h1> osu! 邮箱验证</h1>
+            <h1>osu! 邮箱验证</h1>
             <p>Email Verification</p>
         </div>
         

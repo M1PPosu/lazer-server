@@ -225,7 +225,7 @@ class RankingCacheService:
     ) -> None:
         """刷新排行榜缓存"""
         if self._refreshing:
-            logger.info(
+            logger.debug(
                 f"Ranking cache refresh already in progress for {ruleset}:{type}"
             )
             return
@@ -308,7 +308,7 @@ class RankingCacheService:
                 except Exception as e:
                     logger.error(f"Error caching page {page} for {ruleset}:{type}: {e}")
 
-            logger.info(f"Completed ranking cache refresh for {ruleset}:{type}")
+            logger.debug(f"Completed ranking cache refresh for {ruleset}:{type}")
 
         except Exception as e:
             logger.error(f"Ranking cache refresh failed for {ruleset}:{type}: {e}")
@@ -323,7 +323,7 @@ class RankingCacheService:
     ) -> None:
         """刷新地区排行榜缓存"""
         if self._refreshing:
-            logger.info(
+            logger.debug(
                 f"Country ranking cache refresh already in progress for {ruleset}"
             )
             return

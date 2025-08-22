@@ -480,14 +480,19 @@ class EnhancedIntervalStatsManager:
             keys = await redis_async.keys(pattern)
             for key in keys:
                 try:
-                    # 从key中提取时间
-                    time_part = key.decode().split(":")[-1]  # YYYYMMDD_HHMM格式
+                    # 从key中提取时间，处理字节或字符串类型
+                    if isinstance(key, bytes):
+                        key_str = key.decode()
+                    else:
+                        key_str = key
+                    time_part = key_str.split(":")[-1]  # YYYYMMDD_HHMM格式
                     key_time = datetime.strptime(time_part, "%Y%m%d_%H%M")
 
                     if key_time < cutoff_time:
                         await redis_async.delete(key)
                         # 也删除对应的用户集合
-                        await redis_async.delete(f"{INTERVAL_ONLINE_USERS_KEY}:{key}")
+                        # 使用key_str确保正确拼接用户集合键
+                        await redis_async.delete(f"{INTERVAL_ONLINE_USERS_KEY}:{key_str}")
                         await redis_async.delete(f"{INTERVAL_PLAYING_USERS_KEY}:{key}")
 
                 except (ValueError, IndexError):
