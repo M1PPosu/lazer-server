@@ -134,10 +134,10 @@ class StatsScheduler:
         """清理循环 - 每10分钟清理一次过期用户"""
         # 启动时立即执行一次清理
         try:
-            online_cleaned, playing_cleaned, metadata_cleaned = await cleanup_stale_online_users()
-            if online_cleaned > 0 or playing_cleaned > 0 or metadata_cleaned > 0:
+            online_cleaned, playing_cleaned = await cleanup_stale_online_users()
+            if online_cleaned > 0 or playing_cleaned > 0:
                 logger.info(
-                    f"Initial cleanup: removed {online_cleaned} stale online users, {playing_cleaned} stale playing users, {metadata_cleaned} orphaned metadata keys"
+                    f"Initial cleanup: removed {online_cleaned} stale online users, {playing_cleaned} stale playing users"
                 )
 
             await refresh_redis_key_expiry()
@@ -153,10 +153,10 @@ class StatsScheduler:
 
             try:
                 # 清理过期用户
-                online_cleaned, playing_cleaned, metadata_cleaned = await cleanup_stale_online_users()
-                if online_cleaned > 0 or playing_cleaned > 0 or metadata_cleaned > 0:
+                online_cleaned, playing_cleaned = await cleanup_stale_online_users()
+                if online_cleaned > 0 or playing_cleaned > 0:
                     logger.info(
-                        f"Cleanup: removed {online_cleaned} stale online users, {playing_cleaned} stale playing users, {metadata_cleaned} orphaned metadata keys"
+                        f"Cleanup: removed {online_cleaned} stale online users, {playing_cleaned} stale playing users"
                     )
 
                 # 刷新Redis key过期时间

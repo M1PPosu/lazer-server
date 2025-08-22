@@ -312,23 +312,7 @@ class UserResp(UserBase):
             )
         ).one()
         redis = get_redis()
-        # 实时验证用户在线状态
-        if obj.id is not None:
-            metadata_key = f"metadata:online:{obj.id}"
-            is_online_check = await redis.exists(metadata_key)
-            
-            # 如果metadata键不存在，立即从在线集合中清理该用户
-            if not is_online_check:
-                try:
-                    from app.service.realtime_online_cleanup import realtime_cleanup
-                    await realtime_cleanup.verify_user_online_status(obj.id)
-                except Exception as e:
-                    from app.log import logger
-                    logger.warning(f"Failed to verify user {obj.id} online status: {e}")
-            
-            u.is_online = bool(is_online_check)
-        else:
-            u.is_online = False
+        u.is_online = await redis.exists(f"metadata:online:{obj.id}")
         u.cover_url = (
             obj.cover.get(
                 "url", "https://assets.ppy.sh/user-profile-covers/default.jpeg"
@@ -418,27 +402,26 @@ class UserResp(UserBase):
                 for ua in await obj.awaitable_attrs.achievement
             ]
         if "rank_history" in include:
-            if obj.id is not None:
-                rank_history = await RankHistoryResp.from_db(session, obj.id, ruleset)
-                if len(rank_history.data) != 0:
-                    u.rank_history = rank_history
+            rank_history = await RankHistoryResp.from_db(session, obj.id, ruleset)
+            if len(rank_history.data) != 0:
+                u.rank_history = rank_history
 
-                rank_top = (
-                    await session.exec(
-                        select(RankTop).where(
-                            RankTop.user_id == obj.id, RankTop.mode == ruleset
-                        )
+            rank_top = (
+                await session.exec(
+                    select(RankTop).where(
+                        RankTop.user_id == obj.id, RankTop.mode == ruleset
                     )
-                ).first()
-                if rank_top:
-                    u.rank_highest = (
-                        RankHighest(
-                            rank=rank_top.rank,
-                            updated_at=datetime.combine(rank_top.date, datetime.min.time()),
-                        )
-                        if rank_top
-                        else None
+                )
+            ).first()
+            if rank_top:
+                u.rank_highest = (
+                    RankHighest(
+                        rank=rank_top.rank,
+                        updated_at=datetime.combine(rank_top.date, datetime.min.time()),
                     )
+                    if rank_top
+                    else None
+                )
 
         u.favourite_beatmapset_count = (
             await session.exec(

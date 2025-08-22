@@ -20,6 +20,7 @@ async def maintain_playing_users_online_status():
     
     定期刷新正在游玩用户的metadata在线标记，
     确保他们在游玩过程中显示为在线状态。
+    但不会恢复已经退出的用户的在线状态。
     """
     redis_sync = get_redis_message()
     redis_async = get_redis()
@@ -31,17 +32,25 @@ async def maintain_playing_users_online_status():
         if not playing_users:
             return
             
-        logger.debug(f"Maintaining online status for {len(playing_users)} playing users")
+        logger.debug(f"Checking online status for {len(playing_users)} playing users")
         
-        # 为每个游玩用户刷新metadata在线标记
+        # 仅为当前有效连接的用户刷新在线状态
+        updated_count = 0
         for user_id in playing_users:
             user_id_str = user_id.decode() if isinstance(user_id, bytes) else str(user_id)
             metadata_key = f"metadata:online:{user_id_str}"
             
-            # 设置或刷新metadata在线标记，过期时间为1小时
-            await redis_async.set(metadata_key, "playing", ex=3600)
+            # 重要：首先检查用户是否已经有在线标记，只有存在才刷新
+            if await redis_async.exists(metadata_key):
+                # 只更新已经在线的用户的状态，不恢复已退出的用户
+                await redis_async.set(metadata_key, "playing", ex=3600)
+                updated_count += 1
+            else:
+                # 如果用户已退出（没有在线标记），则从游玩用户中移除
+                await _redis_exec(redis_sync.srem, REDIS_PLAYING_USERS_KEY, user_id)
+                logger.debug(f"Removed user {user_id_str} from playing users as they are offline")
             
-        logger.debug(f"Updated metadata online status for {len(playing_users)} playing users")
+        logger.debug(f"Updated metadata online status for {updated_count} playing users")
         
     except Exception as e:
         logger.error(f"Error maintaining playing users online status: {e}")
