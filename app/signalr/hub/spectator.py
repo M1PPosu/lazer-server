@@ -385,6 +385,8 @@ class SpectatorHub(Hub[StoreClientState]):
         user_id = int(client.connection_id)
         store = self.get_or_create_state(client)
         score = store.score
+        
+        # Early return if no active session
         if (
             score is None
             or store.score_token is None
@@ -394,24 +396,31 @@ class SpectatorHub(Hub[StoreClientState]):
         ):
             return
 
-        if (
-            settings.enable_all_beatmap_leaderboard
-            and store.beatmap_status.has_leaderboard()
-        ) and any(k.is_hit() and v > 0 for k, v in score.score_info.statistics.items()):
-            await self._process_score(store, client)
-        await self._end_session(user_id, state, store)
+        try:
+            # Process score if conditions are met
+            if (
+                settings.enable_all_beatmap_leaderboard
+                and store.beatmap_status.has_leaderboard()
+            ) and any(k.is_hit() and v > 0 for k, v in score.score_info.statistics.items()):
+                await self._process_score(store, client)
+                
+            # End the play session and notify watchers
+            await self._end_session(user_id, state, store)
 
-        # Remove from playing user tracking
-        from app.router.v2.stats import remove_playing_user
-
-        asyncio.create_task(remove_playing_user(user_id))
-
-        store.state = None
-        store.beatmap_status = None
-        store.checksum = None
-        store.ruleset_id = None
-        store.score_token = None
-        store.score = None
+            # Remove from playing user tracking
+            from app.router.v2.stats import remove_playing_user
+            asyncio.create_task(remove_playing_user(user_id))
+            
+        finally:
+            # CRITICAL FIX: Always clear state in finally block to ensure cleanup
+            # This matches the official C# implementation pattern
+            store.state = None
+            store.beatmap_status = None
+            store.checksum = None
+            store.ruleset_id = None
+            store.score_token = None
+            store.score = None
+            logger.info(f"[SpectatorHub] Cleared all session state for user {user_id}")
 
     async def _process_score(self, store: StoreClientState, client: Client) -> None:
         user_id = int(client.connection_id)
@@ -573,16 +582,23 @@ class SpectatorHub(Hub[StoreClientState]):
             # Get target user's current state if it exists
             target_store = self.state.get(target_id)
             if target_store and target_store.state:
-                logger.debug(
-                    f"[SpectatorHub] {target_id} is currently {target_store.state.state}"
-                )
-                # Send current state to the watcher immediately
-                await self.call_noblock(
-                    client,
-                    "UserBeganPlaying",
-                    target_id,
-                    target_store.state,
-                )
+                # CRITICAL FIX: Only send state if user is actually playing
+                # Don't send state for finished/quit games
+                if target_store.state.state == SpectatedUserState.Playing:
+                    logger.debug(
+                        f"[SpectatorHub] {target_id} is currently playing, sending state"
+                    )
+                    # Send current state to the watcher immediately
+                    await self.call_noblock(
+                        client,
+                        "UserBeganPlaying",
+                        target_id,
+                        target_store.state,
+                    )
+                else:
+                    logger.debug(
+                        f"[SpectatorHub] {target_id} state is {target_store.state.state}, not sending to watcher"
+                    )
         except Exception as e:
             # User isn't tracked or error occurred - this is not critical
             logger.debug(f"[SpectatorHub] Could not get state for {target_id}: {e}")
