@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import TYPE_CHECKING, Literal, TypedDict, cast
+from typing import TYPE_CHECKING, TypedDict, cast
 
 from app.config import settings
 
@@ -22,6 +22,7 @@ class GameMode(str, Enum):
     OSUAP = "osuap"
     TAIKORX = "taikorx"
     FRUITSRX = "fruitsrx"
+    SENTAKKI = "Sentakki"
 
     def to_rosu(self) -> "rosu.GameMode":
         import rosu_pp_py as rosu
@@ -47,6 +48,7 @@ class GameMode(str, Enum):
             GameMode.OSUAP: 0,
             GameMode.TAIKORX: 1,
             GameMode.FRUITSRX: 2,
+            GameMode.SENTAKKI: 10,
         }[self]
 
     @classmethod
@@ -56,6 +58,7 @@ class GameMode(str, Enum):
             1: GameMode.TAIKO,
             2: GameMode.FRUITS,
             3: GameMode.MANIA,
+            10: GameMode.SENTAKKI,
         }[v]
 
     @classmethod
@@ -69,6 +72,7 @@ class GameMode(str, Enum):
             5: GameMode.OSUAP,
             6: GameMode.TAIKORX,
             7: GameMode.FRUITSRX,
+            10: GameMode.SENTAKKI,
         }[v]
 
     def readable(self) -> str:
@@ -81,7 +85,11 @@ class GameMode(str, Enum):
             GameMode.OSUAP: "osu!autopilot",
             GameMode.TAIKORX: "taiko relax",
             GameMode.FRUITSRX: "catch relax",
+            GameMode.SENTAKKI: "Sentakki",
         }[self]
+
+    def is_custom_ruleset(self) -> bool:
+        return self in (GameMode.SENTAKKI)
 
     def to_special_mode(self, mods: list[APIMod] | list[str]) -> "GameMode":
         if self not in (GameMode.OSU, GameMode.TAIKO, GameMode.FRUITS):
@@ -196,7 +204,7 @@ class SoloScoreSubmissionInfo(BaseModel):
     accuracy: float = Field(ge=0, le=1)
     pp: float = Field(default=0, ge=0, le=2**31 - 1)
     max_combo: int = 0
-    ruleset_id: Literal[0, 1, 2, 3]
+    ruleset_id: int
     passed: bool = False
     mods: list[APIMod] = Field(default_factory=list)
     statistics: ScoreStatistics = Field(default_factory=dict)
@@ -215,6 +223,12 @@ class SoloScoreSubmissionInfo(BaseModel):
                 raise ValueError(f"Invalid mod: {mod['acronym']}")
             incompatible_mods.update(setting_mods["IncompatibleMods"])
         return mods
+
+    @field_validator("ruleset_id", mode="after")
+    @classmethod
+    def validate_ruleset_id(cls, ruleset_id: int, info: ValidationInfo):
+        if ruleset_id >= 10 and not settings.enable_custom_rulesets:
+            raise ValueError("Custom rulesets are not enabled")
 
     @field_serializer("statistics", "maximum_statistics", when_used="json")
     def serialize_statistics(self, v):
