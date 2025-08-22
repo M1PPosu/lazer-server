@@ -206,19 +206,12 @@ async def get_message(
     query = select(ChatMessage).where(ChatMessage.channel_id == channel_id)
     if since > 0:
         query = query.where(col(ChatMessage.message_id) > since)
-        # 获取 since 之后的消息，按时间正序
-        query = query.order_by(col(ChatMessage.message_id).asc()).limit(limit)
-        messages = (await session.exec(query)).all()
-        resp = [await ChatMessageResp.from_db(msg, session) for msg in messages]
-    else:
-        # 获取最新消息，先按倒序获取最新的，然后反转为时间正序
-        if until is not None:
-            query = query.where(col(ChatMessage.message_id) < until)
-        query = query.order_by(col(ChatMessage.message_id).desc()).limit(limit)
-        messages = (await session.exec(query)).all()
-        resp = [await ChatMessageResp.from_db(msg, session) for msg in messages]
-        # 反转为时间正序（最老的在前面）
-        resp.reverse()
+    if until is not None:
+        query = query.where(col(ChatMessage.message_id) < until)
+
+    query = query.order_by(col(ChatMessage.message_id).desc()).limit(limit)
+    messages = (await session.exec(query)).all()
+    resp = [await ChatMessageResp.from_db(msg, session) for msg in messages]
     return resp
 
 

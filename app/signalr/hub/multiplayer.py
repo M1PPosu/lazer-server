@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime, timedelta
-from typing import override, Dict, List, Optional, Tuple
-import json
-from collections import defaultdict, deque
+from typing import override
 
 from app.database import Room
 from app.database.beatmap import Beatmap
@@ -48,289 +46,12 @@ from app.models.room import (
 from app.models.score import GameMode
 
 from .hub import Client, Hub
-from .multiplayer_packet_cleaner import packet_cleaner, GameSessionCleaner
 
 from httpx import HTTPError
 from sqlalchemy import update
 from sqlmodel import col, exists, select
 
 GAMEPLAY_LOAD_TIMEOUT = 30
-
-
-class GameplayStateBuffer:
-    """游戏状态缓冲区，用于管理实时排行榜和观战数据同步"""
-    
-    def __init__(self):
-        # 房间ID -> 用户分数数据缓冲区
-        self.score_buffers: Dict[int, Dict[int, deque]] = defaultdict(lambda: defaultdict(lambda: deque(maxlen=50)))
-        # 房间ID -> 实时排行榜数据
-        self.leaderboards: Dict[int, List[Dict]] = defaultdict(list)
-        # 房间ID -> 游戏状态快照
-        self.gameplay_snapshots: Dict[int, Dict] = {}
-        # 用户观战状态缓存
-        self.spectator_states: Dict[Tuple[int, int], Dict] = {}  # (room_id, user_id) -> state
-        
-    async def add_score_frame(self, room_id: int, user_id: int, frame_data: Dict):
-        """添加分数帧数据到缓冲区"""
-        self.score_buffers[room_id][user_id].append({
-            **frame_data,
-            'timestamp': datetime.now(UTC),
-            'user_id': user_id
-        })
-        
-        # 更新实时排行榜
-        await self._update_leaderboard(room_id)
-    
-    async def _update_leaderboard(self, room_id: int):
-        """更新实时排行榜"""
-        leaderboard = []
-        
-        for user_id, frames in self.score_buffers[room_id].items():
-            if not frames:
-                continue
-                
-            latest_frame = frames[-1]
-            leaderboard.append({
-                'user_id': user_id,
-                'score': latest_frame.get('score', 0),
-                'combo': latest_frame.get('combo', 0),
-                'accuracy': latest_frame.get('accuracy', 0.0),
-                'completed': latest_frame.get('completed', False),
-                'timestamp': latest_frame['timestamp']
-            })
-        
-        # 按分数排序
-        leaderboard.sort(key=lambda x: (-x['score'], -x['accuracy']))
-        self.leaderboards[room_id] = leaderboard
-    
-    def get_leaderboard(self, room_id: int) -> List[Dict]:
-        """获取房间实时排行榜"""
-        return self.leaderboards.get(room_id, [])
-    
-    async def create_gameplay_snapshot(self, room_id: int, room_data: Dict):
-        """创建游戏状态快照用于新加入的观众"""
-        # 序列化复杂对象
-        serialized_room_data = self._serialize_room_data(room_data)
-        
-        snapshot = {
-            'room_id': room_id,
-            'state': serialized_room_data.get('state'),
-            'current_item': serialized_room_data.get('current_item'),
-            'users': serialized_room_data.get('users', []),
-            'leaderboard': self.get_leaderboard(room_id),
-            'created_at': datetime.now(UTC).isoformat()
-        }
-        self.gameplay_snapshots[room_id] = snapshot
-        return snapshot
-    
-    def _serialize_room_data(self, room_data: Dict) -> Dict:
-        """序列化房间数据"""
-        result = {}
-        for key, value in room_data.items():
-            if hasattr(value, 'value') and hasattr(value, 'name'):
-                # 枚举类型
-                result[key] = {'name': value.name, 'value': value.value}
-            elif hasattr(value, '__dict__'):
-                # 复杂对象
-                if hasattr(value, 'model_dump'):
-                    result[key] = value.model_dump()
-                elif hasattr(value, 'dict'):
-                    result[key] = value.dict()
-                else:
-                    # 手动序列化
-                    obj_dict = {}
-                    for attr_name, attr_value in value.__dict__.items():
-                        if not attr_name.startswith('_'):
-                            obj_dict[attr_name] = self._serialize_value(attr_value)
-                    result[key] = obj_dict
-            elif isinstance(value, (list, tuple)):
-                result[key] = [self._serialize_value(item) for item in value]
-            else:
-                result[key] = self._serialize_value(value)
-        return result
-    
-    def _serialize_value(self, value):
-        """序列化单个值"""
-        if hasattr(value, 'value') and hasattr(value, 'name'):
-            # 枚举类型
-            return {'name': value.name, 'value': value.value}
-        elif hasattr(value, '__dict__'):
-            # 复杂对象
-            if hasattr(value, 'model_dump'):
-                return value.model_dump()
-            elif hasattr(value, 'dict'):
-                return value.dict()
-            else:
-                obj_dict = {}
-                for attr_name, attr_value in value.__dict__.items():
-                    if not attr_name.startswith('_'):
-                        obj_dict[attr_name] = self._serialize_value(attr_value)
-                return obj_dict
-        elif isinstance(value, (list, tuple)):
-            return [self._serialize_value(item) for item in value]
-        elif isinstance(value, dict):
-            return {k: self._serialize_value(v) for k, v in value.items()}
-        elif isinstance(value, (str, int, float, bool, type(None))):
-            return value
-        else:
-            return str(value)
-    
-    def get_gameplay_snapshot(self, room_id: int) -> Optional[Dict]:
-        """获取游戏状态快照"""
-        return self.gameplay_snapshots.get(room_id)
-    
-    async def set_spectator_state(self, room_id: int, user_id: int, state_data: Dict):
-        """设置观战者状态"""
-        key = (room_id, user_id)
-        self.spectator_states[key] = {
-            **state_data,
-            'last_updated': datetime.now(UTC)
-        }
-    
-    def get_spectator_state(self, room_id: int, user_id: int) -> Optional[Dict]:
-        """获取观战者状态"""
-        key = (room_id, user_id)
-        return self.spectator_states.get(key)
-    
-    async def cleanup_room(self, room_id: int):
-        """清理房间相关数据"""
-        self.score_buffers.pop(room_id, None)
-        self.leaderboards.pop(room_id, None)
-        self.gameplay_snapshots.pop(room_id, None)
-        
-        # 清理观战者状态
-        keys_to_remove = [key for key in self.spectator_states.keys() if key[0] == room_id]
-        for key in keys_to_remove:
-            self.spectator_states.pop(key, None)
-    
-    async def cleanup_game_session(self, room_id: int):
-        """清理单局游戏会话数据（每局游戏结束后调用）"""
-        # 清理分数缓冲区但保留房间结构
-        if room_id in self.score_buffers:
-            self.score_buffers[room_id].clear()
-        
-        # 清理实时排行榜
-        self.leaderboards.pop(room_id, None)
-        
-        # 清理游戏状态快照  
-        self.gameplay_snapshots.pop(room_id, None)
-        
-        # 清理观战者状态但不删除房间相关键
-        keys_to_remove = []
-        for key in self.spectator_states.keys():
-            if key[0] == room_id:
-                # 保留连接状态，清理游戏数据
-                state = self.spectator_states[key]
-                if 'game_data' in state:
-                    state.pop('game_data', None)
-                if 'score_data' in state:
-                    state.pop('score_data', None)
-                    
-        logger.info(f"[GameplayStateBuffer] Cleaned game session data for room {room_id}")
-        
-    def reset_user_gameplay_state(self, room_id: int, user_id: int):
-        """重置单个用户的游戏状态"""
-        # 清理用户分数缓冲区
-        if room_id in self.score_buffers and user_id in self.score_buffers[room_id]:
-            self.score_buffers[room_id][user_id].clear()
-            
-        # 重置观战者状态中的游戏数据
-        key = (room_id, user_id)
-        if key in self.spectator_states:
-            state = self.spectator_states[key]
-            state.pop('game_data', None)
-            state.pop('score_data', None)
-            state['last_reset'] = datetime.now(UTC)
-
-
-class SpectatorSyncManager:
-    """观战同步管理器，处理跨Hub通信"""
-    
-    def __init__(self, redis_client):
-        self.redis = redis_client
-        self.channel_prefix = "multiplayer_spectator"
-    
-    def _serialize_for_json(self, obj):
-        """递归序列化对象为JSON兼容格式"""
-        if hasattr(obj, '__dict__'):
-            # 如果对象有__dict__属性，将其转换为字典
-            if hasattr(obj, 'model_dump'):
-                # 对于Pydantic模型
-                return obj.model_dump()
-            elif hasattr(obj, 'dict'):
-                # 对于较旧的Pydantic模型
-                return obj.dict()
-            else:
-                # 对于普通对象
-                result = {}
-                for key, value in obj.__dict__.items():
-                    if not key.startswith('_'):  # 跳过私有属性
-                        result[key] = self._serialize_for_json(value)
-                return result
-        elif isinstance(obj, dict):
-            return {key: self._serialize_for_json(value) for key, value in obj.items()}
-        elif isinstance(obj, (list, tuple)):
-            return [self._serialize_for_json(item) for item in obj]
-        elif isinstance(obj, datetime):
-            # 处理datetime对象
-            return obj.isoformat()
-        elif hasattr(obj, 'value') and hasattr(obj, 'name'):
-            # 对于枚举类型
-            return {'name': obj.name, 'value': obj.value}
-        elif isinstance(obj, (str, int, float, bool, type(None))):
-            return obj
-        else:
-            # 对于其他类型，尝试转换为字符串
-            return str(obj)
-    
-    async def notify_spectator_hubs(self, room_id: int, event_type: str, data: Dict):
-        """通知观战Hub游戏状态变化"""
-        # 序列化复杂对象为JSON兼容格式
-        serialized_data = self._serialize_for_json(data)
-        
-        message = {
-            'room_id': room_id,
-            'event_type': event_type,
-            'data': serialized_data,
-            'timestamp': datetime.now(UTC).isoformat()
-        }
-        
-        channel = f"{self.channel_prefix}:room:{room_id}"
-        await self.redis.publish(channel, json.dumps(message))
-    
-    async def notify_gameplay_started(self, room_id: int, game_data: Dict):
-        """通知游戏开始"""
-        await self.notify_spectator_hubs(room_id, "gameplay_started", game_data)
-    
-    async def notify_gameplay_ended(self, room_id: int, results_data: Dict):
-        """通知游戏结束"""
-        await self.notify_spectator_hubs(room_id, "gameplay_ended", results_data)
-    
-    async def notify_user_state_change(self, room_id: int, user_id: int, old_state: str, new_state: str):
-        """通知用户状态变化"""
-        await self.notify_spectator_hubs(room_id, "user_state_changed", {
-            'user_id': user_id,
-            'old_state': old_state,
-            'new_state': new_state
-        })
-    
-    async def subscribe_to_spectator_events(self, callback):
-        """订阅观战事件"""
-        pattern = f"{self.channel_prefix}:*"
-        pubsub = self.redis.pubsub()
-        await pubsub.psubscribe(pattern)
-        
-        async for message in pubsub.listen():
-            if message['type'] == 'pmessage':
-                try:
-                    data = json.loads(message['data'])
-                    await callback(message['channel'], data)
-                except Exception as e:
-                    logger.error(f"Error processing spectator event: {e}")
-
-
-# 全局实例
-gameplay_buffer = GameplayStateBuffer()
 
 
 class MultiplayerEventLogger:
@@ -427,100 +148,6 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         super().__init__()
         self.rooms: dict[int, ServerMultiplayerRoom] = {}
         self.event_logger = MultiplayerEventLogger()
-        self.spectator_sync_manager: Optional[SpectatorSyncManager] = None
-        # 实时数据推送任务管理
-        self.leaderboard_tasks: Dict[int, asyncio.Task] = {}
-        # 观战状态同步任务
-        self.spectator_sync_tasks: Dict[int, asyncio.Task] = {}
-        
-        # 启动定期清理任务（参考osu源码的清理机制）
-        self._cleanup_task = asyncio.create_task(self._periodic_cleanup())
-        
-    async def _periodic_cleanup(self):
-        """定期清理过期数据包的后台任务"""
-        while True:
-            try:
-                await asyncio.sleep(60)  # 每分钟执行一次
-                await packet_cleaner.cleanup_expired_packets()
-                
-                # 记录清理统计
-                stats = packet_cleaner.get_cleanup_stats()
-                if stats['pending_packets'] > 0:
-                    logger.debug(f"[MultiplayerHub] Cleanup stats: {stats}")
-                    
-            except Exception as e:
-                logger.error(f"[MultiplayerHub] Error in periodic cleanup: {e}")
-            except asyncio.CancelledError:
-                logger.info("[MultiplayerHub] Periodic cleanup task cancelled")
-                break
-        
-    async def initialize_managers(self):
-        """初始化管理器"""
-        if not self.spectator_sync_manager:
-            redis = get_redis()
-            self.spectator_sync_manager = SpectatorSyncManager(redis)
-            
-            # 启动观战事件监听
-            asyncio.create_task(self.spectator_sync_manager.subscribe_to_spectator_events(
-                self._handle_spectator_event
-            ))
-
-    async def _handle_spectator_event(self, channel: str, data: Dict):
-        """处理观战事件"""
-        try:
-            room_id = data.get('room_id')
-            event_type = data.get('event_type')
-            event_data = data.get('data', {})
-            
-            if room_id and event_type and room_id in self.rooms:
-                server_room = self.rooms[room_id]
-                await self._process_spectator_event(server_room, event_type, event_data)
-        except Exception as e:
-            logger.error(f"Error handling spectator event: {e}")
-
-    async def _process_spectator_event(self, server_room: ServerMultiplayerRoom, event_type: str, event_data: Dict):
-        """处理具体的观战事件"""
-        room_id = server_room.room.room_id
-        
-        if event_type == "spectator_joined":
-            user_id = event_data.get('user_id')
-            if user_id:
-                await self._sync_spectator_with_current_state(room_id, user_id)
-        
-        elif event_type == "request_leaderboard":
-            user_id = event_data.get('user_id')
-            if user_id:
-                leaderboard = gameplay_buffer.get_leaderboard(room_id)
-                await self._send_leaderboard_to_spectator(user_id, leaderboard)
-
-    async def _sync_spectator_with_current_state(self, room_id: int, user_id: int):
-        """同步观战者与当前游戏状态"""
-        try:
-            snapshot = gameplay_buffer.get_gameplay_snapshot(room_id)
-            if snapshot:
-                # 通过Redis发送状态同步信息给SpectatorHub
-                redis = get_redis()
-                sync_data = {
-                    'target_user': user_id,
-                    'snapshot': snapshot,
-                    'timestamp': datetime.now(UTC).isoformat()
-                }
-                await redis.publish(f"spectator_sync:{room_id}", json.dumps(sync_data))
-        except Exception as e:
-            logger.error(f"Error syncing spectator {user_id} with room {room_id}: {e}")
-
-    async def _send_leaderboard_to_spectator(self, user_id: int, leaderboard: List[Dict]):
-        """发送排行榜数据给观战者"""
-        try:
-            redis = get_redis()
-            leaderboard_data = {
-                'target_user': user_id,
-                'leaderboard': leaderboard,
-                'timestamp': datetime.now(UTC).isoformat()
-            }
-            await redis.publish(f"leaderboard_update:{user_id}", json.dumps(leaderboard_data))
-        except Exception as e:
-            logger.error(f"Error sending leaderboard to spectator {user_id}: {e}")
 
     @staticmethod
     def group_id(room: int) -> str:
@@ -644,10 +271,6 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
 
     async def JoinRoomWithPassword(self, client: Client, room_id: int, password: str):
         logger.info(f"[MultiplayerHub] {client.user_id} joining room {room_id}")
-        
-        # 初始化管理器
-        await self.initialize_managers()
-        
         store = self.get_or_create_state(client)
         if store.room_id != 0:
             raise InvokeException("You are already in a room")
@@ -670,13 +293,9 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         self.add_to_group(client, self.group_id(room_id))
         await server_room.match_type_handler.handle_join(user)
 
-        # Enhanced: Send current room and gameplay state to new user
+        # Critical fix: Send current room and gameplay state to new user
         # This ensures spectators joining ongoing games get proper state sync
         await self._send_room_state_to_new_user(client, server_room)
-        
-        # 如果正在进行游戏，同步游戏状态
-        if room.state in [MultiplayerRoomState.PLAYING, MultiplayerRoomState.WAITING_FOR_LOAD]:
-            await self._sync_new_user_with_gameplay(client, server_room)
 
         await self.event_logger.player_joined(room_id, user.user_id)
 
@@ -708,42 +327,6 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
 
         redis = get_redis()
         await redis.publish("chat:room:joined", f"{room.channel_id}:{user.user_id}")
-        
-        # 通知观战Hub有新用户加入
-        if self.spectator_sync_manager:
-            await self.spectator_sync_manager.notify_spectator_hubs(
-                room_id, "user_joined", {'user_id': user.user_id}
-            )
-
-        return room
-
-    async def _sync_new_user_with_gameplay(self, client: Client, room: ServerMultiplayerRoom):
-        """同步新用户与正在进行的游戏状态"""
-        try:
-            room_id = room.room.room_id
-            
-            # 获取游戏状态快照
-            snapshot = gameplay_buffer.get_gameplay_snapshot(room_id)
-            if not snapshot:
-                # 创建新的快照
-                room_data = {
-                    'state': room.room.state,
-                    'current_item': room.queue.current_item,
-                    'users': [{'user_id': u.user_id, 'state': u.state} for u in room.room.users]
-                }
-                snapshot = await gameplay_buffer.create_gameplay_snapshot(room_id, room_data)
-            
-            # 发送游戏状态到新用户
-            await self.broadcast_call(client.connection_id, "GameplayStateSync", snapshot)
-            
-            # 发送实时排行榜
-            leaderboard = gameplay_buffer.get_leaderboard(room_id)
-            if leaderboard:
-                await self.broadcast_call(client.connection_id, "LeaderboardUpdate", leaderboard)
-            
-            logger.info(f"[MultiplayerHub] Synced gameplay state for user {client.user_id} in room {room_id}")
-        except Exception as e:
-            logger.error(f"Error syncing new user with gameplay: {e}")
 
         return room
 
@@ -1121,32 +704,14 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         if user.state == state:
             return
 
-        # 记录状态变化用于观战同步
-        old_state = user.state
-
         # Special handling for state changes during gameplay
         match state:
             case MultiplayerUserState.IDLE:
                 if user.state.is_playing:
-                    # 玩家退出游戏时，清理分数缓冲区
-                    room_id = room.room_id
-                    if room_id in gameplay_buffer.score_buffers:
-                        gameplay_buffer.score_buffers[room_id].pop(user.user_id, None)
-                        await gameplay_buffer._update_leaderboard(room_id)
-                        await self._broadcast_leaderboard_update(server_room)
                     return
             case MultiplayerUserState.LOADED | MultiplayerUserState.READY_FOR_GAMEPLAY:
                 if not user.state.is_playing:
                     return
-            case MultiplayerUserState.PLAYING:
-                # 开始游戏时初始化分数缓冲区
-                room_id = room.room_id
-                await gameplay_buffer.add_score_frame(room_id, user.user_id, {
-                    'score': 0,
-                    'combo': 0,
-                    'accuracy': 100.0,
-                    'completed': False
-                })
 
         logger.info(
             f"[MultiplayerHub] User {user.user_id} changing state from {user.state} to {state}"
@@ -1164,107 +729,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         if state == MultiplayerUserState.SPECTATING:
             await self.handle_spectator_state_change(client, server_room, user)
 
-        # 通知观战Hub状态变化
-        if self.spectator_sync_manager:
-            await self.spectator_sync_manager.notify_user_state_change(
-                room.room_id, user.user_id, old_state.name, state.name
-            )
-
         await self.update_room_state(server_room)
-
-    async def _broadcast_leaderboard_update(self, room: ServerMultiplayerRoom):
-        """广播实时排行榜更新"""
-        try:
-            room_id = room.room.room_id
-            leaderboard = gameplay_buffer.get_leaderboard(room_id)
-            
-            if leaderboard:
-                await self.broadcast_group_call(
-                    self.group_id(room_id),
-                    "LeaderboardUpdate",
-                    leaderboard
-                )
-                
-                logger.debug(f"[MultiplayerHub] Broadcasted leaderboard update to room {room_id}")
-        except Exception as e:
-            logger.error(f"Error broadcasting leaderboard update: {e}")
-
-    async def _start_leaderboard_broadcast_task(self, room_id: int):
-        """启动实时排行榜广播任务"""
-        if room_id in self.leaderboard_tasks:
-            return
-            
-        async def leaderboard_broadcast_loop():
-            try:
-                while room_id in self.rooms and room_id in self.leaderboard_tasks:
-                    if room_id in self.rooms:
-                        server_room = self.rooms[room_id]
-                        if server_room.room.state == MultiplayerRoomState.PLAYING:
-                            await self._broadcast_leaderboard_update(server_room)
-                    
-                    await asyncio.sleep(1.0)  # 每秒更新一次排行榜
-            except asyncio.CancelledError:
-                pass
-            except Exception as e:
-                logger.error(f"Error in leaderboard broadcast loop for room {room_id}: {e}")
-        
-        task = asyncio.create_task(leaderboard_broadcast_loop())
-        self.leaderboard_tasks[room_id] = task
-
-    async def _stop_leaderboard_broadcast_task(self, room_id: int):
-        """停止实时排行榜广播任务"""
-        if room_id in self.leaderboard_tasks:
-            task = self.leaderboard_tasks.pop(room_id)
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
-
-    async def _cleanup_game_session(self, room_id: int, game_completed: bool):
-        """清理单局游戏会话数据（基于osu源码实现）"""
-        try:
-            # 停止实时排行榜广播
-            await self._stop_leaderboard_broadcast_task(room_id)
-            
-            # 获取最终排行榜
-            final_leaderboard = gameplay_buffer.get_leaderboard(room_id)
-            
-            # 发送最终排行榜给所有用户
-            if final_leaderboard:
-                await self.broadcast_group_call(
-                    self.group_id(room_id),
-                    "FinalLeaderboard", 
-                    final_leaderboard
-                )
-            
-            # 使用新的清理管理器清理游戏会话（参考osu源码）
-            await GameSessionCleaner.cleanup_game_session(room_id, game_completed)
-            
-            # 清理游戏会话数据
-            await gameplay_buffer.cleanup_game_session(room_id)
-            
-            # 通知观战同步管理器游戏结束
-            if hasattr(self, 'spectator_sync_manager') and self.spectator_sync_manager:
-                await self.spectator_sync_manager.notify_gameplay_ended(room_id, {
-                    'final_leaderboard': final_leaderboard,
-                    'completed': game_completed,
-                    'timestamp': datetime.now(UTC).isoformat()
-                })
-            
-            # 重置所有用户的游戏状态
-            if room_id in self.rooms:
-                room = self.rooms[room_id]
-                for user in room.room.users:
-                    gameplay_buffer.reset_user_gameplay_state(room_id, user.user_id)
-                    # 安排用户会话清理
-                    await GameSessionCleaner.cleanup_user_session(room_id, user.user_id)
-            
-            logger.info(f"[MultiplayerHub] Cleaned up game session for room {room_id} (completed: {game_completed})")
-            
-        except Exception as e:
-            logger.error(f"[MultiplayerHub] Failed to cleanup game session for room {room_id}: {e}")
-            # 即使清理失败也不应该影响游戏流程
 
     async def change_user_state(
         self,
@@ -1272,21 +737,11 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         user: MultiplayerRoomUser,
         state: MultiplayerUserState,
     ):
-        old_state = user.state
-        
         logger.info(
             f"[MultiplayerHub] {user.user_id}'s state "
-            f"changed from {old_state} to {state}"
+            f"changed from {user.state} to {state}"
         )
-        
         user.state = state
-        
-        # 在用户进入RESULTS状态时清理其游戏数据（参考osu源码）
-        if state == MultiplayerUserState.RESULTS and old_state.is_playing:
-            room_id = room.room.room_id
-            gameplay_buffer.reset_user_gameplay_state(room_id, user.user_id)
-            logger.debug(f"[MultiplayerHub] Reset gameplay state for user {user.user_id} in room {room_id}")
-        
         await self.broadcast_group_call(
             self.group_id(room.room.room_id),
             "UserStateChanged",
@@ -1547,10 +1002,6 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                     # This ensures cross-hub spectating works properly
                     await self._notify_spectator_hub_game_ended(room)
                     
-                    # 每局游戏结束后的清理工作
-                    room_id = room.room.room_id
-                    await self._cleanup_game_session(room_id, any_user_finished_playing)
-                    
                     if any_user_finished_playing:
                         await self.event_logger.game_completed(
                             room.room.room_id,
@@ -1566,44 +1017,16 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
     async def change_room_state(
         self, room: ServerMultiplayerRoom, state: MultiplayerRoomState
     ):
-        old_state = room.room.state
-        room_id = room.room.room_id
-        
         logger.debug(
-            f"[MultiplayerHub] Room {room_id} state "
-            f"changed from {old_state} to {state}"
+            f"[MultiplayerHub] Room {room.room.room_id} state "
+            f"changed from {room.room.state} to {state}"
         )
-        
         room.room.state = state
         await self.broadcast_group_call(
-            self.group_id(room_id),
+            self.group_id(room.room.room_id),
             "RoomStateChanged",
             state,
         )
-        
-        # 处理状态变化的特殊逻辑
-        if old_state == MultiplayerRoomState.PLAYING and state == MultiplayerRoomState.OPEN:
-            # 游戏结束，停止实时排行榜广播
-            await self._stop_leaderboard_broadcast_task(room_id)
-            
-            # 发送最终排行榜
-            leaderboard = gameplay_buffer.get_leaderboard(room_id)
-            if leaderboard:
-                await self.broadcast_group_call(
-                    self.group_id(room_id),
-                    "FinalLeaderboard",
-                    leaderboard
-                )
-            
-            # 通知观战Hub游戏结束
-            if self.spectator_sync_manager:
-                await self.spectator_sync_manager.notify_gameplay_ended(room_id, {
-                    'leaderboard': leaderboard
-                })
-        
-        elif state == MultiplayerRoomState.PLAYING:
-            # 游戏开始，启动实时排行榜
-            await self._start_leaderboard_broadcast_task(room_id)
 
     async def StartMatch(self, client: Client):
         server_room = self._ensure_in_room(client)
@@ -1676,8 +1099,6 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         await room.stop_all_countdowns(ForceGameplayStartCountdown)
         playing = False
         played_user = 0
-        room_id = room.room.room_id
-        
         for user in room.room.users:
             client = self.get_client_by_id(str(user.user_id))
             if client is None:
@@ -1691,15 +1112,6 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 played_user += 1
                 await self.change_user_state(room, user, MultiplayerUserState.PLAYING)
                 await self.call_noblock(client, "GameplayStarted")
-                
-                # 初始化玩家分数缓冲区
-                await gameplay_buffer.add_score_frame(room_id, user.user_id, {
-                    'score': 0,
-                    'combo': 0,
-                    'accuracy': 100.0,
-                    'completed': False
-                })
-                
             elif user.state == MultiplayerUserState.WAITING_FOR_LOAD:
                 await self.change_user_state(room, user, MultiplayerUserState.IDLE)
                 await self.broadcast_group_call(
@@ -1707,28 +1119,11 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                     "GameplayAborted",
                     GameplayAbortReason.LOAD_TOOK_TOO_LONG,
                 )
-        
         await self.change_room_state(
             room,
             (MultiplayerRoomState.PLAYING if playing else MultiplayerRoomState.OPEN),
         )
-        
         if playing:
-            # 创建游戏状态快照
-            room_data = {
-                'state': room.room.state,
-                'current_item': room.queue.current_item,
-                'users': [{'user_id': u.user_id, 'state': u.state} for u in room.room.users]
-            }
-            await gameplay_buffer.create_gameplay_snapshot(room_id, room_data)
-            
-            # 启动实时排行榜广播
-            await self._start_leaderboard_broadcast_task(room_id)
-            
-            # 通知观战Hub游戏开始
-            if self.spectator_sync_manager:
-                await self.spectator_sync_manager.notify_gameplay_started(room_id, room_data)
-            
             redis = get_redis()
             await redis.set(
                 f"multiplayer:{room.room.room_id}:gameplay:players",
@@ -1754,40 +1149,31 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         user: MultiplayerRoomUser,
         kicked: bool = False,
     ):
-        room_id = room.room.room_id
-        user_id = user.user_id
-        
         if client:
-            self.remove_from_group(client, self.group_id(room_id))
+            self.remove_from_group(client, self.group_id(room.room.room_id))
         room.room.users.remove(user)
 
-        target_store = self.state.get(user_id)
+        target_store = self.state.get(user.user_id)
         if target_store:
             target_store.room_id = 0
 
-        # 清理用户的游戏状态数据（参考osu源码）
-        gameplay_buffer.reset_user_gameplay_state(room_id, user_id)
-        
-        # 使用清理管理器安排用户会话清理
-        await GameSessionCleaner.cleanup_user_session(room_id, user_id)
-        
         redis = get_redis()
-        await redis.publish("chat:room:left", f"{room.room.channel_id}:{user_id}")
+        await redis.publish("chat:room:left", f"{room.room.channel_id}:{user.user_id}")
 
         async with with_db() as session:
             async with session.begin():
                 participated_user = (
                     await session.exec(
                         select(RoomParticipatedUser).where(
-                            RoomParticipatedUser.room_id == room_id,
-                            RoomParticipatedUser.user_id == user_id,
+                            RoomParticipatedUser.room_id == room.room.room_id,
+                            RoomParticipatedUser.user_id == user.user_id,
                         )
                     )
                 ).first()
                 if participated_user is not None:
                     participated_user.left_at = datetime.now(UTC)
 
-                db_room = await session.get(Room, room_id)
+                db_room = await session.get(Room, room.room.room_id)
                 if db_room is None:
                     raise InvokeException("Room does not exist in database")
                 if db_room.participant_count > 0:
@@ -1800,7 +1186,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         if (
             len(room.room.users) != 0
             and room.room.host
-            and room.room.host.user_id == user_id
+            and room.room.host.user_id == user.user_id
         ):
             next_host = room.room.users[0]
             await self.set_host(room, next_host)
@@ -1809,11 +1195,11 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             if client:
                 await self.call_noblock(client, "UserKicked", user)
             await self.broadcast_group_call(
-                self.group_id(room_id), "UserKicked", user
+                self.group_id(room.room.room_id), "UserKicked", user
             )
         else:
             await self.broadcast_group_call(
-                self.group_id(room_id), "UserLeft", user
+                self.group_id(room.room.room_id), "UserLeft", user
             )
 
     async def end_room(self, room: ServerMultiplayerRoom):
@@ -1838,106 +1224,8 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             room.room.room_id,
             room.room.host.user_id,
         )
-        
-        room_id = room.room.room_id
-        
-        # 清理实时数据
-        await self._stop_leaderboard_broadcast_task(room_id)
-        await gameplay_buffer.cleanup_room(room_id)
-        
-        # 使用清理管理器完全清理房间（参考osu源码）
-        await GameSessionCleaner.cleanup_room_fully(room_id)
-        
-        # 清理观战同步任务
-        if room_id in self.spectator_sync_tasks:
-            task = self.spectator_sync_tasks.pop(room_id)
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
-        
-        del self.rooms[room_id]
-        logger.info(f"[MultiplayerHub] Room {room_id} ended")
-
-    async def UpdateScore(self, client: Client, score_data: Dict):
-        """接收并处理实时分数更新"""
-        try:
-            server_room = self._ensure_in_room(client)
-            room = server_room.room
-            user = next((u for u in room.users if u.user_id == client.user_id), None)
-            
-            if user is None:
-                raise InvokeException("User not found in room")
-            
-            if room.state != MultiplayerRoomState.PLAYING:
-                return
-            
-            if user.state != MultiplayerUserState.PLAYING:
-                return
-            
-            room_id = room.room_id
-            
-            # 添加分数帧到缓冲区
-            await gameplay_buffer.add_score_frame(room_id, client.user_id, {
-                'score': score_data.get('score', 0),
-                'combo': score_data.get('combo', 0),
-                'accuracy': score_data.get('accuracy', 0.0),
-                'completed': score_data.get('completed', False),
-                'hp': score_data.get('hp', 1.0),
-                'position': score_data.get('position', 0)
-            })
-            
-            # 安排分数数据包清理（参考osu源码的数据包管理）
-            await packet_cleaner.schedule_cleanup(room_id, {
-                'type': 'score',
-                'user_id': client.user_id,
-                'data_size': len(str(score_data)),
-                'timestamp': datetime.now(UTC).isoformat()
-            })
-            
-            # 如果游戏完成，标记用户状态
-            if score_data.get('completed', False):
-                await self.change_user_state(
-                    server_room, user, MultiplayerUserState.FINISHED_PLAY
-                )
-                
-                # 立即安排该用户的清理
-                await GameSessionCleaner.cleanup_user_session(room_id, client.user_id)
-            
-        except Exception as e:
-            logger.error(f"Error updating score for user {client.user_id}: {e}")
-
-    async def GetLeaderboard(self, client: Client) -> List[Dict]:
-        """获取当前房间的实时排行榜"""
-        try:
-            server_room = self._ensure_in_room(client)
-            room_id = server_room.room.room_id
-            return gameplay_buffer.get_leaderboard(room_id)
-        except Exception as e:
-            logger.error(f"Error getting leaderboard for user {client.user_id}: {e}")
-            return []
-
-    async def RequestSpectatorSync(self, client: Client):
-        """观战者请求同步当前游戏状态"""
-        try:
-            server_room = self._ensure_in_room(client)
-            room_id = server_room.room.room_id
-            
-            # 发送游戏状态快照
-            snapshot = gameplay_buffer.get_gameplay_snapshot(room_id)
-            if snapshot:
-                await self.broadcast_call(client.connection_id, "GameplayStateSync", snapshot)
-            
-            # 发送当前排行榜
-            leaderboard = gameplay_buffer.get_leaderboard(room_id)
-            if leaderboard:
-                await self.broadcast_call(client.connection_id, "LeaderboardUpdate", leaderboard)
-            
-            logger.info(f"[MultiplayerHub] Sent spectator sync to user {client.user_id}")
-            
-        except Exception as e:
-            logger.error(f"Error handling spectator sync request: {e}")
+        del self.rooms[room.room.room_id]
+        logger.info(f"[MultiplayerHub] Room {room.room.room_id} ended")
 
     async def LeaveRoom(self, client: Client):
         store = self.get_or_create_state(client)
@@ -2016,18 +1304,12 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         if not user.state.is_playing:
             raise InvokeException("Cannot abort gameplay while not in a gameplay state")
 
-        # 清理用户游戏数据（参考osu源码）
-        room_id = room.room_id
-        gameplay_buffer.reset_user_gameplay_state(room_id, user.user_id)
-
         await self.change_user_state(
             server_room,
             user,
             MultiplayerUserState.IDLE,
         )
         await self.update_room_state(server_room)
-        
-        logger.info(f"[MultiplayerHub] User {user.user_id} aborted gameplay in room {room_id}")
 
     async def AbortMatch(self, client: Client):
         server_room = self._ensure_in_room(client)
@@ -2040,13 +1322,6 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         ):
             raise InvokeException("Cannot abort a match that hasn't started.")
 
-        room_id = room.room_id
-        
-        # 清理所有玩家的游戏状态数据（参考osu源码）
-        for user in room.users:
-            if user.state.is_playing:
-                gameplay_buffer.reset_user_gameplay_state(room_id, user.user_id)
-
         await asyncio.gather(
             *[
                 self.change_user_state(server_room, u, MultiplayerUserState.IDLE)
@@ -2054,18 +1329,14 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 if u.state.is_playing
             ]
         )
-        
-        # 执行完整的游戏会话清理
-        await self._cleanup_game_session(room_id, False)  # False表示游戏被中断而非完成
-        
         await self.broadcast_group_call(
-            self.group_id(room_id),
+            self.group_id(room.room_id),
             "GameplayAborted",
             GameplayAbortReason.HOST_ABORTED,
         )
         await self.update_room_state(server_room)
         logger.info(
-            f"[MultiplayerHub] {client.user_id} aborted match in room {room_id}"
+            f"[MultiplayerHub] {client.user_id} aborted match in room {room.room_id}"
         )
 
     async def change_user_match_state(
@@ -2243,9 +1514,6 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             # Import here to avoid circular imports
             from app.signalr.hub import SpectatorHubs
             from app.models.spectator_hub import SpectatedUserState, SpectatorState
-            from .spectator_buffer import spectator_state_manager
-
-            room_id = room.room.room_id
 
             # For each user who finished the game, notify SpectatorHub
             for room_user in room.room.users:
@@ -2259,12 +1527,6 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                         maximum_statistics={},
                     )
 
-                    # 同步到观战缓冲区管理器
-                    await spectator_state_manager.handle_user_finished_playing(
-                        room_user.user_id, 
-                        finished_state
-                    )
-
                     # Notify all SpectatorHub watchers that this user finished
                     await SpectatorHubs.broadcast_group_call(
                         SpectatorHubs.group_id(room_user.user_id),
@@ -2274,34 +1536,8 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                     )
                     
                     logger.debug(
-                        f"[MultiplayerHub] Synced and notified SpectatorHub that user {room_user.user_id} finished game"
+                        f"[MultiplayerHub] Notified SpectatorHub that user {room_user.user_id} finished game"
                     )
-
-                # 同步游戏中玩家的状态
-                elif room_user.state == MultiplayerUserState.PLAYING:
-                    try:
-                        multiplayer_data = {
-                            'room_id': room_id,
-                            'beatmap_id': room.queue.current_item.beatmap_id,
-                            'ruleset_id': room_user.ruleset_id or 0,
-                            'mods': room_user.mods,
-                            'state': room_user.state,
-                            'maximum_statistics': {}
-                        }
-                        
-                        await spectator_state_manager.sync_with_multiplayer(
-                            room_user.user_id, 
-                            multiplayer_data
-                        )
-                        
-                        logger.debug(
-                            f"[MultiplayerHub] Synced playing state for user {room_user.user_id} to SpectatorHub buffer"
-                        )
-                        
-                    except Exception as e:
-                        logger.debug(
-                            f"[MultiplayerHub] Failed to sync playing state for user {room_user.user_id}: {e}"
-                        )
 
         except Exception as e:
             logger.debug(

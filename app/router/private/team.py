@@ -5,7 +5,7 @@ import hashlib
 
 from app.database.lazer_user import BASE_INCLUDES, User, UserResp
 from app.database.team import Team, TeamMember, TeamRequest
-from app.dependencies.database import Database, get_redis
+from app.dependencies.database import Database
 from app.dependencies.storage import get_storage_service
 from app.dependencies.user import get_client_user
 from app.models.notification import (
@@ -19,9 +19,8 @@ from app.utils import check_image
 
 from .router import router
 
-from fastapi import Depends, File, Form, HTTPException, Request, Security
+from fastapi import Depends, File, Form, HTTPException, Path, Request, Security
 from pydantic import BaseModel
-from redis.asyncio import Redis
 from sqlmodel import exists, select
 
 
@@ -157,7 +156,7 @@ async def update_team(
 @router.delete("/team/{team_id}", name="删除战队", status_code=204)
 async def delete_team(
     session: Database,
-    team_id: int,
+    team_id: int = Path(..., description="战队 ID"),
     current_user: User = Security(get_client_user),
 ):
     team = await session.get(Team, team_id)
@@ -185,7 +184,7 @@ class TeamQueryResp(BaseModel):
 @router.get("/team/{team_id}", name="查询战队", response_model=TeamQueryResp)
 async def get_team(
     session: Database,
-    team_id: int,
+    team_id: int = Path(..., description="战队 ID"),
 ):
     members = (
         await session.exec(select(TeamMember).where(TeamMember.team_id == team_id))
@@ -202,9 +201,8 @@ async def get_team(
 @router.post("/team/{team_id}/request", name="请求加入战队", status_code=204)
 async def request_join_team(
     session: Database,
-    team_id: int,
+    team_id: int = Path(..., description="战队 ID"),
     current_user: User = Security(get_client_user),
-    redis: Redis = Depends(get_redis),
 ):
     team = await session.get(Team, team_id)
     if not team:
@@ -237,8 +235,8 @@ async def request_join_team(
 async def handle_request(
     req: Request,
     session: Database,
-    team_id: int,
-    user_id: int,
+    team_id: int = Path(..., description="战队 ID"),
+    user_id: int = Path(..., description="用户 ID"),
     current_user: User = Security(get_client_user),
 ):
     team = await session.get(Team, team_id)
@@ -281,11 +279,11 @@ async def handle_request(
     await session.commit()
 
 
-@router.delete("/team/{team_id}/{user_id}", name="踢出成员 / 退出队伍", status_code=204)
+@router.delete("/team/{team_id}/{user_id}", name="踢出成员 / 退出战队", status_code=204)
 async def kick_member(
     session: Database,
-    team_id: int,
-    user_id: int,
+    team_id: int = Path(..., description="战队 ID"),
+    user_id: int = Path(..., description="用户 ID"),
     current_user: User = Security(get_client_user),
 ):
     team = await session.get(Team, team_id)

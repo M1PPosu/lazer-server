@@ -130,63 +130,6 @@ def truncate(text: str, limit: int = 100, ellipsis: str = "...") -> str:
     return text
 
 
-
-def parse_user_agent(user_agent: str | None, max_length: int = 255) -> str | None:
-    """
-    解析用户代理字符串，提取关键信息：设备、系统、浏览器
-    
-    参数:
-        user_agent: 用户代理字符串
-        max_length: 最大长度限制
-    
-    返回:
-        简化后的用户代理字符串
-    """
-    if user_agent is None:
-        return None
-    
-    # 检查是否是 osu! 客户端
-    if "osu!" in user_agent.lower():
-        return "osu!"
-    
-    # 提取关键信息
-    parsed_info = []
-    
-    # 提取设备信息
-    device_matches = [
-        # 常见移动设备型号
-        r"(iPhone|iPad|iPod|Android|ALI-AN00|SM-\w+|MI \w+|Redmi|HUAWEI|HONOR|POCO)",
-        # 其他设备关键词
-        r"(Windows NT|Macintosh|Linux|Ubuntu)"
-    ]
-    
-    import re
-    for pattern in device_matches:
-        matches = re.findall(pattern, user_agent)
-        if matches:
-            parsed_info.extend(matches)
-    
-    # 提取浏览器信息
-    browser_matches = [
-        r"(Chrome|Firefox|Safari|Edge|MSIE|MQQBrowser|MiuiBrowser|OPR|Opera)",
-        r"(WebKit|Gecko|Trident)"
-    ]
-    
-    for pattern in browser_matches:
-        matches = re.findall(pattern, user_agent)
-        if matches:
-            # 只取第一个匹配的浏览器
-            parsed_info.append(matches[0])
-            break
-    
-    # 组合信息
-    if parsed_info:
-        result = " / ".join(set(parsed_info))
-        return truncate(result, max_length - 3, "...")
-    
-    # 如果无法解析，则截断原始字符串
-    return truncate(user_agent, max_length - 3, "...")
-
 def check_image(content: bytes, size: int, width: int, height: int) -> None:
     if len(content) > size:  # 10MB limit
         raise HTTPException(status_code=400, detail="File size exceeds 10MB limit")

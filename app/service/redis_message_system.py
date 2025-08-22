@@ -358,7 +358,9 @@ class RedisMessageSystem:
             # 确保消息按ID正序排序（时间顺序）
             messages.sort(key=lambda x: x.get("message_id", 0))
 
-            return messages
+            # 如果是获取最新消息（since=0），需要保持倒序（最新的在前面）
+            if since == 0:
+                messages.reverse()
 
             return messages
 

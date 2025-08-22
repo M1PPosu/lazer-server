@@ -218,10 +218,6 @@ This email was sent automatically, please do not reply.
         # 生成新的验证码
         code = EmailVerificationService.generate_verification_code()
         
-        # 解析用户代理字符串
-        from app.utils import parse_user_agent
-        parsed_user_agent = parse_user_agent(user_agent, max_length=255)
-        
         # 创建验证记录
         verification = EmailVerification(
             user_id=user_id,
@@ -229,7 +225,7 @@ This email was sent automatically, please do not reply.
             verification_code=code,
             expires_at=datetime.now(UTC) + timedelta(minutes=10),  # 10分钟过期
             ip_address=ip_address,
-            user_agent=parsed_user_agent  # 使用解析后的用户代理
+            user_agent=user_agent
         )
         
         db.add(verification)
@@ -392,18 +388,13 @@ class LoginSessionService:
         is_new_location: bool = False
     ) -> LoginSession:
         """创建登录会话"""
-        from app.utils import parse_user_agent
-        
-        # 解析用户代理字符串，提取关键信息
-        parsed_user_agent = parse_user_agent(user_agent, max_length=255)
-        
         session_token = EmailVerificationService.generate_session_token()
         
         session = LoginSession(
             user_id=user_id,
             session_token=session_token,
             ip_address=ip_address,
-            user_agent=parsed_user_agent,  # 使用解析后的用户代理
+            user_agent=user_agent,
             country_code=country_code,
             is_new_location=is_new_location,
             expires_at=datetime.now(UTC) + timedelta(hours=24),  # 24小时过期

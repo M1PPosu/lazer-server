@@ -23,7 +23,7 @@ class EmailVerification(SQLModel, table=True):
     is_used: bool = Field(default=False)  # 是否已使用
     used_at: datetime | None = Field(default=None)
     ip_address: str | None = Field(default=None)  # 请求IP
-    user_agent: str | None = Field(default=None, max_length=255)  # 用户代理
+    user_agent: str | None = Field(default=None)  # 用户代理
 
 
 class LoginSession(SQLModel, table=True):
@@ -35,7 +35,7 @@ class LoginSession(SQLModel, table=True):
     user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), nullable=False, index=True))
     session_token: str = Field(unique=True, index=True)  # 会话令牌
     ip_address: str = Field()  # 登录IP
-    user_agent: str | None = Field(default=None, max_length=255)  # 用户代理（限制长度为255字符）
+    user_agent: str | None = Field(default=None)
     country_code: str | None = Field(default=None)
     is_verified: bool = Field(default=False)  # 是否已验证
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

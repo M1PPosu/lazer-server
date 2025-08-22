@@ -34,7 +34,6 @@ from app.models.spectator_hub import (
 from app.utils import unix_timestamp_to_windows
 
 from .hub import Client, Hub
-from .spectator_buffer import spectator_state_manager
 
 from httpx import HTTPError
 from sqlalchemy.orm import joinedload
@@ -204,22 +203,8 @@ class SpectatorHub(Hub[StoreClientState]):
         # Send all current player states to the new client
         # This matches the official OnConnectedAsync behavior
         active_states = []
-        
-        # 首先从缓冲区获取状态
-        buffer_stats = spectator_state_manager.get_buffer_stats()
-        if buffer_stats['active_users'] > 0:
-            logger.debug(f"[SpectatorHub] Found {buffer_stats['active_users']} users in buffer")
-            
-            # 获取缓冲区中的所有活跃用户
-            active_users = spectator_state_manager.buffer.get_all_active_users()
-            for user_id in active_users:
-                state = spectator_state_manager.buffer.get_user_state(user_id)
-                if state and state.state == SpectatedUserState.Playing:
-                    active_states.append((user_id, state))
-        
-        # 然后从本地状态获取
         for user_id, store in self.state.items():
-            if store.state is not None and user_id not in [state[0] for state in active_states]:
+            if store.state is not None:
                 active_states.append((user_id, store.state))
 
         if active_states:
@@ -256,32 +241,15 @@ class SpectatorHub(Hub[StoreClientState]):
                         and room_user.user_id not in self.state
                     ):
                         # Create a synthetic SpectatorState for multiplayer players
-                        # 关键修复：处理多人游戏中不同用户可能选择不同谱面的情况
+                        # This helps with cross-hub spectating
                         try:
-                            # 获取用户选择的谱面ID（如果是自由选择模式）
-                            user_beatmap_id = getattr(room_user, 'beatmap_id', None) or server_room.queue.current_item.beatmap_id
-                            user_ruleset_id = room_user.ruleset_id or server_room.queue.current_item.ruleset_id or 0
-                            user_mods = room_user.mods or []
-                            
                             synthetic_state = SpectatorState(
-                                beatmap_id=user_beatmap_id,
-                                ruleset_id=user_ruleset_id,
-                                mods=user_mods,
+                                beatmap_id=server_room.queue.current_item.beatmap_id,
+                                ruleset_id=room_user.ruleset_id or 0,  # Default to osu!
+                                mods=room_user.mods,
                                 state=SpectatedUserState.Playing,
                                 maximum_statistics={},
                             )
-
-                            # 同步到缓冲区管理器
-                            multiplayer_data = {
-                                'room_id': room_id,
-                                'beatmap_id': user_beatmap_id,
-                                'ruleset_id': user_ruleset_id,
-                                'mods': user_mods,
-                                'state': room_user.state,
-                                'maximum_statistics': {},
-                                'is_multiplayer': True
-                            }
-                            await spectator_state_manager.sync_with_multiplayer(room_user.user_id, multiplayer_data)
 
                             await self.call_noblock(
                                 client,
@@ -289,8 +257,8 @@ class SpectatorHub(Hub[StoreClientState]):
                                 room_user.user_id,
                                 synthetic_state,
                             )
-                            logger.info(
-                                f"[SpectatorHub] Sent synthetic multiplayer state for user {room_user.user_id} (beatmap: {user_beatmap_id}, ruleset: {user_ruleset_id})"
+                            logger.debug(
+                                f"[SpectatorHub] Sent synthetic multiplayer state for user {room_user.user_id}"
                             )
                         except Exception as e:
                             logger.debug(
@@ -311,9 +279,6 @@ class SpectatorHub(Hub[StoreClientState]):
                                 state=SpectatedUserState.Passed,  # Assume passed for results
                                 maximum_statistics={},
                             )
-
-                            # 也同步结束状态到缓冲区
-                            await spectator_state_manager.handle_user_finished_playing(room_user.user_id, finished_state)
 
                             await self.call_noblock(
                                 client,
@@ -386,15 +351,6 @@ class SpectatorHub(Hub[StoreClientState]):
         # # 预缓存beatmap文件以加速后续PP计算
         # await self._preload_beatmap_for_pp_calculation(state.beatmap_id)
 
-        # 更新缓冲区状态
-        session_data = {
-            'beatmap_checksum': store.checksum,
-            'score_token': score_token,
-            'username': name,
-            'started_at': time.time()
-        }
-        await spectator_state_manager.handle_user_began_playing(user_id, state, session_data)
-
         await self.broadcast_group_call(
             self.group_id(user_id),
             "UserBeganPlaying",
@@ -420,9 +376,6 @@ class SpectatorHub(Hub[StoreClientState]):
         score_info.max_combo = header.max_combo
         score_info.statistics = header.statistics
         store.score.replay_frames.extend(frame_data.frames)
-
-        # 更新缓冲区的帧数据
-        await spectator_state_manager.handle_frame_data(user_id, frame_data)
 
         await self.broadcast_group_call(
             self.group_id(user_id), "UserSentFrames", user_id, frame_data
@@ -605,9 +558,6 @@ class SpectatorHub(Hub[StoreClientState]):
             self.tasks.add(task)
             task.add_done_callback(self.tasks.discard)
 
-        # 通知缓冲区管理器用户结束游戏
-        await spectator_state_manager.handle_user_finished_playing(user_id, state)
-
         logger.info(
             f"[SpectatorHub] {user_id} finished playing {state.beatmap_id} "
             f"with {state.state}"
@@ -628,54 +578,27 @@ class SpectatorHub(Hub[StoreClientState]):
 
         logger.info(f"[SpectatorHub] {user_id} started watching {target_id}")
 
-        # 使用缓冲区管理器处理观战开始，获取追赶数据
-        catchup_bundle = await spectator_state_manager.handle_spectator_start_watching(user_id, target_id)
-
         try:
-            # 首先尝试从缓冲区获取状态
-            buffered_state = spectator_state_manager.buffer.get_user_state(target_id)
-            
-            if buffered_state and buffered_state.state == SpectatedUserState.Playing:
-                logger.info(
-                    f"[SpectatorHub] Sending buffered state for {target_id} to spectator {user_id} "
-                    f"(beatmap: {buffered_state.beatmap_id}, ruleset: {buffered_state.ruleset_id})"
-                )
-                await self.call_noblock(client, "UserBeganPlaying", target_id, buffered_state)
-                
-                # 发送最近的帧数据以帮助同步
-                recent_frames = spectator_state_manager.buffer.get_recent_frames(target_id, 10)
-                for frame_data in recent_frames:
-                    try:
-                        await self.call_noblock(client, "UserSentFrames", target_id, frame_data)
-                    except Exception as e:
-                        logger.debug(f"[SpectatorHub] Failed to send frame data: {e}")
-                        
-                # 如果有追赶数据包，发送额外的同步信息
-                if catchup_bundle:
-                    multiplayer_data = catchup_bundle.get('multiplayer_data')
-                    if multiplayer_data and multiplayer_data.get('is_multiplayer'):
-                        logger.info(
-                            f"[SpectatorHub] Sending multiplayer sync data for {target_id} "
-                            f"(room: {multiplayer_data.get('room_id')})"
-                        )
-            else:
-                # 尝试从本地状态获取
-                target_store = self.state.get(target_id)
-                if target_store and target_store.state:
-                    # CRITICAL FIX: Only send state if user is actually playing
-                    # Don't send state for finished/quit games
-                    if target_store.state.state == SpectatedUserState.Playing:
-                        logger.debug(f"[SpectatorHub] {target_id} is currently playing, sending local state")
-                        await self.call_noblock(client, "UserBeganPlaying", target_id, target_store.state)
-                    else:
-                        logger.debug(f"[SpectatorHub] {target_id} state is {target_store.state.state}, not sending to watcher")
+            # Get target user's current state if it exists
+            target_store = self.state.get(target_id)
+            if target_store and target_store.state:
+                # CRITICAL FIX: Only send state if user is actually playing
+                # Don't send state for finished/quit games
+                if target_store.state.state == SpectatedUserState.Playing:
+                    logger.debug(
+                        f"[SpectatorHub] {target_id} is currently playing, sending state"
+                    )
+                    # Send current state to the watcher immediately
+                    await self.call_noblock(
+                        client,
+                        "UserBeganPlaying",
+                        target_id,
+                        target_store.state,
+                    )
                 else:
-                    # 检查多人游戏同步缓存
-                    multiplayer_data = spectator_state_manager.buffer.get_multiplayer_sync_data(target_id)
-                    if multiplayer_data:
-                        logger.debug(f"[SpectatorHub] Sending multiplayer sync data for {target_id}")
-                        # 这里可以发送多人游戏的状态信息
-                        
+                    logger.debug(
+                        f"[SpectatorHub] {target_id} state is {target_store.state.state}, not sending to watcher"
+                    )
         except Exception as e:
             # User isn't tracked or error occurred - this is not critical
             logger.debug(f"[SpectatorHub] Could not get state for {target_id}: {e}")
@@ -720,9 +643,6 @@ class SpectatorHub(Hub[StoreClientState]):
         user_id = int(client.connection_id)
 
         logger.info(f"[SpectatorHub] {user_id} ended watching {target_id}")
-
-        # 使用缓冲区管理器处理观战结束
-        await spectator_state_manager.handle_spectator_stop_watching(user_id, target_id)
 
         # Remove from SignalR group
         self.remove_from_group(client, self.group_id(target_id))
