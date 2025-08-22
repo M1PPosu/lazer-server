@@ -10,12 +10,16 @@ from fastapi.responses import RedirectResponse
 redirect_router = APIRouter(include_in_schema=False)
 
 
-@redirect_router.get("/users/{user_id}")
+@redirect_router.get("/users/{path:path}")
+@redirect_router.get("/teams/{team_id}")
 @redirect_router.get("/u/{user_id}")
 @redirect_router.get("/b/{beatmap_id}")
 @redirect_router.get("/s/{beatmapset_id}")
 @redirect_router.get("/beatmapsets/{path:path}")
+@redirect_router.get("/beatmaps/{path:path}")
 @redirect_router.get("/multiplayer/rooms/{room_id}")
+@redirect_router.get("/scores/{score_id}")
+@redirect_router.get("/home/password-reset")
 @redirect_router.get("/oauth/authorize")
 async def redirect(request: Request):
     query_string = request.url.query
