@@ -58,7 +58,7 @@ class StorageServiceType(str, Enum):
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="allow")
 
     # 数据库设置
     mysql_host: str = "localhost"
@@ -119,7 +119,6 @@ class Settings(BaseSettings):
 
     # 邮件服务设置
     enable_email_verification: bool = Field(default=False, description="是否启用邮件验证功能")
-    enable_email_sending: bool = Field(default=False, description="是否真实发送邮件（false时仅模拟发送，输出到日志）")
     smtp_server: str = "localhost"
     smtp_port: int = 587
     smtp_username: str = ""

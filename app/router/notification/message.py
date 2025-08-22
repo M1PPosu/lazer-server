@@ -90,6 +90,7 @@ async def send_message(
     channel_id = db_channel.channel_id
     channel_type = db_channel.type
     channel_name = db_channel.name
+    user_id = current_user.id
 
     # 使用 Redis 消息系统发送消息 - 立即返回
     resp = await redis_message_system.send_message(
@@ -114,7 +115,7 @@ async def send_message(
             message_id=resp.message_id,  # 使用 Redis 系统生成的ID
             channel_id=channel_id,
             content=req.message,
-            sender_id=current_user.id,
+            sender_id=user_id,
             type=MessageType.ACTION if req.is_action else MessageType.PLAIN,
             uuid=req.uuid,
         )
