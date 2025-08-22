@@ -24,6 +24,7 @@ from .counts import (
 )
 from .daily_challenge import DailyChallengeStats, DailyChallengeStatsResp
 from .email_verification import EmailVerification, LoginSession
+from .events import Event
 from .favourite_beatmapset import FavouriteBeatmapset
 from .lazer_user import (
     User,
@@ -83,6 +84,7 @@ __all__ = [
     "DailyChallengeStats",
     "DailyChallengeStatsResp",
     "EmailVerification",
+    "Event",
     "FavouriteBeatmapset",
     "ItemAttemptsCount",
     "ItemAttemptsResp",

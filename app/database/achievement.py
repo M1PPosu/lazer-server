@@ -77,7 +77,7 @@ async def process_achievements(session: AsyncSession, redis: Redis, score_id: in
             type=EventType.ACHIEVEMENT,
             user_id=score.user_id,
             event_payload={
-                "achievement": {"achievement_id": r.id, "achieved_at": now.isoformat()},
+                "achievement": {"slug": r.assets_id, "name": r.name},
                 "user": {
                     "username": score.user.username,
                     "url": settings.web_url + "users/" + str(score.user.id),

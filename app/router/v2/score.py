@@ -172,10 +172,13 @@ async def submit_score(
             user=score.user,
         )
         rank_event.event_payload = {
-            "scorerank": str(score.rank),
+            "scorerank": score.rank.value,
             "rank": resp.rank_global,
-            "mode": str(resp.beatmap.mode),  # pyright: ignore[reportOptionalMemberAccess]
-            "beatmap": {"title": resp.beatmap.version, "url": resp.beatmap.url},  # pyright: ignore[reportOptionalMemberAccess]
+            "mode": resp.beatmap.mode.readable(),  # pyright: ignore[reportOptionalMemberAccess]
+            "beatmap": {
+                "title": f"{resp.beatmap.beatmapset.artist} - {resp.beatmap.beatmapset.title} [{resp.beatmap.version}]",  # pyright: ignore[reportOptionalMemberAccess]
+                "url": resp.beatmap.url,  # pyright: ignore[reportOptionalMemberAccess]
+            },
             "user": {
                 "username": score.user.username,
                 "url": settings.web_url + "users/" + str(score.user.id),

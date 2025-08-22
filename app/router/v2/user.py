@@ -12,7 +12,7 @@ from app.database import (
     User,
     UserResp,
 )
-from app.database.events import EventResp
+from app.database.events import Event
 from app.database.lazer_user import SEARCH_INCLUDED
 from app.database.pp_best_score import PPBestScore
 from app.database.score import Score, ScoreResp
@@ -98,6 +98,29 @@ async def get_users(
                 background_task.add_task(cache_service.cache_user, user_resp)
 
         return BatchUserResponse(users=users)
+
+
+@router.get("/users/{user}/recent_activity", tags=["用户"], response_model=list[Event])
+async def get_user_events(
+    session: Database,
+    user: int,
+    limit: int | None = Query(None),
+    offset: int | None = Query(None),  # TODO: 搞清楚并且添加这个奇怪的分页偏移
+):
+    db_user = await session.get(User, user)
+    if db_user is None or db_user.id == BANCHOBOT_ID:
+        raise HTTPException(404, "User Not found")
+    events = (
+        await session.exec(
+            select(Event)
+            .where(Event.user_id == db_user.id)
+            .order_by(col(Event.created_at).desc())
+            .limit(limit)
+            .offset(offset)
+        )
+    ).all()
+    print(events)
+    return events
 
 
 @router.get(
@@ -341,19 +364,3 @@ async def get_user_scores(
     )
 
     return score_responses
-
-
-@router.get("/users/{user}/recent_activity", tags=["用户"], response_model=list[EventResp])
-async def get_user_events(
-    session: Database,
-    user: int,
-    limit: int | None = Query(None),
-    offset: str | None = Query(None),  # TODO: 搞清楚并且添加这个奇怪的分页偏移
-):
-    db_user = await session.get(User, user)
-    if db_user is None or db_user.id == BANCHOBOT_ID:
-        raise HTTPException(404, "User Not found")
-    events = await db_user.awaitable_attrs.events
-    if limit is not None:
-        events = events[:limit]
-    return [EventResp(**event.model_dump()).merge_payload() for event in events]

@@ -2,6 +2,9 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import TYPE_CHECKING
 
+from app.models.model import UTCBaseModel
+
+from pydantic import model_serializer
 from sqlmodel import (
     JSON,
     BigInteger,
@@ -34,26 +37,25 @@ class EventType(str, Enum):
     USERNAME_CHANGE = "username_change"
 
 
-class EventBase(SQLModel):
+class Event(UTCBaseModel, SQLModel, table=True):
+    __tablename__: str = "user_events"
     id: int = Field(default=None, primary_key=True)
     created_at: datetime = Field(sa_column=Column(DateTime(timezone=True), default=datetime.now(UTC)))
     type: EventType
     event_payload: dict = Field(exclude=True, default_factory=dict, sa_column=Column(JSON))
-
-
-class Event(EventBase, table=True):
-    __tablename__: str = "user_events"
     user_id: int | None = Field(
         default=None,
         sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True),
     )
     user: "User" = Relationship(back_populates="events")
 
-
-class EventResp(EventBase):
-    def merge_payload(self) -> "EventResp":
-        for key, value in self.event_payload.items():
-            setattr(self, key, value)
-        return self
-
-    pass
+    @model_serializer
+    def serialize(self) -> dict:
+        d = {
+            "id": self.id,
+            "createdAt": self.created_at.replace(tzinfo=UTC).isoformat(),
+            "type": self.type.value,
+        }
+        for k, v in self.event_payload.items():
+            d[k] = v
+        return d

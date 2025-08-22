@@ -71,6 +71,18 @@ class GameMode(str, Enum):
             7: GameMode.FRUITSRX,
         }[v]
 
+    def readable(self) -> str:
+        return {
+            GameMode.OSU: "osu!",
+            GameMode.TAIKO: "osu!taiko",
+            GameMode.FRUITS: "osu!catch",
+            GameMode.MANIA: "osu!mania",
+            GameMode.OSURX: "osu!relax",
+            GameMode.OSUAP: "osu!autopilot",
+            GameMode.TAIKORX: "taiko relax",
+            GameMode.FRUITSRX: "catch relax",
+        }[self]
+
     def to_special_mode(self, mods: list[APIMod] | list[str]) -> "GameMode":
         if self not in (GameMode.OSU, GameMode.TAIKO, GameMode.FRUITS):
             return self
