@@ -108,16 +108,71 @@ class GameplayStateBuffer:
     
     async def create_gameplay_snapshot(self, room_id: int, room_data: Dict):
         """创建游戏状态快照用于新加入的观众"""
+        # 序列化复杂对象
+        serialized_room_data = self._serialize_room_data(room_data)
+        
         snapshot = {
             'room_id': room_id,
-            'state': room_data.get('state'),
-            'current_item': room_data.get('current_item'),
-            'users': room_data.get('users', []),
+            'state': serialized_room_data.get('state'),
+            'current_item': serialized_room_data.get('current_item'),
+            'users': serialized_room_data.get('users', []),
             'leaderboard': self.get_leaderboard(room_id),
-            'created_at': datetime.now(UTC)
+            'created_at': datetime.now(UTC).isoformat()
         }
         self.gameplay_snapshots[room_id] = snapshot
         return snapshot
+    
+    def _serialize_room_data(self, room_data: Dict) -> Dict:
+        """序列化房间数据"""
+        result = {}
+        for key, value in room_data.items():
+            if hasattr(value, 'value') and hasattr(value, 'name'):
+                # 枚举类型
+                result[key] = {'name': value.name, 'value': value.value}
+            elif hasattr(value, '__dict__'):
+                # 复杂对象
+                if hasattr(value, 'model_dump'):
+                    result[key] = value.model_dump()
+                elif hasattr(value, 'dict'):
+                    result[key] = value.dict()
+                else:
+                    # 手动序列化
+                    obj_dict = {}
+                    for attr_name, attr_value in value.__dict__.items():
+                        if not attr_name.startswith('_'):
+                            obj_dict[attr_name] = self._serialize_value(attr_value)
+                    result[key] = obj_dict
+            elif isinstance(value, (list, tuple)):
+                result[key] = [self._serialize_value(item) for item in value]
+            else:
+                result[key] = self._serialize_value(value)
+        return result
+    
+    def _serialize_value(self, value):
+        """序列化单个值"""
+        if hasattr(value, 'value') and hasattr(value, 'name'):
+            # 枚举类型
+            return {'name': value.name, 'value': value.value}
+        elif hasattr(value, '__dict__'):
+            # 复杂对象
+            if hasattr(value, 'model_dump'):
+                return value.model_dump()
+            elif hasattr(value, 'dict'):
+                return value.dict()
+            else:
+                obj_dict = {}
+                for attr_name, attr_value in value.__dict__.items():
+                    if not attr_name.startswith('_'):
+                        obj_dict[attr_name] = self._serialize_value(attr_value)
+                return obj_dict
+        elif isinstance(value, (list, tuple)):
+            return [self._serialize_value(item) for item in value]
+        elif isinstance(value, dict):
+            return {k: self._serialize_value(v) for k, v in value.items()}
+        elif isinstance(value, (str, int, float, bool, type(None))):
+            return value
+        else:
+            return str(value)
     
     def get_gameplay_snapshot(self, room_id: int) -> Optional[Dict]:
         """获取游戏状态快照"""
@@ -155,12 +210,48 @@ class SpectatorSyncManager:
         self.redis = redis_client
         self.channel_prefix = "multiplayer_spectator"
     
+    def _serialize_for_json(self, obj):
+        """递归序列化对象为JSON兼容格式"""
+        if hasattr(obj, '__dict__'):
+            # 如果对象有__dict__属性，将其转换为字典
+            if hasattr(obj, 'model_dump'):
+                # 对于Pydantic模型
+                return obj.model_dump()
+            elif hasattr(obj, 'dict'):
+                # 对于较旧的Pydantic模型
+                return obj.dict()
+            else:
+                # 对于普通对象
+                result = {}
+                for key, value in obj.__dict__.items():
+                    if not key.startswith('_'):  # 跳过私有属性
+                        result[key] = self._serialize_for_json(value)
+                return result
+        elif isinstance(obj, dict):
+            return {key: self._serialize_for_json(value) for key, value in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return [self._serialize_for_json(item) for item in obj]
+        elif isinstance(obj, datetime):
+            # 处理datetime对象
+            return obj.isoformat()
+        elif hasattr(obj, 'value') and hasattr(obj, 'name'):
+            # 对于枚举类型
+            return {'name': obj.name, 'value': obj.value}
+        elif isinstance(obj, (str, int, float, bool, type(None))):
+            return obj
+        else:
+            # 对于其他类型，尝试转换为字符串
+            return str(obj)
+    
     async def notify_spectator_hubs(self, room_id: int, event_type: str, data: Dict):
         """通知观战Hub游戏状态变化"""
+        # 序列化复杂对象为JSON兼容格式
+        serialized_data = self._serialize_for_json(data)
+        
         message = {
             'room_id': room_id,
             'event_type': event_type,
-            'data': data,
+            'data': serialized_data,
             'timestamp': datetime.now(UTC).isoformat()
         }
         
