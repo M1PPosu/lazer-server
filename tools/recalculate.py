@@ -2,13 +2,17 @@ from __future__ import annotations
 
 import asyncio
 import math
+import os
+import sys
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from app.calculator import (
+    calculate_pp,
     calculate_score_to_level,
     calculate_weighted_acc,
     calculate_weighted_pp,
     clamp,
-    pre_fetch_and_calculate_pp,
 )
 from app.config import settings
 from app.const import BANCHOBOT_ID
@@ -64,6 +68,7 @@ async def recalculate():
 
             await session.commit()
             logger.success(f"Recalculated for mode: {mode}, total users: {len(statistics_list)}")
+    await engine.dispose()
 
 
 async def _recalculate_pp(
@@ -99,8 +104,8 @@ async def _recalculate_pp(
                 score.pp = 0
                 return
             try:
-                pp = await pre_fetch_and_calculate_pp(score, beatmap_id, session, redis, fetcher)
-                score.pp = pp
+                beatmap_raw = await fetcher.get_or_fetch_beatmap_raw(redis, beatmap_id)
+                pp = await calculate_pp(score, beatmap_raw, session)
                 if pp == 0:
                     return
                 if score.beatmap_id not in prev or prev[score.beatmap_id].pp < pp:
@@ -280,3 +285,7 @@ async def _recalculate_statistics(statistics: UserStatistics, session: AsyncSess
                         case Rank.A:
                             statistics.grade_a -= 1
     statistics.level_current = calculate_score_to_level(statistics.total_score)
+
+
+if __name__ == "__main__":
+    asyncio.run(recalculate())

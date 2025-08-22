@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime
-import os
 from pathlib import Path
 
 from app.config import settings
@@ -38,7 +36,6 @@ from app.service.init_geoip import init_geoip
 from app.service.load_achievements import load_achievements
 from app.service.online_status_maintenance import schedule_online_status_maintenance
 from app.service.osu_rx_statistics import create_rx_statistics
-from app.service.recalculate import recalculate
 from app.service.redis_message_system import redis_message_system
 from app.service.stats_scheduler import start_stats_scheduler, stop_stats_scheduler
 from app.utils import bg_tasks
@@ -187,10 +184,6 @@ if settings.osu_web_client_secret == "your_osu_web_client_secret_here":
 
 if __name__ == "__main__":
     import uvicorn
-
-    if os.environ.get("RECALCULATE", "false").lower() == "true":
-        asyncio.run(recalculate())
-        exit()
 
     uvicorn.run(
         "main:app",
