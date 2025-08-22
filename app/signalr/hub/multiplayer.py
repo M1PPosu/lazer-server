@@ -48,6 +48,7 @@ from app.models.room import (
 from app.models.score import GameMode
 
 from .hub import Client, Hub
+from .multiplayer_packet_cleaner import packet_cleaner, GameSessionCleaner
 
 from httpx import HTTPError
 from sqlalchemy import update
@@ -201,6 +202,45 @@ class GameplayStateBuffer:
         keys_to_remove = [key for key in self.spectator_states.keys() if key[0] == room_id]
         for key in keys_to_remove:
             self.spectator_states.pop(key, None)
+    
+    async def cleanup_game_session(self, room_id: int):
+        """清理单局游戏会话数据（每局游戏结束后调用）"""
+        # 清理分数缓冲区但保留房间结构
+        if room_id in self.score_buffers:
+            self.score_buffers[room_id].clear()
+        
+        # 清理实时排行榜
+        self.leaderboards.pop(room_id, None)
+        
+        # 清理游戏状态快照  
+        self.gameplay_snapshots.pop(room_id, None)
+        
+        # 清理观战者状态但不删除房间相关键
+        keys_to_remove = []
+        for key in self.spectator_states.keys():
+            if key[0] == room_id:
+                # 保留连接状态，清理游戏数据
+                state = self.spectator_states[key]
+                if 'game_data' in state:
+                    state.pop('game_data', None)
+                if 'score_data' in state:
+                    state.pop('score_data', None)
+                    
+        logger.info(f"[GameplayStateBuffer] Cleaned game session data for room {room_id}")
+        
+    def reset_user_gameplay_state(self, room_id: int, user_id: int):
+        """重置单个用户的游戏状态"""
+        # 清理用户分数缓冲区
+        if room_id in self.score_buffers and user_id in self.score_buffers[room_id]:
+            self.score_buffers[room_id][user_id].clear()
+            
+        # 重置观战者状态中的游戏数据
+        key = (room_id, user_id)
+        if key in self.spectator_states:
+            state = self.spectator_states[key]
+            state.pop('game_data', None)
+            state.pop('score_data', None)
+            state['last_reset'] = datetime.now(UTC)
 
 
 class SpectatorSyncManager:
@@ -392,6 +432,27 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         self.leaderboard_tasks: Dict[int, asyncio.Task] = {}
         # 观战状态同步任务
         self.spectator_sync_tasks: Dict[int, asyncio.Task] = {}
+        
+        # 启动定期清理任务（参考osu源码的清理机制）
+        self._cleanup_task = asyncio.create_task(self._periodic_cleanup())
+        
+    async def _periodic_cleanup(self):
+        """定期清理过期数据包的后台任务"""
+        while True:
+            try:
+                await asyncio.sleep(60)  # 每分钟执行一次
+                await packet_cleaner.cleanup_expired_packets()
+                
+                # 记录清理统计
+                stats = packet_cleaner.get_cleanup_stats()
+                if stats['pending_packets'] > 0:
+                    logger.debug(f"[MultiplayerHub] Cleanup stats: {stats}")
+                    
+            except Exception as e:
+                logger.error(f"[MultiplayerHub] Error in periodic cleanup: {e}")
+            except asyncio.CancelledError:
+                logger.info("[MultiplayerHub] Periodic cleanup task cancelled")
+                break
         
     async def initialize_managers(self):
         """初始化管理器"""
@@ -1160,17 +1221,72 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             except asyncio.CancelledError:
                 pass
 
+    async def _cleanup_game_session(self, room_id: int, game_completed: bool):
+        """清理单局游戏会话数据（基于osu源码实现）"""
+        try:
+            # 停止实时排行榜广播
+            await self._stop_leaderboard_broadcast_task(room_id)
+            
+            # 获取最终排行榜
+            final_leaderboard = gameplay_buffer.get_leaderboard(room_id)
+            
+            # 发送最终排行榜给所有用户
+            if final_leaderboard:
+                await self.broadcast_group_call(
+                    self.group_id(room_id),
+                    "FinalLeaderboard", 
+                    final_leaderboard
+                )
+            
+            # 使用新的清理管理器清理游戏会话（参考osu源码）
+            await GameSessionCleaner.cleanup_game_session(room_id, game_completed)
+            
+            # 清理游戏会话数据
+            await gameplay_buffer.cleanup_game_session(room_id)
+            
+            # 通知观战同步管理器游戏结束
+            if hasattr(self, 'spectator_sync_manager') and self.spectator_sync_manager:
+                await self.spectator_sync_manager.notify_gameplay_ended(room_id, {
+                    'final_leaderboard': final_leaderboard,
+                    'completed': game_completed,
+                    'timestamp': datetime.now(UTC).isoformat()
+                })
+            
+            # 重置所有用户的游戏状态
+            if room_id in self.rooms:
+                room = self.rooms[room_id]
+                for user in room.room.users:
+                    gameplay_buffer.reset_user_gameplay_state(room_id, user.user_id)
+                    # 安排用户会话清理
+                    await GameSessionCleaner.cleanup_user_session(room_id, user.user_id)
+            
+            logger.info(f"[MultiplayerHub] Cleaned up game session for room {room_id} (completed: {game_completed})")
+            
+        except Exception as e:
+            logger.error(f"[MultiplayerHub] Failed to cleanup game session for room {room_id}: {e}")
+            # 即使清理失败也不应该影响游戏流程
+
     async def change_user_state(
         self,
         room: ServerMultiplayerRoom,
         user: MultiplayerRoomUser,
         state: MultiplayerUserState,
     ):
+        old_state = user.state
+        
         logger.info(
             f"[MultiplayerHub] {user.user_id}'s state "
-            f"changed from {user.state} to {state}"
+            f"changed from {old_state} to {state}"
         )
+        
         user.state = state
+        
+        # 在用户进入RESULTS状态时清理其游戏数据（参考osu源码）
+        if state == MultiplayerUserState.RESULTS and old_state.is_playing:
+            room_id = room.room.room_id
+            gameplay_buffer.reset_user_gameplay_state(room_id, user.user_id)
+            logger.debug(f"[MultiplayerHub] Reset gameplay state for user {user.user_id} in room {room_id}")
+        
         await self.broadcast_group_call(
             self.group_id(room.room.room_id),
             "UserStateChanged",
@@ -1431,6 +1547,10 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                     # This ensures cross-hub spectating works properly
                     await self._notify_spectator_hub_game_ended(room)
                     
+                    # 每局游戏结束后的清理工作
+                    room_id = room.room.room_id
+                    await self._cleanup_game_session(room_id, any_user_finished_playing)
+                    
                     if any_user_finished_playing:
                         await self.event_logger.game_completed(
                             room.room.room_id,
@@ -1634,31 +1754,40 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         user: MultiplayerRoomUser,
         kicked: bool = False,
     ):
+        room_id = room.room.room_id
+        user_id = user.user_id
+        
         if client:
-            self.remove_from_group(client, self.group_id(room.room.room_id))
+            self.remove_from_group(client, self.group_id(room_id))
         room.room.users.remove(user)
 
-        target_store = self.state.get(user.user_id)
+        target_store = self.state.get(user_id)
         if target_store:
             target_store.room_id = 0
 
+        # 清理用户的游戏状态数据（参考osu源码）
+        gameplay_buffer.reset_user_gameplay_state(room_id, user_id)
+        
+        # 使用清理管理器安排用户会话清理
+        await GameSessionCleaner.cleanup_user_session(room_id, user_id)
+        
         redis = get_redis()
-        await redis.publish("chat:room:left", f"{room.room.channel_id}:{user.user_id}")
+        await redis.publish("chat:room:left", f"{room.room.channel_id}:{user_id}")
 
         async with with_db() as session:
             async with session.begin():
                 participated_user = (
                     await session.exec(
                         select(RoomParticipatedUser).where(
-                            RoomParticipatedUser.room_id == room.room.room_id,
-                            RoomParticipatedUser.user_id == user.user_id,
+                            RoomParticipatedUser.room_id == room_id,
+                            RoomParticipatedUser.user_id == user_id,
                         )
                     )
                 ).first()
                 if participated_user is not None:
                     participated_user.left_at = datetime.now(UTC)
 
-                db_room = await session.get(Room, room.room.room_id)
+                db_room = await session.get(Room, room_id)
                 if db_room is None:
                     raise InvokeException("Room does not exist in database")
                 if db_room.participant_count > 0:
@@ -1671,7 +1800,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         if (
             len(room.room.users) != 0
             and room.room.host
-            and room.room.host.user_id == user.user_id
+            and room.room.host.user_id == user_id
         ):
             next_host = room.room.users[0]
             await self.set_host(room, next_host)
@@ -1680,11 +1809,11 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             if client:
                 await self.call_noblock(client, "UserKicked", user)
             await self.broadcast_group_call(
-                self.group_id(room.room.room_id), "UserKicked", user
+                self.group_id(room_id), "UserKicked", user
             )
         else:
             await self.broadcast_group_call(
-                self.group_id(room.room.room_id), "UserLeft", user
+                self.group_id(room_id), "UserLeft", user
             )
 
     async def end_room(self, room: ServerMultiplayerRoom):
@@ -1715,6 +1844,9 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         # 清理实时数据
         await self._stop_leaderboard_broadcast_task(room_id)
         await gameplay_buffer.cleanup_room(room_id)
+        
+        # 使用清理管理器完全清理房间（参考osu源码）
+        await GameSessionCleaner.cleanup_room_fully(room_id)
         
         # 清理观战同步任务
         if room_id in self.spectator_sync_tasks:
@@ -1755,6 +1887,23 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 'hp': score_data.get('hp', 1.0),
                 'position': score_data.get('position', 0)
             })
+            
+            # 安排分数数据包清理（参考osu源码的数据包管理）
+            await packet_cleaner.schedule_cleanup(room_id, {
+                'type': 'score',
+                'user_id': client.user_id,
+                'data_size': len(str(score_data)),
+                'timestamp': datetime.now(UTC).isoformat()
+            })
+            
+            # 如果游戏完成，标记用户状态
+            if score_data.get('completed', False):
+                await self.change_user_state(
+                    server_room, user, MultiplayerUserState.FINISHED_PLAY
+                )
+                
+                # 立即安排该用户的清理
+                await GameSessionCleaner.cleanup_user_session(room_id, client.user_id)
             
         except Exception as e:
             logger.error(f"Error updating score for user {client.user_id}: {e}")
@@ -1867,12 +2016,18 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         if not user.state.is_playing:
             raise InvokeException("Cannot abort gameplay while not in a gameplay state")
 
+        # 清理用户游戏数据（参考osu源码）
+        room_id = room.room_id
+        gameplay_buffer.reset_user_gameplay_state(room_id, user.user_id)
+
         await self.change_user_state(
             server_room,
             user,
             MultiplayerUserState.IDLE,
         )
         await self.update_room_state(server_room)
+        
+        logger.info(f"[MultiplayerHub] User {user.user_id} aborted gameplay in room {room_id}")
 
     async def AbortMatch(self, client: Client):
         server_room = self._ensure_in_room(client)
@@ -1885,6 +2040,13 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         ):
             raise InvokeException("Cannot abort a match that hasn't started.")
 
+        room_id = room.room_id
+        
+        # 清理所有玩家的游戏状态数据（参考osu源码）
+        for user in room.users:
+            if user.state.is_playing:
+                gameplay_buffer.reset_user_gameplay_state(room_id, user.user_id)
+
         await asyncio.gather(
             *[
                 self.change_user_state(server_room, u, MultiplayerUserState.IDLE)
@@ -1892,14 +2054,18 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 if u.state.is_playing
             ]
         )
+        
+        # 执行完整的游戏会话清理
+        await self._cleanup_game_session(room_id, False)  # False表示游戏被中断而非完成
+        
         await self.broadcast_group_call(
-            self.group_id(room.room_id),
+            self.group_id(room_id),
             "GameplayAborted",
             GameplayAbortReason.HOST_ABORTED,
         )
         await self.update_room_state(server_room)
         logger.info(
-            f"[MultiplayerHub] {client.user_id} aborted match in room {room.room_id}"
+            f"[MultiplayerHub] {client.user_id} aborted match in room {room_id}"
         )
 
     async def change_user_match_state(
@@ -2077,6 +2243,9 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             # Import here to avoid circular imports
             from app.signalr.hub import SpectatorHubs
             from app.models.spectator_hub import SpectatedUserState, SpectatorState
+            from .spectator_buffer import spectator_state_manager
+
+            room_id = room.room.room_id
 
             # For each user who finished the game, notify SpectatorHub
             for room_user in room.room.users:
@@ -2090,6 +2259,12 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                         maximum_statistics={},
                     )
 
+                    # 同步到观战缓冲区管理器
+                    await spectator_state_manager.handle_user_finished_playing(
+                        room_user.user_id, 
+                        finished_state
+                    )
+
                     # Notify all SpectatorHub watchers that this user finished
                     await SpectatorHubs.broadcast_group_call(
                         SpectatorHubs.group_id(room_user.user_id),
@@ -2099,8 +2274,34 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                     )
                     
                     logger.debug(
-                        f"[MultiplayerHub] Notified SpectatorHub that user {room_user.user_id} finished game"
+                        f"[MultiplayerHub] Synced and notified SpectatorHub that user {room_user.user_id} finished game"
                     )
+
+                # 同步游戏中玩家的状态
+                elif room_user.state == MultiplayerUserState.PLAYING:
+                    try:
+                        multiplayer_data = {
+                            'room_id': room_id,
+                            'beatmap_id': room.queue.current_item.beatmap_id,
+                            'ruleset_id': room_user.ruleset_id or 0,
+                            'mods': room_user.mods,
+                            'state': room_user.state,
+                            'maximum_statistics': {}
+                        }
+                        
+                        await spectator_state_manager.sync_with_multiplayer(
+                            room_user.user_id, 
+                            multiplayer_data
+                        )
+                        
+                        logger.debug(
+                            f"[MultiplayerHub] Synced playing state for user {room_user.user_id} to SpectatorHub buffer"
+                        )
+                        
+                    except Exception as e:
+                        logger.debug(
+                            f"[MultiplayerHub] Failed to sync playing state for user {room_user.user_id}: {e}"
+                        )
 
         except Exception as e:
             logger.debug(
