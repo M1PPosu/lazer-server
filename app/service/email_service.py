@@ -140,12 +140,6 @@ class EmailService:
 
             msg.attach(MIMEText(html_content, "html", "utf-8"))
 
-            # 发送邮件
-            if not settings.enable_email_sending:
-                # 邮件发送功能禁用时只记录日志，不实际发送
-                logger.info(f"[Email Verification] Mock sending verification code to {email}: {code}")
-                return True
-
             with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
                 if self.smtp_username and self.smtp_password:
                     server.starttls()

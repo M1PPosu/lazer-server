@@ -118,6 +118,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     # 邮件服务设置
+    enable_email_verification: bool = Field(default=False, description="是否启用邮件验证功能")
     smtp_server: str = "localhost"
     smtp_port: int = 587
     smtp_username: str = ""
@@ -125,12 +126,11 @@ class Settings(BaseSettings):
     from_email: str = "noreply@example.com"
     from_name: str = "osu! server"
 
-    # 邮件验证功能开关
-    enable_email_verification: bool = Field(default=True, description="是否启用邮件验证功能")
-    enable_email_sending: bool = Field(default=False, description="是否真实发送邮件（False时仅模拟发送）")
-
     # Sentry 配置
     sentry_dsn: HttpUrl | None = None
+
+    # New Relic 配置
+    new_relic_environment: None | str = None
 
     # GeoIP 配置
     maxmind_license_key: str = ""
@@ -145,11 +145,11 @@ class Settings(BaseSettings):
     enable_supporter_for_all_users: bool = False
     enable_all_beatmap_leaderboard: bool = False
     enable_all_beatmap_pp: bool = False
-    # 性能优化设置
+    seasonal_backgrounds: Annotated[list[str], BeforeValidator(_parse_list)] = []
+
+    # 谱面缓存设置
     enable_beatmap_preload: bool = True
     beatmap_cache_expire_hours: int = 24
-    max_concurrent_pp_calculations: int = 10
-    enable_pp_calculation_threading: bool = True
 
     # 排行榜缓存设置
     enable_ranking_cache: bool = True
@@ -168,7 +168,6 @@ class Settings(BaseSettings):
 
     # 反作弊设置
     suspicious_score_check: bool = True
-    seasonal_backgrounds: Annotated[list[str], BeforeValidator(_parse_list)] = []
     banned_name: list[str] = [
         "mrekk",
         "vaxei",

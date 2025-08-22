@@ -4,6 +4,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime
 import os
+from pathlib import Path
 
 from app.config import settings
 from app.dependencies.database import engine, redis_client
@@ -41,27 +42,6 @@ from app.service.recalculate import recalculate
 from app.service.redis_message_system import redis_message_system
 from app.service.stats_scheduler import start_stats_scheduler, stop_stats_scheduler
 from app.utils import bg_tasks
-
-# 检查 New Relic 配置文件是否存在，如果存在则初始化 New Relic
-newrelic_config_path = os.path.join(os.path.dirname(__file__), "newrelic.ini")
-if os.path.exists(newrelic_config_path):
-    try:
-        import newrelic.agent
-
-        environment = os.environ.get(
-            "NEW_RELIC_ENVIRONMENT",
-            "production" if not settings.debug else "development",
-        )
-
-        newrelic.agent.initialize(newrelic_config_path, environment)
-        logger.info(f"[NewRelic] Enabled, environment: {environment}")
-    except ImportError:
-        logger.warning("[NewRelic] Config file found but 'newrelic' package is not installed")
-    except Exception as e:
-        logger.error(f"[NewRelic] Initialization failed: {e}")
-else:
-    logger.info("[NewRelic] No newrelic.ini config file found, skipping initialization")
-
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -109,6 +89,23 @@ desc = (
     "官方文档：[osu!web 文档](https://osu.ppy.sh/docs/index.html)\n\n"
     "V1 API 文档：[osu-api](https://github.com/ppy/osu-api/wiki)"
 )
+
+# 检查 New Relic 配置文件是否存在，如果存在则初始化 New Relic
+newrelic_config_path = Path("newrelic.ini")
+if newrelic_config_path.exists():
+    try:
+        import newrelic.agent
+
+        environment = settings.new_relic_environment or ("production" if not settings.debug else "development")
+
+        newrelic.agent.initialize(newrelic_config_path, environment)
+        logger.info(f"[NewRelic] Enabled, environment: {environment}")
+    except ImportError:
+        logger.warning("[NewRelic] Config file found but 'newrelic' package is not installed")
+    except Exception as e:
+        logger.error(f"[NewRelic] Initialization failed: {e}")
+else:
+    logger.info("[NewRelic] No newrelic.ini config file found, skipping initialization")
 
 if settings.sentry_dsn is not None:
     sentry_sdk.init(
