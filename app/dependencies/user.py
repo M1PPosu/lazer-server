@@ -70,9 +70,7 @@ async def v1_authorize(
     if not api_key:
         raise HTTPException(status_code=401, detail="Missing API key")
 
-    api_key_record = (
-        await db.exec(select(V1APIKeys).where(V1APIKeys.key == api_key))
-    ).first()
+    api_key_record = (await db.exec(select(V1APIKeys).where(V1APIKeys.key == api_key))).first()
     if not api_key_record:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
@@ -98,9 +96,7 @@ async def get_current_user(
     security_scopes: SecurityScopes,
     token_pw: Annotated[str | None, Depends(oauth2_password)] = None,
     token_code: Annotated[str | None, Depends(oauth2_code)] = None,
-    token_client_credentials: Annotated[
-        str | None, Depends(oauth2_client_credentials)
-    ] = None,
+    token_client_credentials: Annotated[str | None, Depends(oauth2_client_credentials)] = None,
 ) -> User:
     """获取当前认证用户"""
     token = token_pw or token_code or token_client_credentials
@@ -119,9 +115,7 @@ async def get_current_user(
     if not is_client:
         for scope in security_scopes.scopes:
             if scope not in token_record.scope.split(","):
-                raise HTTPException(
-                    status_code=403, detail=f"Insufficient scope: {scope}"
-                )
+                raise HTTPException(status_code=403, detail=f"Insufficient scope: {scope}")
 
     user = (await db.exec(select(User).where(User.id == token_record.user_id))).first()
     if not user:

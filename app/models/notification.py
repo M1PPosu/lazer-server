@@ -53,7 +53,7 @@ class NotificationName(str, Enum):
             NotificationName.BEATMAP_OWNER_CHANGE: "beatmap_owner_change",
             NotificationName.BEATMAPSET_DISCUSSION_LOCK: "beatmapset_discussion",
             NotificationName.BEATMAPSET_DISCUSSION_POST_NEW: "beatmapset_discussion",
-            NotificationName.BEATMAPSET_DISCUSSION_QUALIFIED_PROBLEM: "beatmapset_problem",  # noqa: E501
+            NotificationName.BEATMAPSET_DISCUSSION_QUALIFIED_PROBLEM: "beatmapset_problem",
             NotificationName.BEATMAPSET_DISCUSSION_REVIEW_NEW: "beatmapset_discussion",
             NotificationName.BEATMAPSET_DISCUSSION_UNLOCK: "beatmapset_discussion",
             NotificationName.BEATMAPSET_DISQUALIFY: "beatmapset_state",
@@ -164,17 +164,11 @@ class ChannelMessageTeam(ChannelMessageBase):
         from app.database import TeamMember
 
         user_team_id = (
-            await session.exec(
-                select(TeamMember.team_id).where(TeamMember.user_id == self._user.id)
-            )
+            await session.exec(select(TeamMember.team_id).where(TeamMember.user_id == self._user.id))
         ).first()
         if not user_team_id:
             return []
-        user_ids = (
-            await session.exec(
-                select(TeamMember.user_id).where(TeamMember.team_id == user_team_id)
-            )
-        ).all()
+        user_ids = (await session.exec(select(TeamMember.user_id).where(TeamMember.team_id == user_team_id))).all()
         return list(user_ids)
 
 

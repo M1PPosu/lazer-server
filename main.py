@@ -23,7 +23,10 @@ from app.router import (
 )
 from app.router.redirect import redirect_router
 from app.scheduler.cache_scheduler import start_cache_scheduler, stop_cache_scheduler
-from app.scheduler.database_cleanup_scheduler import start_database_cleanup_scheduler, stop_database_cleanup_scheduler
+from app.scheduler.database_cleanup_scheduler import (
+    start_database_cleanup_scheduler,
+    stop_database_cleanup_scheduler,
+)
 from app.service.beatmap_download_service import download_service
 from app.service.calculate_all_user_rank import calculate_user_rank
 from app.service.create_banchobot import create_banchobot
@@ -32,11 +35,12 @@ from app.service.email_queue import start_email_processor, stop_email_processor
 from app.service.geoip_scheduler import schedule_geoip_updates
 from app.service.init_geoip import init_geoip
 from app.service.load_achievements import load_achievements
+from app.service.online_status_maintenance import schedule_online_status_maintenance
 from app.service.osu_rx_statistics import create_rx_statistics
 from app.service.recalculate import recalculate
 from app.service.redis_message_system import redis_message_system
 from app.service.stats_scheduler import start_stats_scheduler, stop_stats_scheduler
-from app.service.online_status_maintenance import schedule_online_status_maintenance
+from app.utils import bg_tasks
 
 # 检查 New Relic 配置文件是否存在，如果存在则初始化 New Relic
 newrelic_config_path = os.path.join(os.path.dirname(__file__), "newrelic.ini")
@@ -52,9 +56,7 @@ if os.path.exists(newrelic_config_path):
         newrelic.agent.initialize(newrelic_config_path, environment)
         logger.info(f"[NewRelic] Enabled, environment: {environment}")
     except ImportError:
-        logger.warning(
-            "[NewRelic] Config file found but 'newrelic' package is not installed"
-        )
+        logger.warning("[NewRelic] Config file found but 'newrelic' package is not installed")
     except Exception as e:
         logger.error(f"[NewRelic] Initialization failed: {e}")
 else:
@@ -90,6 +92,7 @@ async def lifespan(app: FastAPI):
     load_achievements()
     # on shutdown
     yield
+    bg_tasks.stop()
     stop_scheduler()
     redis_message_system.stop()  # 停止 Redis 消息系统
     stop_stats_scheduler()  # 停止统计调度器
@@ -179,14 +182,10 @@ async def http_exception_handler(requst: Request, exc: HTTPException):
 
 
 if settings.secret_key == "your_jwt_secret_here":
-    logger.warning(
-        "jwt_secret_key is unset. Your server is unsafe. "
-        "Use this command to generate: openssl rand -hex 32"
-    )
+    logger.warning("jwt_secret_key is unset. Your server is unsafe. Use this command to generate: openssl rand -hex 32")
 if settings.osu_web_client_secret == "your_osu_web_client_secret_here":
     logger.warning(
-        "osu_web_client_secret is unset. Your server is unsafe. "
-        "Use this command to generate: openssl rand -hex 40"
+        "osu_web_client_secret is unset. Your server is unsafe. Use this command to generate: openssl rand -hex 40"
     )
 
 if __name__ == "__main__":

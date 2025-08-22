@@ -33,36 +33,22 @@ class MessageQueueProcessor:
         """将消息缓存到 Redis"""
         try:
             # 存储消息数据
-            await self._redis_exec(
-                self.redis_message.hset, f"msg:{temp_uuid}", mapping=message_data
-            )
-            await self._redis_exec(
-                self.redis_message.expire, f"msg:{temp_uuid}", 3600
-            )  # 1小时过期
+            await self._redis_exec(self.redis_message.hset, f"msg:{temp_uuid}", mapping=message_data)
+            await self._redis_exec(self.redis_message.expire, f"msg:{temp_uuid}", 3600)  # 1小时过期
 
             # 加入频道消息列表
-            await self._redis_exec(
-                self.redis_message.lpush, f"channel:{channel_id}:messages", temp_uuid
-            )
-            await self._redis_exec(
-                self.redis_message.ltrim, f"channel:{channel_id}:messages", 0, 99
-            )  # 保持最新100条
-            await self._redis_exec(
-                self.redis_message.expire, f"channel:{channel_id}:messages", 86400
-            )  # 24小时过期
+            await self._redis_exec(self.redis_message.lpush, f"channel:{channel_id}:messages", temp_uuid)
+            await self._redis_exec(self.redis_message.ltrim, f"channel:{channel_id}:messages", 0, 99)  # 保持最新100条
+            await self._redis_exec(self.redis_message.expire, f"channel:{channel_id}:messages", 86400)  # 24小时过期
 
             # 加入异步处理队列
-            await self._redis_exec(
-                self.redis_message.lpush, "message_write_queue", temp_uuid
-            )
+            await self._redis_exec(self.redis_message.lpush, "message_write_queue", temp_uuid)
 
             logger.info(f"Message cached to Redis: {temp_uuid}")
         except Exception as e:
             logger.error(f"Failed to cache message to Redis: {e}")
 
-    async def get_cached_messages(
-        self, channel_id: int, limit: int = 50, since: int = 0
-    ) -> list[dict]:
+    async def get_cached_messages(self, channel_id: int, limit: int = 50, since: int = 0) -> list[dict]:
         """从 Redis 获取缓存的消息"""
         try:
             message_uuids = await self._redis_exec(
@@ -78,15 +64,11 @@ class MessageQueueProcessor:
                 if isinstance(temp_uuid, bytes):
                     temp_uuid = temp_uuid.decode("utf-8")
 
-                raw_data = await self._redis_exec(
-                    self.redis_message.hgetall, f"msg:{temp_uuid}"
-                )
+                raw_data = await self._redis_exec(self.redis_message.hgetall, f"msg:{temp_uuid}")
                 if raw_data:
                     # 解码 Redis 返回的字节数据
                     message_data = {
-                        k.decode("utf-8") if isinstance(k, bytes) else k: v.decode(
-                            "utf-8"
-                        )
+                        k.decode("utf-8") if isinstance(k, bytes) else k: v.decode("utf-8")
                         if isinstance(v, bytes)
                         else v
                         for k, v in raw_data.items()
@@ -103,9 +85,7 @@ class MessageQueueProcessor:
             logger.error(f"Failed to get cached messages: {e}")
             return []
 
-    async def update_message_status(
-        self, temp_uuid: str, status: str, message_id: int | None = None
-    ):
+    async def update_message_status(self, temp_uuid: str, status: str, message_id: int | None = None):
         """更新消息状态"""
         try:
             update_data = {"status": status}
@@ -113,26 +93,20 @@ class MessageQueueProcessor:
                 update_data["message_id"] = str(message_id)
                 update_data["db_timestamp"] = datetime.now().isoformat()
 
-            await self._redis_exec(
-                self.redis_message.hset, f"msg:{temp_uuid}", mapping=update_data
-            )
+            await self._redis_exec(self.redis_message.hset, f"msg:{temp_uuid}", mapping=update_data)
         except Exception as e:
             logger.error(f"Failed to update message status: {e}")
 
     async def get_message_status(self, temp_uuid: str) -> dict | None:
         """获取消息状态"""
         try:
-            raw_data = await self._redis_exec(
-                self.redis_message.hgetall, f"msg:{temp_uuid}"
-            )
+            raw_data = await self._redis_exec(self.redis_message.hgetall, f"msg:{temp_uuid}")
             if not raw_data:
                 return None
 
             # 解码 Redis 返回的字节数据
             return {
-                k.decode("utf-8") if isinstance(k, bytes) else k: v.decode("utf-8")
-                if isinstance(v, bytes)
-                else v
+                k.decode("utf-8") if isinstance(k, bytes) else k: v.decode("utf-8") if isinstance(v, bytes) else v
                 for k, v in raw_data.items()
             }
         except Exception as e:
@@ -148,9 +122,7 @@ class MessageQueueProcessor:
                 # 批量获取消息
                 message_uuids = []
                 for _ in range(20):  # 批量处理20条消息
-                    result = await self._redis_exec(
-                        self.redis_message.brpop, ["message_write_queue"], timeout=1
-                    )
+                    result = await self._redis_exec(self.redis_message.brpop, ["message_write_queue"], timeout=1)
                     if result:
                         # result是 (queue_name, value) 的元组，需要解码
                         uuid_value = result[1]
@@ -179,17 +151,13 @@ class MessageQueueProcessor:
             for temp_uuid in message_uuids:
                 try:
                     # 获取消息数据并解码
-                    raw_data = await self._redis_exec(
-                        self.redis_message.hgetall, f"msg:{temp_uuid}"
-                    )
+                    raw_data = await self._redis_exec(self.redis_message.hgetall, f"msg:{temp_uuid}")
                     if not raw_data:
                         continue
 
                     # 解码 Redis 返回的字节数据
                     message_data = {
-                        k.decode("utf-8") if isinstance(k, bytes) else k: v.decode(
-                            "utf-8"
-                        )
+                        k.decode("utf-8") if isinstance(k, bytes) else k: v.decode("utf-8")
                         if isinstance(v, bytes)
                         else v
                         for k, v in raw_data.items()
@@ -215,10 +183,7 @@ class MessageQueueProcessor:
                     await session.refresh(msg)
 
                     # 更新成功状态，包含临时消息ID映射
-                    assert msg.message_id is not None
-                    await self.update_message_status(
-                        temp_uuid, "completed", msg.message_id
-                    )
+                    await self.update_message_status(temp_uuid, "completed", msg.message_id)
 
                     # 如果有临时消息ID，存储映射关系并通知客户端更新
                     if message_data.get("temp_message_id"):
@@ -232,12 +197,11 @@ class MessageQueueProcessor:
 
                         # 发送消息ID更新通知到频道
                         channel_id = int(message_data["channel_id"])
-                        await self._notify_message_update(
-                            channel_id, temp_msg_id, msg.message_id, message_data
-                        )
+                        await self._notify_message_update(channel_id, temp_msg_id, msg.message_id, message_data)
 
                     logger.info(
-                        f"Message {temp_uuid} persisted to DB with ID {msg.message_id}, temp_id: {message_data.get('temp_message_id')}"
+                        f"Message {temp_uuid} persisted to DB with ID {msg.message_id}, "
+                        f"temp_id: {message_data.get('temp_message_id')}"
                     )
 
                 except Exception as e:
@@ -272,9 +236,7 @@ class MessageQueueProcessor:
                 json.dumps(update_event),
             )
 
-            logger.info(
-                f"Published message update: temp_id={temp_message_id}, real_id={real_message_id}"
-            )
+            logger.info(f"Published message update: temp_id={temp_message_id}, real_id={real_message_id}")
 
         except Exception as e:
             logger.error(f"Failed to notify message update: {e}")
@@ -320,9 +282,7 @@ async def cache_message_to_redis(channel_id: int, message_data: dict, temp_uuid:
     await message_queue_processor.cache_message(channel_id, message_data, temp_uuid)
 
 
-async def get_cached_messages(
-    channel_id: int, limit: int = 50, since: int = 0
-) -> list[dict]:
+async def get_cached_messages(channel_id: int, limit: int = 50, since: int = 0) -> list[dict]:
     """从 Redis 获取缓存的消息 - 便捷接口"""
     return await message_queue_processor.get_cached_messages(channel_id, limit, since)
 

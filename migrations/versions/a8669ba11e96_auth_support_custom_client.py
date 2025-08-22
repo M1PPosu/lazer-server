@@ -36,22 +36,16 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("client_id"),
     )
-    op.create_index(
-        op.f("ix_oauth_clients_client_id"), "oauth_clients", ["client_id"], unique=False
-    )
+    op.create_index(op.f("ix_oauth_clients_client_id"), "oauth_clients", ["client_id"], unique=False)
     op.create_index(
         op.f("ix_oauth_clients_client_secret"),
         "oauth_clients",
         ["client_secret"],
         unique=False,
     )
-    op.create_index(
-        op.f("ix_oauth_clients_owner_id"), "oauth_clients", ["owner_id"], unique=False
-    )
+    op.create_index(op.f("ix_oauth_clients_owner_id"), "oauth_clients", ["owner_id"], unique=False)
     op.add_column("oauth_tokens", sa.Column("client_id", sa.Integer(), nullable=False))
-    op.create_index(
-        op.f("ix_oauth_tokens_client_id"), "oauth_tokens", ["client_id"], unique=False
-    )
+    op.create_index(op.f("ix_oauth_tokens_client_id"), "oauth_tokens", ["client_id"], unique=False)
     # ### end Alembic commands ###
 
 

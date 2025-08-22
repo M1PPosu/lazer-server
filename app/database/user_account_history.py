@@ -22,7 +22,7 @@ class UserAccountHistoryBase(SQLModel, UTCBaseModel):
 
 
 class UserAccountHistory(UserAccountHistoryBase, table=True):
-    __tablename__ = "user_account_history"  # pyright: ignore[reportAssignmentType]
+    __tablename__: str = "user_account_history"
 
     id: int | None = Field(
         sa_column=Column(
@@ -32,9 +32,7 @@ class UserAccountHistory(UserAccountHistoryBase, table=True):
             primary_key=True,
         )
     )
-    user_id: int = Field(
-        sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True)
-    )
+    user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True))
 
 
 class UserAccountHistoryResp(UserAccountHistoryBase):

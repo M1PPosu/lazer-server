@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from copy import deepcopy
 from enum import Enum
 import math
@@ -67,11 +68,7 @@ async def calculate_pp(score: "Score", beatmap: str, session: AsyncSession) -> f
 
     if settings.suspicious_score_check:
         beatmap_banned = (
-            await session.exec(
-                select(exists()).where(
-                    col(BannedBeatmaps.beatmap_id) == score.beatmap_id
-                )
-            )
+            await session.exec(select(exists()).where(col(BannedBeatmaps.beatmap_id) == score.beatmap_id))
         ).first()
         if beatmap_banned:
             return 0
@@ -82,12 +79,9 @@ async def calculate_pp(score: "Score", beatmap: str, session: AsyncSession) -> f
                 logger.warning(f"Beatmap {score.beatmap_id} is suspicious, banned")
                 return 0
         except Exception:
-            logger.exception(
-                f"Error checking if beatmap {score.beatmap_id} is suspicious"
-            )
+            logger.exception(f"Error checking if beatmap {score.beatmap_id} is suspicious")
 
     # 使用线程池执行计算密集型操作以避免阻塞事件循环
-    import asyncio
 
     loop = asyncio.get_event_loop()
 
@@ -118,9 +112,7 @@ async def calculate_pp(score: "Score", beatmap: str, session: AsyncSession) -> f
     pp = attrs.pp
 
     # mrekk bp1: 2048pp; ppy-sb top1 rxbp1: 2198pp
-    if settings.suspicious_score_check and (
-        (attrs.difficulty.stars > 25 and score.accuracy < 0.8) or pp > 2300
-    ):
+    if settings.suspicious_score_check and ((attrs.difficulty.stars > 25 and score.accuracy < 0.8) or pp > 2300):
         logger.warning(
             f"User {score.user_id} played {score.beatmap_id} "
             f"(star={attrs.difficulty.stars}) with {pp=} "
@@ -131,9 +123,7 @@ async def calculate_pp(score: "Score", beatmap: str, session: AsyncSession) -> f
     return pp
 
 
-async def pre_fetch_and_calculate_pp(
-    score: "Score", beatmap_id: int, session: AsyncSession, redis, fetcher
-) -> float:
+async def pre_fetch_and_calculate_pp(score: "Score", beatmap_id: int, session: AsyncSession, redis, fetcher) -> float:
     """
     优化版PP计算：预先获取beatmap文件并使用缓存
     """
@@ -144,9 +134,7 @@ async def pre_fetch_and_calculate_pp(
     # 快速检查是否被封禁
     if settings.suspicious_score_check:
         beatmap_banned = (
-            await session.exec(
-                select(exists()).where(col(BannedBeatmaps.beatmap_id) == beatmap_id)
-            )
+            await session.exec(select(exists()).where(col(BannedBeatmaps.beatmap_id) == beatmap_id))
         ).first()
         if beatmap_banned:
             return 0
@@ -202,9 +190,7 @@ async def batch_calculate_pp(
     banned_beatmaps = set()
     if settings.suspicious_score_check:
         banned_results = await session.exec(
-            select(BannedBeatmaps.beatmap_id).where(
-                col(BannedBeatmaps.beatmap_id).in_(unique_beatmap_ids)
-            )
+            select(BannedBeatmaps.beatmap_id).where(col(BannedBeatmaps.beatmap_id).in_(unique_beatmap_ids))
         )
         banned_beatmaps = set(banned_results.all())
 
@@ -380,9 +366,7 @@ def calculate_score_to_level(total_score: int) -> float:
     level = 0.0
 
     while remaining_score > 0:
-        next_level_requirement = to_next_level[
-            min(len(to_next_level) - 1, round(level))
-        ]
+        next_level_requirement = to_next_level[min(len(to_next_level) - 1, round(level))]
         level += min(1, remaining_score / next_level_requirement)
         remaining_score -= next_level_requirement
 
@@ -417,9 +401,7 @@ class Threshold(int, Enum):
     NOTE_POSX_THRESHOLD = 512  # x: [-512,512]
     NOTE_POSY_THRESHOLD = 384  # y: [-384,384]
 
-    POS_ERROR_THRESHOLD = (
-        1280 * 50
-    )  # 超过这么多个物件（包括滑条控制点）的位置有问题就毙掉
+    POS_ERROR_THRESHOLD = 1280 * 50  # 超过这么多个物件（包括滑条控制点）的位置有问题就毙掉
 
     SLIDER_REPEAT_THRESHOLD = 5000
 
@@ -469,10 +451,7 @@ def is_2b(hit_objects: list[HitObject]) -> bool:
 def is_suspicious_beatmap(content: str) -> bool:
     osufile = OsuFile(content=content.encode("utf-8")).parse_file()
 
-    if (
-        osufile.hit_objects[-1].start_time - osufile.hit_objects[0].start_time
-        > 24 * 60 * 60 * 1000
-    ):
+    if osufile.hit_objects[-1].start_time - osufile.hit_objects[0].start_time > 24 * 60 * 60 * 1000:
         return True
     if osufile.mode == int(GameMode.TAIKO):
         if len(osufile.hit_objects) > Threshold.TAIKO_THRESHOLD:

@@ -174,11 +174,7 @@ def mods_can_get_pp(ruleset_id: int, mods: list[APIMod]) -> bool:
         return True
     ranked_mods = RANKED_MODS[ruleset_id]
     for mod in mods:
-        if (
-            app_settings.enable_rx
-            and mod["acronym"] == "RX"
-            and ruleset_id in {0, 1, 2}
-        ):
+        if app_settings.enable_rx and mod["acronym"] == "RX" and ruleset_id in {0, 1, 2}:
             continue
         if app_settings.enable_ap and mod["acronym"] == "AP" and ruleset_id == 0:
             continue
@@ -251,10 +247,7 @@ def get_available_mods(ruleset_id: int, required_mods: list[APIMod]) -> list[API
         if mod_acronym in incompatible_mods:
             continue
 
-        if any(
-            required_acronym in mod_data["IncompatibleMods"]
-            for required_acronym in required_mod_acronyms
-        ):
+        if any(required_acronym in mod_data["IncompatibleMods"] for required_acronym in required_mod_acronyms):
             continue
 
         if mod_data.get("UserPlayable", False):

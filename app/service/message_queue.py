@@ -13,6 +13,7 @@ import uuid
 from app.database.chat import ChatMessage, MessageType
 from app.dependencies.database import get_redis, with_db
 from app.log import logger
+from app.utils import bg_tasks
 
 
 class MessageQueue:
@@ -34,7 +35,7 @@ class MessageQueue:
         """启动消息处理任务"""
         if not self._processing:
             self._processing = True
-            asyncio.create_task(self._process_message_queue())
+            bg_tasks.add_task(self._process_message_queue)
             logger.info("Message queue processing started")
 
     async def stop_processing(self):
@@ -59,12 +60,8 @@ class MessageQueue:
         message_data["status"] = "pending"  # pending, processing, completed, failed
 
         # 将消息存储到 Redis
-        await self._run_in_executor(
-            lambda: self.redis.hset(f"msg:{temp_uuid}", mapping=message_data)
-        )
-        await self._run_in_executor(
-            self.redis.expire, f"msg:{temp_uuid}", 3600
-        )  # 1小时过期
+        await self._run_in_executor(lambda: self.redis.hset(f"msg:{temp_uuid}", mapping=message_data))
+        await self._run_in_executor(self.redis.expire, f"msg:{temp_uuid}", 3600)  # 1小时过期
 
         # 加入处理队列
         await self._run_in_executor(self.redis.lpush, "message_queue", temp_uuid)
@@ -74,17 +71,13 @@ class MessageQueue:
 
     async def get_message_status(self, temp_uuid: str) -> dict | None:
         """获取消息状态"""
-        message_data = await self._run_in_executor(
-            self.redis.hgetall, f"msg:{temp_uuid}"
-        )
+        message_data = await self._run_in_executor(self.redis.hgetall, f"msg:{temp_uuid}")
         if not message_data:
             return None
 
         return message_data
 
-    async def get_cached_messages(
-        self, channel_id: int, limit: int = 50, since: int = 0
-    ) -> list[dict]:
+    async def get_cached_messages(self, channel_id: int, limit: int = 50, since: int = 0) -> list[dict]:
         """
         从 Redis 获取缓存的消息
 
@@ -97,15 +90,11 @@ class MessageQueue:
             消息列表
         """
         # 从 Redis 获取频道最近的消息 UUID 列表
-        message_uuids = await self._run_in_executor(
-            self.redis.lrange, f"channel:{channel_id}:messages", 0, limit - 1
-        )
+        message_uuids = await self._run_in_executor(self.redis.lrange, f"channel:{channel_id}:messages", 0, limit - 1)
 
         messages = []
         for uuid_str in message_uuids:
-            message_data = await self._run_in_executor(
-                self.redis.hgetall, f"msg:{uuid_str}"
-            )
+            message_data = await self._run_in_executor(self.redis.hgetall, f"msg:{uuid_str}")
             if message_data:
                 # 检查是否满足 since 条件
                 if since > 0 and "message_id" in message_data:
@@ -116,22 +105,14 @@ class MessageQueue:
 
         return messages[::-1]  # 返回时间顺序
 
-    async def cache_channel_message(
-        self, channel_id: int, temp_uuid: str, max_cache: int = 100
-    ):
+    async def cache_channel_message(self, channel_id: int, temp_uuid: str, max_cache: int = 100):
         """将消息 UUID 缓存到频道消息列表"""
         # 添加到频道消息列表开头
-        await self._run_in_executor(
-            self.redis.lpush, f"channel:{channel_id}:messages", temp_uuid
-        )
+        await self._run_in_executor(self.redis.lpush, f"channel:{channel_id}:messages", temp_uuid)
         # 限制缓存大小
-        await self._run_in_executor(
-            self.redis.ltrim, f"channel:{channel_id}:messages", 0, max_cache - 1
-        )
+        await self._run_in_executor(self.redis.ltrim, f"channel:{channel_id}:messages", 0, max_cache - 1)
         # 设置过期时间（24小时）
-        await self._run_in_executor(
-            self.redis.expire, f"channel:{channel_id}:messages", 86400
-        )
+        await self._run_in_executor(self.redis.expire, f"channel:{channel_id}:messages", 86400)
 
     async def _process_message_queue(self):
         """异步处理消息队列，批量写入数据库"""
@@ -140,9 +121,7 @@ class MessageQueue:
                 # 批量获取消息
                 message_uuids = []
                 for _ in range(self._batch_size):
-                    result = await self._run_in_executor(
-                        lambda: self.redis.brpop(["message_queue"], timeout=1)
-                    )
+                    result = await self._run_in_executor(lambda: self.redis.brpop(["message_queue"], timeout=1))
                     if result:
                         message_uuids.append(result[1])
                     else:
@@ -166,16 +145,12 @@ class MessageQueue:
             for temp_uuid in message_uuids:
                 try:
                     # 获取消息数据
-                    message_data = await self._run_in_executor(
-                        self.redis.hgetall, f"msg:{temp_uuid}"
-                    )
+                    message_data = await self._run_in_executor(self.redis.hgetall, f"msg:{temp_uuid}")
                     if not message_data:
                         continue
 
                     # 更新状态为处理中
-                    await self._run_in_executor(
-                        self.redis.hset, f"msg:{temp_uuid}", "status", "processing"
-                    )
+                    await self._run_in_executor(self.redis.hset, f"msg:{temp_uuid}", "status", "processing")
 
                     # 创建数据库消息对象
                     msg = ChatMessage(
@@ -190,9 +165,7 @@ class MessageQueue:
 
                 except Exception as e:
                     logger.error(f"Error preparing message {temp_uuid}: {e}")
-                    await self._run_in_executor(
-                        self.redis.hset, f"msg:{temp_uuid}", "status", "failed"
-                    )
+                    await self._run_in_executor(self.redis.hset, f"msg:{temp_uuid}", "status", "failed")
 
             if messages_to_insert:
                 try:
@@ -211,16 +184,12 @@ class MessageQueue:
                                 mapping={
                                     "status": "completed",
                                     "message_id": str(msg.message_id),
-                                    "created_at": msg.timestamp.isoformat()
-                                    if msg.timestamp
-                                    else "",
+                                    "created_at": msg.timestamp.isoformat() if msg.timestamp else "",
                                 },
                             )
                         )
 
-                        logger.info(
-                            f"Message {temp_uuid} persisted to DB with ID {msg.message_id}"
-                        )
+                        logger.info(f"Message {temp_uuid} persisted to DB with ID {msg.message_id}")
 
                 except Exception as e:
                     logger.error(f"Error inserting messages to database: {e}")
@@ -228,9 +197,7 @@ class MessageQueue:
 
                     # 标记所有消息为失败
                     for _, temp_uuid in messages_to_insert:
-                        await self._run_in_executor(
-                            self.redis.hset, f"msg:{temp_uuid}", "status", "failed"
-                        )
+                        await self._run_in_executor(self.redis.hset, f"msg:{temp_uuid}", "status", "failed")
 
 
 # 全局消息队列实例

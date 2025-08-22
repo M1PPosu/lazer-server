@@ -106,9 +106,7 @@ class V1Beatmap(AllStrModel):
                 await session.exec(
                     select(func.count())
                     .select_from(FavouriteBeatmapset)
-                    .where(
-                        FavouriteBeatmapset.beatmapset_id == db_beatmap.beatmapset.id
-                    )
+                    .where(FavouriteBeatmapset.beatmapset_id == db_beatmap.beatmapset.id)
                 )
             ).one(),
             rating=0,  # TODO
@@ -154,12 +152,8 @@ async def get_beatmaps(
     beatmapset_id: int | None = Query(None, alias="s", description="谱面集 ID"),
     beatmap_id: int | None = Query(None, alias="b", description="谱面 ID"),
     user: str | None = Query(None, alias="u", description="谱师"),
-    type: Literal["string", "id"] | None = Query(
-        None, description="用户类型：string 用户名称 / id 用户 ID"
-    ),
-    ruleset_id: int | None = Query(
-        None, alias="m", description="Ruleset ID", ge=0, le=3
-    ),  # TODO
+    type: Literal["string", "id"] | None = Query(None, description="用户类型：string 用户名称 / id 用户 ID"),
+    ruleset_id: int | None = Query(None, alias="m", description="Ruleset ID", ge=0, le=3),  # TODO
     convert: bool = Query(False, alias="a", description="转谱"),  # TODO
     checksum: str | None = Query(None, alias="h", description="谱面文件 MD5"),
     limit: int = Query(500, ge=1, le=500, description="返回结果数量限制"),
@@ -181,11 +175,7 @@ async def get_beatmaps(
         else:
             beatmaps = beatmapset.beatmaps
     elif user is not None:
-        where = (
-            Beatmapset.user_id == user
-            if type == "id" or user.isdigit()
-            else Beatmapset.creator == user
-        )
+        where = Beatmapset.user_id == user if type == "id" or user.isdigit() else Beatmapset.creator == user
         beatmapsets = (await session.exec(select(Beatmapset).where(where))).all()
         for beatmapset in beatmapsets:
             if len(beatmaps) >= limit:
@@ -193,11 +183,7 @@ async def get_beatmaps(
             beatmaps.extend(beatmapset.beatmaps)
     elif since is not None:
         beatmapsets = (
-            await session.exec(
-                select(Beatmapset)
-                .where(col(Beatmapset.ranked_date) > since)
-                .limit(limit)
-            )
+            await session.exec(select(Beatmapset).where(col(Beatmapset.ranked_date) > since).limit(limit))
         ).all()
         for beatmapset in beatmapsets:
             if len(beatmaps) >= limit:
@@ -214,11 +200,7 @@ async def get_beatmaps(
                     redis,
                     fetcher,
                 )
-                results.append(
-                    await V1Beatmap.from_db(
-                        session, beatmap, attrs.aim_difficulty, attrs.speed_difficulty
-                    )
-                )
+                results.append(await V1Beatmap.from_db(session, beatmap, attrs.aim_difficulty, attrs.speed_difficulty))
                 continue
             except Exception:
                 ...

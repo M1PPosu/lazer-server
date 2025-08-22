@@ -117,14 +117,10 @@ class EnhancedIntervalStatsManager:
     @staticmethod
     async def get_current_interval_info() -> IntervalInfo:
         """获取当前区间信息"""
-        start_time, end_time = (
-            EnhancedIntervalStatsManager.get_current_interval_boundaries()
-        )
+        start_time, end_time = EnhancedIntervalStatsManager.get_current_interval_boundaries()
         interval_key = EnhancedIntervalStatsManager.generate_interval_key(start_time)
 
-        return IntervalInfo(
-            start_time=start_time, end_time=end_time, interval_key=interval_key
-        )
+        return IntervalInfo(start_time=start_time, end_time=end_time, interval_key=interval_key)
 
     @staticmethod
     async def initialize_current_interval() -> None:
@@ -133,9 +129,7 @@ class EnhancedIntervalStatsManager:
         redis_async = get_redis()
 
         try:
-            current_interval = (
-                await EnhancedIntervalStatsManager.get_current_interval_info()
-            )
+            current_interval = await EnhancedIntervalStatsManager.get_current_interval_info()
 
             # 存储当前区间信息
             await _redis_exec(
@@ -147,9 +141,7 @@ class EnhancedIntervalStatsManager:
 
             # 初始化区间用户集合（如果不存在）
             online_key = f"{INTERVAL_ONLINE_USERS_KEY}:{current_interval.interval_key}"
-            playing_key = (
-                f"{INTERVAL_PLAYING_USERS_KEY}:{current_interval.interval_key}"
-            )
+            playing_key = f"{INTERVAL_PLAYING_USERS_KEY}:{current_interval.interval_key}"
 
             # 设置过期时间为35分钟
             await redis_async.expire(online_key, 35 * 60)
@@ -179,7 +171,8 @@ class EnhancedIntervalStatsManager:
             await EnhancedIntervalStatsManager._ensure_24h_history_exists()
 
             logger.info(
-                f"Initialized interval stats for {current_interval.start_time.strftime('%H:%M')} - {current_interval.end_time.strftime('%H:%M')}"
+                f"Initialized interval stats for {current_interval.start_time.strftime('%H:%M')}"
+                f" - {current_interval.end_time.strftime('%H:%M')}"
             )
 
         except Exception as e:
@@ -193,42 +186,32 @@ class EnhancedIntervalStatsManager:
 
         try:
             # 检查现有历史数据数量
-            history_length = await _redis_exec(
-                redis_sync.llen, REDIS_ONLINE_HISTORY_KEY
-            )
+            history_length = await _redis_exec(redis_sync.llen, REDIS_ONLINE_HISTORY_KEY)
 
             if history_length < 48:  # 少于48个数据点（24小时*2）
-                logger.info(
-                    f"History has only {history_length} points, filling with zeros for 24h"
-                )
+                logger.info(f"History has only {history_length} points, filling with zeros for 24h")
 
                 # 计算需要填充的数据点数量
                 needed_points = 48 - history_length
 
                 # 从当前时间往前推，创建缺失的时间点（都填充为0）
-                current_time = datetime.utcnow()
-                current_interval_start, _ = (
-                    EnhancedIntervalStatsManager.get_current_interval_boundaries()
-                )
+                current_time = datetime.utcnow()  # noqa: F841
+                current_interval_start, _ = EnhancedIntervalStatsManager.get_current_interval_boundaries()
 
                 # 从当前区间开始往前推，创建历史数据点（确保时间对齐到30分钟边界）
                 fill_points = []
                 for i in range(needed_points):
                     # 每次往前推30分钟，确保时间对齐
-                    point_time = current_interval_start - timedelta(
-                        minutes=30 * (i + 1)
-                    )
+                    point_time = current_interval_start - timedelta(minutes=30 * (i + 1))
 
                     # 确保时间对齐到30分钟边界
                     aligned_minute = (point_time.minute // 30) * 30
-                    point_time = point_time.replace(
-                        minute=aligned_minute, second=0, microsecond=0
-                    )
+                    point_time = point_time.replace(minute=aligned_minute, second=0, microsecond=0)
 
                     history_point = {
                         "timestamp": point_time.isoformat(),
                         "online_count": 0,
-                        "playing_count": 0
+                        "playing_count": 0,
                     }
                     fill_points.append(json.dumps(history_point))
 
@@ -238,9 +221,7 @@ class EnhancedIntervalStatsManager:
                     temp_key = f"{REDIS_ONLINE_HISTORY_KEY}_temp"
                     if history_length > 0:
                         # 复制现有数据到临时key
-                        existing_data = await _redis_exec(
-                            redis_sync.lrange, REDIS_ONLINE_HISTORY_KEY, 0, -1
-                        )
+                        existing_data = await _redis_exec(redis_sync.lrange, REDIS_ONLINE_HISTORY_KEY, 0, -1)
                         if existing_data:
                             for data in existing_data:
                                 await _redis_exec(redis_sync.rpush, temp_key, data)
@@ -250,19 +231,13 @@ class EnhancedIntervalStatsManager:
 
                     # 先添加填充数据（最旧的）
                     for point in reversed(fill_points):  # 反向添加，最旧的在最后
-                        await _redis_exec(
-                            redis_sync.rpush, REDIS_ONLINE_HISTORY_KEY, point
-                        )
+                        await _redis_exec(redis_sync.rpush, REDIS_ONLINE_HISTORY_KEY, point)
 
                     # 再添加原有数据（较新的）
                     if history_length > 0:
-                        existing_data = await _redis_exec(
-                            redis_sync.lrange, temp_key, 0, -1
-                        )
+                        existing_data = await _redis_exec(redis_sync.lrange, temp_key, 0, -1)
                         for data in existing_data:
-                            await _redis_exec(
-                                redis_sync.lpush, REDIS_ONLINE_HISTORY_KEY, data
-                            )
+                            await _redis_exec(redis_sync.lpush, REDIS_ONLINE_HISTORY_KEY, data)
 
                     # 清理临时key
                     await redis_async.delete(temp_key)
@@ -273,9 +248,7 @@ class EnhancedIntervalStatsManager:
                     # 设置过期时间
                     await redis_async.expire(REDIS_ONLINE_HISTORY_KEY, 26 * 3600)
 
-                    logger.info(
-                        f"Filled {len(fill_points)} historical data points with zeros"
-                    )
+                    logger.info(f"Filled {len(fill_points)} historical data points with zeros")
 
         except Exception as e:
             logger.error(f"Error ensuring 24h history exists: {e}")
@@ -287,9 +260,7 @@ class EnhancedIntervalStatsManager:
         redis_async = get_redis()
 
         try:
-            current_interval = (
-                await EnhancedIntervalStatsManager.get_current_interval_info()
-            )
+            current_interval = await EnhancedIntervalStatsManager.get_current_interval_info()
 
             # 添加到区间在线用户集合
             online_key = f"{INTERVAL_ONLINE_USERS_KEY}:{current_interval.interval_key}"
@@ -298,9 +269,7 @@ class EnhancedIntervalStatsManager:
 
             # 如果用户在游玩，也添加到游玩用户集合
             if is_playing:
-                playing_key = (
-                    f"{INTERVAL_PLAYING_USERS_KEY}:{current_interval.interval_key}"
-                )
+                playing_key = f"{INTERVAL_PLAYING_USERS_KEY}:{current_interval.interval_key}"
                 await _redis_exec(redis_sync.sadd, playing_key, str(user_id))
                 await redis_async.expire(playing_key, 35 * 60)
 
@@ -308,7 +277,8 @@ class EnhancedIntervalStatsManager:
             await EnhancedIntervalStatsManager._update_interval_stats()
 
             logger.debug(
-                f"Added user {user_id} to current interval {current_interval.start_time.strftime('%H:%M')}-{current_interval.end_time.strftime('%H:%M')}"
+                f"Added user {user_id} to current interval {current_interval.start_time.strftime('%H:%M')}"
+                f"-{current_interval.end_time.strftime('%H:%M')}"
             )
 
         except Exception as e:
@@ -321,15 +291,11 @@ class EnhancedIntervalStatsManager:
         redis_async = get_redis()
 
         try:
-            current_interval = (
-                await EnhancedIntervalStatsManager.get_current_interval_info()
-            )
+            current_interval = await EnhancedIntervalStatsManager.get_current_interval_info()
 
             # 获取区间内独特用户数
             online_key = f"{INTERVAL_ONLINE_USERS_KEY}:{current_interval.interval_key}"
-            playing_key = (
-                f"{INTERVAL_PLAYING_USERS_KEY}:{current_interval.interval_key}"
-            )
+            playing_key = f"{INTERVAL_PLAYING_USERS_KEY}:{current_interval.interval_key}"
 
             unique_online = await _redis_exec(redis_sync.scard, online_key)
             unique_playing = await _redis_exec(redis_sync.scard, playing_key)
@@ -339,16 +305,12 @@ class EnhancedIntervalStatsManager:
             current_playing = await _get_playing_users_count(redis_async)
 
             # 获取现有统计数据
-            existing_data = await _redis_exec(
-                redis_sync.get, current_interval.interval_key
-            )
+            existing_data = await _redis_exec(redis_sync.get, current_interval.interval_key)
             if existing_data:
                 stats = IntervalStats.from_dict(json.loads(existing_data))
                 # 更新峰值
                 stats.peak_online_count = max(stats.peak_online_count, current_online)
-                stats.peak_playing_count = max(
-                    stats.peak_playing_count, current_playing
-                )
+                stats.peak_playing_count = max(stats.peak_playing_count, current_playing)
                 stats.total_samples += 1
             else:
                 # 创建新的统计记录
@@ -377,7 +339,8 @@ class EnhancedIntervalStatsManager:
             await redis_async.expire(current_interval.interval_key, 35 * 60)
 
             logger.debug(
-                f"Updated interval stats: online={unique_online}, playing={unique_playing}, peak_online={stats.peak_online_count}, peak_playing={stats.peak_playing_count}"
+                f"Updated interval stats: online={unique_online}, playing={unique_playing}, "
+                f"peak_online={stats.peak_online_count}, peak_playing={stats.peak_playing_count}"
             )
 
         except Exception as e:
@@ -395,21 +358,21 @@ class EnhancedIntervalStatsManager:
             # 上一个区间开始时间是当前区间开始时间减去30分钟
             previous_start = current_start - timedelta(minutes=30)
             previous_end = current_start  # 上一个区间的结束时间就是当前区间的开始时间
-            
+
             interval_key = EnhancedIntervalStatsManager.generate_interval_key(previous_start)
-            
+
             previous_interval = IntervalInfo(
                 start_time=previous_start,
                 end_time=previous_end,
-                interval_key=interval_key
+                interval_key=interval_key,
             )
 
             # 获取最终统计数据
-            stats_data = await _redis_exec(
-                redis_sync.get, previous_interval.interval_key
-            )
+            stats_data = await _redis_exec(redis_sync.get, previous_interval.interval_key)
             if not stats_data:
-                logger.warning(f"No interval stats found to finalize for {previous_interval.start_time.strftime('%H:%M')}")
+                logger.warning(
+                    f"No interval stats found to finalize for {previous_interval.start_time.strftime('%H:%M')}"
+                )
                 return None
 
             stats = IntervalStats.from_dict(json.loads(stats_data))
@@ -418,13 +381,11 @@ class EnhancedIntervalStatsManager:
             history_point = {
                 "timestamp": previous_interval.start_time.isoformat(),
                 "online_count": stats.unique_online_users,
-                "playing_count": stats.unique_playing_users
+                "playing_count": stats.unique_playing_users,
             }
 
             # 添加到历史记录
-            await _redis_exec(
-                redis_sync.lpush, REDIS_ONLINE_HISTORY_KEY, json.dumps(history_point)
-            )
+            await _redis_exec(redis_sync.lpush, REDIS_ONLINE_HISTORY_KEY, json.dumps(history_point))
             # 只保留48个数据点（24小时，每30分钟一个点）
             await _redis_exec(redis_sync.ltrim, REDIS_ONLINE_HISTORY_KEY, 0, 47)
             # 设置过期时间为26小时，确保有足够缓冲
@@ -452,12 +413,8 @@ class EnhancedIntervalStatsManager:
         redis_sync = get_redis_message()
 
         try:
-            current_interval = (
-                await EnhancedIntervalStatsManager.get_current_interval_info()
-            )
-            stats_data = await _redis_exec(
-                redis_sync.get, current_interval.interval_key
-            )
+            current_interval = await EnhancedIntervalStatsManager.get_current_interval_info()
+            stats_data = await _redis_exec(redis_sync.get, current_interval.interval_key)
 
             if stats_data:
                 return IntervalStats.from_dict(json.loads(stats_data))
@@ -506,8 +463,6 @@ class EnhancedIntervalStatsManager:
 
 
 # 便捷函数，用于替换现有的统计更新函数
-async def update_user_activity_in_interval(
-    user_id: int, is_playing: bool = False
-) -> None:
+async def update_user_activity_in_interval(user_id: int, is_playing: bool = False) -> None:
     """用户活动时更新区间统计（在登录、开始游玩等时调用）"""
     await EnhancedIntervalStatsManager.add_user_to_interval(user_id, is_playing)

@@ -4,16 +4,17 @@
 
 from __future__ import annotations
 
-from datetime import datetime, UTC
-from sqlmodel import SQLModel, Field
-from sqlalchemy import Column, BigInteger, ForeignKey
+from datetime import UTC, datetime
+
+from sqlalchemy import BigInteger, Column, ForeignKey
+from sqlmodel import Field, SQLModel
 
 
 class PasswordReset(SQLModel, table=True):
     """密码重置记录"""
-    
+
     __tablename__: str = "password_resets"
-    
+
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), nullable=False, index=True))
     email: str = Field(index=True)

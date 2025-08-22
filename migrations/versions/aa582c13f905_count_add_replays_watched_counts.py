@@ -77,14 +77,8 @@ def downgrade() -> None:
         "replays_watched_counts",
         type_="foreignkey",
     )
-    op.drop_index(
-        op.f("ix_replays_watched_counts_year"), table_name="replays_watched_counts"
-    )
-    op.drop_index(
-        op.f("ix_replays_watched_counts_user_id"), table_name="replays_watched_counts"
-    )
-    op.drop_index(
-        op.f("ix_replays_watched_counts_month"), table_name="replays_watched_counts"
-    )
+    op.drop_index(op.f("ix_replays_watched_counts_year"), table_name="replays_watched_counts")
+    op.drop_index(op.f("ix_replays_watched_counts_user_id"), table_name="replays_watched_counts")
+    op.drop_index(op.f("ix_replays_watched_counts_month"), table_name="replays_watched_counts")
     op.drop_table("replays_watched_counts")
     # ### end Alembic commands ###

@@ -121,14 +121,10 @@ class BaseFetcher:
             except Exception as e:
                 last_error = e
                 if attempt < max_retries:
-                    logger.warning(
-                        f"Request failed (attempt {attempt + 1}/{max_retries + 1}): {e}, retrying..."
-                    )
+                    logger.warning(f"Request failed (attempt {attempt + 1}/{max_retries + 1}): {e}, retrying...")
                     continue
                 else:
-                    logger.error(
-                        f"Request failed after {max_retries + 1} attempts: {e}"
-                    )
+                    logger.error(f"Request failed after {max_retries + 1} attempts: {e}")
                     break
 
         # 如果所有重试都失败了
@@ -196,13 +192,9 @@ class BaseFetcher:
                     f"fetcher:refresh_token:{self.client_id}",
                     self.refresh_token,
                 )
-                logger.info(
-                    f"Successfully refreshed access token for client {self.client_id}"
-                )
+                logger.info(f"Successfully refreshed access token for client {self.client_id}")
         except Exception as e:
-            logger.error(
-                f"Failed to refresh access token for client {self.client_id}: {e}"
-            )
+            logger.error(f"Failed to refresh access token for client {self.client_id}: {e}")
             # 清除无效的 token，要求重新授权
             self.access_token = ""
             self.refresh_token = ""
@@ -210,9 +202,7 @@ class BaseFetcher:
             redis = get_redis()
             await redis.delete(f"fetcher:access_token:{self.client_id}")
             await redis.delete(f"fetcher:refresh_token:{self.client_id}")
-            logger.warning(
-                f"Cleared invalid tokens. Please re-authorize: {self.authorize_url}"
-            )
+            logger.warning(f"Cleared invalid tokens. Please re-authorize: {self.authorize_url}")
             raise
 
     async def _trigger_reauthorization(self) -> None:
@@ -237,8 +227,7 @@ class BaseFetcher:
         await redis.delete(f"fetcher:refresh_token:{self.client_id}")
 
         logger.warning(
-            f"All tokens cleared for client {self.client_id}. "
-            f"Please re-authorize using: {self.authorize_url}"
+            f"All tokens cleared for client {self.client_id}. Please re-authorize using: {self.authorize_url}"
         )
 
     def reset_auth_retry_count(self) -> None:

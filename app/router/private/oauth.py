@@ -26,7 +26,7 @@ async def create_oauth_app(
     redirect_uris: list[str] = Body(..., description="允许的重定向 URI 列表"),
     current_user: User = Security(get_client_user),
 ):
-    result = await session.execute(  # pyright: ignore[reportDeprecated]
+    result = await session.execute(
         text(
             "SELECT AUTO_INCREMENT FROM information_schema.TABLES "
             "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'oauth_clients'"
@@ -84,9 +84,7 @@ async def get_user_oauth_apps(
     session: Database,
     current_user: User = Security(get_client_user),
 ):
-    oauth_apps = await session.exec(
-        select(OAuthClient).where(OAuthClient.owner_id == current_user.id)
-    )
+    oauth_apps = await session.exec(select(OAuthClient).where(OAuthClient.owner_id == current_user.id))
     return [
         {
             "name": app.name,
@@ -113,13 +111,9 @@ async def delete_oauth_app(
     if not oauth_client:
         raise HTTPException(status_code=404, detail="OAuth app not found")
     if oauth_client.owner_id != current_user.id:
-        raise HTTPException(
-            status_code=403, detail="Forbidden: Not the owner of this app"
-        )
+        raise HTTPException(status_code=403, detail="Forbidden: Not the owner of this app")
 
-    tokens = await session.exec(
-        select(OAuthToken).where(OAuthToken.client_id == client_id)
-    )
+    tokens = await session.exec(select(OAuthToken).where(OAuthToken.client_id == client_id))
     for token in tokens:
         await session.delete(token)
 
@@ -144,9 +138,7 @@ async def update_oauth_app(
     if not oauth_client:
         raise HTTPException(status_code=404, detail="OAuth app not found")
     if oauth_client.owner_id != current_user.id:
-        raise HTTPException(
-            status_code=403, detail="Forbidden: Not the owner of this app"
-        )
+        raise HTTPException(status_code=403, detail="Forbidden: Not the owner of this app")
 
     oauth_client.name = name
     oauth_client.description = description
@@ -176,14 +168,10 @@ async def refresh_secret(
     if not oauth_client:
         raise HTTPException(status_code=404, detail="OAuth app not found")
     if oauth_client.owner_id != current_user.id:
-        raise HTTPException(
-            status_code=403, detail="Forbidden: Not the owner of this app"
-        )
+        raise HTTPException(status_code=403, detail="Forbidden: Not the owner of this app")
 
     oauth_client.client_secret = secrets.token_hex()
-    tokens = await session.exec(
-        select(OAuthToken).where(OAuthToken.client_id == client_id)
-    )
+    tokens = await session.exec(select(OAuthToken).where(OAuthToken.client_id == client_id))
     for token in tokens:
         await session.delete(token)
 
@@ -215,9 +203,7 @@ async def generate_oauth_code(
         raise HTTPException(status_code=404, detail="OAuth app not found")
 
     if redirect_uri not in client.redirect_uris:
-        raise HTTPException(
-            status_code=403, detail="Redirect URI not allowed for this client"
-        )
+        raise HTTPException(status_code=403, detail="Redirect URI not allowed for this client")
 
     code = secrets.token_urlsafe(80)
     await redis.hset(  # pyright: ignore[reportGeneralTypeIssues]

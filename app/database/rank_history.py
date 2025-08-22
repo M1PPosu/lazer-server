@@ -26,12 +26,10 @@ if TYPE_CHECKING:
 
 
 class RankHistory(SQLModel, table=True):
-    __tablename__ = "rank_history"  # pyright: ignore[reportAssignmentType]
+    __tablename__: str = "rank_history"
 
     id: int | None = Field(default=None, sa_column=Column(BigInteger, primary_key=True))
-    user_id: int = Field(
-        sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True)
-    )
+    user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True))
     mode: GameMode
     rank: int
     date: dt = Field(
@@ -43,12 +41,10 @@ class RankHistory(SQLModel, table=True):
 
 
 class RankTop(SQLModel, table=True):
-    __tablename__ = "rank_top"  # pyright: ignore[reportAssignmentType]
+    __tablename__: str = "rank_top"
 
     id: int | None = Field(default=None, sa_column=Column(BigInteger, primary_key=True))
-    user_id: int = Field(
-        sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True)
-    )
+    user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True))
     mode: GameMode
     rank: int
     date: dt = Field(
@@ -62,9 +58,7 @@ class RankHistoryResp(BaseModel):
     data: list[int]
 
     @classmethod
-    async def from_db(
-        cls, session: AsyncSession, user_id: int, mode: GameMode
-    ) -> "RankHistoryResp":
+    async def from_db(cls, session: AsyncSession, user_id: int, mode: GameMode) -> "RankHistoryResp":
         results = (
             await session.exec(
                 select(RankHistory)

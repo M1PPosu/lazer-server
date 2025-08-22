@@ -48,8 +48,7 @@ class RateLimiter:
 
             if wait_time > 0:
                 logger.opt(colors=True).info(
-                    f"<yellow>[RateLimiter]</yellow> Rate limit reached, "
-                    f"waiting {wait_time:.2f}s"
+                    f"<yellow>[RateLimiter]</yellow> Rate limit reached, waiting {wait_time:.2f}s"
                 )
                 await asyncio.sleep(wait_time)
                 current_time = time.time()
@@ -107,11 +106,7 @@ class RateLimiter:
             "max_requests_per_minute": self.max_requests_per_minute,
             "burst_requests": len(self.burst_times),
             "burst_limit": self.burst_limit,
-            "next_reset_in_seconds": (
-                60.0 - (current_time - self.request_times[0])
-                if self.request_times
-                else 0.0
-            ),
+            "next_reset_in_seconds": (60.0 - (current_time - self.request_times[0]) if self.request_times else 0.0),
         }
 
 

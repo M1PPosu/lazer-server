@@ -28,18 +28,14 @@ if TYPE_CHECKING:
 
 class UserAchievementBase(SQLModel, UTCBaseModel):
     achievement_id: int
-    achieved_at: datetime = Field(
-        default=datetime.now(UTC), sa_column=Column(DateTime(timezone=True))
-    )
+    achieved_at: datetime = Field(default=datetime.now(UTC), sa_column=Column(DateTime(timezone=True)))
 
 
 class UserAchievement(UserAchievementBase, table=True):
-    __tablename__ = "lazer_user_achievements"  # pyright: ignore[reportAssignmentType]
+    __tablename__: str = "lazer_user_achievements"
 
     id: int | None = Field(default=None, primary_key=True, index=True)
-    user_id: int = Field(
-        sa_column=Column(BigInteger, ForeignKey("lazer_users.id")), exclude=True
-    )
+    user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id")), exclude=True)
     user: "User" = Relationship(back_populates="achievement")
 
 
@@ -56,11 +52,7 @@ async def process_achievements(session: AsyncSession, redis: Redis, score_id: in
     if not score:
         return
     achieved = (
-        await session.exec(
-            select(UserAchievement.achievement_id).where(
-                UserAchievement.user_id == score.user_id
-            )
-        )
+        await session.exec(select(UserAchievement.achievement_id).where(UserAchievement.user_id == score.user_id))
     ).all()
     not_achieved = {k: v for k, v in MEDALS.items() if k.id not in achieved}
     result: list[Achievement] = []
@@ -78,9 +70,7 @@ async def process_achievements(session: AsyncSession, redis: Redis, score_id: in
         )
         await redis.publish(
             "chat:notification",
-            UserAchievementUnlock.init(
-                r, score.user_id, score.gamemode
-            ).model_dump_json(),
+            UserAchievementUnlock.init(r, score.user_id, score.gamemode).model_dump_json(),
         )
         event = Event(
             created_at=now,

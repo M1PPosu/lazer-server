@@ -50,7 +50,6 @@ class OptimizedMessageService:
         Returns:
             消息响应对象
         """
-        assert sender.id is not None
 
         # 准备消息数据
         message_data = {
@@ -97,9 +96,7 @@ class OptimizedMessageService:
         logger.info(f"Message sent to channel {channel_id} with temp_uuid {temp_uuid}")
         return temp_response
 
-    async def get_cached_messages(
-        self, channel_id: int, limit: int = 50, since: int = 0
-    ) -> list[dict]:
+    async def get_cached_messages(self, channel_id: int, limit: int = 50, since: int = 0) -> list[dict]:
         """
         获取缓存的消息
 
@@ -125,9 +122,7 @@ class OptimizedMessageService:
         """
         return await self.message_queue.get_message_status(temp_uuid)
 
-    async def wait_for_message_persisted(
-        self, temp_uuid: str, timeout: int = 30
-    ) -> dict | None:
+    async def wait_for_message_persisted(self, temp_uuid: str, timeout: int = 30) -> dict | None:  # noqa: ASYNC109
         """
         等待消息持久化到数据库
 

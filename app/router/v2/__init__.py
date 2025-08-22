@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from . import (  # pyright: ignore[reportUnusedImport]  # noqa: F401
+from . import (  # noqa: F401
     beatmap,
     beatmapset,
     me,

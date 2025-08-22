@@ -70,9 +70,7 @@ async def get_user_best(
     session: Database,
     user: str = Query(..., alias="u", description="用户"),
     ruleset_id: int = Query(0, alias="m", description="Ruleset ID", ge=0),
-    type: Literal["string", "id"] | None = Query(
-        None, description="用户类型：string 用户名称 / id 用户 ID"
-    ),
+    type: Literal["string", "id"] | None = Query(None, description="用户类型：string 用户名称 / id 用户 ID"),
     limit: int = Query(10, ge=1, le=100, description="返回的成绩数量"),
 ):
     try:
@@ -80,9 +78,7 @@ async def get_user_best(
             await session.exec(
                 select(Score)
                 .where(
-                    Score.user_id == user
-                    if type == "id" or user.isdigit()
-                    else col(Score.user).has(username=user),
+                    Score.user_id == user if type == "id" or user.isdigit() else col(Score.user).has(username=user),
                     Score.gamemode == GameMode.from_int_extra(ruleset_id),
                     exists().where(col(PPBestScore.score_id) == Score.id),
                 )
@@ -106,9 +102,7 @@ async def get_user_recent(
     session: Database,
     user: str = Query(..., alias="u", description="用户"),
     ruleset_id: int = Query(0, alias="m", description="Ruleset ID", ge=0),
-    type: Literal["string", "id"] | None = Query(
-        None, description="用户类型：string 用户名称 / id 用户 ID"
-    ),
+    type: Literal["string", "id"] | None = Query(None, description="用户类型：string 用户名称 / id 用户 ID"),
     limit: int = Query(10, ge=1, le=100, description="返回的成绩数量"),
 ):
     try:
@@ -116,9 +110,7 @@ async def get_user_recent(
             await session.exec(
                 select(Score)
                 .where(
-                    Score.user_id == user
-                    if type == "id" or user.isdigit()
-                    else col(Score.user).has(username=user),
+                    Score.user_id == user if type == "id" or user.isdigit() else col(Score.user).has(username=user),
                     Score.gamemode == GameMode.from_int_extra(ruleset_id),
                     Score.ended_at > datetime.now(UTC) - timedelta(hours=24),
                 )
@@ -143,9 +135,7 @@ async def get_scores(
     user: str | None = Query(None, alias="u", description="用户"),
     beatmap_id: int = Query(alias="b", description="谱面 ID"),
     ruleset_id: int = Query(0, alias="m", description="Ruleset ID", ge=0),
-    type: Literal["string", "id"] | None = Query(
-        None, description="用户类型：string 用户名称 / id 用户 ID"
-    ),
+    type: Literal["string", "id"] | None = Query(None, description="用户类型：string 用户名称 / id 用户 ID"),
     limit: int = Query(10, ge=1, le=100, description="返回的成绩数量"),
     mods: int = Query(0, description="成绩的 MOD"),
 ):
@@ -157,9 +147,7 @@ async def get_scores(
                     .where(
                         Score.gamemode == GameMode.from_int_extra(ruleset_id),
                         Score.beatmap_id == beatmap_id,
-                        Score.user_id == user
-                        if type == "id" or user.isdigit()
-                        else col(Score.user).has(username=user),
+                        Score.user_id == user if type == "id" or user.isdigit() else col(Score.user).has(username=user),
                     )
                     .options(joinedload(Score.beatmap))
                     .order_by(col(Score.classic_total_score).desc())

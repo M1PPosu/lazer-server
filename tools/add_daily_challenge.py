@@ -63,15 +63,11 @@ async def main():
             if not ruleset_inp:
                 ruleset_inp = str(int(beatmap.mode))
             elif not ruleset_inp.isdigit():
-                ruleset_inp = input(
-                    f"Invalid input. Enter ruleset ID ({int(beatmap.mode)}) >>> "
-                )
+                ruleset_inp = input(f"Invalid input. Enter ruleset ID ({int(beatmap.mode)}) >>> ")
                 continue
             ruleset_id = int(ruleset_inp)
             if beatmap.mode != GameMode.OSU and ruleset_id != int(beatmap.mode):
-                ruleset_inp = input(
-                    f"Invalid input. Enter ruleset ID ({int(beatmap.mode)}) >>> "
-                )
+                ruleset_inp = input(f"Invalid input. Enter ruleset ID ({int(beatmap.mode)}) >>> ")
                 continue
             break
 

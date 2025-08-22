@@ -11,9 +11,7 @@ from sqlmodel import exists, select
 
 async def create_banchobot():
     async with with_db() as session:
-        is_exist = (
-            await session.exec(select(exists()).where(User.id == BANCHOBOT_ID))
-        ).first()
+        is_exist = (await session.exec(select(exists()).where(User.id == BANCHOBOT_ID))).first()
         if not is_exist:
             banchobot = User(
                 username="BanchoBot",

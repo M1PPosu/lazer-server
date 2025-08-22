@@ -8,9 +8,7 @@ from app.dependencies.user import v1_authorize
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, field_serializer
 
-router = APIRouter(
-    prefix="/api/v1", dependencies=[Depends(v1_authorize)], tags=["V1 API"]
-)
+router = APIRouter(prefix="/api/v1", dependencies=[Depends(v1_authorize)], tags=["V1 API"])
 
 
 class AllStrModel(BaseModel):

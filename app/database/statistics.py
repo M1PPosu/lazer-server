@@ -58,7 +58,7 @@ class UserStatisticsBase(SQLModel):
 
 
 class UserStatistics(AsyncAttrs, UserStatisticsBase, table=True):
-    __tablename__ = "lazer_user_statistics"  # pyright: ignore[reportAssignmentType]
+    __tablename__: str = "lazer_user_statistics"
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(
         default=None,
@@ -123,9 +123,7 @@ class UserStatisticsResp(UserStatisticsBase):
         if "user" in include:
             from .lazer_user import RANKING_INCLUDES, UserResp
 
-            user = await UserResp.from_db(
-                await obj.awaitable_attrs.user, session, include=RANKING_INCLUDES
-            )
+            user = await UserResp.from_db(await obj.awaitable_attrs.user, session, include=RANKING_INCLUDES)
             s.user = user
             user_country = user.country_code
 
@@ -149,9 +147,7 @@ class UserStatisticsResp(UserStatisticsBase):
         return s
 
 
-async def get_rank(
-    session: AsyncSession, statistics: UserStatistics, country: str | None = None
-) -> int | None:
+async def get_rank(session: AsyncSession, statistics: UserStatistics, country: str | None = None) -> int | None:
     from .lazer_user import User
 
     query = select(
@@ -168,9 +164,7 @@ async def get_rank(
 
     subq = query.subquery()
 
-    result = await session.exec(
-        select(subq.c.rank).where(subq.c.user_id == statistics.user_id)
-    )
+    result = await session.exec(select(subq.c.rank).where(subq.c.user_id == statistics.user_id))
 
     rank = result.first()
     if rank is None:

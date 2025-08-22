@@ -50,12 +50,8 @@ async def check_user_relationship(
         )
     ).first()
 
-    is_followed = bool(
-        target_relationship and target_relationship.type == RelationshipType.FOLLOW
-    )
-    is_following = bool(
-        my_relationship and my_relationship.type == RelationshipType.FOLLOW
-    )
+    is_followed = bool(target_relationship and target_relationship.type == RelationshipType.FOLLOW)
+    is_following = bool(my_relationship and my_relationship.type == RelationshipType.FOLLOW)
 
     return CheckResponse(
         is_followed=is_followed,

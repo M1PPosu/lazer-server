@@ -9,12 +9,13 @@ from pydantic import BaseModel
 
 class ExtendedTokenResponse(BaseModel):
     """扩展的令牌响应，支持二次验证状态"""
+
     access_token: str | None = None
     token_type: str = "Bearer"
     expires_in: int | None = None
     refresh_token: str | None = None
     scope: str | None = None
-    
+
     # 二次验证相关字段
     requires_second_factor: bool = False
     verification_message: str | None = None
@@ -23,6 +24,7 @@ class ExtendedTokenResponse(BaseModel):
 
 class SessionState(BaseModel):
     """会话状态"""
+
     user_id: int
     username: str
     email: str

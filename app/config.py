@@ -124,14 +124,10 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     from_email: str = "noreply@example.com"
     from_name: str = "osu! server"
-    
+
     # 邮件验证功能开关
-    enable_email_verification: bool = Field(
-        default=True, description="是否启用邮件验证功能"
-    )
-    enable_email_sending: bool = Field(
-        default=False, description="是否真实发送邮件（False时仅模拟发送）"
-    )
+    enable_email_verification: bool = Field(default=True, description="是否启用邮件验证功能")
+    enable_email_sending: bool = Field(default=False, description="是否真实发送邮件（False时仅模拟发送）")
 
     # Sentry 配置
     sentry_dsn: HttpUrl | None = None
@@ -143,12 +139,8 @@ class Settings(BaseSettings):
     geoip_update_hour: int = 2  # 每周更新的小时数（0-23）
 
     # 游戏设置
-    enable_rx: bool = Field(
-        default=False, validation_alias=AliasChoices("enable_rx", "enable_osu_rx")
-    )
-    enable_ap: bool = Field(
-        default=False, validation_alias=AliasChoices("enable_ap", "enable_osu_ap")
-    )
+    enable_rx: bool = Field(default=False, validation_alias=AliasChoices("enable_rx", "enable_osu_rx"))
+    enable_ap: bool = Field(default=False, validation_alias=AliasChoices("enable_ap", "enable_osu_ap"))
     enable_all_mods_pp: bool = False
     enable_supporter_for_all_users: bool = False
     enable_all_beatmap_leaderboard: bool = False
@@ -189,9 +181,7 @@ class Settings(BaseSettings):
 
     # 存储设置
     storage_service: StorageServiceType = StorageServiceType.LOCAL
-    storage_settings: (
-        LocalStorageSettings | CloudflareR2Settings | AWSS3StorageSettings
-    ) = LocalStorageSettings()
+    storage_settings: LocalStorageSettings | CloudflareR2Settings | AWSS3StorageSettings = LocalStorageSettings()
 
     @field_validator("fetcher_scopes", mode="before")
     def validate_fetcher_scopes(cls, v: Any) -> list[str]:
@@ -207,22 +197,13 @@ class Settings(BaseSettings):
     ) -> LocalStorageSettings | CloudflareR2Settings | AWSS3StorageSettings:
         if info.data.get("storage_service") == StorageServiceType.CLOUDFLARE_R2:
             if not isinstance(v, CloudflareR2Settings):
-                raise ValueError(
-                    "When storage_service is 'r2', "
-                    "storage_settings must be CloudflareR2Settings"
-                )
+                raise ValueError("When storage_service is 'r2', storage_settings must be CloudflareR2Settings")
         elif info.data.get("storage_service") == StorageServiceType.LOCAL:
             if not isinstance(v, LocalStorageSettings):
-                raise ValueError(
-                    "When storage_service is 'local', "
-                    "storage_settings must be LocalStorageSettings"
-                )
+                raise ValueError("When storage_service is 'local', storage_settings must be LocalStorageSettings")
         elif info.data.get("storage_service") == StorageServiceType.AWS_S3:
             if not isinstance(v, AWSS3StorageSettings):
-                raise ValueError(
-                    "When storage_service is 's3', "
-                    "storage_settings must be AWSS3StorageSettings"
-                )
+                raise ValueError("When storage_service is 's3', storage_settings must be AWSS3StorageSettings")
         return v
 
 

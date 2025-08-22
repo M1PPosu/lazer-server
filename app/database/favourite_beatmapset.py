@@ -16,7 +16,7 @@ from sqlmodel import (
 
 
 class FavouriteBeatmapset(AsyncAttrs, SQLModel, table=True):
-    __tablename__ = "favourite_beatmapset"  # pyright: ignore[reportAssignmentType]
+    __tablename__: str = "favourite_beatmapset"
     id: int | None = Field(
         default=None,
         sa_column=Column(BigInteger, autoincrement=True, primary_key=True),

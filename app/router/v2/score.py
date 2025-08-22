@@ -104,11 +104,7 @@ async def submit_score(
     if not info.passed:
         info.rank = Rank.F
     score_token = (
-        await db.exec(
-            select(ScoreToken)
-            .options(joinedload(ScoreToken.beatmap))  # pyright: ignore[reportArgumentType]
-            .where(ScoreToken.id == token)
-        )
+        await db.exec(select(ScoreToken).options(joinedload(ScoreToken.beatmap)).where(ScoreToken.id == token))
     ).first()
     if not score_token or score_token.user_id != user_id:
         raise HTTPException(status_code=404, detail="Score token not found")
@@ -138,10 +134,7 @@ async def submit_score(
         except HTTPError:
             raise HTTPException(status_code=404, detail="Beatmap not found")
         has_pp = db_beatmap.beatmap_status.has_pp() | settings.enable_all_beatmap_pp
-        has_leaderboard = (
-            db_beatmap.beatmap_status.has_leaderboard()
-            | settings.enable_all_beatmap_leaderboard
-        )
+        has_leaderboard = db_beatmap.beatmap_status.has_leaderboard() | settings.enable_all_beatmap_leaderboard
         beatmap_length = db_beatmap.total_length
         score = await process_score(
             current_user,
@@ -167,21 +160,11 @@ async def submit_score(
             has_pp,
             has_leaderboard,
         )
-        score = (
-            await db.exec(
-                select(Score)
-                .options(joinedload(Score.user))  # pyright: ignore[reportArgumentType]
-                .where(Score.id == score_id)
-            )
-        ).first()
-        assert score is not None
+        score = (await db.exec(select(Score).options(joinedload(Score.user)).where(Score.id == score_id))).one()
 
     resp = await ScoreResp.from_db(db, score)
-    total_users = (await db.exec(select(func.count()).select_from(User))).first()
-    assert total_users is not None
-    if resp.rank_global is not None and resp.rank_global <= min(
-        math.ceil(float(total_users) * 0.01), 50
-    ):
+    total_users = (await db.exec(select(func.count()).select_from(User))).one()
+    if resp.rank_global is not None and resp.rank_global <= min(math.ceil(float(total_users) * 0.01), 50):
         rank_event = Event(
             created_at=datetime.now(UTC),
             type=EventType.RANK,
@@ -207,9 +190,7 @@ async def submit_score(
     score_gamemode = score.gamemode
 
     if user_id is not None:
-        background_task.add_task(
-            _refresh_user_cache_background, redis, user_id, score_gamemode
-        )
+        background_task.add_task(_refresh_user_cache_background, redis, user_id, score_gamemode)
     background_task.add_task(process_user_achievement, resp.id)
     return resp
 
@@ -225,9 +206,7 @@ async def _refresh_user_cache_background(redis: Redis, user_id: int, mode: GameM
         # 创建独立的数据库会话
         session = AsyncSession(engine)
         try:
-            await user_cache_service.refresh_user_cache_on_score_submit(
-                session, user_id, mode
-            )
+            await user_cache_service.refresh_user_cache_on_score_submit(session, user_id, mode)
         finally:
             await session.close()
     except Exception as e:
@@ -280,22 +259,16 @@ async def get_beatmap_scores(
     beatmap_id: int = Path(description="谱面 ID"),
     mode: GameMode = Query(description="指定 auleset"),
     legacy_only: bool = Query(None, description="是否只查询 Stable 分数"),
-    mods: list[str] = Query(
-        default_factory=set, alias="mods[]", description="筛选使用的 Mods (可选，多值)"
-    ),
+    mods: list[str] = Query(default_factory=set, alias="mods[]", description="筛选使用的 Mods (可选，多值)"),
     type: LeaderboardType = Query(
         LeaderboardType.GLOBAL,
-        description=(
-            "排行榜类型：GLOBAL 全局 / COUNTRY 国家 / FRIENDS 好友 / TEAM 战队"
-        ),
+        description=("排行榜类型：GLOBAL 全局 / COUNTRY 国家 / FRIENDS 好友 / TEAM 战队"),
     ),
     current_user: User = Security(get_current_user, scopes=["public"]),
     limit: int = Query(50, ge=1, le=200, description="返回条数 (1-200)"),
 ):
     if legacy_only:
-        raise HTTPException(
-            status_code=404, detail="this server only contains lazer scores"
-        )
+        raise HTTPException(status_code=404, detail="this server only contains lazer scores")
 
     all_scores, user_score, count = await get_leaderboard(
         db,
@@ -310,9 +283,7 @@ async def get_beatmap_scores(
     user_score_resp = await ScoreResp.from_db(db, user_score) if user_score else None
     resp = BeatmapScores(
         scores=[await ScoreResp.from_db(db, score) for score in all_scores],
-        user_score=BeatmapUserScore(
-            score=user_score_resp, position=user_score_resp.rank_global or 0
-        )
+        user_score=BeatmapUserScore(score=user_score_resp, position=user_score_resp.rank_global or 0)
         if user_score_resp
         else None,
         score_count=count,
@@ -342,9 +313,7 @@ async def get_user_beatmap_score(
     current_user: User = Security(get_current_user, scopes=["public"]),
 ):
     if legacy_only:
-        raise HTTPException(
-            status_code=404, detail="This server only contains non-legacy scores"
-        )
+        raise HTTPException(status_code=404, detail="This server only contains non-legacy scores")
     user_score = (
         await db.exec(
             select(Score)
@@ -386,9 +355,7 @@ async def get_user_all_beatmap_scores(
     current_user: User = Security(get_current_user, scopes=["public"]),
 ):
     if legacy_only:
-        raise HTTPException(
-            status_code=404, detail="This server only contains non-legacy scores"
-        )
+        raise HTTPException(status_code=404, detail="This server only contains non-legacy scores")
     all_user_scores = (
         await db.exec(
             select(Score)
@@ -420,7 +387,6 @@ async def create_solo_score(
     ruleset_id: int = Form(..., ge=0, le=3, description="ruleset 数字 ID (0-3)"),
     current_user: User = Security(get_client_user),
 ):
-    assert current_user.id is not None
     # 立即获取用户ID，避免懒加载问题
     user_id = current_user.id
 
@@ -454,10 +420,7 @@ async def submit_solo_score(
     redis: Redis = Depends(get_redis),
     fetcher=Depends(get_fetcher),
 ):
-    assert current_user.id is not None
-    return await submit_score(
-        background_task, info, beatmap_id, token, current_user, db, redis, fetcher
-    )
+    return await submit_score(background_task, info, beatmap_id, token, current_user, db, redis, fetcher)
 
 
 @router.post(
@@ -478,7 +441,6 @@ async def create_playlist_score(
     version_hash: str = Form("", description="谱面版本哈希"),
     current_user: User = Security(get_client_user),
 ):
-    assert current_user.id is not None
     # 立即获取用户ID，避免懒加载问题
     user_id = current_user.id
 
@@ -488,26 +450,16 @@ async def create_playlist_score(
     db_room_time = room.ends_at.replace(tzinfo=UTC) if room.ends_at else None
     if db_room_time and db_room_time < datetime.now(UTC).replace(tzinfo=UTC):
         raise HTTPException(status_code=400, detail="Room has ended")
-    item = (
-        await session.exec(
-            select(Playlist).where(
-                Playlist.id == playlist_id, Playlist.room_id == room_id
-            )
-        )
-    ).first()
+    item = (await session.exec(select(Playlist).where(Playlist.id == playlist_id, Playlist.room_id == room_id))).first()
     if not item:
         raise HTTPException(status_code=404, detail="Playlist not found")
 
     # validate
     if not item.freestyle:
         if item.ruleset_id != ruleset_id:
-            raise HTTPException(
-                status_code=400, detail="Ruleset mismatch in playlist item"
-            )
+            raise HTTPException(status_code=400, detail="Ruleset mismatch in playlist item")
         if item.beatmap_id != beatmap_id:
-            raise HTTPException(
-                status_code=400, detail="Beatmap ID mismatch in playlist item"
-            )
+            raise HTTPException(status_code=400, detail="Beatmap ID mismatch in playlist item")
     agg = await session.exec(
         select(ItemAttemptsCount).where(
             ItemAttemptsCount.room_id == room_id,
@@ -523,9 +475,7 @@ async def create_playlist_score(
     if item.expired:
         raise HTTPException(status_code=400, detail="Playlist item has expired")
     if item.played_at:
-        raise HTTPException(
-            status_code=400, detail="Playlist item has already been played"
-        )
+        raise HTTPException(status_code=400, detail="Playlist item has already been played")
     # 这里应该不用验证mod了吧。。。
     background_task.add_task(_preload_beatmap_for_pp_calculation, beatmap_id)
     score_token = ScoreToken(
@@ -557,18 +507,10 @@ async def submit_playlist_score(
     redis: Redis = Depends(get_redis),
     fetcher: Fetcher = Depends(get_fetcher),
 ):
-    assert current_user.id is not None
-
     # 立即获取用户ID，避免懒加载问题
     user_id = current_user.id
 
-    item = (
-        await session.exec(
-            select(Playlist).where(
-                Playlist.id == playlist_id, Playlist.room_id == room_id
-            )
-        )
-    ).first()
+    item = (await session.exec(select(Playlist).where(Playlist.id == playlist_id, Playlist.room_id == room_id))).first()
     if not item:
         raise HTTPException(status_code=404, detail="Playlist item not found")
     room = await session.get(Room, room_id)
@@ -621,9 +563,7 @@ async def index_playlist_scores(
     room_id: int,
     playlist_id: int,
     limit: int = Query(50, ge=1, le=50, description="返回条数 (1-50)"),
-    cursor: int = Query(
-        2000000, alias="cursor[total_score]", description="分页游标（上一页最低分）"
-    ),
+    cursor: int = Query(2000000, alias="cursor[total_score]", description="分页游标（上一页最低分）"),
     current_user: User = Security(get_current_user, scopes=["public"]),
 ):
     # 立即获取用户ID，避免懒加载问题
@@ -693,9 +633,6 @@ async def show_playlist_score(
     current_user: User = Security(get_client_user),
     redis: Redis = Depends(get_redis),
 ):
-    # 立即获取用户ID，避免懒加载问题
-    user_id = current_user.id
-
     room = await session.get(Room, room_id)
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
@@ -715,9 +652,7 @@ async def show_playlist_score(
                     )
                 )
             ).first()
-        if completed_players := await redis.get(
-            f"multiplayer:{room_id}:gameplay:players"
-        ):
+        if completed_players := await redis.get(f"multiplayer:{room_id}:gameplay:players"):
             completed = completed_players == "0"
         if score_record and completed:
             break
@@ -784,9 +719,7 @@ async def get_user_playlist_score(
         raise HTTPException(status_code=404, detail="Score not found")
 
     resp = await ScoreResp.from_db(session, score_record.score)
-    resp.position = await get_position(
-        room_id, playlist_id, score_record.score_id, session
-    )
+    resp.position = await get_position(room_id, playlist_id, score_record.score_id, session)
     return resp
 
 
@@ -850,11 +783,7 @@ async def unpin_score(
     # 立即获取用户ID，避免懒加载问题
     user_id = current_user.id
 
-    score_record = (
-        await db.exec(
-            select(Score).where(Score.id == score_id, Score.user_id == user_id)
-        )
-    ).first()
+    score_record = (await db.exec(select(Score).where(Score.id == score_id, Score.user_id == user_id))).first()
     if not score_record:
         raise HTTPException(status_code=404, detail="Score not found")
 
@@ -878,10 +807,7 @@ async def unpin_score(
     "/score-pins/{score_id}/reorder",
     status_code=204,
     name="调整置顶成绩顺序",
-    description=(
-        "**客户端专属**\n调整已置顶成绩的展示顺序。"
-        "仅提供 after_score_id 或 before_score_id 之一。"
-    ),
+    description=("**客户端专属**\n调整已置顶成绩的展示顺序。仅提供 after_score_id 或 before_score_id 之一。"),
     tags=["成绩"],
 )
 async def reorder_score_pin(
@@ -894,11 +820,7 @@ async def reorder_score_pin(
     # 立即获取用户ID，避免懒加载问题
     user_id = current_user.id
 
-    score_record = (
-        await db.exec(
-            select(Score).where(Score.id == score_id, Score.user_id == user_id)
-        )
-    ).first()
+    score_record = (await db.exec(select(Score).where(Score.id == score_id, Score.user_id == user_id))).first()
     if not score_record:
         raise HTTPException(status_code=404, detail="Score not found")
 
@@ -908,8 +830,7 @@ async def reorder_score_pin(
     if (after_score_id is None) == (before_score_id is None):
         raise HTTPException(
             status_code=400,
-            detail="Either after_score_id or before_score_id "
-            "must be provided (but not both)",
+            detail="Either after_score_id or before_score_id must be provided (but not both)",
         )
 
     all_pinned_scores = (
@@ -927,9 +848,7 @@ async def reorder_score_pin(
     target_order = None
     reference_score_id = after_score_id or before_score_id
 
-    reference_score = next(
-        (s for s in all_pinned_scores if s.id == reference_score_id), None
-    )
+    reference_score = next((s for s in all_pinned_scores if s.id == reference_score_id), None)
     if not reference_score:
         detail = "After score not found" if after_score_id else "Before score not found"
         raise HTTPException(status_code=404, detail=detail)
@@ -951,9 +870,7 @@ async def reorder_score_pin(
             if current_order < s.pinned_order <= target_order and s.id != score_id:
                 updates.append((s.id, s.pinned_order - 1))
         if after_score_id:
-            final_target = (
-                target_order - 1 if target_order > current_order else target_order
-            )
+            final_target = target_order - 1 if target_order > current_order else target_order
         else:
             final_target = target_order
     else:
@@ -964,9 +881,7 @@ async def reorder_score_pin(
 
     for score_id, new_order in updates:
         await db.exec(select(Score).where(Score.id == score_id))
-        score_to_update = (
-            await db.exec(select(Score).where(Score.id == score_id))
-        ).first()
+        score_to_update = (await db.exec(select(Score).where(Score.id == score_id))).first()
         if score_to_update:
             score_to_update.pinned_order = new_order
 

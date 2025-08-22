@@ -30,8 +30,8 @@ class MultiplayerEventBase(SQLModel, UTCBaseModel):
 
 
 class MultiplayerEvent(MultiplayerEventBase, table=True):
-    __tablename__ = "multiplayer_events"  # pyright: ignore[reportAssignmentType]
-    id: int | None = Field(
+    __tablename__: str = "multiplayer_events"
+    id: int = Field(
         default=None,
         sa_column=Column(BigInteger, primary_key=True, autoincrement=True, index=True),
     )

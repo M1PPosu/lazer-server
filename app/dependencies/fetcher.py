@@ -25,7 +25,5 @@ async def get_fetcher() -> Fetcher:
         if refresh_token:
             fetcher.refresh_token = str(refresh_token)
         if not fetcher.access_token or not fetcher.refresh_token:
-            logger.opt(colors=True).info(
-                f"Login to initialize fetcher: <y>{fetcher.authorize_url}</y>"
-            )
+            logger.opt(colors=True).info(f"Login to initialize fetcher: <y>{fetcher.authorize_url}</y>")
     return fetcher

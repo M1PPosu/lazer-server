@@ -19,9 +19,7 @@ class ResultStore:
         self._seq = (self._seq + 1) % sys.maxsize
         return str(s)
 
-    def add_result(
-        self, invocation_id: str, result: Any, error: str | None = None
-    ) -> None:
+    def add_result(self, invocation_id: str, result: Any, error: str | None = None) -> None:
         if isinstance(invocation_id, str) and invocation_id.isdecimal():
             if future := self._futures.get(invocation_id):
                 future.set_result((result, error))

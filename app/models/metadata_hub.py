@@ -145,9 +145,7 @@ class MultiplayerPlaylistItemStats(BaseModel):
 
 class MultiplayerRoomStats(BaseModel):
     room_id: int
-    playlist_item_stats: dict[int, MultiplayerPlaylistItemStats] = Field(
-        default_factory=dict
-    )
+    playlist_item_stats: dict[int, MultiplayerPlaylistItemStats] = Field(default_factory=dict)
 
 
 class MultiplayerRoomScoreSetEvent(BaseModel):

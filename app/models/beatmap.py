@@ -95,11 +95,7 @@ class SearchQueryModel(BaseModel):
 
     q: str = Field("", description="搜索关键词")
     c: Annotated[
-        list[
-            Literal[
-                "recommended", "converts", "follows", "spotlights", "featured_artists"
-            ]
-        ],
+        list[Literal["recommended", "converts", "follows", "spotlights", "featured_artists"]],
         BeforeValidator(_parse_list),
         PlainSerializer(lambda x: ".".join(x)),
     ] = Field(
@@ -188,12 +184,10 @@ class SearchQueryModel(BaseModel):
         list[Literal["video", "storyboard"]],
         BeforeValidator(_parse_list),
         PlainSerializer(lambda x: ".".join(x)),
-    ] = Field(
-        default_factory=list, description=("其他：video 有视频 / storyboard 有故事板")
+    ] = Field(default_factory=list, description=("其他：video 有视频 / storyboard 有故事板"))
+    r: Annotated[list[Rank], BeforeValidator(_parse_list), PlainSerializer(lambda x: ".".join(x))] = Field(
+        default_factory=list, description="成绩"
     )
-    r: Annotated[
-        list[Rank], BeforeValidator(_parse_list), PlainSerializer(lambda x: ".".join(x))
-    ] = Field(default_factory=list, description="成绩")
     played: bool = Field(
         default=False,
         description="玩过",

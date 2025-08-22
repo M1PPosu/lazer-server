@@ -91,9 +91,7 @@ class Bot:
         if reply:
             await self._send_reply(user, channel, reply, session)
 
-    async def _send_message(
-        self, channel: ChatChannel, content: str, session: AsyncSession
-    ) -> None:
+    async def _send_message(self, channel: ChatChannel, content: str, session: AsyncSession) -> None:
         bot = await session.get(User, self.bot_user_id)
         if bot is None:
             return
@@ -101,7 +99,6 @@ class Bot:
         if channel_id is None:
             return
 
-        assert bot.id is not None
         msg = ChatMessage(
             channel_id=channel_id,
             content=content,
@@ -115,9 +112,7 @@ class Bot:
         resp = await ChatMessageResp.from_db(msg, session, bot)
         await server.send_message_to_channel(resp)
 
-    async def _ensure_pm_channel(
-        self, user: User, session: AsyncSession
-    ) -> ChatChannel | None:
+    async def _ensure_pm_channel(self, user: User, session: AsyncSession) -> ChatChannel | None:
         user_id = user.id
         if user_id is None:
             return None
@@ -160,9 +155,7 @@ bot = Bot()
 
 
 @bot.command("help")
-async def _help(
-    user: User, args: list[str], _session: AsyncSession, channel: ChatChannel
-) -> str:
+async def _help(user: User, args: list[str], _session: AsyncSession, channel: ChatChannel) -> str:
     cmds = sorted(bot._handlers.keys())
     if args:
         target = args[0].lower()
@@ -175,9 +168,7 @@ async def _help(
 
 
 @bot.command("roll")
-def _roll(
-    user: User, args: list[str], _session: AsyncSession, channel: ChatChannel
-) -> str:
+def _roll(user: User, args: list[str], _session: AsyncSession, channel: ChatChannel) -> str:
     if len(args) > 0 and args[0].isdigit():
         r = random.randint(1, int(args[0]))
     else:
@@ -186,13 +177,9 @@ def _roll(
 
 
 @bot.command("stats")
-async def _stats(
-    user: User, args: list[str], session: AsyncSession, channel: ChatChannel
-) -> str:
+async def _stats(user: User, args: list[str], session: AsyncSession, channel: ChatChannel) -> str:
     if len(args) >= 1:
-        target_user = (
-            await session.exec(select(User).where(User.username == args[0]))
-        ).first()
+        target_user = (await session.exec(select(User).where(User.username == args[0]))).first()
         if not target_user:
             return f"User '{args[0]}' not found."
     else:
@@ -202,14 +189,8 @@ async def _stats(
     if len(args) >= 2:
         gamemode = GameMode.parse(args[1].upper())
     if gamemode is None:
-        subquery = (
-            select(func.max(Score.id))
-            .where(Score.user_id == target_user.id)
-            .scalar_subquery()
-        )
-        last_score = (
-            await session.exec(select(Score).where(Score.id == subquery))
-        ).first()
+        subquery = select(func.max(Score.id)).where(Score.user_id == target_user.id).scalar_subquery()
+        last_score = (await session.exec(select(Score).where(Score.id == subquery))).first()
         if last_score is not None:
             gamemode = last_score.gamemode
         else:
@@ -295,9 +276,7 @@ async def _mp_host(
         return "Usage: !mp host <username>"
 
     username = args[0]
-    user_id = (
-        await session.exec(select(User.id).where(User.username == username))
-    ).first()
+    user_id = (await session.exec(select(User.id).where(User.username == username))).first()
     if not user_id:
         return f"User '{username}' not found."
 
@@ -362,24 +341,18 @@ async def _mp_team(
     if team is None:
         return "Invalid team colour. Use 'red' or 'blue'."
 
-    user_id = (
-        await session.exec(select(User.id).where(User.username == username))
-    ).first()
+    user_id = (await session.exec(select(User.id).where(User.username == username))).first()
     if not user_id:
         return f"User '{username}' not found."
     user_client = MultiplayerHubs.get_client_by_id(str(user_id))
     if not user_client:
         return f"User '{username}' is not in the room."
-    if (
-        user_client.user_id != signalr_client.user_id
-        and room.room.host.user_id != signalr_client.user_id
-    ):
+    assert room.room.host
+    if user_client.user_id != signalr_client.user_id and room.room.host.user_id != signalr_client.user_id:
         return "You are not allowed to change other users' teams."
 
     try:
-        await MultiplayerHubs.SendMatchRequest(
-            user_client, ChangeTeamRequest(team_id=team)
-        )
+        await MultiplayerHubs.SendMatchRequest(user_client, ChangeTeamRequest(team_id=team))
         return ""
     except InvokeException as e:
         return e.message
@@ -414,9 +387,7 @@ async def _mp_kick(
         return "Usage: !mp kick <username>"
 
     username = args[0]
-    user_id = (
-        await session.exec(select(User.id).where(User.username == username))
-    ).first()
+    user_id = (await session.exec(select(User.id).where(User.username == username))).first()
     if not user_id:
         return f"User '{username}' not found."
 
@@ -456,10 +427,7 @@ async def _mp_map(
     try:
         beatmap = await Beatmap.get_or_fetch(session, await get_fetcher(), bid=map_id)
         if beatmap.mode != GameMode.OSU and playmode and playmode != beatmap.mode:
-            return (
-                f"Cannot convert to {playmode.value}. "
-                f"Original mode is {beatmap.mode.value}."
-            )
+            return f"Cannot convert to {playmode.value}. Original mode is {beatmap.mode.value}."
     except HTTPError:
         return "Beatmap not found"
 
@@ -530,9 +498,7 @@ async def _mp_mods(
         if freestyle:
             item.allowed_mods = []
         elif freemod:
-            item.allowed_mods = get_available_mods(
-                current_item.ruleset_id, required_mods
-            )
+            item.allowed_mods = get_available_mods(current_item.ruleset_id, required_mods)
         else:
             item.allowed_mods = allowed_mods
         item.required_mods = required_mods
@@ -601,14 +567,9 @@ async def _score(
     include_fail: bool = False,
     gamemode: GameMode | None = None,
 ) -> str:
-    q = (
-        select(Score)
-        .where(Score.user_id == user_id)
-        .order_by(col(Score.id).desc())
-        .options(joinedload(Score.beatmap))
-    )
+    q = select(Score).where(Score.user_id == user_id).order_by(col(Score.id).desc()).options(joinedload(Score.beatmap))
     if not include_fail:
-        q = q.where(Score.passed.is_(True))
+        q = q.where(col(Score.passed).is_(True))
     if gamemode is not None:
         q = q.where(Score.gamemode == gamemode)
 
@@ -619,17 +580,13 @@ async def _score(
     result = f"""{score.beatmap.beatmapset.title} [{score.beatmap.version}] ({score.gamemode.name.lower()})
 Played at {score.started_at}
 {score.pp:.2f}pp {score.accuracy:.2%} {",".join(mod_to_save(score.mods))} {score.rank.name.upper()}
-Great: {score.n300}, Good: {score.n100}, Meh: {score.n50}, Miss: {score.nmiss}"""  # noqa: E501
+Great: {score.n300}, Good: {score.n100}, Meh: {score.n50}, Miss: {score.nmiss}"""
     if score.gamemode == GameMode.MANIA:
-        keys = next(
-            (mod["acronym"] for mod in score.mods if mod["acronym"].endswith("K")), None
-        )
+        keys = next((mod["acronym"] for mod in score.mods if mod["acronym"].endswith("K")), None)
         if keys is None:
             keys = f"{int(score.beatmap.cs)}K"
         p_d_g = f"{score.ngeki / score.n300:.2f}:1" if score.n300 > 0 else "inf:1"
-        result += (
-            f"\nKeys: {keys}, Perfect: {score.ngeki}, Ok: {score.nkatu}, P/G: {p_d_g}"
-        )
+        result += f"\nKeys: {keys}, Perfect: {score.ngeki}, Ok: {score.nkatu}, P/G: {p_d_g}"
     return result
 
 

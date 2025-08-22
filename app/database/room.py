@@ -58,11 +58,9 @@ class RoomBase(SQLModel, UTCBaseModel):
 
 
 class Room(AsyncAttrs, RoomBase, table=True):
-    __tablename__ = "rooms"  # pyright: ignore[reportAssignmentType]
+    __tablename__: str = "rooms"
     id: int = Field(default=None, primary_key=True, index=True)
-    host_id: int = Field(
-        sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True)
-    )
+    host_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True))
 
     host: User = Relationship()
     playlist: list[Playlist] = Relationship(
@@ -109,12 +107,8 @@ class RoomResp(RoomBase):
             if not playlist.expired:
                 stats.count_active += 1
             rulesets.add(playlist.ruleset_id)
-            difficulty_range.min = min(
-                difficulty_range.min, playlist.beatmap.difficulty_rating
-            )
-            difficulty_range.max = max(
-                difficulty_range.max, playlist.beatmap.difficulty_rating
-            )
+            difficulty_range.min = min(difficulty_range.min, playlist.beatmap.difficulty_rating)
+            difficulty_range.max = max(difficulty_range.max, playlist.beatmap.difficulty_rating)
             resp.playlist.append(await PlaylistResp.from_db(playlist, ["beatmap"]))
         stats.ruleset_ids = list(rulesets)
         resp.playlist_item_stats = stats
@@ -137,13 +131,9 @@ class RoomResp(RoomBase):
                     include=["statistics"],
                 )
             )
-        resp.host = await UserResp.from_db(
-            await room.awaitable_attrs.host, session, include=["statistics"]
-        )
+        resp.host = await UserResp.from_db(await room.awaitable_attrs.host, session, include=["statistics"])
         if "current_user_score" in include and user:
-            resp.current_user_score = await PlaylistAggregateScore.from_db(
-                room.id, user.id, session
-            )
+            resp.current_user_score = await PlaylistAggregateScore.from_db(room.id, user.id, session)
         return resp
 
     @classmethod

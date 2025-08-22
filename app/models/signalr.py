@@ -22,9 +22,7 @@ class SignalRUnionMessage(BaseModel):
 
 class Transport(BaseModel):
     transport: str
-    transfer_formats: list[str] = Field(
-        default_factory=lambda: ["Binary", "Text"], alias="transferFormats"
-    )
+    transfer_formats: list[str] = Field(default_factory=lambda: ["Binary", "Text"], alias="transferFormats")
 
 
 class NegotiateResponse(BaseModel):

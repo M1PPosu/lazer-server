@@ -75,9 +75,7 @@ class UserBase(UTCBaseModel, SQLModel):
     is_active: bool = True
     is_bot: bool = False
     is_supporter: bool = False
-    last_visit: datetime | None = Field(
-        default=datetime.now(UTC), sa_column=Column(DateTime(timezone=True))
-    )
+    last_visit: datetime | None = Field(default=datetime.now(UTC), sa_column=Column(DateTime(timezone=True)))
     pm_friends_only: bool = False
     profile_colour: str | None = None
     username: str = Field(max_length=32, unique=True, index=True)
@@ -90,9 +88,7 @@ class UserBase(UTCBaseModel, SQLModel):
     is_restricted: bool = False
     # blocks
     cover: UserProfileCover = Field(
-        default=UserProfileCover(
-            url="https://assets.ppy.sh/user-profile-covers/default.jpeg"
-        ),
+        default=UserProfileCover(url="https://assets.ppy.sh/user-profile-covers/default.jpeg"),
         sa_column=Column(JSON),
     )
     beatmap_playcounts_count: int = 0
@@ -150,9 +146,9 @@ class UserBase(UTCBaseModel, SQLModel):
 
 
 class User(AsyncAttrs, UserBase, table=True):
-    __tablename__ = "lazer_users"  # pyright: ignore[reportAssignmentType]
+    __tablename__: str = "lazer_users"
 
-    id: int | None = Field(
+    id: int = Field(
         default=None,
         sa_column=Column(BigInteger, primary_key=True, autoincrement=True, index=True),
     )
@@ -160,16 +156,10 @@ class User(AsyncAttrs, UserBase, table=True):
     statistics: list[UserStatistics] = Relationship()
     achievement: list[UserAchievement] = Relationship(back_populates="user")
     team_membership: TeamMember | None = Relationship(back_populates="user")
-    daily_challenge_stats: DailyChallengeStats | None = Relationship(
-        back_populates="user"
-    )
+    daily_challenge_stats: DailyChallengeStats | None = Relationship(back_populates="user")
     monthly_playcounts: list[MonthlyPlaycounts] = Relationship(back_populates="user")
-    replays_watched_counts: list[ReplayWatchedCount] = Relationship(
-        back_populates="user"
-    )
-    favourite_beatmapsets: list["FavouriteBeatmapset"] = Relationship(
-        back_populates="user"
-    )
+    replays_watched_counts: list[ReplayWatchedCount] = Relationship(back_populates="user")
+    favourite_beatmapsets: list["FavouriteBeatmapset"] = Relationship(back_populates="user")
     rank_history: list[RankHistory] = Relationship(
         back_populates="user",
     )
@@ -178,16 +168,10 @@ class User(AsyncAttrs, UserBase, table=True):
     email: str = Field(max_length=254, unique=True, index=True, exclude=True)
     priv: int = Field(default=1, exclude=True)
     pw_bcrypt: str = Field(max_length=60, exclude=True)
-    silence_end_at: datetime | None = Field(
-        default=None, sa_column=Column(DateTime(timezone=True)), exclude=True
-    )
-    donor_end_at: datetime | None = Field(
-        default=None, sa_column=Column(DateTime(timezone=True)), exclude=True
-    )
+    silence_end_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True)), exclude=True)
+    donor_end_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True)), exclude=True)
 
-    async def is_user_can_pm(
-        self, from_user: "User", session: AsyncSession
-    ) -> tuple[bool, str]:
+    async def is_user_can_pm(self, from_user: "User", session: AsyncSession) -> tuple[bool, str]:
         from .relationship import Relationship, RelationshipType
 
         from_relationship = (
@@ -200,13 +184,10 @@ class User(AsyncAttrs, UserBase, table=True):
         ).first()
         if from_relationship and from_relationship.type == RelationshipType.BLOCK:
             return False, "You have blocked the target user."
-        if from_user.pm_friends_only and (
-            not from_relationship or from_relationship.type != RelationshipType.FOLLOW
-        ):
+        if from_user.pm_friends_only and (not from_relationship or from_relationship.type != RelationshipType.FOLLOW):
             return (
                 False,
-                "You have disabled non-friend communications "
-                "and target user is not your friend.",
+                "You have disabled non-friend communications and target user is not your friend.",
             )
 
         relationship = (
@@ -219,9 +200,7 @@ class User(AsyncAttrs, UserBase, table=True):
         ).first()
         if relationship and relationship.type == RelationshipType.BLOCK:
             return False, "Target user has blocked you."
-        if self.pm_friends_only and (
-            not relationship or relationship.type != RelationshipType.FOLLOW
-        ):
+        if self.pm_friends_only and (not relationship or relationship.type != RelationshipType.FOLLOW):
             return False, "Target user has disabled non-friend communications"
         return True, ""
 
@@ -288,9 +267,7 @@ class UserResp(UserBase):
         u = cls.model_validate(obj.model_dump())
         u.id = obj.id
         u.default_group = "bot" if u.is_bot else "default"
-        u.country = Country(
-            code=obj.country_code, name=COUNTRIES.get(obj.country_code, "Unknown")
-        )
+        u.country = Country(code=obj.country_code, name=COUNTRIES.get(obj.country_code, "Unknown"))
         u.follower_count = (
             await session.exec(
                 select(func.count())
@@ -314,9 +291,7 @@ class UserResp(UserBase):
         redis = get_redis()
         u.is_online = await redis.exists(f"metadata:online:{obj.id}")
         u.cover_url = (
-            obj.cover.get(
-                "url", "https://assets.ppy.sh/user-profile-covers/default.jpeg"
-            )
+            obj.cover.get("url", "https://assets.ppy.sh/user-profile-covers/default.jpeg")
             if obj.cover
             else "https://assets.ppy.sh/user-profile-covers/default.jpeg"
         )
@@ -335,22 +310,15 @@ class UserResp(UserBase):
             ]
 
         if "team" in include:
-            if await obj.awaitable_attrs.team_membership:
-                assert obj.team_membership
-                u.team = obj.team_membership.team
+            if team_membership := await obj.awaitable_attrs.team_membership:
+                u.team = team_membership.team
 
         if "account_history" in include:
-            u.account_history = [
-                UserAccountHistoryResp.from_db(ah)
-                for ah in await obj.awaitable_attrs.account_history
-            ]
+            u.account_history = [UserAccountHistoryResp.from_db(ah) for ah in await obj.awaitable_attrs.account_history]
 
         if "daily_challenge_user_stats":
-            if await obj.awaitable_attrs.daily_challenge_stats:
-                assert obj.daily_challenge_stats
-                u.daily_challenge_user_stats = DailyChallengeStatsResp.from_db(
-                    obj.daily_challenge_stats
-                )
+            if daily_challenge_stats := await obj.awaitable_attrs.daily_challenge_stats:
+                u.daily_challenge_user_stats = DailyChallengeStatsResp.from_db(daily_challenge_stats)
 
         if "statistics" in include:
             current_stattistics = None
@@ -359,59 +327,40 @@ class UserResp(UserBase):
                     current_stattistics = i
                     break
             u.statistics = (
-                await UserStatisticsResp.from_db(
-                    current_stattistics, session, obj.country_code
-                )
+                await UserStatisticsResp.from_db(current_stattistics, session, obj.country_code)
                 if current_stattistics
                 else None
             )
 
         if "statistics_rulesets" in include:
             u.statistics_rulesets = {
-                i.mode.value: await UserStatisticsResp.from_db(
-                    i, session, obj.country_code
-                )
+                i.mode.value: await UserStatisticsResp.from_db(i, session, obj.country_code)
                 for i in await obj.awaitable_attrs.statistics
             }
 
         if "monthly_playcounts" in include:
-            u.monthly_playcounts = [
-                CountResp.from_db(pc)
-                for pc in await obj.awaitable_attrs.monthly_playcounts
-            ]
+            u.monthly_playcounts = [CountResp.from_db(pc) for pc in await obj.awaitable_attrs.monthly_playcounts]
             if len(u.monthly_playcounts) == 1:
                 d = u.monthly_playcounts[0].start_date
-                u.monthly_playcounts.insert(
-                    0, CountResp(start_date=d - timedelta(days=20), count=0)
-                )
+                u.monthly_playcounts.insert(0, CountResp(start_date=d - timedelta(days=20), count=0))
 
         if "replays_watched_counts" in include:
             u.replay_watched_counts = [
-                CountResp.from_db(rwc)
-                for rwc in await obj.awaitable_attrs.replays_watched_counts
+                CountResp.from_db(rwc) for rwc in await obj.awaitable_attrs.replays_watched_counts
             ]
             if len(u.replay_watched_counts) == 1:
                 d = u.replay_watched_counts[0].start_date
-                u.replay_watched_counts.insert(
-                    0, CountResp(start_date=d - timedelta(days=20), count=0)
-                )
+                u.replay_watched_counts.insert(0, CountResp(start_date=d - timedelta(days=20), count=0))
 
         if "achievements" in include:
-            u.user_achievements = [
-                UserAchievementResp.from_db(ua)
-                for ua in await obj.awaitable_attrs.achievement
-            ]
+            u.user_achievements = [UserAchievementResp.from_db(ua) for ua in await obj.awaitable_attrs.achievement]
         if "rank_history" in include:
             rank_history = await RankHistoryResp.from_db(session, obj.id, ruleset)
             if len(rank_history.data) != 0:
                 u.rank_history = rank_history
 
             rank_top = (
-                await session.exec(
-                    select(RankTop).where(
-                        RankTop.user_id == obj.id, RankTop.mode == ruleset
-                    )
-                )
+                await session.exec(select(RankTop).where(RankTop.user_id == obj.id, RankTop.mode == ruleset))
             ).first()
             if rank_top:
                 u.rank_highest = (
@@ -425,9 +374,7 @@ class UserResp(UserBase):
 
         u.favourite_beatmapset_count = (
             await session.exec(
-                select(func.count())
-                .select_from(FavouriteBeatmapset)
-                .where(FavouriteBeatmapset.user_id == obj.id)
+                select(func.count()).select_from(FavouriteBeatmapset).where(FavouriteBeatmapset.user_id == obj.id)
             )
         ).one()
         u.scores_pinned_count = (
@@ -478,17 +425,19 @@ class UserResp(UserBase):
         # 检查会话验证状态
         # 如果邮件验证功能被禁用，则始终设置 session_verified 为 true
         from app.config import settings
+
         if not settings.enable_email_verification:
             u.session_verified = True
         else:
             # 如果用户有未验证的登录会话，则设置 session_verified 为 false
             from .email_verification import LoginSession
+
             unverified_session = (
                 await session.exec(
                     select(LoginSession).where(
                         LoginSession.user_id == obj.id,
-                        LoginSession.is_verified == False,
-                        LoginSession.expires_at > datetime.now(UTC)
+                        col(LoginSession.is_verified).is_(False),
+                        LoginSession.expires_at > datetime.now(UTC),
                     )
                 )
             ).first()

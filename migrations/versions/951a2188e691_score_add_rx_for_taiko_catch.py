@@ -26,73 +26,55 @@ def upgrade() -> None:
     op.alter_column(
         "beatmaps",
         "mode",
-        existing_type=mysql.ENUM(
-            "OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", "TAIKORX", "FRUITSRX"
-        ),
+        existing_type=mysql.ENUM("OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", "TAIKORX", "FRUITSRX"),
         nullable=False,
     )
     op.alter_column(
         "best_scores",
         "gamemode",
-        existing_type=mysql.ENUM(
-            "OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", "TAIKORX", "FRUITSRX"
-        ),
+        existing_type=mysql.ENUM("OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", "TAIKORX", "FRUITSRX"),
         nullable=False,
     )
     op.alter_column(
         "lazer_user_statistics",
         "mode",
-        existing_type=mysql.ENUM(
-            "OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", "TAIKORX", "FRUITSRX"
-        ),
+        existing_type=mysql.ENUM("OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", "TAIKORX", "FRUITSRX"),
         nullable=False,
     )
     op.alter_column(
         "lazer_users",
         "playmode",
-        existing_type=mysql.ENUM(
-            "OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", "TAIKORX", "FRUITSRX"
-        ),
+        existing_type=mysql.ENUM("OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", "TAIKORX", "FRUITSRX"),
         nullable=False,
     )
     op.alter_column(
         "score_tokens",
         "ruleset_id",
-        existing_type=mysql.ENUM(
-            "OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", "TAIKORX", "FRUITSRX"
-        ),
+        existing_type=mysql.ENUM("OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", "TAIKORX", "FRUITSRX"),
         nullable=False,
     )
     op.alter_column(
         "scores",
         "gamemode",
-        existing_type=mysql.ENUM(
-            "OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", "TAIKORX", "FRUITSRX"
-        ),
+        existing_type=mysql.ENUM("OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", "TAIKORX", "FRUITSRX"),
         nullable=False,
     )
     op.alter_column(
         "total_score_best_scores",
         "gamemode",
-        existing_type=mysql.ENUM(
-            "OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", "TAIKORX", "FRUITSRX"
-        ),
+        existing_type=mysql.ENUM("OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", "TAIKORX", "FRUITSRX"),
         nullable=False,
     )
     op.alter_column(
         "rank_history",
         "mode",
-        existing_type=mysql.ENUM(
-            "OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", "TAIKORX", "FRUITSRX"
-        ),
+        existing_type=mysql.ENUM("OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", "TAIKORX", "FRUITSRX"),
         nullable=False,
     )
     op.alter_column(
         "rank_top",
         "mode",
-        existing_type=mysql.ENUM(
-            "OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", "TAIKORX", "FRUITSRX"
-        ),
+        existing_type=mysql.ENUM("OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", "TAIKORX", "FRUITSRX"),
         nullable=False,
     )
     # ### end Alembic commands ###
@@ -146,17 +128,13 @@ def downgrade() -> None:
     op.alter_column(
         "rank_top",
         "mode",
-        existing_type=mysql.ENUM(
-            "OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", "TAIKORX", "FRUITSRX"
-        ),
+        existing_type=mysql.ENUM("OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", "TAIKORX", "FRUITSRX"),
         nullable=False,
     )
     op.alter_column(
         "rank_top",
         "mode",
-        existing_type=mysql.ENUM(
-            "OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", "TAIKORX", "FRUITSRX"
-        ),
+        existing_type=mysql.ENUM("OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", "TAIKORX", "FRUITSRX"),
         nullable=False,
     )
     # ### end Alembic commands ###

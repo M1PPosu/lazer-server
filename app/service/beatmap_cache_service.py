@@ -63,10 +63,7 @@ class BeatmapCacheService:
             if preload_tasks:
                 results = await asyncio.gather(*preload_tasks, return_exceptions=True)
                 success_count = sum(1 for r in results if r is True)
-                logger.info(
-                    f"Preloaded {success_count}/{len(preload_tasks)} "
-                    f"beatmaps successfully"
-                )
+                logger.info(f"Preloaded {success_count}/{len(preload_tasks)} beatmaps successfully")
 
         except Exception as e:
             logger.error(f"Error during beatmap preloading: {e}")
@@ -119,9 +116,7 @@ class BeatmapCacheService:
 
             return {
                 "cached_beatmaps": len(keys),
-                "estimated_total_size_mb": (
-                    round(total_size / 1024 / 1024, 2) if total_size > 0 else 0
-                ),
+                "estimated_total_size_mb": (round(total_size / 1024 / 1024, 2) if total_size > 0 else 0),
                 "preloading": self._preloading,
             }
         except Exception as e:
@@ -155,9 +150,7 @@ def get_beatmap_cache_service(redis: Redis, fetcher: "Fetcher") -> BeatmapCacheS
     return _cache_service
 
 
-async def schedule_preload_task(
-    session: AsyncSession, redis: Redis, fetcher: "Fetcher"
-):
+async def schedule_preload_task(session: AsyncSession, redis: Redis, fetcher: "Fetcher"):
     """
     定时预加载任务
     """

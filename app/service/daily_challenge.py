@@ -82,8 +82,7 @@ async def daily_challenge_job():
 
         if beatmap is None or ruleset_id is None:
             logger.warning(
-                f"[DailyChallenge] Missing required data for daily challenge {now}."
-                " Will try again in 5 minutes."
+                f"[DailyChallenge] Missing required data for daily challenge {now}. Will try again in 5 minutes."
             )
             get_scheduler().add_job(
                 daily_challenge_job,
@@ -104,9 +103,7 @@ async def daily_challenge_job():
         else:
             allowed_mods_list = get_available_mods(ruleset_id_int, required_mods_list)
 
-        next_day = (now + timedelta(days=1)).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
+        next_day = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
         room = await create_daily_challenge_room(
             beatmap=beatmap_int,
             ruleset_id=ruleset_id_int,
@@ -114,24 +111,13 @@ async def daily_challenge_job():
             allowed_mods=allowed_mods_list,
             duration=int((next_day - now - timedelta(minutes=2)).total_seconds() / 60),
         )
-        await MetadataHubs.broadcast_call(
-            "DailyChallengeUpdated", DailyChallengeInfo(room_id=room.id)
-        )
-        logger.success(
-            "[DailyChallenge] Added today's daily challenge: "
-            f"{beatmap=}, {ruleset_id=}, {required_mods=}"
-        )
+        await MetadataHubs.broadcast_call("DailyChallengeUpdated", DailyChallengeInfo(room_id=room.id))
+        logger.success(f"[DailyChallenge] Added today's daily challenge: {beatmap=}, {ruleset_id=}, {required_mods=}")
         return
     except (ValueError, json.JSONDecodeError) as e:
-        logger.warning(
-            f"[DailyChallenge] Error processing daily challenge data: {e}"
-            " Will try again in 5 minutes."
-        )
+        logger.warning(f"[DailyChallenge] Error processing daily challenge data: {e} Will try again in 5 minutes.")
     except Exception as e:
-        logger.exception(
-            f"[DailyChallenge] Unexpected error in daily challenge job: {e}"
-            " Will try again in 5 minutes."
-        )
+        logger.exception(f"[DailyChallenge] Unexpected error in daily challenge job: {e} Will try again in 5 minutes.")
     get_scheduler().add_job(
         daily_challenge_job,
         "date",
@@ -139,9 +125,7 @@ async def daily_challenge_job():
     )
 
 
-@get_scheduler().scheduled_job(
-    "cron", hour=0, minute=1, second=0, id="daily_challenge_last_top"
-)
+@get_scheduler().scheduled_job("cron", hour=0, minute=1, second=0, id="daily_challenge_last_top")
 async def process_daily_challenge_top():
     async with with_db() as session:
         now = datetime.now(UTC)
@@ -182,11 +166,7 @@ async def process_daily_challenge_top():
         await session.commit()
         del s
 
-        user_ids = (
-            await session.exec(
-                select(User.id).where(col(User.id).not_in(participated_users))
-            )
-        ).all()
+        user_ids = (await session.exec(select(User.id).where(col(User.id).not_in(participated_users)))).all()
         for id in user_ids:
             stats = await session.get(DailyChallengeStats, id)
             if stats is None:  # not execute

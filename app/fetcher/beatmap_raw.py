@@ -18,9 +18,7 @@ class BeatmapRawFetcher(BaseFetcher):
     async def get_beatmap_raw(self, beatmap_id: int) -> str:
         for url in urls:
             req_url = url.format(beatmap_id=beatmap_id)
-            logger.opt(colors=True).debug(
-                f"<blue>[BeatmapRawFetcher]</blue> get_beatmap_raw: <y>{req_url}</y>"
-            )
+            logger.opt(colors=True).debug(f"<blue>[BeatmapRawFetcher]</blue> get_beatmap_raw: <y>{req_url}</y>")
             resp = await self._request(req_url)
             if resp.status_code >= 400:
                 continue
@@ -34,9 +32,7 @@ class BeatmapRawFetcher(BaseFetcher):
             )
             return response
 
-    async def get_or_fetch_beatmap_raw(
-        self, redis: redis.Redis, beatmap_id: int
-    ) -> str:
+    async def get_or_fetch_beatmap_raw(self, redis: redis.Redis, beatmap_id: int) -> str:
         from app.config import settings
 
         cache_key = f"beatmap:{beatmap_id}:raw"
@@ -48,7 +44,7 @@ class BeatmapRawFetcher(BaseFetcher):
             if content:
                 # 延长缓存时间
                 await redis.expire(cache_key, cache_expire)
-                return content  # pyright: ignore[reportReturnType]
+                return content
 
         # 获取并缓存
         raw = await self.get_beatmap_raw(beatmap_id)

@@ -43,9 +43,7 @@ def validate_username(username: str) -> list[str]:
 
     # 检查用户名格式（只允许字母、数字、下划线、连字符）
     if not re.match(r"^[a-zA-Z0-9_-]+$", username):
-        errors.append(
-            "Username can only contain letters, numbers, underscores, and hyphens"
-        )
+        errors.append("Username can only contain letters, numbers, underscores, and hyphens")
 
     # 检查是否以数字开头
     if username[0].isdigit():
@@ -104,9 +102,7 @@ def get_password_hash(password: str) -> str:
     return pw_bcrypt.decode()
 
 
-async def authenticate_user_legacy(
-    db: AsyncSession, name: str, password: str
-) -> User | None:
+async def authenticate_user_legacy(db: AsyncSession, name: str, password: str) -> User | None:
     """
     验证用户身份 - 使用类似 from_login 的逻辑
     """
@@ -145,9 +141,7 @@ async def authenticate_user_legacy(
     return None
 
 
-async def authenticate_user(
-    db: AsyncSession, username: str, password: str
-) -> User | None:
+async def authenticate_user(db: AsyncSession, username: str, password: str) -> User | None:
     """验证用户身份"""
     return await authenticate_user_legacy(db, username, password)
 
@@ -158,14 +152,10 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     if expires_delta:
         expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.now(UTC) + timedelta(
-            minutes=settings.access_token_expire_minutes
-        )
+        expire = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
 
     to_encode.update({"exp": expire, "random": secrets.token_hex(16)})
-    encoded_jwt = jwt.encode(
-        to_encode, settings.secret_key, algorithm=settings.algorithm
-    )
+    encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
     return encoded_jwt
 
 
@@ -178,20 +168,20 @@ def generate_refresh_token() -> str:
 
 async def invalidate_user_tokens(db: AsyncSession, user_id: int) -> int:
     """使指定用户的所有令牌失效
-    
+
     返回删除的令牌数量
     """
     # 使用 select 先获取所有令牌
     stmt = select(OAuthToken).where(OAuthToken.user_id == user_id)
     result = await db.exec(stmt)
     tokens = result.all()
-    
+
     # 逐个删除令牌
     count = 0
     for token in tokens:
         await db.delete(token)
         count += 1
-    
+
     # 提交更改
     await db.commit()
     return count
@@ -200,9 +190,7 @@ async def invalidate_user_tokens(db: AsyncSession, user_id: int) -> int:
 def verify_token(token: str) -> dict | None:
     """验证访问令牌"""
     try:
-        payload = jwt.decode(
-            token, settings.secret_key, algorithms=[settings.algorithm]
-        )
+        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
         return payload
     except JWTError:
         return None
@@ -221,17 +209,13 @@ async def store_token(
     expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
 
     # 删除用户的旧令牌
-    statement = select(OAuthToken).where(
-        OAuthToken.user_id == user_id, OAuthToken.client_id == client_id
-    )
+    statement = select(OAuthToken).where(OAuthToken.user_id == user_id, OAuthToken.client_id == client_id)
     old_tokens = (await db.exec(statement)).all()
     for token in old_tokens:
         await db.delete(token)
 
     # 检查是否有重复的 access_token
-    duplicate_token = (
-        await db.exec(select(OAuthToken).where(OAuthToken.access_token == access_token))
-    ).first()
+    duplicate_token = (await db.exec(select(OAuthToken).where(OAuthToken.access_token == access_token))).first()
     if duplicate_token:
         await db.delete(duplicate_token)
 
@@ -250,9 +234,7 @@ async def store_token(
     return token_record
 
 
-async def get_token_by_access_token(
-    db: AsyncSession, access_token: str
-) -> OAuthToken | None:
+async def get_token_by_access_token(db: AsyncSession, access_token: str) -> OAuthToken | None:
     """根据访问令牌获取令牌记录"""
     statement = select(OAuthToken).where(
         OAuthToken.access_token == access_token,
@@ -261,9 +243,7 @@ async def get_token_by_access_token(
     return (await db.exec(statement)).first()
 
 
-async def get_token_by_refresh_token(
-    db: AsyncSession, refresh_token: str
-) -> OAuthToken | None:
+async def get_token_by_refresh_token(db: AsyncSession, refresh_token: str) -> OAuthToken | None:
     """根据刷新令牌获取令牌记录"""
     statement = select(OAuthToken).where(
         OAuthToken.refresh_token == refresh_token,

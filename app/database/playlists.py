@@ -50,7 +50,7 @@ class PlaylistBase(SQLModel, UTCBaseModel):
 
 
 class Playlist(PlaylistBase, table=True):
-    __tablename__ = "room_playlists"  # pyright: ignore[reportAssignmentType]
+    __tablename__: str = "room_playlists"
     db_id: int = Field(default=None, primary_key=True, index=True, exclude=True)
     room_id: int = Field(foreign_key="rooms.id", exclude=True)
 
@@ -63,16 +63,12 @@ class Playlist(PlaylistBase, table=True):
 
     @classmethod
     async def get_next_id_for_room(cls, room_id: int, session: AsyncSession) -> int:
-        stmt = select(func.coalesce(func.max(cls.id), -1) + 1).where(
-            cls.room_id == room_id
-        )
+        stmt = select(func.coalesce(func.max(cls.id), -1) + 1).where(cls.room_id == room_id)
         result = await session.exec(stmt)
         return result.one()
 
     @classmethod
-    async def from_hub(
-        cls, playlist: PlaylistItem, room_id: int, session: AsyncSession
-    ) -> "Playlist":
+    async def from_hub(cls, playlist: PlaylistItem, room_id: int, session: AsyncSession) -> "Playlist":
         next_id = await cls.get_next_id_for_room(room_id, session=session)
         return cls(
             id=next_id,
@@ -90,9 +86,7 @@ class Playlist(PlaylistBase, table=True):
 
     @classmethod
     async def update(cls, playlist: PlaylistItem, room_id: int, session: AsyncSession):
-        db_playlist = await session.exec(
-            select(cls).where(cls.id == playlist.id, cls.room_id == room_id)
-        )
+        db_playlist = await session.exec(select(cls).where(cls.id == playlist.id, cls.room_id == room_id))
         db_playlist = db_playlist.first()
         if db_playlist is None:
             raise ValueError("Playlist item not found")
@@ -108,9 +102,7 @@ class Playlist(PlaylistBase, table=True):
         await session.commit()
 
     @classmethod
-    async def add_to_db(
-        cls, playlist: PlaylistItem, room_id: int, session: AsyncSession
-    ):
+    async def add_to_db(cls, playlist: PlaylistItem, room_id: int, session: AsyncSession):
         db_playlist = await cls.from_hub(playlist, room_id, session)
         session.add(db_playlist)
         await session.commit()
@@ -119,9 +111,7 @@ class Playlist(PlaylistBase, table=True):
 
     @classmethod
     async def delete_item(cls, item_id: int, room_id: int, session: AsyncSession):
-        db_playlist = await session.exec(
-            select(cls).where(cls.id == item_id, cls.room_id == room_id)
-        )
+        db_playlist = await session.exec(select(cls).where(cls.id == item_id, cls.room_id == room_id))
         db_playlist = db_playlist.first()
         if db_playlist is None:
             raise ValueError("Playlist item not found")
@@ -133,9 +123,7 @@ class PlaylistResp(PlaylistBase):
     beatmap: BeatmapResp | None = None
 
     @classmethod
-    async def from_db(
-        cls, playlist: Playlist, include: list[str] = []
-    ) -> "PlaylistResp":
+    async def from_db(cls, playlist: Playlist, include: list[str] = []) -> "PlaylistResp":
         data = playlist.model_dump()
         if "beatmap" in include:
             data["beatmap"] = await BeatmapResp.from_db(playlist.beatmap)

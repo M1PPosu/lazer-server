@@ -47,6 +47,7 @@ class LoginLogService:
 
         # 获取并简化User-Agent
         from app.utils import simplify_user_agent
+
         raw_user_agent = request.headers.get("User-Agent", "")
         user_agent = simplify_user_agent(raw_user_agent, max_length=500)
 
@@ -67,9 +68,7 @@ class LoginLogService:
 
             # 在后台线程中运行GeoIP查询（避免阻塞）
             loop = asyncio.get_event_loop()
-            geo_info = await loop.run_in_executor(
-                None, lambda: geoip.lookup(ip_address)
-            )
+            geo_info = await loop.run_in_executor(None, lambda: geoip.lookup(ip_address))
 
             if geo_info:
                 login_log.country_code = geo_info.get("country_iso", "")
@@ -89,10 +88,7 @@ class LoginLogService:
 
                 login_log.organization = geo_info.get("organization", "")
 
-                logger.debug(
-                    f"GeoIP lookup for {ip_address}: "
-                    f"{geo_info.get('country_name', 'Unknown')}"
-                )
+                logger.debug(f"GeoIP lookup for {ip_address}: {geo_info.get('country_name', 'Unknown')}")
             else:
                 logger.warning(f"GeoIP lookup failed for {ip_address}")
 
@@ -104,9 +100,7 @@ class LoginLogService:
         await db.commit()
         await db.refresh(login_log)
 
-        logger.info(
-            f"Login recorded for user {user_id} from {ip_address} ({login_method})"
-        )
+        logger.info(f"Login recorded for user {user_id} from {ip_address} ({login_method})")
         return login_log
 
     @staticmethod
@@ -137,9 +131,7 @@ class LoginLogService:
             request=request,
             login_success=False,
             login_method=login_method,
-            notes=f"Failed login attempt: {attempted_username}"
-            if attempted_username
-            else "Failed login attempt",
+            notes=f"Failed login attempt: {attempted_username}" if attempted_username else "Failed login attempt",
         )
 
 

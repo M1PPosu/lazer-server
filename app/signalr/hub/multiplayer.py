@@ -114,9 +114,7 @@ class MultiplayerEventLogger:
         )
         await self.log_event(event)
 
-    async def game_started(
-        self, room_id: int, playlist_item_id: int, details: MatchStartedEventDetail
-    ):
+    async def game_started(self, room_id: int, playlist_item_id: int, details: MatchStartedEventDetail):
         event = MultiplayerEvent(
             room_id=room_id,
             playlist_item_id=playlist_item_id,
@@ -166,6 +164,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
 
         # Use centralized offline status management
         from app.service.online_status_manager import online_status_manager
+
         await online_status_manager.set_user_offline(user_id)
 
         if state.room_id != 0 and state.room_id in self.rooms:
@@ -173,9 +172,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             room = server_room.room
             user = next((u for u in room.users if u.user_id == user_id), None)
             if user is not None:
-                await self.make_user_leave(
-                    self.get_client_by_id(str(user_id)), server_room, user
-                )
+                await self.make_user_leave(self.get_client_by_id(str(user_id)), server_room, user)
 
     async def on_client_connect(self, client: Client) -> None:
         """Track online users when connecting to multiplayer hub"""
@@ -183,6 +180,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
 
         # Use centralized online status management
         from app.service.online_status_manager import online_status_manager
+
         await online_status_manager.set_user_online(client.user_id, "multiplayer")
 
     def _ensure_in_room(self, client: Client) -> ServerMultiplayerRoom:
@@ -212,9 +210,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                     type=room.settings.match_type,
                     queue_mode=room.settings.queue_mode,
                     auto_skip=room.settings.auto_skip,
-                    auto_start_duration=int(
-                        room.settings.auto_start_duration.total_seconds()
-                    ),
+                    auto_start_duration=int(room.settings.auto_start_duration.total_seconds()),
                     host_id=client.user_id,
                     status=RoomStatus.IDLE,
                 )
@@ -231,26 +227,20 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 await session.commit()
                 await session.refresh(channel)
                 await session.refresh(db_room)
-                room.channel_id = channel.channel_id  # pyright: ignore[reportAttributeAccessIssue]
+                room.channel_id = channel.channel_id
                 db_room.channel_id = channel.channel_id
 
                 item = room.playlist[0]
                 item.owner_id = client.user_id
                 room.room_id = db_room.id
                 starts_at = db_room.starts_at or datetime.now(UTC)
-                beatmap_exists = await session.exec(
-                    select(exists().where(col(Beatmap.id) == item.beatmap_id))
-                )
+                beatmap_exists = await session.exec(select(exists().where(col(Beatmap.id) == item.beatmap_id)))
                 if not beatmap_exists.one():
                     fetcher = await get_fetcher()
                     try:
-                        await Beatmap.get_or_fetch(
-                            session, fetcher, bid=item.beatmap_id
-                        )
+                        await Beatmap.get_or_fetch(session, fetcher, bid=item.beatmap_id)
                     except HTTPError:
-                        raise InvokeException(
-                            "Failed to fetch beatmap, please retry later"
-                        )
+                        raise InvokeException("Failed to fetch beatmap, please retry later")
                 await Playlist.add_to_db(item, room.room_id, session)
 
                 server_room = ServerMultiplayerRoom(
@@ -262,9 +252,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 self.rooms[room.room_id] = server_room
                 await server_room.set_handler()
                 await self.event_logger.room_created(room.room_id, client.user_id)
-                return await self.JoinRoomWithPassword(
-                    client, room.room_id, room.settings.password
-                )
+                return await self.JoinRoomWithPassword(client, room.room_id, room.settings.password)
 
     async def JoinRoom(self, client: Client, room_id: int):
         return self.JoinRoomWithPassword(client, room_id, "")
@@ -350,9 +338,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             beatmap_availability,
         )
 
-    async def ChangeBeatmapAvailability(
-        self, client: Client, beatmap_availability: BeatmapAvailability
-    ):
+    async def ChangeBeatmapAvailability(self, client: Client, beatmap_availability: BeatmapAvailability):
         server_room = self._ensure_in_room(client)
         room = server_room.room
         user = next((u for u in room.users if u.user_id == client.user_id), None)
@@ -371,10 +357,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         user = next((u for u in room.users if u.user_id == client.user_id), None)
         if user is None:
             raise InvokeException("You are not in this room")
-        logger.info(
-            f"[MultiplayerHub] {client.user_id} adding "
-            f"beatmap {item.beatmap_id} to room {room.room_id}"
-        )
+        logger.info(f"[MultiplayerHub] {client.user_id} adding beatmap {item.beatmap_id} to room {room.room_id}")
         await server_room.queue.add_item(
             item,
             user,
@@ -388,10 +371,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         if user is None:
             raise InvokeException("You are not in this room")
 
-        logger.info(
-            f"[MultiplayerHub] {client.user_id} editing "
-            f"item {item.id} in room {room.room_id}"
-        )
+        logger.info(f"[MultiplayerHub] {client.user_id} editing item {item.id} in room {room.room_id}")
         await server_room.queue.edit_item(
             item,
             user,
@@ -405,10 +385,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         if user is None:
             raise InvokeException("You are not in this room")
 
-        logger.info(
-            f"[MultiplayerHub] {client.user_id} removing "
-            f"item {item_id} from room {room.room_id}"
-        )
+        logger.info(f"[MultiplayerHub] {client.user_id} removing item {item_id} from room {room.room_id}")
         await server_room.queue.remove_item(
             item_id,
             user,
@@ -424,9 +401,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                     type=room.room.settings.match_type,
                     queue_mode=room.room.settings.queue_mode,
                     auto_skip=room.room.settings.auto_skip,
-                    auto_start_duration=int(
-                        room.room.settings.auto_start_duration.total_seconds()
-                    ),
+                    auto_start_duration=int(room.room.settings.auto_start_duration.total_seconds()),
                     host_id=room.room.host.user_id if room.room.host else None,
                 )
             )
@@ -456,9 +431,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             item_id,
         )
 
-    async def playlist_changed(
-        self, room: ServerMultiplayerRoom, item: PlaylistItem, beatmap_changed: bool
-    ):
+    async def playlist_changed(self, room: ServerMultiplayerRoom, item: PlaylistItem, beatmap_changed: bool):
         if item.id == room.room.settings.playlist_item_id:
             await self.validate_styles(room)
             await self.unready_all_users(room, beatmap_changed)
@@ -468,9 +441,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             item,
         )
 
-    async def ChangeUserStyle(
-        self, client: Client, beatmap_id: int | None, ruleset_id: int | None
-    ):
+    async def ChangeUserStyle(self, client: Client, beatmap_id: int | None, ruleset_id: int | None):
         server_room = self._ensure_in_room(client)
         room = server_room.room
         user = next((u for u in room.users if u.user_id == client.user_id), None)
@@ -496,9 +467,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 )
         async with with_db() as session:
             try:
-                beatmap = await Beatmap.get_or_fetch(
-                    session, fetcher, bid=room.queue.current_item.beatmap_id
-                )
+                beatmap = await Beatmap.get_or_fetch(session, fetcher, bid=room.queue.current_item.beatmap_id)
             except HTTPError:
                 raise InvokeException("Current item beatmap not found")
             beatmap_ids = (
@@ -518,11 +487,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 if beatmap_id is not None and user_beatmap is None:
                     beatmap_id = None
                 beatmap_ruleset = user_beatmap[1] if user_beatmap else beatmap.mode
-                if (
-                    ruleset_id is not None
-                    and beatmap_ruleset != GameMode.OSU
-                    and ruleset_id != beatmap_ruleset
-                ):
+                if ruleset_id is not None and beatmap_ruleset != GameMode.OSU and ruleset_id != beatmap_ruleset:
                     ruleset_id = None
                 await self.change_user_style(
                     beatmap_id,
@@ -532,9 +497,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 )
 
         for user in room.room.users:
-            is_valid, valid_mods = room.queue.current_item.validate_user_mods(
-                user, user.mods
-            )
+            is_valid, valid_mods = room.queue.current_item.validate_user_mods(user, user.mods)
             if not is_valid:
                 await self.change_user_mods(valid_mods, room, user)
 
@@ -553,34 +516,24 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 raise InvokeException("Current item does not allow free user styles.")
 
             async with with_db() as session:
-                item_beatmap = await session.get(
-                    Beatmap, room.queue.current_item.beatmap_id
-                )
+                item_beatmap = await session.get(Beatmap, room.queue.current_item.beatmap_id)
                 if item_beatmap is None:
                     raise InvokeException("Item beatmap not found")
 
-                user_beatmap = (
-                    item_beatmap
-                    if beatmap_id is None
-                    else await session.get(Beatmap, beatmap_id)
-                )
+                user_beatmap = item_beatmap if beatmap_id is None else await session.get(Beatmap, beatmap_id)
 
                 if user_beatmap is None:
                     raise InvokeException("Invalid beatmap selected.")
 
                 if user_beatmap.beatmapset_id != item_beatmap.beatmapset_id:
-                    raise InvokeException(
-                        "Selected beatmap is not from the same beatmap set."
-                    )
+                    raise InvokeException("Selected beatmap is not from the same beatmap set.")
 
                 if (
                     ruleset_id is not None
                     and user_beatmap.mode != GameMode.OSU
                     and ruleset_id != int(user_beatmap.mode)
                 ):
-                    raise InvokeException(
-                        "Selected ruleset is not supported for the given beatmap."
-                    )
+                    raise InvokeException("Selected ruleset is not supported for the given beatmap.")
 
         user.beatmap_id = beatmap_id
         user.ruleset_id = ruleset_id
@@ -608,16 +561,10 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         room: ServerMultiplayerRoom,
         user: MultiplayerRoomUser,
     ):
-        is_valid, valid_mods = room.queue.current_item.validate_user_mods(
-            user, new_mods
-        )
+        is_valid, valid_mods = room.queue.current_item.validate_user_mods(user, new_mods)
         if not is_valid:
-            incompatible_mods = [
-                mod["acronym"] for mod in new_mods if mod not in valid_mods
-            ]
-            raise InvokeException(
-                f"Incompatible mods were selected: {','.join(incompatible_mods)}"
-            )
+            incompatible_mods = [mod["acronym"] for mod in new_mods if mod not in valid_mods]
+            raise InvokeException(f"Incompatible mods were selected: {','.join(incompatible_mods)}")
 
         if user.mods == valid_mods:
             return
@@ -640,16 +587,12 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         match new:
             case MultiplayerUserState.IDLE:
                 if old.is_playing:
-                    raise InvokeException(
-                        "Cannot return to idle without aborting gameplay."
-                    )
+                    raise InvokeException("Cannot return to idle without aborting gameplay.")
             case MultiplayerUserState.READY:
                 if old != MultiplayerUserState.IDLE:
                     raise InvokeException(f"Cannot change state from {old} to {new}")
                 if room.queue.current_item.expired:
-                    raise InvokeException(
-                        "Cannot ready up while all items have been played."
-                    )
+                    raise InvokeException("Cannot ready up while all items have been played.")
             case MultiplayerUserState.WAITING_FOR_LOAD:
                 raise InvokeException(f"Cannot change state from {old} to {new}")
             case MultiplayerUserState.LOADED:
@@ -688,9 +631,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                             MultiplayerRoomState.PLAYING,
                         )
                     ):
-                        raise InvokeException(
-                            f"Cannot change state from {old} to {new}"
-                        )
+                        raise InvokeException(f"Cannot change state from {old} to {new}")
             case _:
                 raise InvokeException(f"Invalid state transition from {old} to {new}")
 
@@ -713,9 +654,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 if not user.state.is_playing:
                     return
 
-        logger.info(
-            f"[MultiplayerHub] User {user.user_id} changing state from {user.state} to {state}"
-        )
+        logger.info(f"[MultiplayerHub] User {user.user_id} changing state from {user.state} to {state}")
 
         await self.validate_user_stare(
             server_room,
@@ -737,10 +676,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         user: MultiplayerRoomUser,
         state: MultiplayerUserState,
     ):
-        logger.info(
-            f"[MultiplayerHub] {user.user_id}'s state "
-            f"changed from {user.state} to {state}"
-        )
+        logger.info(f"[MultiplayerHub] {user.user_id}'s state changed from {user.state} to {state}")
         user.state = state
         await self.broadcast_group_call(
             self.group_id(room.room.room_id),
@@ -760,23 +696,17 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
 
         # If switching to spectating during gameplay, immediately request load
         if room_state == MultiplayerRoomState.WAITING_FOR_LOAD:
-            logger.info(
-                f"[MultiplayerHub] Spectator {user.user_id} joining during load phase"
-            )
+            logger.info(f"[MultiplayerHub] Spectator {user.user_id} joining during load phase")
             await self.call_noblock(client, "LoadRequested")
 
         elif room_state == MultiplayerRoomState.PLAYING:
-            logger.info(
-                f"[MultiplayerHub] Spectator {user.user_id} joining during active gameplay"
-            )
+            logger.info(f"[MultiplayerHub] Spectator {user.user_id} joining during active gameplay")
             await self.call_noblock(client, "LoadRequested")
-            
+
         # Also sync the spectator with current game state
         await self._send_current_gameplay_state_to_spectator(client, room)
 
-    async def _send_current_gameplay_state_to_spectator(
-        self, client: Client, room: ServerMultiplayerRoom
-    ):
+    async def _send_current_gameplay_state_to_spectator(self, client: Client, room: ServerMultiplayerRoom):
         """
         Send current gameplay state information to a newly joined spectator.
         This helps spectators sync with ongoing gameplay.
@@ -794,27 +724,20 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                         room_user.user_id,
                         room_user.state,
                     )
-                    
+
             # If the room is in OPEN state but we have users in RESULTS state,
             # this means the game just finished and we should send ResultsReady
-            if (room.room.state == MultiplayerRoomState.OPEN and 
-                any(u.state == MultiplayerUserState.RESULTS for u in room.room.users)):
-                logger.debug(
-                    f"[MultiplayerHub] Sending ResultsReady to new spectator {client.user_id}"
-                )
+            if room.room.state == MultiplayerRoomState.OPEN and any(
+                u.state == MultiplayerUserState.RESULTS for u in room.room.users
+            ):
+                logger.debug(f"[MultiplayerHub] Sending ResultsReady to new spectator {client.user_id}")
                 await self.call_noblock(client, "ResultsReady")
 
-            logger.debug(
-                f"[MultiplayerHub] Sent current gameplay state to spectator {client.user_id}"
-            )
+            logger.debug(f"[MultiplayerHub] Sent current gameplay state to spectator {client.user_id}")
         except Exception as e:
-            logger.error(
-                f"[MultiplayerHub] Failed to send gameplay state to spectator {client.user_id}: {e}"
-            )
+            logger.error(f"[MultiplayerHub] Failed to send gameplay state to spectator {client.user_id}: {e}")
 
-    async def _send_room_state_to_new_user(
-        self, client: Client, room: ServerMultiplayerRoom
-    ):
+    async def _send_room_state_to_new_user(self, client: Client, room: ServerMultiplayerRoom):
         """
         Send complete room state to a newly joined user.
         Critical for spectators joining ongoing games.
@@ -847,28 +770,21 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
 
             # Critical fix: If room is OPEN but has users in RESULTS state,
             # send ResultsReady to new joiners (including spectators)
-            if (room.room.state == MultiplayerRoomState.OPEN and 
-                any(u.state == MultiplayerUserState.RESULTS for u in room.room.users)):
-                logger.info(
-                    f"[MultiplayerHub] Sending ResultsReady to newly joined user {client.user_id}"
-                )
+            if room.room.state == MultiplayerRoomState.OPEN and any(
+                u.state == MultiplayerUserState.RESULTS for u in room.room.users
+            ):
+                logger.info(f"[MultiplayerHub] Sending ResultsReady to newly joined user {client.user_id}")
                 await self.call_noblock(client, "ResultsReady")
 
             # Critical addition: Send current playing users to SpectatorHub for cross-hub sync
             # This ensures spectators can watch multiplayer players properly
             await self._sync_with_spectator_hub(client, room)
 
-            logger.debug(
-                f"[MultiplayerHub] Sent complete room state to new user {client.user_id}"
-            )
+            logger.debug(f"[MultiplayerHub] Sent complete room state to new user {client.user_id}")
         except Exception as e:
-            logger.error(
-                f"[MultiplayerHub] Failed to send room state to user {client.user_id}: {e}"
-            )
+            logger.error(f"[MultiplayerHub] Failed to send room state to user {client.user_id}: {e}")
 
-    async def _sync_with_spectator_hub(
-        self, client: Client, room: ServerMultiplayerRoom
-    ):
+    async def _sync_with_spectator_hub(self, client: Client, room: ServerMultiplayerRoom):
         """
         Sync with SpectatorHub to ensure cross-hub spectating works properly.
         This is crucial for users watching multiplayer players from other pages.
@@ -893,13 +809,16 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                             f"[MultiplayerHub] Synced spectator state for user {room_user.user_id} "
                             f"to new client {client.user_id}"
                         )
-                
+
                 # Critical addition: Notify SpectatorHub about users in RESULTS state
                 elif room_user.state == MultiplayerUserState.RESULTS:
                     # Create a synthetic finished state for cross-hub spectating
                     try:
-                        from app.models.spectator_hub import SpectatedUserState, SpectatorState
-                        
+                        from app.models.spectator_hub import (
+                            SpectatedUserState,
+                            SpectatorState,
+                        )
+
                         finished_state = SpectatorState(
                             beatmap_id=room.queue.current_item.beatmap_id,
                             ruleset_id=room_user.ruleset_id or 0,
@@ -919,9 +838,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                             f"to client {client.user_id}"
                         )
                     except Exception as e:
-                        logger.debug(
-                            f"[MultiplayerHub] Failed to create synthetic finished state: {e}"
-                        )
+                        logger.debug(f"[MultiplayerHub] Failed to create synthetic finished state: {e}")
 
         except Exception as e:
             logger.debug(f"[MultiplayerHub] Failed to sync with SpectatorHub: {e}")
@@ -933,75 +850,55 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 if room.room.settings.auto_start_enabled:
                     if (
                         not room.queue.current_item.expired
-                        and any(
-                            u.state == MultiplayerUserState.READY
-                            for u in room.room.users
-                        )
+                        and any(u.state == MultiplayerUserState.READY for u in room.room.users)
                         and not any(
-                            isinstance(countdown, MatchStartCountdown)
-                            for countdown in room.room.active_countdowns
+                            isinstance(countdown, MatchStartCountdown) for countdown in room.room.active_countdowns
                         )
                     ):
                         await room.start_countdown(
-                            MatchStartCountdown(
-                                time_remaining=room.room.settings.auto_start_duration
-                            ),
+                            MatchStartCountdown(time_remaining=room.room.settings.auto_start_duration),
                             self.start_match,
                         )
             case MultiplayerRoomState.WAITING_FOR_LOAD:
-                played_count = len(
-                    [True for user in room.room.users if user.state.is_playing]
-                )
+                played_count = len([True for user in room.room.users if user.state.is_playing])
                 ready_count = len(
-                    [
-                        True
-                        for user in room.room.users
-                        if user.state == MultiplayerUserState.READY_FOR_GAMEPLAY
-                    ]
+                    [True for user in room.room.users if user.state == MultiplayerUserState.READY_FOR_GAMEPLAY]
                 )
                 if played_count == ready_count:
                     await self.start_gameplay(room)
             case MultiplayerRoomState.PLAYING:
-                if all(
-                    u.state != MultiplayerUserState.PLAYING for u in room.room.users
-                ):
+                if all(u.state != MultiplayerUserState.PLAYING for u in room.room.users):
                     any_user_finished_playing = False
-                    
+
                     # Handle finished players first
                     for u in filter(
                         lambda u: u.state == MultiplayerUserState.FINISHED_PLAY,
                         room.room.users,
                     ):
                         any_user_finished_playing = True
-                        await self.change_user_state(
-                            room, u, MultiplayerUserState.RESULTS
-                        )
-                    
+                        await self.change_user_state(room, u, MultiplayerUserState.RESULTS)
+
                     # Critical fix: Handle spectators who should also see results
                     # Move spectators to RESULTS state so they can see the results screen
                     for u in filter(
                         lambda u: u.state == MultiplayerUserState.SPECTATING,
                         room.room.users,
                     ):
-                        logger.debug(
-                            f"[MultiplayerHub] Moving spectator {u.user_id} to RESULTS state"
-                        )
-                        await self.change_user_state(
-                            room, u, MultiplayerUserState.RESULTS
-                        )
-                    
+                        logger.debug(f"[MultiplayerHub] Moving spectator {u.user_id} to RESULTS state")
+                        await self.change_user_state(room, u, MultiplayerUserState.RESULTS)
+
                     await self.change_room_state(room, MultiplayerRoomState.OPEN)
-                    
+
                     # Send ResultsReady to all room members
                     await self.broadcast_group_call(
                         self.group_id(room.room.room_id),
                         "ResultsReady",
                     )
-                    
+
                     # Critical addition: Notify SpectatorHub about finished games
                     # This ensures cross-hub spectating works properly
                     await self._notify_spectator_hub_game_ended(room)
-                    
+
                     if any_user_finished_playing:
                         await self.event_logger.game_completed(
                             room.room.room_id,
@@ -1014,13 +911,8 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                         )
                     await room.queue.finish_current_item()
 
-    async def change_room_state(
-        self, room: ServerMultiplayerRoom, state: MultiplayerRoomState
-    ):
-        logger.debug(
-            f"[MultiplayerHub] Room {room.room.room_id} state "
-            f"changed from {room.room.state} to {state}"
-        )
+    async def change_room_state(self, room: ServerMultiplayerRoom, state: MultiplayerRoomState):
+        logger.debug(f"[MultiplayerHub] Room {room.room.room_id} state changed from {room.room.state} to {state}")
         room.room.state = state
         await self.broadcast_group_call(
             self.group_id(room.room.room_id),
@@ -1064,10 +956,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             u
             for u in room.room.users
             if u.availability.state == DownloadState.LOCALLY_AVAILABLE
-            and (
-                u.state == MultiplayerUserState.READY
-                or u.state == MultiplayerUserState.IDLE
-            )
+            and (u.state == MultiplayerUserState.READY or u.state == MultiplayerUserState.IDLE)
         ]
         for u in ready_users:
             await self.change_user_state(room, u, MultiplayerUserState.WAITING_FOR_LOAD)
@@ -1080,9 +969,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             "LoadRequested",
         )
         await room.start_countdown(
-            ForceGameplayStartCountdown(
-                time_remaining=timedelta(seconds=GAMEPLAY_LOAD_TIMEOUT)
-            ),
+            ForceGameplayStartCountdown(time_remaining=timedelta(seconds=GAMEPLAY_LOAD_TIMEOUT)),
             self.start_gameplay,
         )
         await self.event_logger.game_started(
@@ -1133,9 +1020,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         else:
             await room.queue.finish_current_item()
 
-    async def send_match_event(
-        self, room: ServerMultiplayerRoom, event: MatchServerEvent
-    ):
+    async def send_match_event(self, room: ServerMultiplayerRoom, event: MatchServerEvent):
         await self.broadcast_group_call(
             self.group_id(room.room.room_id),
             "MatchEvent",
@@ -1183,24 +1068,16 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             await self.end_room(room)
             return
         await self.update_room_state(room)
-        if (
-            len(room.room.users) != 0
-            and room.room.host
-            and room.room.host.user_id == user.user_id
-        ):
+        if len(room.room.users) != 0 and room.room.host and room.room.host.user_id == user.user_id:
             next_host = room.room.users[0]
             await self.set_host(room, next_host)
 
         if kicked:
             if client:
                 await self.call_noblock(client, "UserKicked", user)
-            await self.broadcast_group_call(
-                self.group_id(room.room.room_id), "UserKicked", user
-            )
+            await self.broadcast_group_call(self.group_id(room.room.room_id), "UserKicked", user)
         else:
-            await self.broadcast_group_call(
-                self.group_id(room.room.room_id), "UserLeft", user
-            )
+            await self.broadcast_group_call(self.group_id(room.room.room_id), "UserLeft", user)
 
     async def end_room(self, room: ServerMultiplayerRoom):
         assert room.room.host
@@ -1214,9 +1091,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                     type=room.room.settings.match_type,
                     queue_mode=room.room.settings.queue_mode,
                     auto_skip=room.room.settings.auto_skip,
-                    auto_start_duration=int(
-                        room.room.settings.auto_start_duration.total_seconds()
-                    ),
+                    auto_start_duration=int(room.room.settings.auto_start_duration.total_seconds()),
                     host_id=room.room.host.user_id,
                 )
             )
@@ -1262,10 +1137,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         )
         target_client = self.get_client_by_id(str(user.user_id))
         await self.make_user_leave(target_client, server_room, user, kicked=True)
-        logger.info(
-            f"[MultiplayerHub] {user.user_id} was kicked from room {room.room_id}"
-            f"by {client.user_id}"
-        )
+        logger.info(f"[MultiplayerHub] {user.user_id} was kicked from room {room.room_id}by {client.user_id}")
 
     async def set_host(self, room: ServerMultiplayerRoom, user: MultiplayerRoomUser):
         room.room.host = user
@@ -1289,10 +1161,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             new_host.user_id,
         )
         await self.set_host(server_room, new_host)
-        logger.info(
-            f"[MultiplayerHub] {client.user_id} transferred host to {new_host.user_id}"
-            f" in room {room.room_id}"
-        )
+        logger.info(f"[MultiplayerHub] {client.user_id} transferred host to {new_host.user_id} in room {room.room_id}")
 
     async def AbortGameplay(self, client: Client):
         server_room = self._ensure_in_room(client)
@@ -1316,10 +1185,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         room = server_room.room
         self._ensure_host(client, server_room)
 
-        if (
-            room.state != MultiplayerRoomState.PLAYING
-            and room.state != MultiplayerRoomState.WAITING_FOR_LOAD
-        ):
+        if room.state != MultiplayerRoomState.PLAYING and room.state != MultiplayerRoomState.WAITING_FOR_LOAD:
             raise InvokeException("Cannot abort a match that hasn't started.")
 
         await asyncio.gather(
@@ -1335,13 +1201,9 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             GameplayAbortReason.HOST_ABORTED,
         )
         await self.update_room_state(server_room)
-        logger.info(
-            f"[MultiplayerHub] {client.user_id} aborted match in room {room.room_id}"
-        )
+        logger.info(f"[MultiplayerHub] {client.user_id} aborted match in room {room.room_id}")
 
-    async def change_user_match_state(
-        self, room: ServerMultiplayerRoom, user: MultiplayerRoomUser
-    ):
+    async def change_user_match_state(self, room: ServerMultiplayerRoom, user: MultiplayerRoomUser):
         await self.broadcast_group_call(
             self.group_id(room.room.room_id),
             "MatchUserStateChanged",
@@ -1402,10 +1264,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             )
             if countdown is None:
                 return
-            if (
-                isinstance(countdown, MatchStartCountdown)
-                and room.settings.auto_start_enabled
-            ) or isinstance(
+            if (isinstance(countdown, MatchStartCountdown) and room.settings.auto_start_enabled) or isinstance(
                 countdown, (ForceGameplayStartCountdown | ServerShuttingDownCountdown)
             ):
                 raise InvokeException("Cannot stop the requested countdown")
@@ -1447,25 +1306,16 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                 raise InvokeException("User already invited")
             if db_user.is_restricted:
                 raise InvokeException("User is restricted")
-            if (
-                inviter_relationship
-                and inviter_relationship.type == RelationshipType.BLOCK
-            ):
+            if inviter_relationship and inviter_relationship.type == RelationshipType.BLOCK:
                 raise InvokeException("Cannot perform action due to user being blocked")
-            if (
-                target_relationship
-                and target_relationship.type == RelationshipType.BLOCK
-            ):
+            if target_relationship and target_relationship.type == RelationshipType.BLOCK:
                 raise InvokeException("Cannot perform action due to user being blocked")
             if (
                 db_user.pm_friends_only
                 and target_relationship is not None
                 and target_relationship.type != RelationshipType.FOLLOW
             ):
-                raise InvokeException(
-                    "Cannot perform action "
-                    "because user has disabled non-friend communications"
-                )
+                raise InvokeException("Cannot perform action because user has disabled non-friend communications")
 
         target_client = self.get_client_by_id(str(user_id))
         if target_client is None:
@@ -1478,9 +1328,7 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
             room.settings.password,
         )
 
-    async def unready_all_users(
-        self, room: ServerMultiplayerRoom, reset_beatmap_availability: bool
-    ):
+    async def unready_all_users(self, room: ServerMultiplayerRoom, reset_beatmap_availability: bool):
         await asyncio.gather(
             *[
                 self.change_user_state(
@@ -1512,8 +1360,8 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
         """
         try:
             # Import here to avoid circular imports
-            from app.signalr.hub import SpectatorHubs
             from app.models.spectator_hub import SpectatedUserState, SpectatorState
+            from app.signalr.hub import SpectatorHubs
 
             # For each user who finished the game, notify SpectatorHub
             for room_user in room.room.users:
@@ -1534,13 +1382,9 @@ class MultiplayerHub(Hub[MultiplayerClientState]):
                         room_user.user_id,
                         finished_state,
                     )
-                    
-                    logger.debug(
-                        f"[MultiplayerHub] Notified SpectatorHub that user {room_user.user_id} finished game"
-                    )
+
+                    logger.debug(f"[MultiplayerHub] Notified SpectatorHub that user {room_user.user_id} finished game")
 
         except Exception as e:
-            logger.debug(
-                f"[MultiplayerHub] Failed to notify SpectatorHub about game end: {e}"
-            )
+            logger.debug(f"[MultiplayerHub] Failed to notify SpectatorHub about game end: {e}")
             # This is not critical, so we don't raise the exception

@@ -5,9 +5,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
 
-from app.config import settings
 from app.dependencies.database import engine
 from app.log import logger
 from app.service.database_cleanup_service import DatabaseCleanupService
@@ -51,16 +49,16 @@ class DatabaseCleanupScheduler:
             try:
                 # 每小时运行一次清理
                 await asyncio.sleep(3600)  # 3600秒 = 1小时
-                
+
                 if not self.running:
                     break
-                    
+
                 await self._run_cleanup()
-                
+
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"Database cleanup scheduler error: {str(e)}")
+                logger.error(f"Database cleanup scheduler error: {e!s}")
                 # 发生错误后等待5分钟再继续
                 await asyncio.sleep(300)
 
@@ -69,20 +67,20 @@ class DatabaseCleanupScheduler:
         try:
             async with AsyncSession(engine) as db:
                 logger.debug("Starting scheduled database cleanup...")
-                
+
                 # 清理过期的验证码
                 expired_codes = await DatabaseCleanupService.cleanup_expired_verification_codes(db)
-                
+
                 # 清理过期的登录会话
                 expired_sessions = await DatabaseCleanupService.cleanup_expired_login_sessions(db)
-                
+
                 # 只在有清理记录时输出总结
                 total_cleaned = expired_codes + expired_sessions
                 if total_cleaned > 0:
                     logger.debug(f"Scheduled cleanup completed - codes: {expired_codes}, sessions: {expired_sessions}")
-                
+
         except Exception as e:
-            logger.error(f"Error during scheduled database cleanup: {str(e)}")
+            logger.error(f"Error during scheduled database cleanup: {e!s}")
 
     async def run_manual_cleanup(self):
         """手动运行完整清理"""
@@ -95,7 +93,7 @@ class DatabaseCleanupScheduler:
                     logger.debug(f"Manual cleanup completed, total records cleaned: {total}")
                 return results
         except Exception as e:
-            logger.error(f"Error during manual database cleanup: {str(e)}")
+            logger.error(f"Error during manual database cleanup: {e!s}")
             return {}
 
 

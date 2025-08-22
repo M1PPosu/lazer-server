@@ -89,9 +89,7 @@ class LegacyReplayFrame(BaseModel):
     mouse_y: float | None = None
     button_state: int
 
-    header: Annotated[
-        FrameHeader | None, Field(default=None), SignalRMeta(member_ignore=True)
-    ]
+    header: Annotated[FrameHeader | None, Field(default=None), SignalRMeta(member_ignore=True)]
 
 
 class FrameDataBundle(BaseModel):

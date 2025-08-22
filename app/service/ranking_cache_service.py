@@ -34,9 +34,7 @@ class DateTimeEncoder(json.JSONEncoder):
 
 def safe_json_dumps(data) -> str:
     """安全的 JSON 序列化，支持 datetime 对象"""
-    return json.dumps(
-        data, cls=DateTimeEncoder, ensure_ascii=False, separators=(",", ":")
-    )
+    return json.dumps(data, cls=DateTimeEncoder, ensure_ascii=False, separators=(",", ":"))
 
 
 class RankingCacheService:
@@ -225,9 +223,7 @@ class RankingCacheService:
     ) -> None:
         """刷新排行榜缓存"""
         if self._refreshing:
-            logger.debug(
-                f"Ranking cache refresh already in progress for {ruleset}:{type}"
-            )
+            logger.debug(f"Ranking cache refresh already in progress for {ruleset}:{type}")
             return
 
         # 使用配置文件的设置
@@ -253,9 +249,7 @@ class RankingCacheService:
                 order_by = col(UserStatistics.ranked_score).desc()
 
             if country:
-                wheres.append(
-                    col(UserStatistics.user).has(country_code=country.upper())
-                )
+                wheres.append(col(UserStatistics.user).has(country_code=country.upper()))
 
             # 获取总用户数用于统计
             total_users_query = select(UserStatistics).where(*wheres)
@@ -277,11 +271,7 @@ class RankingCacheService:
             for page in range(1, max_pages + 1):
                 try:
                     statistics_list = await session.exec(
-                        select(UserStatistics)
-                        .where(*wheres)
-                        .order_by(order_by)
-                        .limit(50)
-                        .offset(50 * (page - 1))
+                        select(UserStatistics).where(*wheres).order_by(order_by).limit(50).offset(50 * (page - 1))
                     )
 
                     statistics_data = statistics_list.all()
@@ -291,9 +281,7 @@ class RankingCacheService:
                     # 转换为响应格式并确保正确序列化
                     ranking_data = []
                     for statistics in statistics_data:
-                        user_stats_resp = await UserStatisticsResp.from_db(
-                            statistics, session, None, include
-                        )
+                        user_stats_resp = await UserStatisticsResp.from_db(statistics, session, None, include)
                         # 将 UserStatisticsResp 转换为字典，处理所有序列化问题
                         user_dict = json.loads(user_stats_resp.model_dump_json())
                         ranking_data.append(user_dict)
@@ -323,9 +311,7 @@ class RankingCacheService:
     ) -> None:
         """刷新地区排行榜缓存"""
         if self._refreshing:
-            logger.debug(
-                f"Country ranking cache refresh already in progress for {ruleset}"
-            )
+            logger.debug(f"Country ranking cache refresh already in progress for {ruleset}")
             return
 
         if max_pages is None:
@@ -449,9 +435,7 @@ class RankingCacheService:
         for country in top_countries:
             for mode in game_modes:
                 for ranking_type in ranking_types:
-                    task = self.refresh_ranking_cache(
-                        session, mode, ranking_type, country
-                    )
+                    task = self.refresh_ranking_cache(session, mode, ranking_type, country)
                     refresh_tasks.append(task)
 
         # 地区排行榜
@@ -493,9 +477,7 @@ class RankingCacheService:
                 if keys:
                     await self.redis.delete(*keys)
                     deleted_keys += len(keys)
-                    logger.info(
-                        f"Invalidated {len(keys)} cache keys for {ruleset}:{type}"
-                    )
+                    logger.info(f"Invalidated {len(keys)} cache keys for {ruleset}:{type}")
             elif ruleset:
                 # 删除特定游戏模式的所有缓存
                 patterns = [
@@ -563,9 +545,7 @@ class RankingCacheService:
                 "cached_user_rankings": len(ranking_keys),
                 "cached_country_rankings": len(country_keys),
                 "total_cached_rankings": len(total_keys),
-                "estimated_total_size_mb": (
-                    round(total_size / 1024 / 1024, 2) if total_size > 0 else 0
-                ),
+                "estimated_total_size_mb": (round(total_size / 1024 / 1024, 2) if total_size > 0 else 0),
                 "refreshing": self._refreshing,
             }
         except Exception as e:

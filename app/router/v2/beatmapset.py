@@ -35,9 +35,7 @@ from sqlmodel import exists, select
 async def _save_to_db(sets: SearchBeatmapsetsResp):
     async with with_db() as session:
         for s in sets.beatmapsets:
-            if not (
-                await session.exec(select(exists()).where(Beatmapset.id == s.id))
-            ).first():
+            if not (await session.exec(select(exists()).where(Beatmapset.id == s.id))).first():
                 await Beatmapset.from_resp(session, s)
 
 
@@ -117,9 +115,7 @@ async def lookup_beatmapset(
     fetcher: Fetcher = Depends(get_fetcher),
 ):
     beatmap = await Beatmap.get_or_fetch(db, fetcher, bid=beatmap_id)
-    resp = await BeatmapsetResp.from_db(
-        beatmap.beatmapset, session=db, user=current_user
-    )
+    resp = await BeatmapsetResp.from_db(beatmap.beatmapset, session=db, user=current_user)
     return resp
 
 
@@ -138,9 +134,7 @@ async def get_beatmapset(
 ):
     try:
         beatmapset = await Beatmapset.get_or_fetch(db, fetcher, beatmapset_id)
-        return await BeatmapsetResp.from_db(
-            beatmapset, session=db, include=["recent_favourites"], user=current_user
-        )
+        return await BeatmapsetResp.from_db(beatmapset, session=db, include=["recent_favourites"], user=current_user)
     except HTTPError:
         raise HTTPException(status_code=404, detail="Beatmapset not found")
 
@@ -165,9 +159,7 @@ async def download_beatmapset(
     country_code = geo_info.get("country_iso", "")
 
     # 优先使用IP地理位置判断，如果获取失败则回退到用户账户的国家代码
-    is_china = country_code == "CN" or (
-        not country_code and current_user.country_code == "CN"
-    )
+    is_china = country_code == "CN" or (not country_code and current_user.country_code == "CN")
 
     try:
         # 使用负载均衡服务获取下载URL
@@ -179,13 +171,10 @@ async def download_beatmapset(
         # 如果负载均衡服务失败，回退到原有逻辑
         if is_china:
             return RedirectResponse(
-                f"https://dl.sayobot.cn/beatmaps/download/"
-                f"{'novideo' if no_video else 'full'}/{beatmapset_id}"
+                f"https://dl.sayobot.cn/beatmaps/download/{'novideo' if no_video else 'full'}/{beatmapset_id}"
             )
         else:
-            return RedirectResponse(
-                f"https://api.nerinyan.moe/d/{beatmapset_id}?noVideo={no_video}"
-            )
+            return RedirectResponse(f"https://api.nerinyan.moe/d/{beatmapset_id}?noVideo={no_video}")
 
 
 @router.post(
@@ -197,12 +186,9 @@ async def download_beatmapset(
 async def favourite_beatmapset(
     db: Database,
     beatmapset_id: int = Path(..., description="谱面集 ID"),
-    action: Literal["favourite", "unfavourite"] = Form(
-        description="操作类型：favourite 收藏 / unfavourite 取消收藏"
-    ),
+    action: Literal["favourite", "unfavourite"] = Form(description="操作类型：favourite 收藏 / unfavourite 取消收藏"),
     current_user: User = Security(get_client_user),
 ):
-    assert current_user.id is not None
     existing_favourite = (
         await db.exec(
             select(FavouriteBeatmapset).where(
@@ -212,15 +198,11 @@ async def favourite_beatmapset(
         )
     ).first()
 
-    if (action == "favourite" and existing_favourite) or (
-        action == "unfavourite" and not existing_favourite
-    ):
+    if (action == "favourite" and existing_favourite) or (action == "unfavourite" and not existing_favourite):
         return
 
     if action == "favourite":
-        favourite = FavouriteBeatmapset(
-            user_id=current_user.id, beatmapset_id=beatmapset_id
-        )
+        favourite = FavouriteBeatmapset(user_id=current_user.id, beatmapset_id=beatmapset_id)
         db.add(favourite)
     else:
         await db.delete(existing_favourite)

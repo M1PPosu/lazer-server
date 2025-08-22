@@ -41,9 +41,7 @@ async def download_replay(
         ge=0,
     ),
     score_id: int | None = Query(None, alias="s", description="成绩 ID"),
-    type: Literal["string", "id"] | None = Query(
-        None, description="用户类型：string 用户名称 / id 用户 ID"
-    ),
+    type: Literal["string", "id"] | None = Query(None, description="用户类型：string 用户名称 / id 用户 ID"),
     mods: int = Query(0, description="成绩的 MOD"),
     storage_service: StorageService = Depends(get_storage_service),
 ):
@@ -58,13 +56,9 @@ async def download_replay(
                 await session.exec(
                     select(Score).where(
                         Score.beatmap_id == beatmap,
-                        Score.user_id == user
-                        if type == "id" or user.isdigit()
-                        else col(Score.user).has(username=user),
+                        Score.user_id == user if type == "id" or user.isdigit() else col(Score.user).has(username=user),
                         Score.mods == mods_,
-                        Score.gamemode == GameMode.from_int_extra(ruleset_id)
-                        if ruleset_id is not None
-                        else True,
+                        Score.gamemode == GameMode.from_int_extra(ruleset_id) if ruleset_id is not None else True,
                     )
                 )
             ).first()
@@ -73,10 +67,7 @@ async def download_replay(
         except KeyError:
             raise HTTPException(status_code=400, detail="Invalid request")
 
-    filepath = (
-        f"replays/{score_record.id}_{score_record.beatmap_id}"
-        f"_{score_record.user_id}_lazer_replay.osr"
-    )
+    filepath = f"replays/{score_record.id}_{score_record.beatmap_id}_{score_record.user_id}_lazer_replay.osr"
     if not await storage_service.is_exists(filepath):
         raise HTTPException(status_code=404, detail="Replay file not found")
 
@@ -100,6 +91,4 @@ async def download_replay(
     await session.commit()
 
     data = await storage_service.read_file(filepath)
-    return ReplayModel(
-        content=base64.b64encode(data).decode("utf-8"), encoding="base64"
-    )
+    return ReplayModel(content=base64.b64encode(data).decode("utf-8"), encoding="base64")

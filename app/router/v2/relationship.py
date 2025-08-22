@@ -30,11 +30,7 @@ async def get_relationship(
     request: Request,
     current_user: User = Security(get_current_user, scopes=["friends.read"]),
 ):
-    relationship_type = (
-        RelationshipType.FOLLOW
-        if request.url.path.endswith("/friends")
-        else RelationshipType.BLOCK
-    )
+    relationship_type = RelationshipType.FOLLOW if request.url.path.endswith("/friends") else RelationshipType.BLOCK
     relationships = await db.exec(
         select(Relationship).where(
             Relationship.user_id == current_user.id,
@@ -71,12 +67,7 @@ async def add_relationship(
     target: int = Query(description="目标用户 ID"),
     current_user: User = Security(get_client_user),
 ):
-    assert current_user.id is not None
-    relationship_type = (
-        RelationshipType.FOLLOW
-        if request.url.path.endswith("/friends")
-        else RelationshipType.BLOCK
-    )
+    relationship_type = RelationshipType.FOLLOW if request.url.path.endswith("/friends") else RelationshipType.BLOCK
     if target == current_user.id:
         raise HTTPException(422, "Cannot add relationship to yourself")
     relationship = (
@@ -120,11 +111,8 @@ async def add_relationship(
                     Relationship.target_id == target,
                 )
             )
-        ).first()
-        assert relationship, "Relationship should exist after commit"
-        return AddFriendResp(
-            user_relation=await RelationshipResp.from_db(db, relationship)
-        )
+        ).one()
+        return AddFriendResp(user_relation=await RelationshipResp.from_db(db, relationship))
 
 
 @router.delete(
@@ -145,11 +133,7 @@ async def delete_relationship(
     target: int = Path(..., description="目标用户 ID"),
     current_user: User = Security(get_client_user),
 ):
-    relationship_type = (
-        RelationshipType.BLOCK
-        if "/blocks/" in request.url.path
-        else RelationshipType.FOLLOW
-    )
+    relationship_type = RelationshipType.BLOCK if "/blocks/" in request.url.path else RelationshipType.FOLLOW
     relationship = (
         await db.exec(
             select(Relationship).where(

@@ -24,9 +24,7 @@ class DailyChallengeStatsBase(SQLModel, UTCBaseModel):
     daily_streak_best: int = Field(default=0)
     daily_streak_current: int = Field(default=0)
     last_update: datetime | None = Field(default=None, sa_column=Column(DateTime))
-    last_weekly_streak: datetime | None = Field(
-        default=None, sa_column=Column(DateTime)
-    )
+    last_weekly_streak: datetime | None = Field(default=None, sa_column=Column(DateTime))
     playcount: int = Field(default=0)
     top_10p_placements: int = Field(default=0)
     top_50p_placements: int = Field(default=0)
@@ -35,7 +33,7 @@ class DailyChallengeStatsBase(SQLModel, UTCBaseModel):
 
 
 class DailyChallengeStats(DailyChallengeStatsBase, table=True):
-    __tablename__ = "daily_challenge_stats"  # pyright: ignore[reportAssignmentType]
+    __tablename__: str = "daily_challenge_stats"
 
     user_id: int | None = Field(
         default=None,
@@ -61,9 +59,7 @@ class DailyChallengeStatsResp(DailyChallengeStatsBase):
         return cls.model_validate(obj)
 
 
-async def process_daily_challenge_score(
-    session: AsyncSession, user_id: int, room_id: int
-):
+async def process_daily_challenge_score(session: AsyncSession, user_id: int, room_id: int):
     from .playlist_best_score import PlaylistBestScore
 
     score = (

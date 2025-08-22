@@ -21,7 +21,7 @@ class RelationshipType(str, Enum):
 
 
 class Relationship(SQLModel, table=True):
-    __tablename__ = "relationship"  # pyright: ignore[reportAssignmentType]
+    __tablename__: str = "relationship"
     id: int | None = Field(
         default=None,
         sa_column=Column(BigInteger, autoincrement=True, primary_key=True),
@@ -59,9 +59,7 @@ class RelationshipResp(BaseModel):
     type: RelationshipType
 
     @classmethod
-    async def from_db(
-        cls, session: AsyncSession, relationship: Relationship
-    ) -> "RelationshipResp":
+    async def from_db(cls, session: AsyncSession, relationship: Relationship) -> "RelationshipResp":
         target_relationship = (
             await session.exec(
                 select(Relationship).where(

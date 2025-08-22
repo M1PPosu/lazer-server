@@ -21,14 +21,10 @@ if TYPE_CHECKING:
 
 
 class PlaylistBestScore(SQLModel, table=True):
-    __tablename__ = "playlist_best_scores"  # pyright: ignore[reportAssignmentType]
+    __tablename__: str = "playlist_best_scores"
 
-    user_id: int = Field(
-        sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True)
-    )
-    score_id: int = Field(
-        sa_column=Column(BigInteger, ForeignKey("scores.id"), primary_key=True)
-    )
+    user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True))
+    score_id: int = Field(sa_column=Column(BigInteger, ForeignKey("scores.id"), primary_key=True))
     room_id: int = Field(foreign_key="rooms.id", index=True)
     playlist_id: int = Field(index=True)
     total_score: int = Field(default=0, sa_column=Column(BigInteger))

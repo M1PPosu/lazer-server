@@ -60,17 +60,13 @@ class BeatmapBase(SQLModel):
 
 
 class Beatmap(BeatmapBase, table=True):
-    __tablename__ = "beatmaps"  # pyright: ignore[reportAssignmentType]
+    __tablename__: str = "beatmaps"
     id: int = Field(primary_key=True, index=True)
     beatmapset_id: int = Field(foreign_key="beatmapsets.id", index=True)
     beatmap_status: BeatmapRankStatus = Field(index=True)
     # optional
-    beatmapset: Beatmapset = Relationship(
-        back_populates="beatmaps", sa_relationship_kwargs={"lazy": "joined"}
-    )
-    failtimes: FailTime | None = Relationship(
-        back_populates="beatmap", sa_relationship_kwargs={"lazy": "joined"}
-    )
+    beatmapset: Beatmapset = Relationship(back_populates="beatmaps", sa_relationship_kwargs={"lazy": "joined"})
+    failtimes: FailTime | None = Relationship(back_populates="beatmap", sa_relationship_kwargs={"lazy": "joined"})
 
     @classmethod
     async def from_resp(cls, session: AsyncSession, resp: "BeatmapResp") -> "Beatmap":
@@ -84,21 +80,15 @@ class Beatmap(BeatmapBase, table=True):
                 "beatmap_status": BeatmapRankStatus(resp.ranked),
             }
         )
-        if not (
-            await session.exec(select(exists()).where(Beatmap.id == resp.id))
-        ).first():
+        if not (await session.exec(select(exists()).where(Beatmap.id == resp.id))).first():
             session.add(beatmap)
             await session.commit()
-        beatmap = (
-            await session.exec(select(Beatmap).where(Beatmap.id == resp.id))
-        ).first()
+        beatmap = (await session.exec(select(Beatmap).where(Beatmap.id == resp.id))).first()
         assert beatmap is not None, "Beatmap should not be None after commit"
         return beatmap
 
     @classmethod
-    async def from_resp_batch(
-        cls, session: AsyncSession, inp: list["BeatmapResp"], from_: int = 0
-    ) -> list["Beatmap"]:
+    async def from_resp_batch(cls, session: AsyncSession, inp: list["BeatmapResp"], from_: int = 0) -> list["Beatmap"]:
         beatmaps = []
         for resp in inp:
             if resp.id == from_:
@@ -113,9 +103,7 @@ class Beatmap(BeatmapBase, table=True):
                     "beatmap_status": BeatmapRankStatus(resp.ranked),
                 }
             )
-            if not (
-                await session.exec(select(exists()).where(Beatmap.id == resp.id))
-            ).first():
+            if not (await session.exec(select(exists()).where(Beatmap.id == resp.id))).first():
                 session.add(beatmap)
             beatmaps.append(beatmap)
         await session.commit()
@@ -130,17 +118,11 @@ class Beatmap(BeatmapBase, table=True):
         md5: str | None = None,
     ) -> "Beatmap":
         beatmap = (
-            await session.exec(
-                select(Beatmap).where(
-                    Beatmap.id == bid if bid is not None else Beatmap.checksum == md5
-                )
-            )
+            await session.exec(select(Beatmap).where(Beatmap.id == bid if bid is not None else Beatmap.checksum == md5))
         ).first()
         if not beatmap:
             resp = await fetcher.get_beatmap(bid, md5)
-            r = await session.exec(
-                select(Beatmapset.id).where(Beatmapset.id == resp.beatmapset_id)
-            )
+            r = await session.exec(select(Beatmapset.id).where(Beatmapset.id == resp.beatmapset_id))
             if not r.first():
                 set_resp = await fetcher.get_beatmapset(resp.beatmapset_id)
                 await Beatmapset.from_resp(session, set_resp, from_=resp.id)
@@ -178,10 +160,7 @@ class BeatmapResp(BeatmapBase):
         if query_mode is not None and beatmap.mode != query_mode:
             beatmap_["convert"] = True
         beatmap_["is_scoreable"] = beatmap_status.has_leaderboard()
-        if (
-            settings.enable_all_beatmap_leaderboard
-            and not beatmap_status.has_leaderboard()
-        ):
+        if settings.enable_all_beatmap_leaderboard and not beatmap_status.has_leaderboard():
             beatmap_["ranked"] = BeatmapRankStatus.APPROVED.value
             beatmap_["status"] = BeatmapRankStatus.APPROVED.name.lower()
         else:
@@ -189,9 +168,7 @@ class BeatmapResp(BeatmapBase):
             beatmap_["ranked"] = beatmap_status.value
         beatmap_["mode_int"] = int(beatmap.mode)
         if not from_set:
-            beatmap_["beatmapset"] = await BeatmapsetResp.from_db(
-                beatmap.beatmapset, session=session, user=user
-            )
+            beatmap_["beatmapset"] = await BeatmapsetResp.from_db(beatmap.beatmapset, session=session, user=user)
         if beatmap.failtimes is not None:
             beatmap_["failtimes"] = FailTimeResp.from_db(beatmap.failtimes)
         else:
@@ -218,7 +195,7 @@ class BeatmapResp(BeatmapBase):
 
 
 class BannedBeatmaps(SQLModel, table=True):
-    __tablename__ = "banned_beatmaps"  # pyright: ignore[reportAssignmentType]
+    __tablename__: str = "banned_beatmaps"
     id: int | None = Field(primary_key=True, index=True, default=None)
     beatmap_id: int = Field(index=True)
 
@@ -230,15 +207,10 @@ async def calculate_beatmap_attributes(
     redis: Redis,
     fetcher: "Fetcher",
 ):
-    key = (
-        f"beatmap:{beatmap_id}:{ruleset}:"
-        f"{hashlib.md5(str(mods_).encode()).hexdigest()}:attributes"
-    )
+    key = f"beatmap:{beatmap_id}:{ruleset}:{hashlib.md5(str(mods_).encode()).hexdigest()}:attributes"
     if await redis.exists(key):
-        return BeatmapAttributes.model_validate_json(await redis.get(key))  # pyright: ignore[reportArgumentType]
+        return BeatmapAttributes.model_validate_json(await redis.get(key))
     resp = await fetcher.get_or_fetch_beatmap_raw(redis, beatmap_id)
-    attr = await asyncio.get_event_loop().run_in_executor(
-        None, calculate_beatmap_attribute, resp, ruleset, mods_
-    )
+    attr = await asyncio.get_event_loop().run_in_executor(None, calculate_beatmap_attribute, resp, ruleset, mods_)
     await redis.set(key, attr.model_dump_json())
     return attr

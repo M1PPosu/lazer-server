@@ -21,28 +21,24 @@ class CountBase(SQLModel):
 
 
 class MonthlyPlaycounts(CountBase, table=True):
-    __tablename__ = "monthly_playcounts"  # pyright: ignore[reportAssignmentType]
+    __tablename__: str = "monthly_playcounts"
 
     id: int | None = Field(
         default=None,
         sa_column=Column(BigInteger, primary_key=True, autoincrement=True),
     )
-    user_id: int = Field(
-        sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True)
-    )
+    user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True))
     user: "User" = Relationship(back_populates="monthly_playcounts")
 
 
 class ReplayWatchedCount(CountBase, table=True):
-    __tablename__ = "replays_watched_counts"  # pyright: ignore[reportAssignmentType]
+    __tablename__: str = "replays_watched_counts"
 
     id: int | None = Field(
         default=None,
         sa_column=Column(BigInteger, primary_key=True, autoincrement=True),
     )
-    user_id: int = Field(
-        sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True)
-    )
+    user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True))
     user: "User" = Relationship(back_populates="replays_watched_counts")
 
 

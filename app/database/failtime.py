@@ -16,8 +16,8 @@ FAILTIME_STRUCT = Struct("<100i")
 
 
 class FailTime(SQLModel, table=True):
-    __tablename__ = "failtime"  # pyright: ignore[reportAssignmentType]
-    beatmap_id: int = Field(primary_key=True, index=True, foreign_key="beatmaps.id")
+    __tablename__: str = "failtime"
+    beatmap_id: int = Field(primary_key=True, foreign_key="beatmaps.id")
     exit: bytes = Field(sa_column=Column(VARBINARY(400), nullable=False))
     fail: bytes = Field(sa_column=Column(VARBINARY(400), nullable=False))
 
@@ -41,12 +41,8 @@ class FailTime(SQLModel, table=True):
 
 
 class FailTimeResp(BaseModel):
-    exit: list[int] = Field(
-        default_factory=lambda: list(FAILTIME_STRUCT.unpack(b"\x00" * 400))
-    )
-    fail: list[int] = Field(
-        default_factory=lambda: list(FAILTIME_STRUCT.unpack(b"\x00" * 400))
-    )
+    exit: list[int] = Field(default_factory=lambda: list(FAILTIME_STRUCT.unpack(b"\x00" * 400)))
+    fail: list[int] = Field(default_factory=lambda: list(FAILTIME_STRUCT.unpack(b"\x00" * 400)))
 
     @classmethod
     def from_db(cls, failtime: FailTime) -> "FailTimeResp":

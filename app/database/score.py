@@ -47,9 +47,9 @@ from .score_token import ScoreToken
 
 from pydantic import field_serializer, field_validator
 from redis.asyncio import Redis
-from sqlalchemy import Boolean, Column, ColumnExpressionArgument, DateTime
+from sqlalchemy import Boolean, Column, ColumnExpressionArgument, DateTime, TextClause
 from sqlalchemy.ext.asyncio import AsyncAttrs
-from sqlalchemy.orm import aliased
+from sqlalchemy.orm import Mapped, aliased
 from sqlalchemy.sql.elements import ColumnElement
 from sqlmodel import (
     JSON,
@@ -76,9 +76,7 @@ class ScoreBase(AsyncAttrs, SQLModel, UTCBaseModel):
     accuracy: float
     map_md5: str = Field(max_length=32, index=True)
     build_id: int | None = Field(default=None)
-    classic_total_score: int | None = Field(
-        default=0, sa_column=Column(BigInteger)
-    )  # solo_score
+    classic_total_score: int | None = Field(default=0, sa_column=Column(BigInteger))  # solo_score
     ended_at: datetime = Field(sa_column=Column(DateTime))
     has_replay: bool = Field(sa_column=Column(Boolean))
     max_combo: int
@@ -91,14 +89,10 @@ class ScoreBase(AsyncAttrs, SQLModel, UTCBaseModel):
     room_id: int | None = Field(default=None)  # multiplayer
     started_at: datetime = Field(sa_column=Column(DateTime))
     total_score: int = Field(default=0, sa_column=Column(BigInteger))
-    total_score_without_mods: int = Field(
-        default=0, sa_column=Column(BigInteger), exclude=True
-    )
+    total_score_without_mods: int = Field(default=0, sa_column=Column(BigInteger), exclude=True)
     type: str
     beatmap_id: int = Field(index=True, foreign_key="beatmaps.id")
-    maximum_statistics: ScoreStatistics = Field(
-        sa_column=Column(JSON), default_factory=dict
-    )
+    maximum_statistics: ScoreStatistics = Field(sa_column=Column(JSON), default_factory=dict)
 
     @field_validator("maximum_statistics", mode="before")
     @classmethod
@@ -147,10 +141,8 @@ class ScoreBase(AsyncAttrs, SQLModel, UTCBaseModel):
 
 
 class Score(ScoreBase, table=True):
-    __tablename__ = "scores"  # pyright: ignore[reportAssignmentType]
-    id: int | None = Field(
-        default=None, sa_column=Column(BigInteger, autoincrement=True, primary_key=True)
-    )
+    __tablename__: str = "scores"
+    id: int = Field(default=None, sa_column=Column(BigInteger, autoincrement=True, primary_key=True))
     user_id: int = Field(
         default=None,
         sa_column=Column(
@@ -193,8 +185,8 @@ class Score(ScoreBase, table=True):
         return str(v)
 
     # optional
-    beatmap: Beatmap = Relationship()
-    user: User = Relationship(sa_relationship_kwargs={"lazy": "joined"})
+    beatmap: Mapped[Beatmap] = Relationship()
+    user: Mapped[User] = Relationship(sa_relationship_kwargs={"lazy": "joined"})
 
     @property
     def is_perfect_combo(self) -> bool:
@@ -205,11 +197,7 @@ class Score(ScoreBase, table=True):
         *where_clauses: ColumnExpressionArgument[bool] | bool,
     ) -> SelectOfScalar["Score"]:
         rownum = (
-            func.row_number()
-            .over(
-                partition_by=col(Score.user_id), order_by=col(Score.total_score).desc()
-            )
-            .label("rn")
+            func.row_number().over(partition_by=col(Score.user_id), order_by=col(Score.total_score).desc()).label("rn")
         )
         subq = select(Score, rownum).where(*where_clauses).subquery()
         best = aliased(Score, subq, adapt_on_names=True)
@@ -296,12 +284,9 @@ class ScoreResp(ScoreBase):
         await session.refresh(score)
 
         s = cls.model_validate(score.model_dump())
-        assert score.id
         await score.awaitable_attrs.beatmap
         s.beatmap = await BeatmapResp.from_db(score.beatmap)
-        s.beatmapset = await BeatmapsetResp.from_db(
-            score.beatmap.beatmapset, session=session, user=score.user
-        )
+        s.beatmapset = await BeatmapsetResp.from_db(score.beatmap.beatmapset, session=session, user=score.user)
         s.is_perfect_combo = s.max_combo == s.beatmap.max_combo
         s.legacy_perfect = s.max_combo == s.beatmap.max_combo
         s.ruleset_id = int(score.gamemode)
@@ -371,11 +356,7 @@ class ScoreAround(SQLModel):
 
 async def get_best_id(session: AsyncSession, score_id: int) -> None:
     rownum = (
-        func.row_number()
-        .over(
-            partition_by=col(PPBestScore.user_id), order_by=col(PPBestScore.pp).desc()
-        )
-        .label("rn")
+        func.row_number().over(partition_by=col(PPBestScore.user_id), order_by=col(PPBestScore.pp).desc()).label("rn")
     )
     subq = select(PPBestScore, rownum).subquery()
     stmt = select(subq.c.rn).where(subq.c.score_id == score_id)
@@ -389,8 +370,8 @@ async def _score_where(
     mode: GameMode,
     mods: list[str] | None = None,
     user: User | None = None,
-) -> list[ColumnElement[bool]] | None:
-    wheres = [
+) -> list[ColumnElement[bool] | TextClause] | None:
+    wheres: list[ColumnElement[bool] | TextClause] = [
         col(BestScore.beatmap_id) == beatmap,
         col(BestScore.gamemode) == mode,
     ]
@@ -410,9 +391,7 @@ async def _score_where(
             return None
     elif type == LeaderboardType.COUNTRY:
         if user and user.is_supporter:
-            wheres.append(
-                col(BestScore.user).has(col(User.country_code) == user.country_code)
-            )
+            wheres.append(col(BestScore.user).has(col(User.country_code) == user.country_code))
         else:
             return None
     elif type == LeaderboardType.TEAM:
@@ -420,18 +399,14 @@ async def _score_where(
             team_membership = await user.awaitable_attrs.team_membership
             if team_membership:
                 team_id = team_membership.team_id
-                wheres.append(
-                    col(BestScore.user).has(
-                        col(User.team_membership).has(TeamMember.team_id == team_id)
-                    )
-                )
+                wheres.append(col(BestScore.user).has(col(User.team_membership).has(TeamMember.team_id == team_id)))
     if mods:
         if user and user.is_supporter:
             wheres.append(
                 text(
                     "JSON_CONTAINS(total_score_best_scores.mods, :w)"
                     " AND JSON_CONTAINS(:w, total_score_best_scores.mods)"
-                ).params(w=json.dumps(mods))  # pyright: ignore[reportArgumentType]
+                ).params(w=json.dumps(mods))
             )
         else:
             return None
@@ -654,18 +629,14 @@ def calculate_playtime(score: Score, beatmap_length: int) -> tuple[int, bool]:
         + (score.nsmall_tick_hit or 0)
     )
     total_obj = 0
-    for statistics, count in (
-        score.maximum_statistics.items() if score.maximum_statistics else {}
-    ):
+    for statistics, count in score.maximum_statistics.items() if score.maximum_statistics else {}:
         if not isinstance(statistics, HitResult):
             statistics = HitResult(statistics)
         if statistics.is_scorable():
             total_obj += count
 
     return total_length, score.passed or (
-        total_length > 8
-        and score.total_score >= 5000
-        and total_obj_hited >= min(0.1 * total_obj, 20)
+        total_length > 8 and score.total_score >= 5000 and total_obj_hited >= min(0.1 * total_obj, 20)
     )
 
 
@@ -678,12 +649,8 @@ async def process_user(
     ranked: bool = False,
     has_leaderboard: bool = False,
 ):
-    assert user.id
-    assert score.id
     mod_for_save = mod_to_save(score.mods)
-    previous_score_best = await get_user_best_score_in_beatmap(
-        session, score.beatmap_id, user.id, score.gamemode
-    )
+    previous_score_best = await get_user_best_score_in_beatmap(session, score.beatmap_id, user.id, score.gamemode)
     previous_score_best_mod = await get_user_best_score_with_mod_in_beatmap(
         session, score.beatmap_id, user.id, mod_for_save, score.gamemode
     )
@@ -698,9 +665,7 @@ async def process_user(
         )
     ).first()
     if mouthly_playcount is None:
-        mouthly_playcount = MonthlyPlaycounts(
-            user_id=user.id, year=date.today().year, month=date.today().month
-        )
+        mouthly_playcount = MonthlyPlaycounts(user_id=user.id, year=date.today().year, month=date.today().month)
         add_to_db = True
     statistics = None
     for i in await user.awaitable_attrs.statistics:
@@ -708,17 +673,11 @@ async def process_user(
             statistics = i
             break
     if statistics is None:
-        raise ValueError(
-            f"User {user.id} does not have statistics for mode {score.gamemode.value}"
-        )
+        raise ValueError(f"User {user.id} does not have statistics for mode {score.gamemode.value}")
 
     # pc, pt, tth, tts
     statistics.total_score += score.total_score
-    difference = (
-        score.total_score - previous_score_best.total_score
-        if previous_score_best
-        else score.total_score
-    )
+    difference = score.total_score - previous_score_best.total_score if previous_score_best else score.total_score
     if difference > 0 and score.passed and ranked:
         match score.rank:
             case Rank.X:
@@ -746,11 +705,8 @@ async def process_user(
         statistics.ranked_score += difference
         statistics.level_current = calculate_score_to_level(statistics.total_score)
         statistics.maximum_combo = max(statistics.maximum_combo, score.max_combo)
-        new_score_position = await get_score_position_by_user(
-            session, score.beatmap_id, user, score.gamemode
-        )
+        new_score_position = await get_score_position_by_user(session, score.beatmap_id, user, score.gamemode)
         total_users = await session.exec(select(func.count()).select_from(User))
-        assert total_users is not None
         score_range = min(50, math.ceil(float(total_users.one()) * 0.01))
         if new_score_position <= score_range and new_score_position > 0:
             # Get the scores that might be displaced
@@ -774,11 +730,7 @@ async def process_user(
                 )
 
                 # If this score was previously in top positions but now pushed out
-                if (
-                    i < score_range
-                    and displaced_position > score_range
-                    and displaced_position is not None
-                ):
+                if i < score_range and displaced_position > score_range and displaced_position is not None:
                     # Create rank lost event for the displaced user
                     rank_lost_event = Event(
                         created_at=datetime.now(UTC),
@@ -814,10 +766,7 @@ async def process_user(
             )
 
         # 情况3: 有最佳分数记录和该mod组合的记录，且是同一个记录，更新得分更高的情况
-        elif (
-            previous_score_best.score_id == previous_score_best_mod.score_id
-            and difference > 0
-        ):
+        elif previous_score_best.score_id == previous_score_best_mod.score_id and difference > 0:
             previous_score_best.total_score = score.total_score
             previous_score_best.rank = score.rank
             previous_score_best.score_id = score.id
@@ -847,9 +796,7 @@ async def process_user(
     statistics.count_300 += score.n300 + score.ngeki
     statistics.count_50 += score.n50
     statistics.count_miss += score.nmiss
-    statistics.total_hits += (
-        score.n300 + score.n100 + score.n50 + score.ngeki + score.nkatu
-    )
+    statistics.total_hits += score.n300 + score.n100 + score.n50 + score.ngeki + score.nkatu
 
     if score.passed and ranked:
         with session.no_autoflush:
@@ -885,7 +832,6 @@ async def process_score(
     item_id: int | None = None,
     room_id: int | None = None,
 ) -> Score:
-    assert user.id
     can_get_pp = info.passed and ranked and mods_can_get_pp(info.ruleset_id, info.mods)
     gamemode = GameMode.from_int(info.ruleset_id).to_special_mode(info.mods)
     score = Score(
@@ -922,20 +868,15 @@ async def process_score(
     if can_get_pp:
         from app.calculator import pre_fetch_and_calculate_pp
 
-        pp = await pre_fetch_and_calculate_pp(
-            score, beatmap_id, session, redis, fetcher
-        )
+        pp = await pre_fetch_and_calculate_pp(score, beatmap_id, session, redis, fetcher)
         score.pp = pp
     session.add(score)
     user_id = user.id
     await session.commit()
     await session.refresh(score)
     if can_get_pp and score.pp != 0:
-        previous_pp_best = await get_user_best_pp_in_beatmap(
-            session, beatmap_id, user_id, score.gamemode
-        )
+        previous_pp_best = await get_user_best_pp_in_beatmap(session, beatmap_id, user_id, score.gamemode)
         if previous_pp_best is None or score.pp > previous_pp_best.pp:
-            assert score.id
             best_score = PPBestScore(
                 user_id=user_id,
                 score_id=score.id,

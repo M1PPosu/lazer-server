@@ -86,9 +86,7 @@ class BeatmapsetBase(SQLModel):
 
     # optional
     # converts: list[Beatmap] = Relationship(back_populates="beatmapset")
-    current_nominations: list[BeatmapNomination] | None = Field(
-        None, sa_column=Column(JSON)
-    )
+    current_nominations: list[BeatmapNomination] | None = Field(None, sa_column=Column(JSON))
     description: BeatmapDescription | None = Field(default=None, sa_column=Column(JSON))
     # TODO: discussions: list[BeatmapsetDiscussion] = None
     # TODO: current_user_attributes: Optional[CurrentUserAttributes] = None
@@ -105,22 +103,18 @@ class BeatmapsetBase(SQLModel):
     can_be_hyped: bool = Field(default=False, sa_column=Column(Boolean))
     discussion_locked: bool = Field(default=False, sa_column=Column(Boolean))
     last_updated: datetime = Field(sa_column=Column(DateTime, index=True))
-    ranked_date: datetime | None = Field(
-        default=None, sa_column=Column(DateTime, index=True)
-    )
+    ranked_date: datetime | None = Field(default=None, sa_column=Column(DateTime, index=True))
     storyboard: bool = Field(default=False, sa_column=Column(Boolean, index=True))
     submitted_date: datetime = Field(sa_column=Column(DateTime, index=True))
     tags: str = Field(default="", sa_column=Column(Text))
 
 
 class Beatmapset(AsyncAttrs, BeatmapsetBase, table=True):
-    __tablename__ = "beatmapsets"  # pyright: ignore[reportAssignmentType]
+    __tablename__: str = "beatmapsets"
 
-    id: int | None = Field(default=None, primary_key=True, index=True)
+    id: int = Field(default=None, primary_key=True, index=True)
     # Beatmapset
-    beatmap_status: BeatmapRankStatus = Field(
-        default=BeatmapRankStatus.GRAVEYARD, index=True
-    )
+    beatmap_status: BeatmapRankStatus = Field(default=BeatmapRankStatus.GRAVEYARD, index=True)
 
     # optional
     beatmaps: list["Beatmap"] = Relationship(back_populates="beatmapset")
@@ -137,9 +131,7 @@ class Beatmapset(AsyncAttrs, BeatmapsetBase, table=True):
     favourites: list["FavouriteBeatmapset"] = Relationship(back_populates="beatmapset")
 
     @classmethod
-    async def from_resp(
-        cls, session: AsyncSession, resp: "BeatmapsetResp", from_: int = 0
-    ) -> "Beatmapset":
+    async def from_resp(cls, session: AsyncSession, resp: "BeatmapsetResp", from_: int = 0) -> "Beatmapset":
         from .beatmap import Beatmap
 
         d = resp.model_dump()
@@ -167,18 +159,14 @@ class Beatmapset(AsyncAttrs, BeatmapsetBase, table=True):
                 "download_disabled": resp.availability.download_disabled or False,
             }
         )
-        if not (
-            await session.exec(select(exists()).where(Beatmapset.id == resp.id))
-        ).first():
+        if not (await session.exec(select(exists()).where(Beatmapset.id == resp.id))).first():
             session.add(beatmapset)
             await session.commit()
         await Beatmap.from_resp_batch(session, resp.beatmaps, from_=from_)
         return beatmapset
 
     @classmethod
-    async def get_or_fetch(
-        cls, session: AsyncSession, fetcher: "Fetcher", sid: int
-    ) -> "Beatmapset":
+    async def get_or_fetch(cls, session: AsyncSession, fetcher: "Fetcher", sid: int) -> "Beatmapset":
         beatmapset = await session.get(Beatmapset, sid)
         if not beatmapset:
             resp = await fetcher.get_beatmapset(sid)
@@ -227,13 +215,9 @@ class BeatmapsetResp(BeatmapsetBase):
     @model_validator(mode="after")
     def fix_genre_language(self) -> Self:
         if self.genre is None:
-            self.genre = BeatmapTranslationText(
-                name=Genre(self.genre_id).name, id=self.genre_id
-            )
+            self.genre = BeatmapTranslationText(name=Genre(self.genre_id).name, id=self.genre_id)
         if self.language is None:
-            self.language = BeatmapTranslationText(
-                name=Language(self.language_id).name, id=self.language_id
-            )
+            self.language = BeatmapTranslationText(name=Language(self.language_id).name, id=self.language_id)
         return self
 
     @classmethod
@@ -252,9 +236,7 @@ class BeatmapsetResp(BeatmapsetBase):
                 await BeatmapResp.from_db(beatmap, from_set=True, session=session)
                 for beatmap in await beatmapset.awaitable_attrs.beatmaps
             ],
-            "hype": BeatmapHype(
-                current=beatmapset.hype_current, required=beatmapset.hype_required
-            ),
+            "hype": BeatmapHype(current=beatmapset.hype_current, required=beatmapset.hype_required),
             "availability": BeatmapAvailability(
                 more_information=beatmapset.availability_info,
                 download_disabled=beatmapset.download_disabled,
@@ -282,10 +264,7 @@ class BeatmapsetResp(BeatmapsetBase):
             update["ratings"] = []
 
         beatmap_status = beatmapset.beatmap_status
-        if (
-            settings.enable_all_beatmap_leaderboard
-            and not beatmap_status.has_leaderboard()
-        ):
+        if settings.enable_all_beatmap_leaderboard and not beatmap_status.has_leaderboard():
             update["status"] = BeatmapRankStatus.APPROVED.name.lower()
             update["ranked"] = BeatmapRankStatus.APPROVED.value
         else:
@@ -295,9 +274,7 @@ class BeatmapsetResp(BeatmapsetBase):
         if session and user:
             existing_favourite = (
                 await session.exec(
-                    select(FavouriteBeatmapset).where(
-                        FavouriteBeatmapset.beatmapset_id == beatmapset.id
-                    )
+                    select(FavouriteBeatmapset).where(FavouriteBeatmapset.beatmapset_id == beatmapset.id)
                 )
             ).first()
             update["has_favourited"] = existing_favourite is not None

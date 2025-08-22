@@ -39,17 +39,11 @@ async def get_all_rooms(
     db: Database,
     mode: Literal["open", "ended", "participated", "owned", None] = Query(
         default="open",
-        description=(
-            "房间模式：open 当前开放 / ended 已经结束 / "
-            "participated 参与过 / owned 自己创建的房间"
-        ),
+        description=("房间模式：open 当前开放 / ended 已经结束 / participated 参与过 / owned 自己创建的房间"),
     ),
     category: RoomCategory = Query(
         RoomCategory.NORMAL,
-        description=(
-            "房间分类：NORMAL 普通歌单模式房间 / REALTIME 多人游戏房间"
-            " / DAILY_CHALLENGE 每日挑战"
-        ),
+        description=("房间分类：NORMAL 普通歌单模式房间 / REALTIME 多人游戏房间 / DAILY_CHALLENGE 每日挑战"),
     ),
     status: RoomStatus | None = Query(None, description="房间状态（可选）"),
     current_user: User = Security(get_current_user, scopes=["public"]),
@@ -60,10 +54,7 @@ async def get_all_rooms(
     if status is not None:
         where_clauses.append(col(Room.status) == status)
     if mode == "open":
-        where_clauses.append(
-            (col(Room.ends_at).is_(None))
-            | (col(Room.ends_at) > now.replace(tzinfo=UTC))
-        )
+        where_clauses.append((col(Room.ends_at).is_(None)) | (col(Room.ends_at) > now.replace(tzinfo=UTC)))
         if category == RoomCategory.REALTIME:
             where_clauses.append(col(Room.id).in_(MultiplayerHubs.rooms.keys()))
     if mode == "participated":
@@ -76,10 +67,7 @@ async def get_all_rooms(
     if mode == "owned":
         where_clauses.append(col(Room.host_id) == current_user.id)
     if mode == "ended":
-        where_clauses.append(
-            (col(Room.ends_at).is_not(None))
-            & (col(Room.ends_at) < now.replace(tzinfo=UTC))
-        )
+        where_clauses.append((col(Room.ends_at).is_not(None)) & (col(Room.ends_at) < now.replace(tzinfo=UTC)))
 
     db_rooms = (
         (
@@ -97,11 +85,7 @@ async def get_all_rooms(
         resp = await RoomResp.from_db(room, db)
         if category == RoomCategory.REALTIME:
             mp_room = MultiplayerHubs.rooms.get(room.id)
-            resp.has_password = (
-                bool(mp_room.room.settings.password.strip())
-                if mp_room is not None
-                else False
-            )
+            resp.has_password = bool(mp_room.room.settings.password.strip()) if mp_room is not None else False
             resp.category = RoomCategory.NORMAL
         resp_list.append(resp)
 
@@ -115,9 +99,7 @@ class APICreatedRoom(RoomResp):
     error: str = ""
 
 
-async def _participate_room(
-    room_id: int, user_id: int, db_room: Room, session: AsyncSession, redis: Redis
-):
+async def _participate_room(room_id: int, user_id: int, db_room: Room, session: AsyncSession, redis: Redis):
     participated_user = (
         await session.exec(
             select(RoomParticipatedUser).where(
@@ -154,7 +136,6 @@ async def create_room(
     current_user: User = Security(get_client_user),
     redis: Redis = Depends(get_redis),
 ):
-    assert current_user.id is not None
     user_id = current_user.id
     db_room = await create_playlist_room_from_api(db, room, user_id)
     await _participate_room(db_room.id, user_id, db_room, db, redis)
@@ -177,10 +158,7 @@ async def get_room(
     room_id: int = Path(..., description="房间 ID"),
     category: str = Query(
         default="",
-        description=(
-            "房间分类：NORMAL 普通歌单模式房间 / REALTIME 多人游戏房间"
-            " / DAILY_CHALLENGE 每日挑战 (可选)"
-        ),
+        description=("房间分类：NORMAL 普通歌单模式房间 / REALTIME 多人游戏房间 / DAILY_CHALLENGE 每日挑战 (可选)"),
     ),
     current_user: User = Security(get_client_user),
     redis: Redis = Depends(get_redis),
@@ -188,9 +166,7 @@ async def get_room(
     db_room = (await db.exec(select(Room).where(Room.id == room_id))).first()
     if db_room is None:
         raise HTTPException(404, "Room not found")
-    resp = await RoomResp.from_db(
-        db_room, include=["current_user_score"], session=db, user=current_user
-    )
+    resp = await RoomResp.from_db(db_room, include=["current_user_score"], session=db, user=current_user)
     return resp
 
 
@@ -400,7 +376,6 @@ async def get_room_events(
             for score in scores:
                 user_ids.add(score.user_id)
                 beatmap_ids.add(score.beatmap_id)
-        assert event.id is not None
         first_event_id = min(first_event_id, event.id)
         last_event_id = max(last_event_id, event.id)
 
@@ -416,16 +391,12 @@ async def get_room_events(
     users = await db.exec(select(User).where(col(User.id).in_(user_ids)))
     user_resps = [await UserResp.from_db(user, db) for user in users]
     beatmaps = await db.exec(select(Beatmap).where(col(Beatmap.id).in_(beatmap_ids)))
-    beatmap_resps = [
-        await BeatmapResp.from_db(beatmap, session=db) for beatmap in beatmaps
-    ]
+    beatmap_resps = [await BeatmapResp.from_db(beatmap, session=db) for beatmap in beatmaps]
     beatmapset_resps = {}
     for beatmap_resp in beatmap_resps:
         beatmapset_resps[beatmap_resp.beatmapset_id] = beatmap_resp.beatmapset
 
-    playlist_items_resps = [
-        await PlaylistResp.from_db(item) for item in playlist_items.values()
-    ]
+    playlist_items_resps = [await PlaylistResp.from_db(item) for item in playlist_items.values()]
 
     return RoomEvents(
         beatmaps=beatmap_resps,

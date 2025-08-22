@@ -21,16 +21,14 @@ class ItemAttemptsCountBase(SQLModel):
     room_id: int = Field(foreign_key="rooms.id", index=True)
     attempts: int = Field(default=0)
     completed: int = Field(default=0)
-    user_id: int = Field(
-        sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True)
-    )
+    user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True))
     accuracy: float = 0.0
     pp: float = 0
     total_score: int = 0
 
 
 class ItemAttemptsCount(AsyncAttrs, ItemAttemptsCountBase, table=True):
-    __tablename__ = "item_attempts_count"  # pyright: ignore[reportAssignmentType]
+    __tablename__: str = "item_attempts_count"
     id: int | None = Field(default=None, primary_key=True)
 
     user: User = Relationship()
@@ -63,9 +61,7 @@ class ItemAttemptsCount(AsyncAttrs, ItemAttemptsCountBase, table=True):
         self.pp = sum(score.score.pp for score in playlist_scores)
         self.completed = len([score for score in playlist_scores if score.score.passed])
         self.accuracy = (
-            sum(score.score.accuracy for score in playlist_scores) / self.completed
-            if self.completed > 0
-            else 0.0
+            sum(score.score.accuracy for score in playlist_scores) / self.completed if self.completed > 0 else 0.0
         )
         await session.commit()
         await session.refresh(self)

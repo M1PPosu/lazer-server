@@ -20,42 +20,34 @@ if TYPE_CHECKING:
 
 
 class OAuthToken(UTCBaseModel, SQLModel, table=True):
-    __tablename__ = "oauth_tokens"  # pyright: ignore[reportAssignmentType]
+    __tablename__: str = "oauth_tokens"
 
     id: int | None = Field(default=None, primary_key=True, index=True)
-    user_id: int = Field(
-        sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True)
-    )
+    user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True))
     client_id: int = Field(index=True)
     access_token: str = Field(max_length=500, unique=True)
     refresh_token: str = Field(max_length=500, unique=True)
     token_type: str = Field(default="Bearer", max_length=20)
     scope: str = Field(default="*", max_length=100)
     expires_at: datetime = Field(sa_column=Column(DateTime))
-    created_at: datetime = Field(
-        default_factory=datetime.utcnow, sa_column=Column(DateTime)
-    )
+    created_at: datetime = Field(default_factory=datetime.utcnow, sa_column=Column(DateTime))
 
     user: "User" = Relationship()
 
 
 class OAuthClient(SQLModel, table=True):
-    __tablename__ = "oauth_clients"  # pyright: ignore[reportAssignmentType]
+    __tablename__: str = "oauth_clients"
     name: str = Field(max_length=100, index=True)
     description: str = Field(sa_column=Column(Text), default="")
     client_id: int | None = Field(default=None, primary_key=True, index=True)
     client_secret: str = Field(default_factory=secrets.token_hex, index=True)
     redirect_uris: list[str] = Field(default_factory=list, sa_column=Column(JSON))
-    owner_id: int = Field(
-        sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True)
-    )
+    owner_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True))
 
 
 class V1APIKeys(SQLModel, table=True):
-    __tablename__ = "v1_api_keys"  # pyright: ignore[reportAssignmentType]
+    __tablename__: str = "v1_api_keys"
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(max_length=100, index=True)
     key: str = Field(default_factory=secrets.token_hex, index=True)
-    owner_id: int = Field(
-        sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True)
-    )
+    owner_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True))

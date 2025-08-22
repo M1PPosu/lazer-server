@@ -20,13 +20,9 @@ if TYPE_CHECKING:
 
 
 class PPBestScore(SQLModel, table=True):
-    __tablename__ = "best_scores"  # pyright: ignore[reportAssignmentType]
-    user_id: int = Field(
-        sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True)
-    )
-    score_id: int = Field(
-        sa_column=Column(BigInteger, ForeignKey("scores.id"), primary_key=True)
-    )
+    __tablename__: str = "best_scores"
+    user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True))
+    score_id: int = Field(sa_column=Column(BigInteger, ForeignKey("scores.id"), primary_key=True))
     beatmap_id: int = Field(foreign_key="beatmaps.id", index=True)
     gamemode: GameMode = Field(index=True)
     pp: float = Field(

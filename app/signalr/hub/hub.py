@@ -145,14 +145,9 @@ class Hub[TState: UserState]:
         connection: WebSocket,
     ) -> Client:
         if connection_token in self.clients:
-            raise ValueError(
-                f"Client with connection token {connection_token} already exists."
-            )
+            raise ValueError(f"Client with connection token {connection_token} already exists.")
         if connection_token in self.waited_clients:
-            if (
-                self.waited_clients[connection_token]
-                < time.time() - settings.signalr_negotiate_timeout
-            ):
+            if self.waited_clients[connection_token] < time.time() - settings.signalr_negotiate_timeout:
                 raise TimeoutError(f"Connection {connection_id} has waited too long.")
             del self.waited_clients[connection_token]
         client = Client(connection_id, connection_token, connection, protocol)
@@ -196,9 +191,7 @@ class Hub[TState: UserState]:
         try:
             await client.send_packet(packet)
         except WebSocketDisconnect as e:
-            logger.info(
-                f"Client {client.connection_id} disconnected: {e.code}, {e.reason}"
-            )
+            logger.info(f"Client {client.connection_id} disconnected: {e.code}, {e.reason}")
             await self.remove_client(client)
         except RuntimeError as e:
             if "disconnect message" in str(e):
@@ -216,9 +209,7 @@ class Hub[TState: UserState]:
             tasks.append(self.call_noblock(client, method, *args))
         await asyncio.gather(*tasks)
 
-    async def broadcast_group_call(
-        self, group_id: str, method: str, *args: Any
-    ) -> None:
+    async def broadcast_group_call(self, group_id: str, method: str, *args: Any) -> None:
         tasks = []
         for client in self.groups.get(group_id, []):
             tasks.append(self.call_noblock(client, method, *args))
@@ -241,9 +232,7 @@ class Hub[TState: UserState]:
                     self.tasks.add(task)
                     task.add_done_callback(self.tasks.discard)
         except WebSocketDisconnect as e:
-            logger.info(
-                f"Client {client.connection_id} disconnected: {e.code}, {e.reason}"
-            )
+            logger.info(f"Client {client.connection_id} disconnected: {e.code}, {e.reason}")
         except RuntimeError as e:
             if "disconnect message" in str(e):
                 logger.info(f"Client {client.connection_id} closed the connection.")
@@ -251,12 +240,8 @@ class Hub[TState: UserState]:
                 logger.exception(f"RuntimeError in client {client.connection_id}: {e}")
         except CloseConnection as e:
             if not e.from_client:
-                await client.send_packet(
-                    ClosePacket(error=e.message, allow_reconnect=e.allow_reconnect)
-                )
-            logger.info(
-                f"Client {client.connection_id} closed the connection: {e.message}"
-            )
+                await client.send_packet(ClosePacket(error=e.message, allow_reconnect=e.allow_reconnect))
+            logger.info(f"Client {client.connection_id} closed the connection: {e.message}")
         except Exception:
             logger.exception(f"Error in client {client.connection_id}")
 
@@ -273,15 +258,9 @@ class Hub[TState: UserState]:
                 result = await self.invoke_method(client, packet.target, args)
             except InvokeException as e:
                 error = e.message
-                logger.debug(
-                    f"Client {client.connection_token} call {packet.target}"
-                    f" failed: {error}"
-                )
+                logger.debug(f"Client {client.connection_token} call {packet.target} failed: {error}")
             except Exception:
-                logger.exception(
-                    f"Error invoking method {packet.target} for "
-                    f"client {client.connection_id}"
-                )
+                logger.exception(f"Error invoking method {packet.target} for client {client.connection_id}")
                 error = "Unknown error occured in server"
             if packet.invocation_id is not None:
                 await client.send_packet(
@@ -303,9 +282,7 @@ class Hub[TState: UserState]:
         for name, param in signature.parameters.items():
             if name == "self" or param.annotation is Client:
                 continue
-            call_params.append(
-                client.protocol.validate_object(args.pop(0), param.annotation)
-            )
+            call_params.append(client.protocol.validate_object(args.pop(0), param.annotation))
         return await method_(client, *call_params)
 
     async def call(self, client: Client, method: str, *args: Any) -> Any:

@@ -5,6 +5,7 @@ Revises: e96a649e18ca
 Create Date: 2025-08-22 07:26:59.129564
 
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -38,7 +39,7 @@ def upgrade() -> None:
         sa.Index("ix_email_verifications_user_id", "user_id"),
         sa.Index("ix_email_verifications_email", "email"),
     )
-    
+
     # 创建登录会话表
     op.create_table(
         "login_sessions",

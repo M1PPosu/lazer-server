@@ -29,39 +29,19 @@ def upgrade() -> None:
         "user_login_log",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("user_id", sa.Integer(), nullable=False),
-        sa.Column(
-            "ip_address", sqlmodel.sql.sqltypes.AutoString(length=45), nullable=False
-        ),
-        sa.Column(
-            "user_agent", sqlmodel.sql.sqltypes.AutoString(length=500), nullable=True
-        ),
+        sa.Column("ip_address", sqlmodel.sql.sqltypes.AutoString(length=45), nullable=False),
+        sa.Column("user_agent", sqlmodel.sql.sqltypes.AutoString(length=500), nullable=True),
         sa.Column("login_time", sa.DateTime(), nullable=False),
-        sa.Column(
-            "country_code", sqlmodel.sql.sqltypes.AutoString(length=2), nullable=True
-        ),
-        sa.Column(
-            "country_name", sqlmodel.sql.sqltypes.AutoString(length=100), nullable=True
-        ),
-        sa.Column(
-            "city_name", sqlmodel.sql.sqltypes.AutoString(length=100), nullable=True
-        ),
-        sa.Column(
-            "latitude", sqlmodel.sql.sqltypes.AutoString(length=20), nullable=True
-        ),
-        sa.Column(
-            "longitude", sqlmodel.sql.sqltypes.AutoString(length=20), nullable=True
-        ),
-        sa.Column(
-            "time_zone", sqlmodel.sql.sqltypes.AutoString(length=50), nullable=True
-        ),
+        sa.Column("country_code", sqlmodel.sql.sqltypes.AutoString(length=2), nullable=True),
+        sa.Column("country_name", sqlmodel.sql.sqltypes.AutoString(length=100), nullable=True),
+        sa.Column("city_name", sqlmodel.sql.sqltypes.AutoString(length=100), nullable=True),
+        sa.Column("latitude", sqlmodel.sql.sqltypes.AutoString(length=20), nullable=True),
+        sa.Column("longitude", sqlmodel.sql.sqltypes.AutoString(length=20), nullable=True),
+        sa.Column("time_zone", sqlmodel.sql.sqltypes.AutoString(length=50), nullable=True),
         sa.Column("asn", sa.Integer(), nullable=True),
-        sa.Column(
-            "organization", sqlmodel.sql.sqltypes.AutoString(length=200), nullable=True
-        ),
+        sa.Column("organization", sqlmodel.sql.sqltypes.AutoString(length=200), nullable=True),
         sa.Column("login_success", sa.Boolean(), nullable=False),
-        sa.Column(
-            "login_method", sqlmodel.sql.sqltypes.AutoString(length=50), nullable=False
-        ),
+        sa.Column("login_method", sqlmodel.sql.sqltypes.AutoString(length=50), nullable=False),
         sa.Column("notes", sqlmodel.sql.sqltypes.AutoString(length=500), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -71,9 +51,7 @@ def upgrade() -> None:
         ["ip_address"],
         unique=False,
     )
-    op.create_index(
-        op.f("ix_user_login_log_user_id"), "user_login_log", ["user_id"], unique=False
-    )
+    op.create_index(op.f("ix_user_login_log_user_id"), "user_login_log", ["user_id"], unique=False)
     op.drop_index(op.f("ix_userloginlog_ip_address"), table_name="userloginlog")
     op.drop_index(op.f("ix_userloginlog_user_id"), table_name="userloginlog")
     op.drop_table("userloginlog")
@@ -111,12 +89,8 @@ def downgrade() -> None:
         mysql_default_charset="utf8mb4",
         mysql_engine="InnoDB",
     )
-    op.create_index(
-        op.f("ix_userloginlog_user_id"), "userloginlog", ["user_id"], unique=False
-    )
-    op.create_index(
-        op.f("ix_userloginlog_ip_address"), "userloginlog", ["ip_address"], unique=False
-    )
+    op.create_index(op.f("ix_userloginlog_user_id"), "userloginlog", ["user_id"], unique=False)
+    op.create_index(op.f("ix_userloginlog_ip_address"), "userloginlog", ["ip_address"], unique=False)
     op.drop_index(op.f("ix_user_login_log_user_id"), table_name="user_login_log")
     op.drop_index(op.f("ix_user_login_log_ip_address"), table_name="user_login_log")
     op.drop_table("user_login_log")

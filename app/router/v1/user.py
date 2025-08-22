@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime
 from typing import Literal
 
@@ -13,7 +12,7 @@ from app.service.user_cache_service import get_user_cache_service
 
 from .router import AllStrModel, router
 
-from fastapi import HTTPException, Query
+from fastapi import BackgroundTasks, HTTPException, Query
 from sqlmodel import select
 
 
@@ -49,9 +48,7 @@ class V1User(AllStrModel):
         return f"v1_user:{user_id}"
 
     @classmethod
-    async def from_db(
-        cls, session: Database, db_user: User, ruleset: GameMode | None = None
-    ) -> "V1User":
+    async def from_db(cls, session: Database, db_user: User, ruleset: GameMode | None = None) -> "V1User":
         # 确保 user_id 不为 None
         if db_user.id is None:
             raise ValueError("User ID cannot be None")
@@ -63,9 +60,7 @@ class V1User(AllStrModel):
                 current_statistics = i
                 break
         if current_statistics:
-            statistics = await UserStatisticsResp.from_db(
-                current_statistics, session, db_user.country_code
-            )
+            statistics = await UserStatisticsResp.from_db(current_statistics, session, db_user.country_code)
         else:
             statistics = None
         return cls(
@@ -78,9 +73,7 @@ class V1User(AllStrModel):
             playcount=statistics.play_count if statistics else 0,
             ranked_score=statistics.ranked_score if statistics else 0,
             total_score=statistics.total_score if statistics else 0,
-            pp_rank=statistics.global_rank
-            if statistics and statistics.global_rank
-            else 0,
+            pp_rank=statistics.global_rank if statistics and statistics.global_rank else 0,
             level=current_statistics.level_current if current_statistics else 0,
             pp_raw=statistics.pp if statistics else 0.0,
             accuracy=statistics.hit_accuracy if statistics else 0,
@@ -91,9 +84,7 @@ class V1User(AllStrModel):
             count_rank_a=current_statistics.grade_a if current_statistics else 0,
             country=db_user.country_code,
             total_seconds_played=statistics.play_time if statistics else 0,
-            pp_country_rank=statistics.country_rank
-            if statistics and statistics.country_rank
-            else 0,
+            pp_country_rank=statistics.country_rank if statistics and statistics.country_rank else 0,
             events=[],  # TODO
         )
 
@@ -106,14 +97,11 @@ class V1User(AllStrModel):
 )
 async def get_user(
     session: Database,
+    background_tasks: BackgroundTasks,
     user: str = Query(..., alias="u", description="用户"),
     ruleset_id: int | None = Query(None, alias="m", description="Ruleset ID", ge=0),
-    type: Literal["string", "id"] | None = Query(
-        None, description="用户类型：string 用户名称 / id 用户 ID"
-    ),
-    event_days: int = Query(
-        default=1, ge=1, le=31, description="从现在起所有事件的最大天数"
-    ),
+    type: Literal["string", "id"] | None = Query(None, description="用户类型：string 用户名称 / id 用户 ID"),
+    event_days: int = Query(default=1, ge=1, le=31, description="从现在起所有事件的最大天数"),
 ):
     redis = get_redis()
     cache_service = get_user_cache_service(redis)
@@ -131,9 +119,7 @@ async def get_user(
     if is_id_query:
         try:
             user_id_for_cache = int(user)
-            cached_v1_user = await cache_service.get_v1_user_from_cache(
-                user_id_for_cache, ruleset
-            )
+            cached_v1_user = await cache_service.get_v1_user_from_cache(user_id_for_cache, ruleset)
             if cached_v1_user:
                 return [V1User(**cached_v1_user)]
         except (ValueError, TypeError):
@@ -158,9 +144,7 @@ async def get_user(
         # 异步缓存结果（如果有用户ID）
         if db_user.id is not None:
             user_data = v1_user.model_dump()
-            asyncio.create_task(
-                cache_service.cache_v1_user(user_data, db_user.id, ruleset)
-            )
+            background_tasks.add_task(cache_service.cache_v1_user, user_data, db_user.id, ruleset)
 
         return [v1_user]
 

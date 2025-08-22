@@ -192,22 +192,16 @@ class BeatmapDownloadService:
         healthy_endpoints.sort(key=lambda x: x.priority)
         return healthy_endpoints
 
-    def get_download_url(
-        self, beatmapset_id: int, no_video: bool, is_china: bool
-    ) -> str:
+    def get_download_url(self, beatmapset_id: int, no_video: bool, is_china: bool) -> str:
         """获取下载URL，带负载均衡和故障转移"""
         healthy_endpoints = self.get_healthy_endpoints(is_china)
 
         if not healthy_endpoints:
             # 如果没有健康的端点，记录错误并回退到所有端点中优先级最高的
             logger.error(f"No healthy endpoints available for is_china={is_china}")
-            endpoints = (
-                self.china_endpoints if is_china else self.international_endpoints
-            )
+            endpoints = self.china_endpoints if is_china else self.international_endpoints
             if not endpoints:
-                raise HTTPException(
-                    status_code=503, detail="No download endpoints available"
-                )
+                raise HTTPException(status_code=503, detail="No download endpoints available")
             endpoint = min(endpoints, key=lambda x: x.priority)
         else:
             # 使用第一个健康的端点（已按优先级排序）
@@ -218,9 +212,7 @@ class BeatmapDownloadService:
             video_type = "novideo" if no_video else "full"
             return endpoint.url_template.format(type=video_type, sid=beatmapset_id)
         elif endpoint.name == "Nerinyan":
-            return endpoint.url_template.format(
-                sid=beatmapset_id, no_video="true" if no_video else "false"
-            )
+            return endpoint.url_template.format(sid=beatmapset_id, no_video="true" if no_video else "false")
         elif endpoint.name == "OsuDirect":
             # osu.direct 似乎没有no_video参数，直接使用基础URL
             return endpoint.url_template.format(sid=beatmapset_id)
@@ -239,9 +231,7 @@ class BeatmapDownloadService:
         for name, status in self.endpoint_status.items():
             status_info["endpoints"][name] = {
                 "healthy": status.is_healthy,
-                "last_check": status.last_check.isoformat()
-                if status.last_check
-                else None,
+                "last_check": status.last_check.isoformat() if status.last_check else None,
                 "consecutive_failures": status.consecutive_failures,
                 "last_error": status.last_error,
                 "priority": status.endpoint.priority,

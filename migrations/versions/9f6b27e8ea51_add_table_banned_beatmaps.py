@@ -35,9 +35,7 @@ def upgrade() -> None:
         ["beatmap_id"],
         unique=False,
     )
-    op.create_index(
-        op.f("ix_banned_beatmaps_id"), "banned_beatmaps", ["id"], unique=False
-    )
+    op.create_index(op.f("ix_banned_beatmaps_id"), "banned_beatmaps", ["id"], unique=False)
     # ### end Alembic commands ###
 
 

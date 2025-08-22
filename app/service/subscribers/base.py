@@ -31,9 +31,7 @@ class RedisSubscriber:
 
     async def listen(self):
         while True:
-            message = await self.pubsub.get_message(
-                ignore_subscribe_messages=True, timeout=None
-            )
+            message = await self.pubsub.get_message(ignore_subscribe_messages=True, timeout=None)
             if message is not None and message["type"] == "message":
                 matched_handlers: list[Callable[[str, str], Awaitable[Any]]] = []
 
@@ -53,10 +51,7 @@ class RedisSubscriber:
 
                 if matched_handlers:
                     await asyncio.gather(
-                        *[
-                            handler(message["channel"], message["data"])
-                            for handler in matched_handlers
-                        ]
+                        *[handler(message["channel"], message["data"]) for handler in matched_handlers]
                     )
 
     def start(self):

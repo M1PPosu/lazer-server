@@ -13,9 +13,7 @@ if sys.version_info < (3, 12, 4):
 else:
 
     def evaluate_forwardref(type_: ForwardRef, globalns: Any, localns: Any) -> Any:
-        return cast(Any, type_)._evaluate(
-            globalns, localns, type_params=(), recursive_guard=set()
-        )
+        return cast(Any, type_)._evaluate(globalns, localns, type_params=(), recursive_guard=set())
 
 
 def get_annotation(param: inspect.Parameter, globalns: dict[str, Any]) -> Any:

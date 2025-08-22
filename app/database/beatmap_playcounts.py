@@ -23,15 +23,13 @@ if TYPE_CHECKING:
 
 
 class BeatmapPlaycounts(AsyncAttrs, SQLModel, table=True):
-    __tablename__ = "beatmap_playcounts"  # pyright: ignore[reportAssignmentType]
+    __tablename__: str = "beatmap_playcounts"
 
     id: int | None = Field(
         default=None,
         sa_column=Column(BigInteger, primary_key=True, autoincrement=True),
     )
-    user_id: int = Field(
-        sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True)
-    )
+    user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True))
     beatmap_id: int = Field(foreign_key="beatmaps.id", index=True)
     playcount: int = Field(default=0)
 
@@ -59,9 +57,7 @@ class BeatmapPlaycountsResp(BaseModel):
         )
 
 
-async def process_beatmap_playcount(
-    session: AsyncSession, user_id: int, beatmap_id: int
-) -> None:
+async def process_beatmap_playcount(session: AsyncSession, user_id: int, beatmap_id: int) -> None:
     existing_playcount = (
         await session.exec(
             select(BeatmapPlaycounts).where(
@@ -89,7 +85,5 @@ async def process_beatmap_playcount(
             }
             session.add(playcount_event)
     else:
-        new_playcount = BeatmapPlaycounts(
-            user_id=user_id, beatmap_id=beatmap_id, playcount=1
-        )
+        new_playcount = BeatmapPlaycounts(user_id=user_id, beatmap_id=beatmap_id, playcount=1)
         session.add(new_playcount)

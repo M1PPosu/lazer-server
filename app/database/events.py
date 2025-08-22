@@ -36,17 +36,13 @@ class EventType(str, Enum):
 
 class EventBase(SQLModel):
     id: int = Field(default=None, primary_key=True)
-    created_at: datetime = Field(
-        sa_column=Column(DateTime(timezone=True), default=datetime.now(UTC))
-    )
+    created_at: datetime = Field(sa_column=Column(DateTime(timezone=True), default=datetime.now(UTC)))
     type: EventType
-    event_payload: dict = Field(
-        exclude=True, default_factory=dict, sa_column=Column(JSON)
-    )
+    event_payload: dict = Field(exclude=True, default_factory=dict, sa_column=Column(JSON))
 
 
 class Event(EventBase, table=True):
-    __tablename__ = "user_events"  # pyright: ignore[reportAssignmentType]
+    __tablename__: str = "user_events"
     user_id: int | None = Field(
         default=None,
         sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True),

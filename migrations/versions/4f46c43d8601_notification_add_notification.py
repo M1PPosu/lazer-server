@@ -58,9 +58,7 @@ def upgrade() -> None:
             ),
             nullable=False,
         ),
-        sa.Column(
-            "category", sqlmodel.sql.sqltypes.AutoString(length=255), nullable=False
-        ),
+        sa.Column("category", sqlmodel.sql.sqltypes.AutoString(length=255), nullable=False),
         sa.Column("created_at", sa.DateTime(), nullable=True),
         sa.Column("object_type", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
         sa.Column("object_id", sa.BigInteger(), nullable=True),
@@ -68,16 +66,10 @@ def upgrade() -> None:
         sa.Column("details", sa.JSON(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(
-        op.f("ix_notifications_category"), "notifications", ["category"], unique=False
-    )
+    op.create_index(op.f("ix_notifications_category"), "notifications", ["category"], unique=False)
     op.create_index(op.f("ix_notifications_id"), "notifications", ["id"], unique=False)
-    op.create_index(
-        op.f("ix_notifications_name"), "notifications", ["name"], unique=False
-    )
-    op.create_index(
-        op.f("ix_notifications_object_id"), "notifications", ["object_id"], unique=False
-    )
+    op.create_index(op.f("ix_notifications_name"), "notifications", ["name"], unique=False)
+    op.create_index(op.f("ix_notifications_object_id"), "notifications", ["object_id"], unique=False)
     op.create_index(
         op.f("ix_notifications_object_type"),
         "notifications",
@@ -106,9 +98,7 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(
-        op.f("ix_user_notifications_id"), "user_notifications", ["id"], unique=False
-    )
+    op.create_index(op.f("ix_user_notifications_id"), "user_notifications", ["id"], unique=False)
     op.create_index(
         op.f("ix_user_notifications_is_read"),
         "user_notifications",

@@ -47,17 +47,13 @@ class UserCacheService:
         self._refreshing = False
         self._background_tasks: set = set()
 
-    def _get_v1_user_cache_key(
-        self, user_id: int, ruleset: GameMode | None = None
-    ) -> str:
+    def _get_v1_user_cache_key(self, user_id: int, ruleset: GameMode | None = None) -> str:
         """生成 V1 用户缓存键"""
         if ruleset:
             return f"v1_user:{user_id}:ruleset:{ruleset}"
         return f"v1_user:{user_id}"
 
-    async def get_v1_user_from_cache(
-        self, user_id: int, ruleset: GameMode | None = None
-    ) -> dict | None:
+    async def get_v1_user_from_cache(self, user_id: int, ruleset: GameMode | None = None) -> dict | None:
         """从缓存获取 V1 用户信息"""
         try:
             cache_key = self._get_v1_user_cache_key(user_id, ruleset)
@@ -96,9 +92,7 @@ class UserCacheService:
             keys = await self.redis.keys(pattern)
             if keys:
                 await self.redis.delete(*keys)
-                logger.info(
-                    f"Invalidated {len(keys)} V1 cache entries for user {user_id}"
-                )
+                logger.info(f"Invalidated {len(keys)} V1 cache entries for user {user_id}")
         except Exception as e:
             logger.error(f"Error invalidating V1 user cache: {e}")
 
@@ -126,9 +120,7 @@ class UserCacheService:
         """生成用户谱面集缓存键"""
         return f"user:{user_id}:beatmapsets:{beatmapset_type}:limit:{limit}:offset:{offset}"
 
-    async def get_user_from_cache(
-        self, user_id: int, ruleset: GameMode | None = None
-    ) -> UserResp | None:
+    async def get_user_from_cache(self, user_id: int, ruleset: GameMode | None = None) -> UserResp | None:
         """从缓存获取用户信息"""
         try:
             cache_key = self._get_user_cache_key(user_id, ruleset)
@@ -172,14 +164,10 @@ class UserCacheService:
     ) -> list[ScoreResp] | None:
         """从缓存获取用户成绩"""
         try:
-            cache_key = self._get_user_scores_cache_key(
-                user_id, score_type, mode, limit, offset
-            )
+            cache_key = self._get_user_scores_cache_key(user_id, score_type, mode, limit, offset)
             cached_data = await self.redis.get(cache_key)
             if cached_data:
-                logger.debug(
-                    f"User scores cache hit for user {user_id}, type {score_type}"
-                )
+                logger.debug(f"User scores cache hit for user {user_id}, type {score_type}")
                 data = json.loads(cached_data)
                 return [ScoreResp(**score_data) for score_data in data]
             return None
@@ -201,16 +189,12 @@ class UserCacheService:
         try:
             if expire_seconds is None:
                 expire_seconds = settings.user_scores_cache_expire_seconds
-            cache_key = self._get_user_scores_cache_key(
-                user_id, score_type, mode, limit, offset
-            )
+            cache_key = self._get_user_scores_cache_key(user_id, score_type, mode, limit, offset)
             # 使用 model_dump_json() 而不是 model_dump() + json.dumps()
             scores_json_list = [score.model_dump_json() for score in scores]
             cached_data = f"[{','.join(scores_json_list)}]"
             await self.redis.setex(cache_key, expire_seconds, cached_data)
-            logger.debug(
-                f"Cached user {user_id} scores ({score_type}) for {expire_seconds}s"
-            )
+            logger.debug(f"Cached user {user_id} scores ({score_type}) for {expire_seconds}s")
         except Exception as e:
             logger.error(f"Error caching user scores: {e}")
 
@@ -219,14 +203,10 @@ class UserCacheService:
     ) -> list[Any] | None:
         """从缓存获取用户谱面集"""
         try:
-            cache_key = self._get_user_beatmapsets_cache_key(
-                user_id, beatmapset_type, limit, offset
-            )
+            cache_key = self._get_user_beatmapsets_cache_key(user_id, beatmapset_type, limit, offset)
             cached_data = await self.redis.get(cache_key)
             if cached_data:
-                logger.debug(
-                    f"User beatmapsets cache hit for user {user_id}, type {beatmapset_type}"
-                )
+                logger.debug(f"User beatmapsets cache hit for user {user_id}, type {beatmapset_type}")
                 return json.loads(cached_data)
             return None
         except Exception as e:
@@ -246,9 +226,7 @@ class UserCacheService:
         try:
             if expire_seconds is None:
                 expire_seconds = settings.user_beatmapsets_cache_expire_seconds
-            cache_key = self._get_user_beatmapsets_cache_key(
-                user_id, beatmapset_type, limit, offset
-            )
+            cache_key = self._get_user_beatmapsets_cache_key(user_id, beatmapset_type, limit, offset)
             # 使用 model_dump_json() 处理有 model_dump_json 方法的对象，否则使用 safe_json_dumps
             serialized_beatmapsets = []
             for bms in beatmapsets:
@@ -258,9 +236,7 @@ class UserCacheService:
                     serialized_beatmapsets.append(safe_json_dumps(bms))
             cached_data = f"[{','.join(serialized_beatmapsets)}]"
             await self.redis.setex(cache_key, expire_seconds, cached_data)
-            logger.debug(
-                f"Cached user {user_id} beatmapsets ({beatmapset_type}) for {expire_seconds}s"
-            )
+            logger.debug(f"Cached user {user_id} beatmapsets ({beatmapset_type}) for {expire_seconds}s")
         except Exception as e:
             logger.error(f"Error caching user beatmapsets: {e}")
 
@@ -276,9 +252,7 @@ class UserCacheService:
         except Exception as e:
             logger.error(f"Error invalidating user cache: {e}")
 
-    async def invalidate_user_scores_cache(
-        self, user_id: int, mode: GameMode | None = None
-    ):
+    async def invalidate_user_scores_cache(self, user_id: int, mode: GameMode | None = None):
         """使用户成绩缓存失效"""
         try:
             # 删除用户成绩相关缓存
@@ -287,9 +261,7 @@ class UserCacheService:
             keys = await self.redis.keys(pattern)
             if keys:
                 await self.redis.delete(*keys)
-                logger.info(
-                    f"Invalidated {len(keys)} score cache entries for user {user_id}"
-                )
+                logger.info(f"Invalidated {len(keys)} score cache entries for user {user_id}")
         except Exception as e:
             logger.error(f"Error invalidating user scores cache: {e}")
 
@@ -303,9 +275,7 @@ class UserCacheService:
             logger.info(f"Preloading cache for {len(user_ids)} users")
 
             # 批量获取用户
-            users = (
-                await session.exec(select(User).where(col(User.id).in_(user_ids)))
-            ).all()
+            users = (await session.exec(select(User).where(col(User.id).in_(user_ids)))).all()
 
             # 串行缓存用户信息，避免并发数据库访问问题
             cached_count = 0
@@ -332,9 +302,7 @@ class UserCacheService:
         except Exception as e:
             logger.error(f"Error caching single user {user.id}: {e}")
 
-    async def refresh_user_cache_on_score_submit(
-        self, session: AsyncSession, user_id: int, mode: GameMode
-    ):
+    async def refresh_user_cache_on_score_submit(self, session: AsyncSession, user_id: int, mode: GameMode):
         """成绩提交后刷新用户缓存"""
         try:
             # 使相关缓存失效（包括 v1 和 v2）
@@ -367,24 +335,12 @@ class UserCacheService:
                     continue
 
             return {
-                "cached_users": len(
-                    [
-                        k
-                        for k in user_keys
-                        if ":scores:" not in k and ":beatmapsets:" not in k
-                    ]
-                ),
-                "cached_v1_users": len(
-                    [k for k in v1_user_keys if ":scores:" not in k]
-                ),
+                "cached_users": len([k for k in user_keys if ":scores:" not in k and ":beatmapsets:" not in k]),
+                "cached_v1_users": len([k for k in v1_user_keys if ":scores:" not in k]),
                 "cached_user_scores": len([k for k in user_keys if ":scores:" in k]),
-                "cached_user_beatmapsets": len(
-                    [k for k in user_keys if ":beatmapsets:" in k]
-                ),
+                "cached_user_beatmapsets": len([k for k in user_keys if ":beatmapsets:" in k]),
                 "total_cached_entries": len(all_keys),
-                "estimated_total_size_mb": (
-                    round(total_size / 1024 / 1024, 2) if total_size > 0 else 0
-                ),
+                "estimated_total_size_mb": (round(total_size / 1024 / 1024, 2) if total_size > 0 else 0),
                 "refreshing": self._refreshing,
             }
         except Exception as e:

@@ -46,12 +46,7 @@ class ScoreSubscriber(RedisSubscriber):
             return
         async with with_db() as session:
             score = await session.get(Score, score_id)
-            if (
-                not score
-                or not score.passed
-                or score.room_id is None
-                or score.playlist_item_id is None
-            ):
+            if not score or not score.passed or score.room_id is None or score.playlist_item_id is None:
                 return
             if not self.room_subscriber.get(score.room_id, []):
                 return

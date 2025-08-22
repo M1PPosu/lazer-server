@@ -26,14 +26,12 @@ async def cleanup_stale_online_users() -> tuple[int, int]:
 
         # 检查在线用户的最后活动时间
         current_time = datetime.utcnow()
-        stale_threshold = current_time - timedelta(hours=2)  # 2小时无活动视为过期
+        stale_threshold = current_time - timedelta(hours=2)  # 2小时无活动视为过期  # noqa: F841
 
         # 对于在线用户，我们检查metadata在线标记
         stale_online_users = []
         for user_id in online_users:
-            user_id_str = (
-                user_id.decode() if isinstance(user_id, bytes) else str(user_id)
-            )
+            user_id_str = user_id.decode() if isinstance(user_id, bytes) else str(user_id)
             metadata_key = f"metadata:online:{user_id_str}"
 
             # 如果metadata标记不存在，说明用户已经离线
@@ -42,9 +40,7 @@ async def cleanup_stale_online_users() -> tuple[int, int]:
 
         # 清理过期的在线用户
         if stale_online_users:
-            await _redis_exec(
-                redis_sync.srem, REDIS_ONLINE_USERS_KEY, *stale_online_users
-            )
+            await _redis_exec(redis_sync.srem, REDIS_ONLINE_USERS_KEY, *stale_online_users)
             online_cleaned = len(stale_online_users)
             logger.info(f"Cleaned {online_cleaned} stale online users")
 
@@ -52,22 +48,19 @@ async def cleanup_stale_online_users() -> tuple[int, int]:
         # 只有当用户明确不在任何hub连接中时才移除
         stale_playing_users = []
         for user_id in playing_users:
-            user_id_str = (
-                user_id.decode() if isinstance(user_id, bytes) else str(user_id)
-            )
+            user_id_str = user_id.decode() if isinstance(user_id, bytes) else str(user_id)
             metadata_key = f"metadata:online:{user_id_str}"
-            
+
             # 只有当metadata在线标记完全不存在且用户也不在在线列表中时，
             # 才认为用户真正离线
-            if (not await redis_async.exists(metadata_key) and 
-                user_id_str not in [u.decode() if isinstance(u, bytes) else str(u) for u in online_users]):
+            if not await redis_async.exists(metadata_key) and user_id_str not in [
+                u.decode() if isinstance(u, bytes) else str(u) for u in online_users
+            ]:
                 stale_playing_users.append(user_id_str)
 
         # 清理过期的游玩用户
         if stale_playing_users:
-            await _redis_exec(
-                redis_sync.srem, REDIS_PLAYING_USERS_KEY, *stale_playing_users
-            )
+            await _redis_exec(redis_sync.srem, REDIS_PLAYING_USERS_KEY, *stale_playing_users)
             playing_cleaned = len(stale_playing_users)
             logger.info(f"Cleaned {playing_cleaned} stale playing users")
 

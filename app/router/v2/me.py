@@ -4,8 +4,8 @@ from app.database import User
 from app.database.lazer_user import ALL_INCLUDED
 from app.dependencies import get_current_user
 from app.dependencies.database import Database
-from app.models.score import GameMode
 from app.models.api_me import APIMe
+from app.models.score import GameMode
 
 from .router import router
 

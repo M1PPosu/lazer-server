@@ -13,7 +13,7 @@ from app.database.playlist_best_score import PlaylistBestScore
 from app.database.playlists import Playlist
 from app.database.room import Room
 from app.database.score import Score
-from app.dependencies.database import get_redis, with_db
+from app.dependencies.database import with_db
 from app.log import logger
 from app.models.metadata_hub import (
     TOTAL_SCORE_DISTRIBUTION_BINS,
@@ -44,13 +44,8 @@ class MetadataHub(Hub[MetadataClientState]):
         self._today = datetime.now(UTC).date()
         self._lock = asyncio.Lock()
 
-    def get_daily_challenge_stats(
-        self, daily_challenge_room: int
-    ) -> MultiplayerRoomStats:
-        if (
-            self._daily_challenge_stats is None
-            or self._today != datetime.now(UTC).date()
-        ):
+    def get_daily_challenge_stats(self, daily_challenge_room: int) -> MultiplayerRoomStats:
+        if self._daily_challenge_stats is None or self._today != datetime.now(UTC).date():
             self._daily_challenge_stats = MultiplayerRoomStats(
                 room_id=daily_challenge_room,
                 playlist_item_stats={},
@@ -65,9 +60,7 @@ class MetadataHub(Hub[MetadataClientState]):
     def room_watcher_group(room_id: int) -> str:
         return f"metadata:multiplayer-room-watchers:{room_id}"
 
-    def broadcast_tasks(
-        self, user_id: int, store: MetadataClientState | None
-    ) -> set[Coroutine]:
+    def broadcast_tasks(self, user_id: int, store: MetadataClientState | None) -> set[Coroutine]:
         if store is not None and not store.pushable:
             return set()
         data = store.for_push if store else None
@@ -96,18 +89,15 @@ class MetadataHub(Hub[MetadataClientState]):
 
         # Use centralized offline status management
         from app.service.online_status_manager import online_status_manager
+
         await online_status_manager.set_user_offline(user_id)
 
         if state.pushable:
             await asyncio.gather(*self.broadcast_tasks(user_id, None))
-        
+
         async with with_db() as session:
             async with session.begin():
-                user = (
-                    await session.exec(
-                        select(User).where(User.id == int(state.connection_id))
-                    )
-                ).one()
+                user = (await session.exec(select(User).where(User.id == int(state.connection_id)))).one()
                 user.last_visit = datetime.now(UTC)
                 await session.commit()
 
@@ -124,6 +114,7 @@ class MetadataHub(Hub[MetadataClientState]):
 
         # Use centralized online status management
         from app.service.online_status_manager import online_status_manager
+
         await online_status_manager.set_user_online(user_id, "metadata")
 
         # CRITICAL FIX: Set online status IMMEDIATELY upon connection
@@ -143,20 +134,14 @@ class MetadataHub(Hub[MetadataClientState]):
                 ).all()
                 tasks = []
                 for friend_id in friends:
-                    self.groups.setdefault(
-                        self.friend_presence_watchers_group(friend_id), set()
-                    ).add(client)
-                    if (
-                        friend_state := self.state.get(friend_id)
-                    ) and friend_state.pushable:
+                    self.groups.setdefault(self.friend_presence_watchers_group(friend_id), set()).add(client)
+                    if (friend_state := self.state.get(friend_id)) and friend_state.pushable:
                         tasks.append(
                             self.broadcast_group_call(
                                 self.friend_presence_watchers_group(friend_id),
                                 "FriendPresenceUpdated",
                                 friend_id,
-                                friend_state.for_push
-                                if friend_state.pushable
-                                else None,
+                                friend_state.for_push if friend_state.pushable else None,
                             )
                         )
                 await asyncio.gather(*tasks)
@@ -177,7 +162,7 @@ class MetadataHub(Hub[MetadataClientState]):
                             room_id=daily_challenge_room.id,
                         ),
                     )
-        
+
         # CRITICAL FIX: Immediately broadcast the user's online status to all watchers
         # This ensures the user appears as "currently online" right after connection
         # Similar to the C# implementation's immediate broadcast logic
@@ -185,7 +170,7 @@ class MetadataHub(Hub[MetadataClientState]):
         if online_presence_tasks:
             await asyncio.gather(*online_presence_tasks)
             logger.info(f"[MetadataHub] Broadcasted online status for user {user_id} to watchers")
-        
+
         # Also send the user's own presence update to confirm online status
         await self.call_noblock(
             client,
@@ -213,9 +198,7 @@ class MetadataHub(Hub[MetadataClientState]):
         )
         await asyncio.gather(*tasks)
 
-    async def UpdateActivity(
-        self, client: Client, activity: UserActivity | None
-    ) -> None:
+    async def UpdateActivity(self, client: Client, activity: UserActivity | None) -> None:
         user_id = int(client.connection_id)
         store = self.get_or_create_state(client)
         store.activity = activity
@@ -246,15 +229,16 @@ class MetadataHub(Hub[MetadataClientState]):
             ]
         )
         self.add_to_group(client, self.online_presence_watchers_group())
-        logger.info(f"[MetadataHub] Client {client.connection_id} now watching user presence, sent {len([s for s in self.state.values() if s.pushable])} online users")
+        logger.info(
+            f"[MetadataHub] Client {client.connection_id} now watching user presence, "
+            f"sent {len([s for s in self.state.values() if s.pushable])} online users"
+        )
 
     async def EndWatchingUserPresence(self, client: Client) -> None:
         self.remove_from_group(client, self.online_presence_watchers_group())
 
     async def notify_room_score_processed(self, event: MultiplayerRoomScoreSetEvent):
-        await self.broadcast_group_call(
-            self.room_watcher_group(event.room_id), "MultiplayerRoomScoreSet", event
-        )
+        await self.broadcast_group_call(self.room_watcher_group(event.room_id), "MultiplayerRoomScoreSet", event)
 
     async def BeginWatchingMultiplayerRoom(self, client: Client, room_id: int):
         self.add_to_group(client, self.room_watcher_group(room_id))
@@ -289,9 +273,7 @@ class MetadataHub(Hub[MetadataClientState]):
                             PlaylistBestScore.room_id == stats.room_id,
                             PlaylistBestScore.playlist_id == playlist_id,
                             PlaylistBestScore.score_id > last_processed_score_id,
-                            col(PlaylistBestScore.score).has(
-                                col(Score.passed).is_(True)
-                            ),
+                            col(PlaylistBestScore.score).has(col(Score.passed).is_(True)),
                         )
                     )
                 ).all()
@@ -311,17 +293,13 @@ class MetadataHub(Hub[MetadataClientState]):
                             )
                             totals[bin_index] += 1
 
-                        item.cumulative_score += sum(
-                            score.total_score for score in scores
-                        )
+                        item.cumulative_score += sum(score.total_score for score in scores)
 
                         for j in range(TOTAL_SCORE_DISTRIBUTION_BINS):
                             item.total_score_distribution[j] += totals.get(j, 0)
 
                         if scores:
-                            item.last_processed_score_id = max(
-                                score.score_id for score in scores
-                            )
+                            item.last_processed_score_id = max(score.score_id for score in scores)
 
     async def EndWatchingMultiplayerRoom(self, client: Client, room_id: int):
         self.remove_from_group(client, self.room_watcher_group(room_id))

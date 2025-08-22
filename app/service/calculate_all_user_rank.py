@@ -11,9 +11,7 @@ from app.models.score import GameMode
 from sqlmodel import col, exists, select, update
 
 
-@get_scheduler().scheduled_job(
-    "cron", hour=0, minute=0, second=0, id="calculate_user_rank"
-)
+@get_scheduler().scheduled_job("cron", hour=0, minute=0, second=0, id="calculate_user_rank")
 async def calculate_user_rank(is_today: bool = False):
     today = datetime.now(UTC).date()
     target_date = today if is_today else today - timedelta(days=1)

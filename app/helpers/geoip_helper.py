@@ -55,14 +55,9 @@ class GeoIPHelper:
         - 临时目录退出后自动清理
         """
         if not self.license_key:
-            raise ValueError(
-                "缺少 MaxMind License Key，请传入或设置环境变量 MAXMIND_LICENSE_KEY"
-            )
+            raise ValueError("缺少 MaxMind License Key，请传入或设置环境变量 MAXMIND_LICENSE_KEY")
 
-        url = (
-            f"{BASE_URL}?edition_id={edition_id}&"
-            f"license_key={self.license_key}&suffix=tar.gz"
-        )
+        url = f"{BASE_URL}?edition_id={edition_id}&license_key={self.license_key}&suffix=tar.gz"
 
         with httpx.Client(follow_redirects=True, timeout=self.timeout) as client:
             with client.stream("GET", url) as resp:

@@ -17,7 +17,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 class Notification(SQLModel, table=True):
-    __tablename__ = "notifications"  # pyright: ignore[reportAssignmentType]
+    __tablename__: str = "notifications"
 
     id: int = Field(primary_key=True, index=True, default=None)
     name: NotificationName = Field(index=True)
@@ -30,7 +30,7 @@ class Notification(SQLModel, table=True):
 
 
 class UserNotification(SQLModel, table=True):
-    __tablename__ = "user_notifications"  # pyright: ignore[reportAssignmentType]
+    __tablename__: str = "user_notifications"
     id: int = Field(
         sa_column=Column(
             BigInteger,
@@ -40,9 +40,7 @@ class UserNotification(SQLModel, table=True):
         default=None,
     )
     notification_id: int = Field(index=True, foreign_key="notifications.id")
-    user_id: int = Field(
-        sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True)
-    )
+    user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True))
     is_read: bool = Field(index=True)
 
     notification: Notification = Relationship(sa_relationship_kwargs={"lazy": "joined"})

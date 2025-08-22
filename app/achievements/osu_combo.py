@@ -16,11 +16,7 @@ async def process_combo(
     score: Score,
     beatmap: Beatmap,
 ) -> bool:
-    if (
-        not score.passed
-        or not beatmap.beatmap_status.has_pp()
-        or score.gamemode != GameMode.OSU
-    ):
+    if not score.passed or not beatmap.beatmap_status.has_pp() or score.gamemode != GameMode.OSU:
         return False
     if combo < 1:
         return False

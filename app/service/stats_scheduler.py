@@ -61,26 +61,29 @@ class StatsScheduler:
             try:
                 # 计算下次区间结束时间
                 now = datetime.utcnow()
-                
+
                 # 计算当前区间的结束时间
                 current_minute = (now.minute // 30) * 30
-                current_interval_end = now.replace(minute=current_minute, second=0, microsecond=0) + timedelta(minutes=30)
-                
+                current_interval_end = now.replace(minute=current_minute, second=0, microsecond=0) + timedelta(
+                    minutes=30
+                )
+
                 # 如果当前时间已经超过了当前区间结束时间，说明需要等待下一个区间结束
                 if now >= current_interval_end:
                     current_interval_end += timedelta(minutes=30)
-                
+
                 # 计算需要等待的时间
                 sleep_seconds = (current_interval_end - now).total_seconds()
-                
+
                 # 添加小的缓冲时间，确保区间真正结束后再处理
                 sleep_seconds += 10  # 额外等待10秒
-                
+
                 # 限制等待时间范围
                 sleep_seconds = max(min(sleep_seconds, 32 * 60), 10)
-                
+
                 logger.debug(
-                    f"Next interval finalization in {sleep_seconds / 60:.1f} minutes at {current_interval_end.strftime('%H:%M:%S')}"
+                    f"Next interval finalization in {sleep_seconds / 60:.1f} "
+                    f"minutes at {current_interval_end.strftime('%H:%M:%S')}"
                 )
                 await asyncio.sleep(sleep_seconds)
 
@@ -137,7 +140,8 @@ class StatsScheduler:
             online_cleaned, playing_cleaned = await cleanup_stale_online_users()
             if online_cleaned > 0 or playing_cleaned > 0:
                 logger.info(
-                    f"Initial cleanup: removed {online_cleaned} stale online users, {playing_cleaned} stale playing users"
+                    f"Initial cleanup: removed {online_cleaned} stale online users,"
+                    f" {playing_cleaned} stale playing users"
                 )
 
             await refresh_redis_key_expiry()

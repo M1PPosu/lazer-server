@@ -19,17 +19,11 @@ class Achievement(NamedTuple):
 
     @property
     def url(self) -> str:
-        return (
-            self.medal_url
-            or f"https://assets.ppy.sh/medals/client/{self.assets_id}.png"
-        )
+        return self.medal_url or f"https://assets.ppy.sh/medals/client/{self.assets_id}.png"
 
     @property
     def url2x(self) -> str:
-        return (
-            self.medal_url2x
-            or f"https://assets.ppy.sh/medals/client/{self.assets_id}@2x.png"
-        )
+        return self.medal_url2x or f"https://assets.ppy.sh/medals/client/{self.assets_id}@2x.png"
 
 
 MedalProcessor = Callable[[AsyncSession, "Score", "Beatmap"], Awaitable[bool]]

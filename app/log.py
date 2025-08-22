@@ -46,14 +46,10 @@ class InterceptHandler(logging.Handler):
             color = True
         else:
             color = False
-        logger.opt(depth=depth, exception=record.exc_info, colors=color).log(
-            level, message
-        )
+        logger.opt(depth=depth, exception=record.exc_info, colors=color).log(level, message)
 
     def _format_uvicorn_error_log(self, message: str) -> str:
-        websocket_pattern = (
-            r'(\d+\.\d+\.\d+\.\d+:\d+)\s*-\s*"WebSocket\s+([^"]+)"\s+([\w\[\]]+)'
-        )
+        websocket_pattern = r'(\d+\.\d+\.\d+\.\d+:\d+)\s*-\s*"WebSocket\s+([^"]+)"\s+([\w\[\]]+)'
         websocket_match = re.search(websocket_pattern, message)
 
         if websocket_match:
@@ -64,14 +60,8 @@ class InterceptHandler(logging.Handler):
                 "[accepted]": "<green>[accepted]</green>",
                 "403": "<red>403 [rejected]</red>",
             }
-            colored_status = status_colors.get(
-                status.lower(), f"<white>{status}</white>"
-            )
-            return (
-                f'{colored_ip} - "<bold><magenta>WebSocket</magenta> '
-                f'{path}</bold>" '
-                f"{colored_status}"
-            )
+            colored_status = status_colors.get(status.lower(), f"<white>{status}</white>")
+            return f'{colored_ip} - "<bold><magenta>WebSocket</magenta> {path}</bold>" {colored_status}'
         else:
             return message
 
@@ -121,9 +111,7 @@ logger.remove()
 logger.add(
     stdout,
     colorize=True,
-    format=(
-        "<green>{time:YYYY-MM-DD HH:mm:ss}</green> [<level>{level}</level>] | {message}"
-    ),
+    format=("<green>{time:YYYY-MM-DD HH:mm:ss}</green> [<level>{level}</level>] | {message}"),
     level=settings.log_level,
     diagnose=settings.debug,
 )

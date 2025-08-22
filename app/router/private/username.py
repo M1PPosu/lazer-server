@@ -35,10 +35,7 @@ async def user_rename(
     返回:
     - 成功: None
     """
-    assert current_user is not None
-    samename_user = (
-        await session.exec(select(User).where(User.username == new_name))
-    ).first()
+    samename_user = (await session.exec(select(User).where(User.username == new_name))).first()
     if samename_user:
         raise HTTPException(409, "Username Exisits")
     errors = validate_username(new_name)

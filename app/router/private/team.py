@@ -40,16 +40,13 @@ async def create_team(
     支持的图片格式: PNG、JPEG、GIF
     """
     user_id = current_user.id
-    assert user_id
     if (await current_user.awaitable_attrs.team_membership) is not None:
         raise HTTPException(status_code=403, detail="You are already in a team")
 
     is_existed = (await session.exec(select(exists()).where(Team.name == name))).first()
     if is_existed:
         raise HTTPException(status_code=409, detail="Name already exists")
-    is_existed = (
-        await session.exec(select(exists()).where(Team.short_name == short_name))
-    ).first()
+    is_existed = (await session.exec(select(exists()).where(Team.short_name == short_name))).first()
     if is_existed:
         raise HTTPException(status_code=409, detail="Short name already exists")
 
@@ -101,7 +98,6 @@ async def update_team(
     """
     team = await session.get(Team, team_id)
     user_id = current_user.id
-    assert user_id
     if not team:
         raise HTTPException(status_code=404, detail="Team not found")
     if team.leader_id != user_id:
@@ -110,9 +106,7 @@ async def update_team(
     is_existed = (await session.exec(select(exists()).where(Team.name == name))).first()
     if is_existed:
         raise HTTPException(status_code=409, detail="Name already exists")
-    is_existed = (
-        await session.exec(select(exists()).where(Team.short_name == short_name))
-    ).first()
+    is_existed = (await session.exec(select(exists()).where(Team.short_name == short_name))).first()
     if is_existed:
         raise HTTPException(status_code=409, detail="Short name already exists")
 
@@ -132,20 +126,12 @@ async def update_team(
         team.cover_url = await storage.get_file_url(storage_path)
 
     if leader_id is not None:
-        if not (
-            await session.exec(select(exists()).where(User.id == leader_id))
-        ).first():
+        if not (await session.exec(select(exists()).where(User.id == leader_id))).first():
             raise HTTPException(status_code=404, detail="Leader not found")
         if not (
-            await session.exec(
-                select(TeamMember).where(
-                    TeamMember.user_id == leader_id, TeamMember.team_id == team.id
-                )
-            )
+            await session.exec(select(TeamMember).where(TeamMember.user_id == leader_id, TeamMember.team_id == team.id))
         ).first():
-            raise HTTPException(
-                status_code=404, detail="Leader is not a member of the team"
-            )
+            raise HTTPException(status_code=404, detail="Leader is not a member of the team")
         team.leader_id = leader_id
 
     await session.commit()
@@ -166,9 +152,7 @@ async def delete_team(
     if team.leader_id != current_user.id:
         raise HTTPException(status_code=403, detail="You are not the team leader")
 
-    team_members = await session.exec(
-        select(TeamMember).where(TeamMember.team_id == team_id)
-    )
+    team_members = await session.exec(select(TeamMember).where(TeamMember.team_id == team_id))
     for member in team_members:
         await session.delete(member)
 
@@ -186,15 +170,10 @@ async def get_team(
     session: Database,
     team_id: int = Path(..., description="战队 ID"),
 ):
-    members = (
-        await session.exec(select(TeamMember).where(TeamMember.team_id == team_id))
-    ).all()
+    members = (await session.exec(select(TeamMember).where(TeamMember.team_id == team_id))).all()
     return TeamQueryResp(
         team=members[0].team,
-        members=[
-            await UserResp.from_db(m.user, session, include=BASE_INCLUDES)
-            for m in members
-        ],
+        members=[await UserResp.from_db(m.user, session, include=BASE_INCLUDES) for m in members],
     )
 
 
@@ -213,15 +192,11 @@ async def request_join_team(
 
     if (
         await session.exec(
-            select(exists()).where(
-                TeamRequest.team_id == team_id, TeamRequest.user_id == current_user.id
-            )
+            select(exists()).where(TeamRequest.team_id == team_id, TeamRequest.user_id == current_user.id)
         )
     ).first():
         raise HTTPException(status_code=409, detail="Join request already exists")
-    team_request = TeamRequest(
-        user_id=current_user.id, team_id=team_id, requested_at=datetime.now(UTC)
-    )
+    team_request = TeamRequest(user_id=current_user.id, team_id=team_id, requested_at=datetime.now(UTC))
     session.add(team_request)
     await session.commit()
     await session.refresh(team_request)
@@ -229,9 +204,7 @@ async def request_join_team(
 
 
 @router.post("/team/{team_id}/{user_id}/request", name="接受加入请求", status_code=204)
-@router.delete(
-    "/team/{team_id}/{user_id}/request", name="拒绝加入请求", status_code=204
-)
+@router.delete("/team/{team_id}/{user_id}/request", name="拒绝加入请求", status_code=204)
 async def handle_request(
     req: Request,
     session: Database,
@@ -247,11 +220,7 @@ async def handle_request(
         raise HTTPException(status_code=403, detail="You are not the team leader")
 
     team_request = (
-        await session.exec(
-            select(TeamRequest).where(
-                TeamRequest.team_id == team_id, TeamRequest.user_id == user_id
-            )
-        )
+        await session.exec(select(TeamRequest).where(TeamRequest.team_id == team_id, TeamRequest.user_id == user_id))
     ).first()
     if not team_request:
         raise HTTPException(status_code=404, detail="Join request not found")
@@ -261,16 +230,10 @@ async def handle_request(
         raise HTTPException(status_code=404, detail="User not found")
 
     if req.method == "POST":
-        if (
-            await session.exec(select(exists()).where(TeamMember.user_id == user_id))
-        ).first():
-            raise HTTPException(
-                status_code=409, detail="User is already a member of the team"
-            )
+        if (await session.exec(select(exists()).where(TeamMember.user_id == user_id))).first():
+            raise HTTPException(status_code=409, detail="User is already a member of the team")
 
-        session.add(
-            TeamMember(user_id=user_id, team_id=team_id, joined_at=datetime.now(UTC))
-        )
+        session.add(TeamMember(user_id=user_id, team_id=team_id, joined_at=datetime.now(UTC)))
 
         await server.new_private_notification(TeamApplicationAccept.init(team_request))
     else:
@@ -294,19 +257,13 @@ async def kick_member(
         raise HTTPException(status_code=403, detail="You are not the team leader")
 
     team_member = (
-        await session.exec(
-            select(TeamMember).where(
-                TeamMember.team_id == team_id, TeamMember.user_id == user_id
-            )
-        )
+        await session.exec(select(TeamMember).where(TeamMember.team_id == team_id, TeamMember.user_id == user_id))
     ).first()
     if not team_member:
         raise HTTPException(status_code=404, detail="User is not a member of the team")
 
     if team.leader_id == current_user.id:
-        raise HTTPException(
-            status_code=403, detail="You cannot leave because you are the team leader"
-        )
+        raise HTTPException(status_code=403, detail="You cannot leave because you are the team leader")
 
     await session.delete(team_member)
     await session.commit()

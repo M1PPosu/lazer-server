@@ -33,6 +33,4 @@ class BackgroundsResp(BaseModel):
     description="获取当前季节背景图列表。",
 )
 async def get_seasonal_backgrounds():
-    return BackgroundsResp(
-        backgrounds=[Background(url=url) for url in settings.seasonal_backgrounds]
-    )
+    return BackgroundsResp(backgrounds=[Background(url=url) for url in settings.seasonal_backgrounds])

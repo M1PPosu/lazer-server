@@ -114,15 +114,11 @@ def upgrade() -> None:
         sa.Column("nominations_current", sa.Integer(), nullable=False),
         sa.Column("hype_current", sa.Integer(), nullable=False),
         sa.Column("hype_required", sa.Integer(), nullable=False),
-        sa.Column(
-            "availability_info", sqlmodel.sql.sqltypes.AutoString(), nullable=True
-        ),
+        sa.Column("availability_info", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
         sa.Column("download_disabled", sa.Boolean(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(
-        op.f("ix_beatmapsets_artist"), "beatmapsets", ["artist"], unique=False
-    )
+    op.create_index(op.f("ix_beatmapsets_artist"), "beatmapsets", ["artist"], unique=False)
     op.create_index(
         op.f("ix_beatmapsets_artist_unicode"),
         "beatmapsets",
@@ -133,18 +129,14 @@ def upgrade() -> None:
     op.create_table(
         "lazer_users",
         sa.Column("avatar_url", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-        sa.Column(
-            "country_code", sqlmodel.sql.sqltypes.AutoString(length=2), nullable=False
-        ),
+        sa.Column("country_code", sqlmodel.sql.sqltypes.AutoString(length=2), nullable=False),
         sa.Column("is_active", sa.Boolean(), nullable=False),
         sa.Column("is_bot", sa.Boolean(), nullable=False),
         sa.Column("is_supporter", sa.Boolean(), nullable=False),
         sa.Column("last_visit", sa.DateTime(timezone=True), nullable=True),
         sa.Column("pm_friends_only", sa.Boolean(), nullable=False),
         sa.Column("profile_colour", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-        sa.Column(
-            "username", sqlmodel.sql.sqltypes.AutoString(length=32), nullable=False
-        ),
+        sa.Column("username", sqlmodel.sql.sqltypes.AutoString(length=32), nullable=False),
         sa.Column("page", sa.JSON(), nullable=True),
         sa.Column("previous_usernames", sa.JSON(), nullable=True),
         sa.Column("support_level", sa.Integer(), nullable=False),
@@ -179,13 +171,9 @@ def upgrade() -> None:
         sa.Column("is_qat", sa.Boolean(), nullable=False),
         sa.Column("is_bng", sa.Boolean(), nullable=False),
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
-        sa.Column(
-            "email", sqlmodel.sql.sqltypes.AutoString(length=254), nullable=False
-        ),
+        sa.Column("email", sqlmodel.sql.sqltypes.AutoString(length=254), nullable=False),
         sa.Column("priv", sa.Integer(), nullable=False),
-        sa.Column(
-            "pw_bcrypt", sqlmodel.sql.sqltypes.AutoString(length=60), nullable=False
-        ),
+        sa.Column("pw_bcrypt", sqlmodel.sql.sqltypes.AutoString(length=60), nullable=False),
         sa.Column("silence_end_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("donor_end_at", sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint("id"),
@@ -198,19 +186,13 @@ def upgrade() -> None:
     )
     op.create_index(op.f("ix_lazer_users_email"), "lazer_users", ["email"], unique=True)
     op.create_index(op.f("ix_lazer_users_id"), "lazer_users", ["id"], unique=False)
-    op.create_index(
-        op.f("ix_lazer_users_username"), "lazer_users", ["username"], unique=True
-    )
+    op.create_index(op.f("ix_lazer_users_username"), "lazer_users", ["username"], unique=True)
     op.create_table(
         "teams",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("name", sqlmodel.sql.sqltypes.AutoString(length=100), nullable=False),
-        sa.Column(
-            "short_name", sqlmodel.sql.sqltypes.AutoString(length=10), nullable=False
-        ),
-        sa.Column(
-            "flag_url", sqlmodel.sql.sqltypes.AutoString(length=500), nullable=True
-        ),
+        sa.Column("short_name", sqlmodel.sql.sqltypes.AutoString(length=10), nullable=False),
+        sa.Column("flag_url", sqlmodel.sql.sqltypes.AutoString(length=500), nullable=True),
         sa.Column("created_at", sa.DateTime(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -263,12 +245,8 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(
-        op.f("ix_beatmaps_beatmapset_id"), "beatmaps", ["beatmapset_id"], unique=False
-    )
-    op.create_index(
-        op.f("ix_beatmaps_checksum"), "beatmaps", ["checksum"], unique=False
-    )
+    op.create_index(op.f("ix_beatmaps_beatmapset_id"), "beatmaps", ["beatmapset_id"], unique=False)
+    op.create_index(op.f("ix_beatmaps_checksum"), "beatmaps", ["checksum"], unique=False)
     op.create_index(op.f("ix_beatmaps_id"), "beatmaps", ["id"], unique=False)
     op.create_table(
         "daily_challenge_stats",
@@ -409,27 +387,19 @@ def upgrade() -> None:
         ["user_id"],
         unique=False,
     )
-    op.create_index(
-        op.f("ix_monthly_playcounts_year"), "monthly_playcounts", ["year"], unique=False
-    )
+    op.create_index(op.f("ix_monthly_playcounts_year"), "monthly_playcounts", ["year"], unique=False)
     op.create_table(
         "oauth_tokens",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("user_id", sa.BigInteger(), nullable=True),
-        sa.Column(
-            "access_token", sqlmodel.sql.sqltypes.AutoString(length=500), nullable=False
-        ),
+        sa.Column("access_token", sqlmodel.sql.sqltypes.AutoString(length=500), nullable=False),
         sa.Column(
             "refresh_token",
             sqlmodel.sql.sqltypes.AutoString(length=500),
             nullable=False,
         ),
-        sa.Column(
-            "token_type", sqlmodel.sql.sqltypes.AutoString(length=20), nullable=False
-        ),
-        sa.Column(
-            "scope", sqlmodel.sql.sqltypes.AutoString(length=100), nullable=False
-        ),
+        sa.Column("token_type", sqlmodel.sql.sqltypes.AutoString(length=20), nullable=False),
+        sa.Column("scope", sqlmodel.sql.sqltypes.AutoString(length=100), nullable=False),
         sa.Column("expires_at", sa.DateTime(), nullable=True),
         sa.Column("created_at", sa.DateTime(), nullable=True),
         sa.ForeignKeyConstraint(
@@ -441,17 +411,13 @@ def upgrade() -> None:
         sa.UniqueConstraint("refresh_token"),
     )
     op.create_index(op.f("ix_oauth_tokens_id"), "oauth_tokens", ["id"], unique=False)
-    op.create_index(
-        op.f("ix_oauth_tokens_user_id"), "oauth_tokens", ["user_id"], unique=False
-    )
+    op.create_index(op.f("ix_oauth_tokens_user_id"), "oauth_tokens", ["user_id"], unique=False)
     op.create_table(
         "relationship",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
         sa.Column("user_id", sa.BigInteger(), nullable=True),
         sa.Column("target_id", sa.BigInteger(), nullable=True),
-        sa.Column(
-            "type", sa.Enum("FOLLOW", "BLOCK", name="relationshiptype"), nullable=False
-        ),
+        sa.Column("type", sa.Enum("FOLLOW", "BLOCK", name="relationshiptype"), nullable=False),
         sa.ForeignKeyConstraint(
             ["target_id"],
             ["lazer_users.id"],
@@ -462,12 +428,8 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(
-        op.f("ix_relationship_target_id"), "relationship", ["target_id"], unique=False
-    )
-    op.create_index(
-        op.f("ix_relationship_user_id"), "relationship", ["user_id"], unique=False
-    )
+    op.create_index(op.f("ix_relationship_target_id"), "relationship", ["target_id"], unique=False)
+    op.create_index(op.f("ix_relationship_user_id"), "relationship", ["user_id"], unique=False)
     op.create_table(
         "rooms",
         sa.Column("name", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
@@ -495,16 +457,12 @@ def upgrade() -> None:
         ),
         sa.Column(
             "queue_mode",
-            sa.Enum(
-                "HOST_ONLY", "ALL_PLAYERS", "ALL_PLAYERS_ROUND_ROBIN", name="queuemode"
-            ),
+            sa.Enum("HOST_ONLY", "ALL_PLAYERS", "ALL_PLAYERS_ROUND_ROBIN", name="queuemode"),
             nullable=False,
         ),
         sa.Column("auto_skip", sa.Boolean(), nullable=False),
         sa.Column("auto_start_duration", sa.Integer(), nullable=False),
-        sa.Column(
-            "status", sa.Enum("IDLE", "PLAYING", name="roomstatus"), nullable=False
-        ),
+        sa.Column("status", sa.Enum("IDLE", "PLAYING", name="roomstatus"), nullable=False),
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("host_id", sa.BigInteger(), nullable=True),
         sa.ForeignKeyConstraint(
@@ -559,9 +517,7 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(
-        op.f("ix_user_account_history_id"), "user_account_history", ["id"], unique=False
-    )
+    op.create_index(op.f("ix_user_account_history_id"), "user_account_history", ["id"], unique=False)
     op.create_index(
         op.f("ix_user_account_history_user_id"),
         "user_account_history",
@@ -654,9 +610,7 @@ def upgrade() -> None:
         ["event_type"],
         unique=False,
     )
-    op.create_index(
-        op.f("ix_multiplayer_events_id"), "multiplayer_events", ["id"], unique=False
-    )
+    op.create_index(op.f("ix_multiplayer_events_id"), "multiplayer_events", ["id"], unique=False)
     op.create_index(
         op.f("ix_multiplayer_events_room_id"),
         "multiplayer_events",
@@ -714,12 +668,8 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("db_id"),
     )
-    op.create_index(
-        op.f("ix_room_playlists_db_id"), "room_playlists", ["db_id"], unique=False
-    )
-    op.create_index(
-        op.f("ix_room_playlists_id"), "room_playlists", ["id"], unique=False
-    )
+    op.create_index(op.f("ix_room_playlists_db_id"), "room_playlists", ["db_id"], unique=False)
+    op.create_index(op.f("ix_room_playlists_id"), "room_playlists", ["id"], unique=False)
     op.create_table(
         "score_tokens",
         sa.Column("score_id", sa.BigInteger(), nullable=True),
@@ -754,9 +704,7 @@ def upgrade() -> None:
     op.create_table(
         "scores",
         sa.Column("accuracy", sa.Float(), nullable=False),
-        sa.Column(
-            "map_md5", sqlmodel.sql.sqltypes.AutoString(length=32), nullable=False
-        ),
+        sa.Column("map_md5", sqlmodel.sql.sqltypes.AutoString(length=32), nullable=False),
         sa.Column("build_id", sa.Integer(), nullable=True),
         sa.Column("classic_total_score", sa.BigInteger(), nullable=True),
         sa.Column("ended_at", sa.DateTime(), nullable=True),
@@ -805,9 +753,7 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(
-        op.f("ix_scores_beatmap_id"), "scores", ["beatmap_id"], unique=False
-    )
+    op.create_index(op.f("ix_scores_beatmap_id"), "scores", ["beatmap_id"], unique=False)
     op.create_index(op.f("ix_scores_gamemode"), "scores", ["gamemode"], unique=False)
     op.create_index(op.f("ix_scores_map_md5"), "scores", ["map_md5"], unique=False)
     op.create_index(op.f("ix_scores_user_id"), "scores", ["user_id"], unique=False)
@@ -837,15 +783,9 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("score_id"),
     )
-    op.create_index(
-        op.f("ix_best_scores_beatmap_id"), "best_scores", ["beatmap_id"], unique=False
-    )
-    op.create_index(
-        op.f("ix_best_scores_gamemode"), "best_scores", ["gamemode"], unique=False
-    )
-    op.create_index(
-        op.f("ix_best_scores_user_id"), "best_scores", ["user_id"], unique=False
-    )
+    op.create_index(op.f("ix_best_scores_beatmap_id"), "best_scores", ["beatmap_id"], unique=False)
+    op.create_index(op.f("ix_best_scores_gamemode"), "best_scores", ["gamemode"], unique=False)
+    op.create_index(op.f("ix_best_scores_user_id"), "best_scores", ["user_id"], unique=False)
     op.create_table(
         "playlist_best_scores",
         sa.Column("user_id", sa.BigInteger(), nullable=True),
@@ -945,9 +885,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Downgrade schema."""
     # ### commands auto generated by Alembic - please adjust! ###
-    op.drop_index(
-        op.f("ix_total_score_best_scores_user_id"), table_name="total_score_best_scores"
-    )
+    op.drop_index(op.f("ix_total_score_best_scores_user_id"), table_name="total_score_best_scores")
     op.drop_index(
         op.f("ix_total_score_best_scores_gamemode"),
         table_name="total_score_best_scores",
@@ -957,15 +895,9 @@ def downgrade() -> None:
         table_name="total_score_best_scores",
     )
     op.drop_table("total_score_best_scores")
-    op.drop_index(
-        op.f("ix_playlist_best_scores_user_id"), table_name="playlist_best_scores"
-    )
-    op.drop_index(
-        op.f("ix_playlist_best_scores_room_id"), table_name="playlist_best_scores"
-    )
-    op.drop_index(
-        op.f("ix_playlist_best_scores_playlist_id"), table_name="playlist_best_scores"
-    )
+    op.drop_index(op.f("ix_playlist_best_scores_user_id"), table_name="playlist_best_scores")
+    op.drop_index(op.f("ix_playlist_best_scores_room_id"), table_name="playlist_best_scores")
+    op.drop_index(op.f("ix_playlist_best_scores_playlist_id"), table_name="playlist_best_scores")
     op.drop_table("playlist_best_scores")
     op.drop_index(op.f("ix_best_scores_user_id"), table_name="best_scores")
     op.drop_index(op.f("ix_best_scores_gamemode"), table_name="best_scores")
@@ -983,34 +915,18 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_room_playlists_db_id"), table_name="room_playlists")
     op.drop_table("room_playlists")
     op.drop_table("room_participated_users")
-    op.drop_index(
-        op.f("ix_multiplayer_events_user_id"), table_name="multiplayer_events"
-    )
-    op.drop_index(
-        op.f("ix_multiplayer_events_room_id"), table_name="multiplayer_events"
-    )
+    op.drop_index(op.f("ix_multiplayer_events_user_id"), table_name="multiplayer_events")
+    op.drop_index(op.f("ix_multiplayer_events_room_id"), table_name="multiplayer_events")
     op.drop_index(op.f("ix_multiplayer_events_id"), table_name="multiplayer_events")
-    op.drop_index(
-        op.f("ix_multiplayer_events_event_type"), table_name="multiplayer_events"
-    )
+    op.drop_index(op.f("ix_multiplayer_events_event_type"), table_name="multiplayer_events")
     op.drop_table("multiplayer_events")
-    op.drop_index(
-        op.f("ix_item_attempts_count_user_id"), table_name="item_attempts_count"
-    )
-    op.drop_index(
-        op.f("ix_item_attempts_count_room_id"), table_name="item_attempts_count"
-    )
+    op.drop_index(op.f("ix_item_attempts_count_user_id"), table_name="item_attempts_count")
+    op.drop_index(op.f("ix_item_attempts_count_room_id"), table_name="item_attempts_count")
     op.drop_table("item_attempts_count")
-    op.drop_index(
-        op.f("ix_beatmap_playcounts_user_id"), table_name="beatmap_playcounts"
-    )
-    op.drop_index(
-        op.f("ix_beatmap_playcounts_beatmap_id"), table_name="beatmap_playcounts"
-    )
+    op.drop_index(op.f("ix_beatmap_playcounts_user_id"), table_name="beatmap_playcounts")
+    op.drop_index(op.f("ix_beatmap_playcounts_beatmap_id"), table_name="beatmap_playcounts")
     op.drop_table("beatmap_playcounts")
-    op.drop_index(
-        op.f("ix_user_account_history_user_id"), table_name="user_account_history"
-    )
+    op.drop_index(op.f("ix_user_account_history_user_id"), table_name="user_account_history")
     op.drop_index(op.f("ix_user_account_history_id"), table_name="user_account_history")
     op.drop_table("user_account_history")
     op.drop_index(op.f("ix_team_members_id"), table_name="team_members")
@@ -1027,29 +943,17 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_oauth_tokens_id"), table_name="oauth_tokens")
     op.drop_table("oauth_tokens")
     op.drop_index(op.f("ix_monthly_playcounts_year"), table_name="monthly_playcounts")
-    op.drop_index(
-        op.f("ix_monthly_playcounts_user_id"), table_name="monthly_playcounts"
-    )
+    op.drop_index(op.f("ix_monthly_playcounts_user_id"), table_name="monthly_playcounts")
     op.drop_index(op.f("ix_monthly_playcounts_month"), table_name="monthly_playcounts")
     op.drop_table("monthly_playcounts")
-    op.drop_index(
-        op.f("ix_lazer_user_statistics_user_id"), table_name="lazer_user_statistics"
-    )
+    op.drop_index(op.f("ix_lazer_user_statistics_user_id"), table_name="lazer_user_statistics")
     op.drop_table("lazer_user_statistics")
-    op.drop_index(
-        op.f("ix_lazer_user_achievements_id"), table_name="lazer_user_achievements"
-    )
+    op.drop_index(op.f("ix_lazer_user_achievements_id"), table_name="lazer_user_achievements")
     op.drop_table("lazer_user_achievements")
-    op.drop_index(
-        op.f("ix_favourite_beatmapset_user_id"), table_name="favourite_beatmapset"
-    )
-    op.drop_index(
-        op.f("ix_favourite_beatmapset_beatmapset_id"), table_name="favourite_beatmapset"
-    )
+    op.drop_index(op.f("ix_favourite_beatmapset_user_id"), table_name="favourite_beatmapset")
+    op.drop_index(op.f("ix_favourite_beatmapset_beatmapset_id"), table_name="favourite_beatmapset")
     op.drop_table("favourite_beatmapset")
-    op.drop_index(
-        op.f("ix_daily_challenge_stats_user_id"), table_name="daily_challenge_stats"
-    )
+    op.drop_index(op.f("ix_daily_challenge_stats_user_id"), table_name="daily_challenge_stats")
     op.drop_table("daily_challenge_stats")
     op.drop_index(op.f("ix_beatmaps_id"), table_name="beatmaps")
     op.drop_index(op.f("ix_beatmaps_checksum"), table_name="beatmaps")

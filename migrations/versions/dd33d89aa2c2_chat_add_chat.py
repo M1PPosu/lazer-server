@@ -61,12 +61,8 @@ def upgrade() -> None:
         ["description"],
         unique=False,
     )
-    op.create_index(
-        op.f("ix_chat_channels_name"), "chat_channels", ["name"], unique=False
-    )
-    op.create_index(
-        op.f("ix_chat_channels_type"), "chat_channels", ["type"], unique=False
-    )
+    op.create_index(op.f("ix_chat_channels_name"), "chat_channels", ["name"], unique=False)
+    op.create_index(op.f("ix_chat_channels_type"), "chat_channels", ["type"], unique=False)
     op.create_table(
         "chat_messages",
         sa.Column("channel_id", sa.Integer(), nullable=False),
@@ -102,15 +98,9 @@ def upgrade() -> None:
         ["message_id"],
         unique=False,
     )
-    op.create_index(
-        op.f("ix_chat_messages_sender_id"), "chat_messages", ["sender_id"], unique=False
-    )
-    op.create_index(
-        op.f("ix_chat_messages_timestamp"), "chat_messages", ["timestamp"], unique=False
-    )
-    op.create_index(
-        op.f("ix_chat_messages_type"), "chat_messages", ["type"], unique=False
-    )
+    op.create_index(op.f("ix_chat_messages_sender_id"), "chat_messages", ["sender_id"], unique=False)
+    op.create_index(op.f("ix_chat_messages_timestamp"), "chat_messages", ["timestamp"], unique=False)
+    op.create_index(op.f("ix_chat_messages_type"), "chat_messages", ["type"], unique=False)
     op.create_table(
         "chat_silence_users",
         sa.Column("id", sa.Integer(), nullable=False),

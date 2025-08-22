@@ -41,33 +41,19 @@ class KeepAliveResp(BaseModel):
 )
 async def keep_alive(
     session: Database,
-    history_since: int | None = Query(
-        None, description="获取自此禁言 ID 之后的禁言记录"
-    ),
+    history_since: int | None = Query(None, description="获取自此禁言 ID 之后的禁言记录"),
     since: int | None = Query(None, description="获取自此消息 ID 之后的禁言记录"),
     current_user: User = Security(get_current_user, scopes=["chat.read"]),
 ):
     resp = KeepAliveResp()
     if history_since:
-        silences = (
-            await session.exec(
-                select(SilenceUser).where(col(SilenceUser.id) > history_since)
-            )
-        ).all()
+        silences = (await session.exec(select(SilenceUser).where(col(SilenceUser.id) > history_since))).all()
         resp.silences.extend([UserSilenceResp.from_db(silence) for silence in silences])
     elif since:
         msg = await session.get(ChatMessage, since)
         if msg:
-            silences = (
-                await session.exec(
-                    select(SilenceUser).where(
-                        col(SilenceUser.banned_at) > msg.timestamp
-                    )
-                )
-            ).all()
-            resp.silences.extend(
-                [UserSilenceResp.from_db(silence) for silence in silences]
-            )
+            silences = (await session.exec(select(SilenceUser).where(col(SilenceUser.banned_at) > msg.timestamp))).all()
+            resp.silences.extend([UserSilenceResp.from_db(silence) for silence in silences])
 
     return resp
 
@@ -93,15 +79,9 @@ async def send_message(
 ):
     # 使用明确的查询来获取 channel，避免延迟加载
     if channel.isdigit():
-        db_channel = (
-            await session.exec(
-                select(ChatChannel).where(ChatChannel.channel_id == int(channel))
-            )
-        ).first()
+        db_channel = (await session.exec(select(ChatChannel).where(ChatChannel.channel_id == int(channel)))).first()
     else:
-        db_channel = (
-            await session.exec(select(ChatChannel).where(ChatChannel.name == channel))
-        ).first()
+        db_channel = (await session.exec(select(ChatChannel).where(ChatChannel.name == channel))).first()
 
     if db_channel is None:
         raise HTTPException(status_code=404, detail="Channel not found")
@@ -110,9 +90,6 @@ async def send_message(
     channel_id = db_channel.channel_id
     channel_type = db_channel.type
     channel_name = db_channel.name
-
-    assert channel_id is not None
-    assert current_user.id
 
     # 使用 Redis 消息系统发送消息 - 立即返回
     resp = await redis_message_system.send_message(
@@ -125,9 +102,7 @@ async def send_message(
 
     # 立即广播消息给所有客户端
     is_bot_command = req.message.startswith("!")
-    await server.send_message_to_channel(
-        resp, is_bot_command and channel_type == ChannelType.PUBLIC
-    )
+    await server.send_message_to_channel(resp, is_bot_command and channel_type == ChannelType.PUBLIC)
 
     # 处理机器人命令
     if is_bot_command:
@@ -147,14 +122,10 @@ async def send_message(
         if channel_type == ChannelType.PM:
             user_ids = channel_name.split("_")[1:]
             await server.new_private_notification(
-                ChannelMessage.init(
-                    temp_msg, current_user, [int(u) for u in user_ids], channel_type
-                )
+                ChannelMessage.init(temp_msg, current_user, [int(u) for u in user_ids], channel_type)
             )
         elif channel_type == ChannelType.TEAM:
-            await server.new_private_notification(
-                ChannelMessageTeam.init(temp_msg, current_user)
-            )
+            await server.new_private_notification(ChannelMessageTeam.init(temp_msg, current_user))
 
     return resp
 
@@ -176,22 +147,15 @@ async def get_message(
 ):
     # 使用明确的查询获取 channel，避免延迟加载
     if channel.isdigit():
-        db_channel = (
-            await session.exec(
-                select(ChatChannel).where(ChatChannel.channel_id == int(channel))
-            )
-        ).first()
+        db_channel = (await session.exec(select(ChatChannel).where(ChatChannel.channel_id == int(channel)))).first()
     else:
-        db_channel = (
-            await session.exec(select(ChatChannel).where(ChatChannel.name == channel))
-        ).first()
+        db_channel = (await session.exec(select(ChatChannel).where(ChatChannel.name == channel))).first()
 
     if db_channel is None:
         raise HTTPException(status_code=404, detail="Channel not found")
 
     # 提取必要的属性避免惰性加载
     channel_id = db_channel.channel_id
-    assert channel_id is not None
 
     # 使用 Redis 消息系统获取消息
     try:
@@ -230,23 +194,15 @@ async def mark_as_read(
 ):
     # 使用明确的查询获取 channel，避免延迟加载
     if channel.isdigit():
-        db_channel = (
-            await session.exec(
-                select(ChatChannel).where(ChatChannel.channel_id == int(channel))
-            )
-        ).first()
+        db_channel = (await session.exec(select(ChatChannel).where(ChatChannel.channel_id == int(channel)))).first()
     else:
-        db_channel = (
-            await session.exec(select(ChatChannel).where(ChatChannel.name == channel))
-        ).first()
+        db_channel = (await session.exec(select(ChatChannel).where(ChatChannel.name == channel))).first()
 
     if db_channel is None:
         raise HTTPException(status_code=404, detail="Channel not found")
 
     # 立即提取需要的属性
     channel_id = db_channel.channel_id
-    assert channel_id
-    assert current_user.id
     await server.mark_as_read(channel_id, current_user.id, message)
 
 
@@ -283,7 +239,6 @@ async def create_new_pm(
     if not is_can_pm:
         raise HTTPException(status_code=403, detail=block)
 
-    assert user_id
     channel = await ChatChannel.get_pm_channel(user_id, req.target_id, session)
     if channel is None:
         channel = ChatChannel(
@@ -297,7 +252,6 @@ async def create_new_pm(
         await session.refresh(target)
         await session.refresh(current_user)
 
-    assert channel.channel_id
     await server.batch_join_channel([target, current_user], channel, session)
     channel_resp = await ChatChannelResp.from_db(
         channel, session, current_user, redis, server.channels[channel.channel_id]

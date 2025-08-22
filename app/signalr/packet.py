@@ -100,10 +100,7 @@ class MsgpackProtocol:
         elif issubclass(typ, datetime.timedelta):
             return int(v.total_seconds() * 10_000_000)
         elif isinstance(v, dict):
-            return {
-                cls.serialize_msgpack(k): cls.serialize_msgpack(value)
-                for k, value in v.items()
-            }
+            return {cls.serialize_msgpack(k): cls.serialize_msgpack(value) for k, value in v.items()}
         elif issubclass(typ, Enum):
             list_ = list(typ)
             return list_.index(v) if v in list_ else v.value
@@ -113,9 +110,7 @@ class MsgpackProtocol:
     def serialize_to_list(cls, value: BaseModel) -> list[Any]:
         values = []
         for field, info in value.__class__.model_fields.items():
-            metadata = next(
-                (m for m in info.metadata if isinstance(m, SignalRMeta)), None
-            )
+            metadata = next((m for m in info.metadata if isinstance(m, SignalRMeta)), None)
             if metadata and metadata.member_ignore:
                 continue
             values.append(cls.serialize_msgpack(v=getattr(value, field)))
@@ -130,9 +125,7 @@ class MsgpackProtocol:
             d = {}
             i = 0
             for field, info in typ.model_fields.items():
-                metadata = next(
-                    (m for m in info.metadata if isinstance(m, SignalRMeta)), None
-                )
+                metadata = next((m for m in info.metadata if isinstance(m, SignalRMeta)), None)
                 if metadata and metadata.member_ignore:
                     continue
                 anno = info.annotation
@@ -224,10 +217,7 @@ class MsgpackProtocol:
             return list_[v] if isinstance(v, int) and 0 <= v < len(list_) else typ(v)
         elif get_origin(typ) is dict:
             return {
-                cls.validate_object(k, get_args(typ)[0]): cls.validate_object(
-                    v, get_args(typ)[1]
-                )
-                for k, v in v.items()
+                cls.validate_object(k, get_args(typ)[0]): cls.validate_object(v, get_args(typ)[1]) for k, v in v.items()
             }
         elif (origin := get_origin(typ)) is Union or origin is UnionType:
             args = get_args(typ)
@@ -242,13 +232,8 @@ class MsgpackProtocol:
             # except `X (Other Type) | None`
             if NoneType in args and v is None:
                 return None
-            if not all(
-                issubclass(arg, SignalRUnionMessage) or arg is NoneType for arg in args
-            ):
-                raise ValueError(
-                    f"Cannot validate {v} to {typ}, "
-                    "only SignalRUnionMessage subclasses are supported"
-                )
+            if not all(issubclass(arg, SignalRUnionMessage) or arg is NoneType for arg in args):
+                raise ValueError(f"Cannot validate {v} to {typ}, only SignalRUnionMessage subclasses are supported")
             union_type = v[0]
             for arg in args:
                 assert issubclass(arg, SignalRUnionMessage)
@@ -267,9 +252,7 @@ class MsgpackProtocol:
                 ]
             )
             if packet.arguments is not None:
-                payload.append(
-                    [MsgpackProtocol.serialize_msgpack(arg) for arg in packet.arguments]
-                )
+                payload.append([MsgpackProtocol.serialize_msgpack(arg) for arg in packet.arguments])
             if packet.stream_ids is not None:
                 payload.append(packet.stream_ids)
         elif isinstance(packet, CompletionPacket):
@@ -282,9 +265,7 @@ class MsgpackProtocol:
                 [
                     packet.invocation_id,
                     result_kind,
-                    packet.error
-                    or MsgpackProtocol.serialize_msgpack(packet.result)
-                    or None,
+                    packet.error or MsgpackProtocol.serialize_msgpack(packet.result) or None,
                 ]
             )
         elif isinstance(packet, ClosePacket):
@@ -307,10 +288,7 @@ class JSONProtocol:
         if issubclass(typ, BaseModel):
             return cls.serialize_model(v, in_union)
         elif isinstance(v, dict):
-            return {
-                cls.serialize_to_json(k, True): cls.serialize_to_json(value)
-                for k, value in v.items()
-            }
+            return {cls.serialize_to_json(k, True): cls.serialize_to_json(value) for k, value in v.items()}
         elif isinstance(v, list):
             return [cls.serialize_to_json(item) for item in v]
         elif isinstance(v, datetime.datetime):
@@ -333,9 +311,7 @@ class JSONProtocol:
         d = {}
         is_union = issubclass(v.__class__, SignalRUnionMessage)
         for field, info in v.__class__.model_fields.items():
-            metadata = next(
-                (m for m in info.metadata if isinstance(m, SignalRMeta)), None
-            )
+            metadata = next((m for m in info.metadata if isinstance(m, SignalRMeta)), None)
             if metadata and metadata.json_ignore:
                 continue
             name = (
@@ -358,14 +334,10 @@ class JSONProtocol:
         return d
 
     @staticmethod
-    def process_object(
-        v: Any, typ: type[BaseModel], from_union: bool = False
-    ) -> dict[str, Any]:
+    def process_object(v: Any, typ: type[BaseModel], from_union: bool = False) -> dict[str, Any]:
         d = {}
         for field, info in typ.model_fields.items():
-            metadata = next(
-                (m for m in info.metadata if isinstance(m, SignalRMeta)), None
-            )
+            metadata = next((m for m in info.metadata if isinstance(m, SignalRMeta)), None)
             if metadata and metadata.json_ignore:
                 continue
             name = (
@@ -435,9 +407,7 @@ class JSONProtocol:
             # d.hh:mm:ss
             parts = v.split(":")
             if len(parts) == 3:
-                return datetime.timedelta(
-                    hours=int(parts[0]), minutes=int(parts[1]), seconds=int(parts[2])
-                )
+                return datetime.timedelta(hours=int(parts[0]), minutes=int(parts[1]), seconds=int(parts[2]))
             elif len(parts) == 2:
                 return datetime.timedelta(minutes=int(parts[0]), seconds=int(parts[1]))
             elif len(parts) == 1:
@@ -449,10 +419,7 @@ class JSONProtocol:
             return list_[v] if isinstance(v, int) and 0 <= v < len(list_) else typ(v)
         elif get_origin(typ) is dict:
             return {
-                cls.validate_object(k, get_args(typ)[0]): cls.validate_object(
-                    v, get_args(typ)[1]
-                )
-                for k, v in v.items()
+                cls.validate_object(k, get_args(typ)[0]): cls.validate_object(v, get_args(typ)[1]) for k, v in v.items()
             }
         elif (origin := get_origin(typ)) is Union or origin is UnionType:
             args = get_args(typ)
@@ -467,13 +434,8 @@ class JSONProtocol:
             # except `X (Other Type) | None`
             if NoneType in args and v is None:
                 return None
-            if not all(
-                issubclass(arg, SignalRUnionMessage) or arg is NoneType for arg in args
-            ):
-                raise ValueError(
-                    f"Cannot validate {v} to {typ}, "
-                    "only SignalRUnionMessage subclasses are supported"
-                )
+            if not all(issubclass(arg, SignalRUnionMessage) or arg is NoneType for arg in args):
+                raise ValueError(f"Cannot validate {v} to {typ}, only SignalRUnionMessage subclasses are supported")
             # https://github.com/ppy/osu/blob/98acd9/osu.Game/Online/SignalRDerivedTypeWorkaroundJsonConverter.cs
             union_type = v["$dtype"]
             for arg in args:
@@ -498,9 +460,7 @@ class JSONProtocol:
             if packet.invocation_id is not None:
                 payload["invocationId"] = packet.invocation_id
             if packet.arguments is not None:
-                payload["arguments"] = [
-                    JSONProtocol.serialize_to_json(arg) for arg in packet.arguments
-                ]
+                payload["arguments"] = [JSONProtocol.serialize_to_json(arg) for arg in packet.arguments]
             if packet.stream_ids is not None:
                 payload["streamIds"] = packet.stream_ids
         elif isinstance(packet, CompletionPacket):

@@ -72,7 +72,7 @@ MEDALS: Medals = {
     Achievement(
         id=93,
         name="Sweet Rave Party",
-        desc="Founded in the fine tradition of changing things that were just fine as they were.",  # noqa: E501
+        desc="Founded in the fine tradition of changing things that were just fine as they were.",
         assets_id="all-intro-nightcore",
     ): partial(process_mod, "NC"),
     Achievement(

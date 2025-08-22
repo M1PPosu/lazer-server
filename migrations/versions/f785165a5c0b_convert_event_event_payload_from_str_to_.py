@@ -48,9 +48,7 @@ def upgrade() -> None:
         existing_type=mysql.ENUM("OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP"),
         nullable=False,
     )
-    op.alter_column(
-        "monthly_playcounts", "count", existing_type=mysql.INTEGER(), nullable=False
-    )
+    op.alter_column("monthly_playcounts", "count", existing_type=mysql.INTEGER(), nullable=False)
     op.alter_column(
         "score_tokens",
         "ruleset_id",
@@ -107,9 +105,7 @@ def downgrade() -> None:
         existing_type=mysql.ENUM("OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP"),
         nullable=True,
     )
-    op.alter_column(
-        "monthly_playcounts", "count", existing_type=mysql.INTEGER(), nullable=True
-    )
+    op.alter_column("monthly_playcounts", "count", existing_type=mysql.INTEGER(), nullable=True)
     op.alter_column(
         "lazer_users",
         "playmode",

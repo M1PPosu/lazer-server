@@ -38,9 +38,7 @@ def upgrade() -> None:
     )
     op.create_index(op.f("ix_v1_api_keys_key"), "v1_api_keys", ["key"], unique=False)
     op.create_index(op.f("ix_v1_api_keys_name"), "v1_api_keys", ["name"], unique=False)
-    op.create_index(
-        op.f("ix_v1_api_keys_owner_id"), "v1_api_keys", ["owner_id"], unique=False
-    )
+    op.create_index(op.f("ix_v1_api_keys_owner_id"), "v1_api_keys", ["owner_id"], unique=False)
     # ### end Alembic commands ###
 
 

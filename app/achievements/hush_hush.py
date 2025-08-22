@@ -65,9 +65,7 @@ async def to_the_core(
     # using either of the mods specified: DT, NC
     if not score.passed:
         return False
-    if (
-        "Nightcore" not in beatmap.beatmapset.title
-    ) and "Nightcore" not in beatmap.beatmapset.artist:
+    if ("Nightcore" not in beatmap.beatmapset.title) and "Nightcore" not in beatmap.beatmapset.artist:
         return False
     mods_ = mod_to_save(score.mods)
     if "DT" not in mods_ or "NC" not in mods_:
@@ -118,9 +116,7 @@ async def reckless_adandon(
     fetcher = await get_fetcher()
     redis = get_redis()
     mods_ = score.mods.copy()
-    attribute = await calculate_beatmap_attributes(
-        beatmap.id, score.gamemode, mods_, redis, fetcher
-    )
+    attribute = await calculate_beatmap_attributes(beatmap.id, score.gamemode, mods_, redis, fetcher)
     if attribute.star_rating < 3:
         return False
     return True
@@ -186,9 +182,7 @@ async def slow_and_steady(
     fetcher = await get_fetcher()
     redis = get_redis()
     mods_ = score.mods.copy()
-    attribute = await calculate_beatmap_attributes(
-        beatmap.id, score.gamemode, mods_, redis, fetcher
-    )
+    attribute = await calculate_beatmap_attributes(beatmap.id, score.gamemode, mods_, redis, fetcher)
     return attribute.star_rating >= 3
 
 
@@ -218,9 +212,7 @@ async def sognare(
     mods_ = mod_to_save(score.mods)
     if "HT" not in mods_:
         return False
-    return (
-        beatmap.beatmapset.artist == "LeaF" and beatmap.beatmapset.title == "Evanescent"
-    )
+    return beatmap.beatmapset.artist == "LeaF" and beatmap.beatmapset.title == "Evanescent"
 
 
 async def realtor_extraordinaire(
@@ -234,10 +226,7 @@ async def realtor_extraordinaire(
     mods_ = mod_to_save(score.mods)
     if not ("DT" in mods_ or "NC" in mods_) or "HR" not in mods_:
         return False
-    return (
-        beatmap.beatmapset.artist == "cYsmix"
-        and beatmap.beatmapset.title == "House With Legs"
-    )
+    return beatmap.beatmapset.artist == "cYsmix" and beatmap.beatmapset.title == "House With Legs"
 
 
 async def impeccable(
@@ -255,9 +244,7 @@ async def impeccable(
     fetcher = await get_fetcher()
     redis = get_redis()
     mods_ = score.mods.copy()
-    attribute = await calculate_beatmap_attributes(
-        beatmap.id, score.gamemode, mods_, redis, fetcher
-    )
+    attribute = await calculate_beatmap_attributes(beatmap.id, score.gamemode, mods_, redis, fetcher)
     return attribute.star_rating >= 4
 
 
@@ -274,18 +261,14 @@ async def aeon(
     mods_ = mod_to_save(score.mods)
     if "FL" not in mods_ or "HD" not in mods_ or "HT" not in mods_:
         return False
-    if not beatmap.beatmapset.ranked_date or beatmap.beatmapset.ranked_date > datetime(
-        2012, 1, 1
-    ):
+    if not beatmap.beatmapset.ranked_date or beatmap.beatmapset.ranked_date > datetime(2012, 1, 1):
         return False
     if beatmap.total_length < 180:
         return False
     fetcher = await get_fetcher()
     redis = get_redis()
     mods_ = score.mods.copy()
-    attribute = await calculate_beatmap_attributes(
-        beatmap.id, score.gamemode, mods_, redis, fetcher
-    )
+    attribute = await calculate_beatmap_attributes(beatmap.id, score.gamemode, mods_, redis, fetcher)
     return attribute.star_rating >= 4
 
 
@@ -297,10 +280,7 @@ async def quick_maths(
     # Get exactly 34 misses on any difficulty of Function Phantom - Variable.
     if score.nmiss != 34:
         return False
-    return (
-        beatmap.beatmapset.artist == "Function Phantom"
-        and beatmap.beatmapset.title == "Variable"
-    )
+    return beatmap.beatmapset.artist == "Function Phantom" and beatmap.beatmapset.title == "Variable"
 
 
 async def kaleidoscope(
@@ -328,8 +308,7 @@ async def valediction(
     return (
         score.passed
         and beatmap.beatmapset.artist == "a_hisa"
-        and beatmap.beatmapset.title
-        == "Alexithymia | Lupinus | Tokei no Heya to Seishin Sekai"
+        and beatmap.beatmapset.title == "Alexithymia | Lupinus | Tokei no Heya to Seishin Sekai"
         and score.accuracy >= 0.9
     )
 
@@ -342,9 +321,7 @@ async def right_on_time(
     # Submit a score on Kola Kid - timer on the first minute of any hour
     if not score.passed:
         return False
-    if not (
-        beatmap.beatmapset.artist == "Kola Kid" and beatmap.beatmapset.title == "timer"
-    ):
+    if not (beatmap.beatmapset.artist == "Kola Kid" and beatmap.beatmapset.title == "timer"):
         return False
     return score.ended_at.minute == 0
 
@@ -361,9 +338,7 @@ async def not_again(
         return False
     if score.accuracy < 0.99:
         return False
-    return (
-        beatmap.beatmapset.artist == "ARForest" and beatmap.beatmapset.title == "Regret"
-    )
+    return beatmap.beatmapset.artist == "ARForest" and beatmap.beatmapset.title == "Regret"
 
 
 async def deliberation(
@@ -377,18 +352,13 @@ async def deliberation(
     mods_ = mod_to_save(score.mods)
     if "HT" not in mods_:
         return False
-    if (
-        not beatmap.beatmap_status.has_pp()
-        and beatmap.beatmap_status != BeatmapRankStatus.LOVED
-    ):
+    if not beatmap.beatmap_status.has_pp() and beatmap.beatmap_status != BeatmapRankStatus.LOVED:
         return False
 
     fetcher = await get_fetcher()
     redis = get_redis()
     mods_copy = score.mods.copy()
-    attribute = await calculate_beatmap_attributes(
-        beatmap.id, score.gamemode, mods_copy, redis, fetcher
-    )
+    attribute = await calculate_beatmap_attributes(beatmap.id, score.gamemode, mods_copy, redis, fetcher)
     return attribute.star_rating >= 6
 
 

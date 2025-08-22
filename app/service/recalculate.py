@@ -35,12 +35,8 @@ async def recalculate():
         fetcher = await get_fetcher()
         redis = get_redis()
         for mode in GameMode:
-            await session.execute(
-                delete(PPBestScore).where(col(PPBestScore.gamemode) == mode)
-            )
-            await session.execute(
-                delete(BestScore).where(col(BestScore.gamemode) == mode)
-            )
+            await session.execute(delete(PPBestScore).where(col(PPBestScore.gamemode) == mode))
+            await session.execute(delete(BestScore).where(col(BestScore.gamemode) == mode))
             await session.commit()
             logger.info(f"Recalculating for mode: {mode}")
             statistics_list = (
@@ -53,32 +49,21 @@ async def recalculate():
             ).all()
             await asyncio.gather(
                 *[
-                    _recalculate_pp(
-                        statistics.user_id, statistics.mode, session, fetcher, redis
-                    )
+                    _recalculate_pp(statistics.user_id, statistics.mode, session, fetcher, redis)
                     for statistics in statistics_list
                 ]
             )
             await asyncio.gather(
                 *[
-                    _recalculate_best_score(
-                        statistics.user_id, statistics.mode, session
-                    )
+                    _recalculate_best_score(statistics.user_id, statistics.mode, session)
                     for statistics in statistics_list
                 ]
             )
             await session.commit()
-            await asyncio.gather(
-                *[
-                    _recalculate_statistics(statistics, session)
-                    for statistics in statistics_list
-                ]
-            )
+            await asyncio.gather(*[_recalculate_statistics(statistics, session) for statistics in statistics_list])
 
             await session.commit()
-            logger.success(
-                f"Recalculated for mode: {mode}, total users: {len(statistics_list)}"
-            )
+            logger.success(f"Recalculated for mode: {mode}, total users: {len(statistics_list)}")
 
 
 async def _recalculate_pp(
@@ -104,9 +89,7 @@ async def _recalculate_pp(
         beatmap_id = score.beatmap_id
         while time > 0:
             try:
-                db_beatmap = await Beatmap.get_or_fetch(
-                    session, fetcher, bid=beatmap_id
-                )
+                db_beatmap = await Beatmap.get_or_fetch(session, fetcher, bid=beatmap_id)
             except HTTPError:
                 time -= 1
                 await asyncio.sleep(2)
@@ -116,9 +99,7 @@ async def _recalculate_pp(
                 score.pp = 0
                 return
             try:
-                pp = await pre_fetch_and_calculate_pp(
-                    score, beatmap_id, session, redis, fetcher
-                )
+                pp = await pre_fetch_and_calculate_pp(score, beatmap_id, session, redis, fetcher)
                 score.pp = pp
                 if pp == 0:
                     return
@@ -138,15 +119,10 @@ async def _recalculate_pp(
                 await asyncio.sleep(2)
                 continue
             except Exception:
-                logger.exception(
-                    f"Error calculating pp for score {score.id} on beatmap {beatmap_id}"
-                )
+                logger.exception(f"Error calculating pp for score {score.id} on beatmap {beatmap_id}")
                 return
         if time <= 0:
-            logger.warning(
-                f"Failed to fetch beatmap {beatmap_id} after 10 attempts, "
-                "retrying later..."
-            )
+            logger.warning(f"Failed to fetch beatmap {beatmap_id} after 10 attempts, retrying later...")
             return score
 
     while len(scores) > 0:
@@ -271,9 +247,7 @@ async def _recalculate_statistics(statistics: UserStatistics, session: AsyncSess
         statistics.count_100 += score.n100 + score.nkatu
         statistics.count_50 += score.n50
         statistics.count_miss += score.nmiss
-        statistics.total_hits += (
-            score.n300 + score.ngeki + score.n100 + score.nkatu + score.n50
-        )
+        statistics.total_hits += score.n300 + score.ngeki + score.n100 + score.nkatu + score.n50
 
         if ranked and score.passed:
             statistics.maximum_combo = max(statistics.maximum_combo, score.max_combo)

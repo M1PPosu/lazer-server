@@ -31,7 +31,7 @@ from app.models.spectator_hub import (
     StoreClientState,
     StoreScore,
 )
-from app.utils import unix_timestamp_to_windows
+from app.utils import bg_tasks, unix_timestamp_to_windows
 
 from .hub import Client, Hub
 
@@ -111,20 +111,14 @@ async def save_replay(
     last_time = 0
     for frame in frames:
         time = round(frame.time)
-        frame_strs.append(
-            f"{time - last_time}|{frame.mouse_x or 0.0}"
-            f"|{frame.mouse_y or 0.0}|{frame.button_state}"
-        )
+        frame_strs.append(f"{time - last_time}|{frame.mouse_x or 0.0}|{frame.mouse_y or 0.0}|{frame.button_state}")
         last_time = time
     frame_strs.append("-12345|0|0|0")
 
-    compressed = lzma.compress(
-        ",".join(frame_strs).encode("ascii"), format=lzma.FORMAT_ALONE
-    )
+    compressed = lzma.compress(",".join(frame_strs).encode("ascii"), format=lzma.FORMAT_ALONE)
     data.extend(struct.pack("<i", len(compressed)))
     data.extend(compressed)
     data.extend(struct.pack("<q", score.id))
-    assert score.id
     score_info = LegacyReplaySoloScoreInfo(
         online_id=score.id,
         mods=score.mods,
@@ -135,16 +129,12 @@ async def save_replay(
         user_id=score.user_id,
         total_score_without_mods=score.total_score_without_mods,
     )
-    compressed = lzma.compress(
-        json.dumps(score_info).encode(), format=lzma.FORMAT_ALONE
-    )
+    compressed = lzma.compress(json.dumps(score_info).encode(), format=lzma.FORMAT_ALONE)
     data.extend(struct.pack("<i", len(compressed)))
     data.extend(compressed)
 
     storage_service = get_storage_service()
-    replay_path = (
-        f"replays/{score.id}_{score.beatmap_id}_{score.user_id}_lazer_replay.osr"
-    )
+    replay_path = f"replays/{score.id}_{score.beatmap_id}_{score.user_id}_lazer_replay.osr"
     await storage_service.write_file(
         replay_path,
         bytes(data),
@@ -173,6 +163,7 @@ class SpectatorHub(Hub[StoreClientState]):
 
         # Use centralized offline status management
         from app.service.online_status_manager import online_status_manager
+
         await online_status_manager.set_user_offline(user_id)
 
         if state.state:
@@ -181,13 +172,9 @@ class SpectatorHub(Hub[StoreClientState]):
         # Critical fix: Notify all watched users that this spectator has disconnected
         # This matches the official CleanUpState implementation
         for watched_user_id in state.watched_user:
-            if (
-                target_client := self.get_client_by_id(str(watched_user_id))
-            ) is not None:
+            if (target_client := self.get_client_by_id(str(watched_user_id))) is not None:
                 await self.call_noblock(target_client, "UserEndedWatching", user_id)
-                logger.debug(
-                    f"[SpectatorHub] Notified {watched_user_id} that {user_id} stopped watching"
-                )
+                logger.debug(f"[SpectatorHub] Notified {watched_user_id} that {user_id} stopped watching")
 
     async def on_client_connect(self, client: Client) -> None:
         """
@@ -198,6 +185,7 @@ class SpectatorHub(Hub[StoreClientState]):
 
         # Use centralized online status management
         from app.service.online_status_manager import online_status_manager
+
         await online_status_manager.set_user_online(client.user_id, "spectator")
 
         # Send all current player states to the new client
@@ -208,17 +196,13 @@ class SpectatorHub(Hub[StoreClientState]):
                 active_states.append((user_id, store.state))
 
         if active_states:
-            logger.debug(
-                f"[SpectatorHub] Sending {len(active_states)} active player states to {client.user_id}"
-            )
+            logger.debug(f"[SpectatorHub] Sending {len(active_states)} active player states to {client.user_id}")
             # Send states sequentially to avoid overwhelming the client
             for user_id, state in active_states:
                 try:
                     await self.call_noblock(client, "UserBeganPlaying", user_id, state)
                 except Exception as e:
-                    logger.debug(
-                        f"[SpectatorHub] Failed to send state for user {user_id}: {e}"
-                    )
+                    logger.debug(f"[SpectatorHub] Failed to send state for user {user_id}: {e}")
 
         # Also sync with MultiplayerHub for cross-hub spectating
         await self._sync_with_multiplayer_hub(client)
@@ -236,10 +220,7 @@ class SpectatorHub(Hub[StoreClientState]):
             for room_id, server_room in MultiplayerHubs.rooms.items():
                 for room_user in server_room.room.users:
                     # Send state for users who are playing or in results
-                    if (
-                        room_user.state.is_playing
-                        and room_user.user_id not in self.state
-                    ):
+                    if room_user.state.is_playing and room_user.user_id not in self.state:
                         # Create a synthetic SpectatorState for multiplayer players
                         # This helps with cross-hub spectating
                         try:
@@ -261,13 +242,12 @@ class SpectatorHub(Hub[StoreClientState]):
                                 f"[SpectatorHub] Sent synthetic multiplayer state for user {room_user.user_id}"
                             )
                         except Exception as e:
-                            logger.debug(
-                                f"[SpectatorHub] Failed to create synthetic state: {e}"
-                            )
-                    
+                            logger.debug(f"[SpectatorHub] Failed to create synthetic state: {e}")
+
                     # Critical addition: Notify about finished players in multiplayer games
                     elif (
-                        hasattr(room_user.state, 'name') and room_user.state.name == 'RESULTS'
+                        hasattr(room_user.state, "name")
+                        and room_user.state.name == "RESULTS"
                         and room_user.user_id not in self.state
                     ):
                         try:
@@ -286,21 +266,15 @@ class SpectatorHub(Hub[StoreClientState]):
                                 room_user.user_id,
                                 finished_state,
                             )
-                            logger.debug(
-                                f"[SpectatorHub] Sent synthetic finished state for user {room_user.user_id}"
-                            )
+                            logger.debug(f"[SpectatorHub] Sent synthetic finished state for user {room_user.user_id}")
                         except Exception as e:
-                            logger.debug(
-                                f"[SpectatorHub] Failed to create synthetic finished state: {e}"
-                            )
+                            logger.debug(f"[SpectatorHub] Failed to create synthetic finished state: {e}")
 
         except Exception as e:
             logger.debug(f"[SpectatorHub] Failed to sync with MultiplayerHub: {e}")
             # This is not critical, so we don't raise the exception
 
-    async def BeginPlaySession(
-        self, client: Client, score_token: int, state: SpectatorState
-    ) -> None:
+    async def BeginPlaySession(self, client: Client, score_token: int, state: SpectatorState) -> None:
         user_id = int(client.connection_id)
         store = self.get_or_create_state(client)
         if store.state is not None:
@@ -312,14 +286,10 @@ class SpectatorHub(Hub[StoreClientState]):
         async with with_db() as session:
             async with session.begin():
                 try:
-                    beatmap = await Beatmap.get_or_fetch(
-                        session, fetcher, bid=state.beatmap_id
-                    )
+                    beatmap = await Beatmap.get_or_fetch(session, fetcher, bid=state.beatmap_id)
                 except HTTPError:
                     raise InvokeException(f"Beatmap {state.beatmap_id} not found.")
-                user = (
-                    await session.exec(select(User).where(User.id == user_id))
-                ).first()
+                user = (await session.exec(select(User).where(User.id == user_id))).first()
                 if not user:
                     return
                 name = user.username
@@ -342,8 +312,8 @@ class SpectatorHub(Hub[StoreClientState]):
         from app.router.v2.stats import add_playing_user
         from app.service.online_status_manager import online_status_manager
 
-        asyncio.create_task(add_playing_user(user_id))
-        
+        bg_tasks.add_task(add_playing_user, user_id)
+
         # Critical fix: Maintain metadata online presence during gameplay
         # This ensures the user appears online while playing
         await online_status_manager.refresh_user_online_status(user_id, "playing")
@@ -367,6 +337,7 @@ class SpectatorHub(Hub[StoreClientState]):
         # Critical fix: Refresh online status during active gameplay
         # This prevents users from appearing offline while playing
         from app.service.online_status_manager import online_status_manager
+
         await online_status_manager.refresh_user_online_status(user_id, "playing_active")
 
         header = frame_data.header
@@ -377,15 +348,13 @@ class SpectatorHub(Hub[StoreClientState]):
         score_info.statistics = header.statistics
         store.score.replay_frames.extend(frame_data.frames)
 
-        await self.broadcast_group_call(
-            self.group_id(user_id), "UserSentFrames", user_id, frame_data
-        )
+        await self.broadcast_group_call(self.group_id(user_id), "UserSentFrames", user_id, frame_data)
 
     async def EndPlaySession(self, client: Client, state: SpectatorState) -> None:
         user_id = int(client.connection_id)
         store = self.get_or_create_state(client)
         score = store.score
-        
+
         # Early return if no active session
         if (
             score is None
@@ -398,19 +367,19 @@ class SpectatorHub(Hub[StoreClientState]):
 
         try:
             # Process score if conditions are met
-            if (
-                settings.enable_all_beatmap_leaderboard
-                and store.beatmap_status.has_leaderboard()
-            ) and any(k.is_hit() and v > 0 for k, v in score.score_info.statistics.items()):
+            if (settings.enable_all_beatmap_leaderboard and store.beatmap_status.has_leaderboard()) and any(
+                k.is_hit() and v > 0 for k, v in score.score_info.statistics.items()
+            ):
                 await self._process_score(store, client)
-                
+
             # End the play session and notify watchers
             await self._end_session(user_id, state, store)
 
             # Remove from playing user tracking
             from app.router.v2.stats import remove_playing_user
-            asyncio.create_task(remove_playing_user(user_id))
-            
+
+            bg_tasks.add_task(remove_playing_user, user_id)
+
         finally:
             # CRITICAL FIX: Always clear state in finally block to ensure cleanup
             # This matches the official C# implementation pattern
@@ -439,9 +408,9 @@ class SpectatorHub(Hub[StoreClientState]):
                     )
                     result = await session.exec(
                         select(Score)
-                        .options(joinedload(Score.beatmap))  # pyright: ignore[reportArgumentType]
+                        .options(joinedload(Score.beatmap))
                         .where(
-                            Score.id == sub_query,
+                            Score.id == sub_query.scalar_subquery(),
                             Score.user_id == user_id,
                         )
                     )
@@ -472,18 +441,12 @@ class SpectatorHub(Hub[StoreClientState]):
                     frames=store.score.replay_frames,
                 )
 
-    async def _end_session(
-        self, user_id: int, state: SpectatorState, store: StoreClientState
-    ) -> None:
+    async def _end_session(self, user_id: int, state: SpectatorState, store: StoreClientState) -> None:
         async def _add_failtime():
             async with with_db() as session:
                 failtime = await session.get(FailTime, state.beatmap_id)
                 total_length = (
-                    await session.exec(
-                        select(Beatmap.total_length).where(
-                            Beatmap.id == state.beatmap_id
-                        )
-                    )
+                    await session.exec(select(Beatmap.total_length).where(Beatmap.id == state.beatmap_id))
                 ).one()
                 index = clamp(round((exit_time / total_length) * 100), 0, 99)
                 if failtime is not None:
@@ -495,7 +458,8 @@ class SpectatorHub(Hub[StoreClientState]):
                 elif state.state == SpectatedUserState.Quit:
                     resp.exit[index] += 1
 
-                new_failtime = FailTime.from_resp(state.beatmap_id, resp)  # pyright: ignore[reportArgumentType]
+                assert state.beatmap_id
+                new_failtime = FailTime.from_resp(state.beatmap_id, resp)
                 if failtime is not None:
                     await session.merge(new_failtime)
                 else:
@@ -527,9 +491,7 @@ class SpectatorHub(Hub[StoreClientState]):
 
         if state.state == SpectatedUserState.Playing:
             state.state = SpectatedUserState.Quit
-            logger.debug(
-                f"[SpectatorHub] Changed state from Playing to Quit for user {user_id}"
-            )
+            logger.debug(f"[SpectatorHub] Changed state from Playing to Quit for user {user_id}")
 
         # Calculate exit time safely
         exit_time = 0
@@ -558,10 +520,7 @@ class SpectatorHub(Hub[StoreClientState]):
             self.tasks.add(task)
             task.add_done_callback(self.tasks.discard)
 
-        logger.info(
-            f"[SpectatorHub] {user_id} finished playing {state.beatmap_id} "
-            f"with {state.state}"
-        )
+        logger.info(f"[SpectatorHub] {user_id} finished playing {state.beatmap_id} with {state.state}")
         await self.broadcast_group_call(
             self.group_id(user_id),
             "UserFinishedPlaying",
@@ -585,9 +544,7 @@ class SpectatorHub(Hub[StoreClientState]):
                 # CRITICAL FIX: Only send state if user is actually playing
                 # Don't send state for finished/quit games
                 if target_store.state.state == SpectatedUserState.Playing:
-                    logger.debug(
-                        f"[SpectatorHub] {target_id} is currently playing, sending state"
-                    )
+                    logger.debug(f"[SpectatorHub] {target_id} is currently playing, sending state")
                     # Send current state to the watcher immediately
                     await self.call_noblock(
                         client,
@@ -613,25 +570,17 @@ class SpectatorHub(Hub[StoreClientState]):
         # Get watcher's username and notify the target user
         try:
             async with with_db() as session:
-                username = (
-                    await session.exec(select(User.username).where(User.id == user_id))
-                ).first()
+                username = (await session.exec(select(User.username).where(User.id == user_id))).first()
                 if not username:
-                    logger.warning(
-                        f"[SpectatorHub] Could not find username for user {user_id}"
-                    )
+                    logger.warning(f"[SpectatorHub] Could not find username for user {user_id}")
                     return
 
             # Notify target user that someone started watching
             if (target_client := self.get_client_by_id(str(target_id))) is not None:
                 # Create watcher info array (matches official format)
                 watcher_info = [[user_id, username]]
-                await self.call_noblock(
-                    target_client, "UserStartedWatching", watcher_info
-                )
-                logger.debug(
-                    f"[SpectatorHub] Notified {target_id} that {username} started watching"
-                )
+                await self.call_noblock(target_client, "UserStartedWatching", watcher_info)
+                logger.debug(f"[SpectatorHub] Notified {target_id} that {username} started watching")
         except Exception as e:
             logger.error(f"[SpectatorHub] Error notifying target user {target_id}: {e}")
 
@@ -654,10 +603,6 @@ class SpectatorHub(Hub[StoreClientState]):
         # Notify target user that watcher stopped watching
         if (target_client := self.get_client_by_id(str(target_id))) is not None:
             await self.call_noblock(target_client, "UserEndedWatching", user_id)
-            logger.debug(
-                f"[SpectatorHub] Notified {target_id} that {user_id} stopped watching"
-            )
+            logger.debug(f"[SpectatorHub] Notified {target_id} that {user_id} stopped watching")
         else:
-            logger.debug(
-                f"[SpectatorHub] Target user {target_id} not found for end watching notification"
-            )
+            logger.debug(f"[SpectatorHub] Target user {target_id} not found for end watching notification")

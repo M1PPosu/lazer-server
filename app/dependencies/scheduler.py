@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC
+from typing import cast
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -16,7 +17,7 @@ def get_scheduler() -> AsyncIOScheduler:
     global scheduler
     if scheduler is None:
         init_scheduler()
-    return scheduler  # pyright: ignore[reportReturnType]
+    return cast(AsyncIOScheduler, scheduler)
 
 
 def start_scheduler():

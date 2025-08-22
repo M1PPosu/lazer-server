@@ -30,9 +30,7 @@ def upgrade() -> None:
         sa.Column("user_id", sa.BigInteger(), nullable=True),
         sa.Column(
             "mode",
-            sa.Enum(
-                "OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", name="gamemode"
-            ),
+            sa.Enum("OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", name="gamemode"),
             nullable=False,
         ),
         sa.Column("rank", sa.Integer(), nullable=False),
@@ -43,21 +41,15 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(
-        op.f("ix_rank_history_date"), "rank_history", ["date"], unique=False
-    )
-    op.create_index(
-        op.f("ix_rank_history_user_id"), "rank_history", ["user_id"], unique=False
-    )
+    op.create_index(op.f("ix_rank_history_date"), "rank_history", ["date"], unique=False)
+    op.create_index(op.f("ix_rank_history_user_id"), "rank_history", ["user_id"], unique=False)
     op.create_table(
         "rank_top",
         sa.Column("id", sa.BigInteger(), nullable=False),
         sa.Column("user_id", sa.BigInteger(), nullable=True),
         sa.Column(
             "mode",
-            sa.Enum(
-                "OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", name="gamemode"
-            ),
+            sa.Enum("OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", name="gamemode"),
             nullable=False,
         ),
         sa.Column("rank", sa.Integer(), nullable=False),
@@ -84,9 +76,7 @@ def upgrade() -> None:
     )
     op.drop_column("lazer_user_statistics", "country_rank")
     op.drop_column("lazer_user_statistics", "global_rank")
-    op.create_index(
-        op.f("ix_oauth_clients_name"), "oauth_clients", ["name"], unique=False
-    )
+    op.create_index(op.f("ix_oauth_clients_name"), "oauth_clients", ["name"], unique=False)
     # ### end Alembic commands ###
 
 
@@ -102,12 +92,8 @@ def downgrade() -> None:
         "lazer_user_statistics",
         sa.Column("country_rank", mysql.INTEGER(), autoincrement=False, nullable=True),
     )
-    op.drop_index(
-        op.f("ix_lazer_user_statistics_pp"), table_name="lazer_user_statistics"
-    )
-    op.drop_index(
-        op.f("ix_lazer_user_statistics_mode"), table_name="lazer_user_statistics"
-    )
+    op.drop_index(op.f("ix_lazer_user_statistics_pp"), table_name="lazer_user_statistics")
+    op.drop_index(op.f("ix_lazer_user_statistics_mode"), table_name="lazer_user_statistics")
     op.drop_table("rank_top")
     op.drop_table("rank_history")
     # ### end Alembic commands ###

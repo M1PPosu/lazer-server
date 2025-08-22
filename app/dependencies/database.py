@@ -40,15 +40,11 @@ engine = create_async_engine(
 redis_client = redis.from_url(settings.redis_url, decode_responses=True)
 
 # Redis 消息缓存连接 (db1) - 使用同步客户端在线程池中执行
-redis_message_client = sync_redis.from_url(
-    settings.redis_url, decode_responses=True, db=1
-)
+redis_message_client = sync_redis.from_url(settings.redis_url, decode_responses=True, db=1)
 
 
 # 数据库依赖
-db_session_context: ContextVar[AsyncSession | None] = ContextVar(
-    "db_session_context", default=None
-)
+db_session_context: ContextVar[AsyncSession | None] = ContextVar("db_session_context", default=None)
 
 
 async def get_db():

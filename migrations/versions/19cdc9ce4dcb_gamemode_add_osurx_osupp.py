@@ -26,51 +26,37 @@ def upgrade() -> None:
     op.alter_column(
         "lazer_users",
         "playmode",
-        type_=sa.Enum(
-            "OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", name="gamemode"
-        ),
+        type_=sa.Enum("OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", name="gamemode"),
     )
     op.alter_column(
         "beatmaps",
         "mode",
-        type_=sa.Enum(
-            "OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", name="gamemode"
-        ),
+        type_=sa.Enum("OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", name="gamemode"),
     )
     op.alter_column(
         "lazer_user_statistics",
         "mode",
-        type_=sa.Enum(
-            "OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", name="gamemode"
-        ),
+        type_=sa.Enum("OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", name="gamemode"),
     )
     op.alter_column(
         "score_tokens",
         "ruleset_id",
-        type_=sa.Enum(
-            "OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", name="gamemode"
-        ),
+        type_=sa.Enum("OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", name="gamemode"),
     )
     op.alter_column(
         "scores",
         "gamemode",
-        type_=sa.Enum(
-            "OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", name="gamemode"
-        ),
+        type_=sa.Enum("OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", name="gamemode"),
     )
     op.alter_column(
         "best_scores",
         "gamemode",
-        type_=sa.Enum(
-            "OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", name="gamemode"
-        ),
+        type_=sa.Enum("OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", name="gamemode"),
     )
     op.alter_column(
         "total_score_best_scores",
         "gamemode",
-        type_=sa.Enum(
-            "OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", name="gamemode"
-        ),
+        type_=sa.Enum("OSU", "TAIKO", "FRUITS", "MANIA", "OSURX", "OSUAP", name="gamemode"),
     )
     # ### end Alembic commands ###
 

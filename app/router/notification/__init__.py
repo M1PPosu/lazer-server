@@ -43,9 +43,9 @@ async def get_notifications(
     current_user: User = Security(get_client_user),
 ):
     if settings.server_url is not None:
-        notification_endpoint = f"{settings.server_url}notification-server".replace(
-            "http://", "ws://"
-        ).replace("https://", "wss://")
+        notification_endpoint = f"{settings.server_url}notification-server".replace("http://", "ws://").replace(
+            "https://", "wss://"
+        )
     else:
         notification_endpoint = "/notification-server"
     query = select(UserNotification).where(
@@ -96,21 +96,15 @@ async def _get_notifications(
             query = base_query.where(UserNotification.notification_id == identity.id)
         if identity.object_id is not None:
             query = base_query.where(
-                col(UserNotification.notification).has(
-                    col(Notification.object_id) == identity.object_id
-                )
+                col(UserNotification.notification).has(col(Notification.object_id) == identity.object_id)
             )
         if identity.object_type is not None:
             query = base_query.where(
-                col(UserNotification.notification).has(
-                    col(Notification.object_type) == identity.object_type
-                )
+                col(UserNotification.notification).has(col(Notification.object_type) == identity.object_type)
             )
         if identity.category is not None:
             query = base_query.where(
-                col(UserNotification.notification).has(
-                    col(Notification.category) == identity.category
-                )
+                col(UserNotification.notification).has(col(Notification.category) == identity.category)
             )
         result.update({n.notification_id: n for n in await session.exec(query)})
     return list(result.values())
@@ -134,7 +128,6 @@ async def mark_notifications_as_read(
     for user_notification in user_notifications:
         user_notification.is_read = True
 
-    assert current_user.id
     await server.send_event(
         current_user.id,
         ChatEvent(

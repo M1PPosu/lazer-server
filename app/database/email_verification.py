@@ -4,16 +4,17 @@
 
 from __future__ import annotations
 
-from datetime import datetime, UTC
-from sqlmodel import SQLModel, Field
-from sqlalchemy import Column, BigInteger, ForeignKey
+from datetime import UTC, datetime
+
+from sqlalchemy import BigInteger, Column, ForeignKey
+from sqlmodel import Field, SQLModel
 
 
 class EmailVerification(SQLModel, table=True):
     """邮件验证记录"""
-    
+
     __tablename__: str = "email_verifications"
-    
+
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), nullable=False, index=True))
     email: str = Field(index=True)
@@ -28,9 +29,9 @@ class EmailVerification(SQLModel, table=True):
 
 class LoginSession(SQLModel, table=True):
     """登录会话记录"""
-    
+
     __tablename__: str = "login_sessions"
-    
+
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), nullable=False, index=True))
     session_token: str = Field(unique=True, index=True)  # 会话令牌

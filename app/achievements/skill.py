@@ -44,9 +44,7 @@ async def process_skill(
     redis = get_redis()
     mods_ = score.mods.copy()
     mods_.sort(key=lambda x: x["acronym"])
-    attribute = await calculate_beatmap_attributes(
-        beatmap.id, score.gamemode, mods_, redis, fetcher
-    )
+    attribute = await calculate_beatmap_attributes(beatmap.id, score.gamemode, mods_, redis, fetcher)
     if attribute.star_rating < star or attribute.star_rating >= star + 1:
         return False
     if type == "fc" and not score.is_perfect_combo:

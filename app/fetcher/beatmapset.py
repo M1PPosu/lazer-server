@@ -10,6 +10,7 @@ from app.helpers.rate_limiter import osu_api_rate_limiter
 from app.log import logger
 from app.models.beatmap import SearchQueryModel
 from app.models.model import Cursor
+from app.utils import bg_tasks
 
 from ._base import BaseFetcher
 
@@ -81,9 +82,7 @@ class BeatmapsetFetcher(BaseFetcher):
         cache_json = json.dumps(cache_data, sort_keys=True, separators=(",", ":"))
         cache_hash = hashlib.md5(cache_json.encode()).hexdigest()
 
-        logger.opt(colors=True).debug(
-            f"<blue>[CacheKey]</blue> Query: {cache_data}, Hash: {cache_hash}"
-        )
+        logger.opt(colors=True).debug(f"<blue>[CacheKey]</blue> Query: {cache_data}, Hash: {cache_hash}")
 
         return f"beatmapset:search:{cache_hash}"
 
@@ -103,22 +102,16 @@ class BeatmapsetFetcher(BaseFetcher):
             return {}
 
     async def get_beatmapset(self, beatmap_set_id: int) -> BeatmapsetResp:
-        logger.opt(colors=True).debug(
-            f"<blue>[BeatmapsetFetcher]</blue> get_beatmapset: <y>{beatmap_set_id}</y>"
-        )
+        logger.opt(colors=True).debug(f"<blue>[BeatmapsetFetcher]</blue> get_beatmapset: <y>{beatmap_set_id}</y>")
 
         return BeatmapsetResp.model_validate(
-            await self.request_api(
-                f"https://osu.ppy.sh/api/v2/beatmapsets/{beatmap_set_id}"
-            )
+            await self.request_api(f"https://osu.ppy.sh/api/v2/beatmapsets/{beatmap_set_id}")
         )
 
     async def search_beatmapset(
         self, query: SearchQueryModel, cursor: Cursor, redis_client: redis.Redis
     ) -> SearchBeatmapsetsResp:
-        logger.opt(colors=True).debug(
-            f"<blue>[BeatmapsetFetcher]</blue> search_beatmapset: <y>{query}</y>"
-        )
+        logger.opt(colors=True).debug(f"<blue>[BeatmapsetFetcher]</blue> search_beatmapset: <y>{query}</y>")
 
         # 生成缓存键
         cache_key = self._generate_cache_key(query, cursor)
@@ -126,9 +119,7 @@ class BeatmapsetFetcher(BaseFetcher):
         # 尝试从缓存获取结果
         cached_result = await redis_client.get(cache_key)
         if cached_result:
-            logger.opt(colors=True).debug(
-                f"<green>[BeatmapsetFetcher]</green> Cache hit for key: <y>{cache_key}</y>"
-            )
+            logger.opt(colors=True).debug(f"<green>[BeatmapsetFetcher]</green> Cache hit for key: <y>{cache_key}</y>")
             try:
                 cached_data = json.loads(cached_result)
                 return SearchBeatmapsetsResp.model_validate(cached_data)
@@ -138,13 +129,9 @@ class BeatmapsetFetcher(BaseFetcher):
                 )
 
         # 缓存未命中，从 API 获取数据
-        logger.opt(colors=True).debug(
-            "<blue>[BeatmapsetFetcher]</blue> Cache miss, fetching from API"
-        )
+        logger.opt(colors=True).debug("<blue>[BeatmapsetFetcher]</blue> Cache miss, fetching from API")
 
-        params = query.model_dump(
-            exclude_none=True, exclude_unset=True, exclude_defaults=True
-        )
+        params = query.model_dump(exclude_none=True, exclude_unset=True, exclude_defaults=True)
 
         if query.cursor_string:
             params["cursor_string"] = query.cursor_string
@@ -164,39 +151,26 @@ class BeatmapsetFetcher(BaseFetcher):
 
         # 将结果缓存 15 分钟
         cache_ttl = 15 * 60  # 15 分钟
-        await redis_client.set(
-            cache_key, json.dumps(api_response, separators=(",", ":")), ex=cache_ttl
-        )
+        await redis_client.set(cache_key, json.dumps(api_response, separators=(",", ":")), ex=cache_ttl)
 
         logger.opt(colors=True).debug(
-            f"<green>[BeatmapsetFetcher]</green> Cached result for key: "
-            f"<y>{cache_key}</y> (TTL: {cache_ttl}s)"
+            f"<green>[BeatmapsetFetcher]</green> Cached result for key: <y>{cache_key}</y> (TTL: {cache_ttl}s)"
         )
 
         resp = SearchBeatmapsetsResp.model_validate(api_response)
 
         # 智能预取：只在用户明确搜索时才预取，避免过多API请求
         # 且只在有搜索词或特定条件时预取，避免首页浏览时的过度预取
-        if api_response.get("cursor") and (
-            query.q or query.s != "leaderboard" or cursor
-        ):
+        if api_response.get("cursor") and (query.q or query.s != "leaderboard" or cursor):
             # 在后台预取下1页（减少预取量）
             import asyncio
 
             # 不立即创建任务，而是延迟一段时间再预取
             async def delayed_prefetch():
                 await asyncio.sleep(3.0)  # 延迟3秒
-                await self.prefetch_next_pages(
-                    query, api_response["cursor"], redis_client, pages=1
-                )
+                await self.prefetch_next_pages(query, api_response["cursor"], redis_client, pages=1)
 
-            # 创建延迟预取任务
-            task = asyncio.create_task(delayed_prefetch())
-            # 添加到后台任务集合避免被垃圾回收
-            if not hasattr(self, "_background_tasks"):
-                self._background_tasks = set()
-            self._background_tasks.add(task)
-            task.add_done_callback(self._background_tasks.discard)
+            bg_tasks.add_task(delayed_prefetch)
 
         return resp
 
@@ -218,18 +192,14 @@ class BeatmapsetFetcher(BaseFetcher):
                 # 使用当前 cursor 请求下一页
                 next_query = query.model_copy()
 
-                logger.opt(colors=True).debug(
-                    f"<cyan>[BeatmapsetFetcher]</cyan> Prefetching page {page + 1}"
-                )
+                logger.opt(colors=True).debug(f"<cyan>[BeatmapsetFetcher]</cyan> Prefetching page {page + 1}")
 
                 # 生成下一页的缓存键
                 next_cache_key = self._generate_cache_key(next_query, cursor)
 
                 # 检查是否已经缓存
                 if await redis_client.exists(next_cache_key):
-                    logger.opt(colors=True).debug(
-                        f"<cyan>[BeatmapsetFetcher]</cyan> Page {page + 1} already cached"
-                    )
+                    logger.opt(colors=True).debug(f"<cyan>[BeatmapsetFetcher]</cyan> Page {page + 1} already cached")
                     # 尝试从缓存获取cursor继续预取
                     cached_data = await redis_client.get(next_cache_key)
                     if cached_data:
@@ -247,9 +217,7 @@ class BeatmapsetFetcher(BaseFetcher):
                     await asyncio.sleep(1.5)  # 1.5秒延迟
 
                 # 请求下一页数据
-                params = next_query.model_dump(
-                    exclude_none=True, exclude_unset=True, exclude_defaults=True
-                )
+                params = next_query.model_dump(exclude_none=True, exclude_unset=True, exclude_defaults=True)
 
                 for k, v in cursor.items():
                     params[f"cursor[{k}]"] = v
@@ -277,22 +245,18 @@ class BeatmapsetFetcher(BaseFetcher):
                 )
 
                 logger.opt(colors=True).debug(
-                    f"<cyan>[BeatmapsetFetcher]</cyan> Prefetched page {page + 1} "
-                    f"(TTL: {prefetch_ttl}s)"
+                    f"<cyan>[BeatmapsetFetcher]</cyan> Prefetched page {page + 1} (TTL: {prefetch_ttl}s)"
                 )
 
         except Exception as e:
-            logger.opt(colors=True).warning(
-                f"<yellow>[BeatmapsetFetcher]</yellow> Prefetch failed: {e}"
-            )
+            logger.opt(colors=True).warning(f"<yellow>[BeatmapsetFetcher]</yellow> Prefetch failed: {e}")
 
     async def warmup_homepage_cache(self, redis_client: redis.Redis) -> None:
         """预热主页缓存"""
         homepage_queries = self._get_homepage_queries()
 
         logger.opt(colors=True).info(
-            f"<magenta>[BeatmapsetFetcher]</magenta> Starting homepage cache warmup "
-            f"({len(homepage_queries)} queries)"
+            f"<magenta>[BeatmapsetFetcher]</magenta> Starting homepage cache warmup ({len(homepage_queries)} queries)"
         )
 
         for i, (query, cursor) in enumerate(homepage_queries):
@@ -306,15 +270,12 @@ class BeatmapsetFetcher(BaseFetcher):
                 # 检查是否已经缓存
                 if await redis_client.exists(cache_key):
                     logger.opt(colors=True).debug(
-                        f"<magenta>[BeatmapsetFetcher]</magenta> "
-                        f"Query {query.sort} already cached"
+                        f"<magenta>[BeatmapsetFetcher]</magenta> Query {query.sort} already cached"
                     )
                     continue
 
                 # 请求并缓存
-                params = query.model_dump(
-                    exclude_none=True, exclude_unset=True, exclude_defaults=True
-                )
+                params = query.model_dump(exclude_none=True, exclude_unset=True, exclude_defaults=True)
 
                 api_response = await self.request_api(
                     "https://osu.ppy.sh/api/v2/beatmapsets/search",
@@ -334,17 +295,13 @@ class BeatmapsetFetcher(BaseFetcher):
                 )
 
                 logger.opt(colors=True).info(
-                    f"<magenta>[BeatmapsetFetcher]</magenta> "
-                    f"Warmed up cache for {query.sort} (TTL: {cache_ttl}s)"
+                    f"<magenta>[BeatmapsetFetcher]</magenta> Warmed up cache for {query.sort} (TTL: {cache_ttl}s)"
                 )
 
                 if api_response.get("cursor"):
-                    await self.prefetch_next_pages(
-                        query, api_response["cursor"], redis_client, pages=2
-                    )
+                    await self.prefetch_next_pages(query, api_response["cursor"], redis_client, pages=2)
 
             except Exception as e:
                 logger.opt(colors=True).error(
-                    f"<red>[BeatmapsetFetcher]</red> "
-                    f"Failed to warmup cache for {query.sort}: {e}"
+                    f"<red>[BeatmapsetFetcher]</red> Failed to warmup cache for {query.sort}: {e}"
                 )

@@ -40,9 +40,7 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("user_id", "team_id"),
     )
-    op.alter_column(
-        "team_members", "user_id", existing_type=mysql.BIGINT(), nullable=False
-    )
+    op.alter_column("team_members", "user_id", existing_type=mysql.BIGINT(), nullable=False)
     op.drop_index(op.f("ix_team_members_id"), table_name="team_members")
     op.drop_column("team_members", "id")
     op.add_column(
@@ -79,8 +77,6 @@ def downgrade() -> None:
         sa.Column("id", mysql.INTEGER(), autoincrement=True, nullable=False),
     )
     op.create_index(op.f("ix_team_members_id"), "team_members", ["id"], unique=False)
-    op.alter_column(
-        "team_members", "user_id", existing_type=mysql.BIGINT(), nullable=True
-    )
+    op.alter_column("team_members", "user_id", existing_type=mysql.BIGINT(), nullable=True)
     op.drop_table("team_requests")
     # ### end Alembic commands ###

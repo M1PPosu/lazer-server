@@ -56,11 +56,9 @@ async def connect(
         return
     try:
         async for session in factory():
-            if (
-                user := await get_current_user(
-                    session, SecurityScopes(scopes=["*"]), token_pw=token
-                )
-            ) is None or str(user.id) != user_id:
+            if (user := await get_current_user(session, SecurityScopes(scopes=["*"]), token_pw=token)) is None or str(
+                user.id
+            ) != user_id:
                 await websocket.close(code=1008)
                 return
     except HTTPException:
