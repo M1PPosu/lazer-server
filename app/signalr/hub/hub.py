@@ -180,6 +180,7 @@ class Hub[TState: UserState]:
             return
         try:
             await self._clean_state(state)
+            del self.state[client.user_id]
         except Exception:
             ...
 
