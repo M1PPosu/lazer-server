@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime, timedelta
 
 from app.log import logger
-from app.router.v2.stats import record_hourly_stats, update_registered_users_count
+from app.router.private.stats import record_hourly_stats, update_registered_users_count
 from app.service.enhanced_interval_stats import EnhancedIntervalStatsManager
 from app.service.stats_cleanup import (
     cleanup_stale_online_users,

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 from app.dependencies.database import get_redis, get_redis_message
 from app.log import logger
-from app.router.v2.stats import (
+from app.router.private.stats import (
     REDIS_ONLINE_USERS_KEY,
     REDIS_PLAYING_USERS_KEY,
     _redis_exec,

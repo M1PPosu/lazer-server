@@ -10,7 +10,7 @@ from datetime import datetime
 
 from app.dependencies.database import get_redis
 from app.log import logger
-from app.router.v2.stats import add_online_user
+from app.router.private.stats import add_online_user
 
 
 class OnlineStatusManager:
@@ -85,7 +85,7 @@ class OnlineStatusManager:
             await redis.delete(metadata_key)
 
             # 从在线用户集合中移除
-            from app.router.v2.stats import remove_online_user
+            from app.router.private.stats import remove_online_user
 
             await remove_online_user(user_id)
 
@@ -124,7 +124,7 @@ class OnlineStatusManager:
         """
         try:
             from app.dependencies.database import get_redis
-            from app.router.v2.stats import _get_online_users_count
+            from app.router.private.stats import _get_online_users_count
 
             redis = get_redis()
             return await _get_online_users_count(redis)

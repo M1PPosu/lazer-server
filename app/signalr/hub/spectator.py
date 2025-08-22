@@ -309,7 +309,7 @@ class SpectatorHub(Hub[StoreClientState]):
         logger.info(f"[SpectatorHub] {client.user_id} began playing {state.beatmap_id}")
 
         # Track playing user and maintain online status
-        from app.router.v2.stats import add_playing_user
+        from app.router.private.stats import add_playing_user
         from app.service.online_status_manager import online_status_manager
 
         bg_tasks.add_task(add_playing_user, user_id)
@@ -376,7 +376,7 @@ class SpectatorHub(Hub[StoreClientState]):
             await self._end_session(user_id, state, store)
 
             # Remove from playing user tracking
-            from app.router.v2.stats import remove_playing_user
+            from app.router.private.stats import remove_playing_user
 
             bg_tasks.add_task(remove_playing_user, user_id)
 

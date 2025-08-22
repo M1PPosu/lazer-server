@@ -11,7 +11,7 @@ import asyncio
 
 from app.dependencies.database import get_redis
 from app.log import logger
-from app.router.v2.stats import REDIS_PLAYING_USERS_KEY, _redis_exec, get_redis_message
+from app.router.private.stats import REDIS_PLAYING_USERS_KEY, _redis_exec, get_redis_message
 
 
 async def maintain_playing_users_online_status():

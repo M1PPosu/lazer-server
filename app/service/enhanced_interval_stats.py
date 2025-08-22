@@ -10,7 +10,7 @@ import json
 
 from app.dependencies.database import get_redis, get_redis_message
 from app.log import logger
-from app.router.v2.stats import (
+from app.router.private.stats import (
     REDIS_ONLINE_HISTORY_KEY,
     _get_online_users_count,
     _get_playing_users_count,
