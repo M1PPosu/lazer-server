@@ -89,7 +89,7 @@ class UserBase(UTCBaseModel, SQLModel):
     is_restricted: bool = False
     # blocks
     cover: UserProfileCover = Field(
-        default=UserProfileCover(url="https://assets.ppy.sh/user-profile-covers/default.jpeg"),
+        default=UserProfileCover(url=""),
         sa_column=Column(JSON),
     )
     beatmap_playcounts_count: int = 0
@@ -292,9 +292,9 @@ class UserResp(UserBase):
         redis = get_redis()
         u.is_online = await redis.exists(f"metadata:online:{obj.id}")
         u.cover_url = (
-            obj.cover.get("url", "https://assets.ppy.sh/user-profile-covers/default.jpeg")
+            obj.cover.get("url", "")
             if obj.cover
-            else "https://assets.ppy.sh/user-profile-covers/default.jpeg"
+            else ""
         )
 
         if "friends" in include:

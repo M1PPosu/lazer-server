@@ -49,6 +49,11 @@ docker-compose -f docker-compose-osurx.yml up -d
 
 参考[数据库迁移指南](https://github.com/GooGuTeam/g0v0-server/wiki/Migrate-Database)
 
+## 资源文件反向代理
+
+服务器支持资源文件反向代理功能，可以将 osu! 官方的资源链接（头像、谱面封面、音频等）替换为自定义域名。
+
+
 ## 许可证
 
 MIT License

@@ -16,6 +16,7 @@ from app.database.lazer_user import SEARCH_INCLUDED
 from app.database.score import ScoreResp
 from app.log import logger
 from app.models.score import GameMode
+from app.service.asset_proxy_service import get_asset_proxy_service
 
 from redis.asyncio import Redis
 from sqlmodel import col, select
@@ -298,6 +299,15 @@ class UserCacheService:
         """缓存单个用户"""
         try:
             user_resp = await UserResp.from_db(user, session, include=SEARCH_INCLUDED)
+            
+            # 应用资源代理处理
+            if settings.enable_asset_proxy:
+                try:
+                    asset_proxy_service = get_asset_proxy_service()
+                    user_resp = await asset_proxy_service.replace_asset_urls(user_resp)
+                except Exception as e:
+                    logger.warning(f"Asset proxy processing failed for user cache {user.id}: {e}")
+            
             await self.cache_user(user_resp)
         except Exception as e:
             logger.error(f"Error caching single user {user.id}: {e}")

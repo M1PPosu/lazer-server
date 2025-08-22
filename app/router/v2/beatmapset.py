@@ -14,6 +14,7 @@ from app.dependencies.user import get_client_user, get_current_user
 from app.fetcher import Fetcher
 from app.models.beatmap import SearchQueryModel
 from app.service.beatmap_download_service import BeatmapDownloadService
+from app.service.asset_proxy_helper import process_response_assets
 
 from .router import router
 
@@ -96,9 +97,12 @@ async def search_beatmapset(
     try:
         sets = await fetcher.search_beatmapset(query, cursor, redis)
         background_tasks.add_task(_save_to_db, sets)
+        
+        # 处理资源代理
+        processed_sets = await process_response_assets(sets, request)
+        return processed_sets
     except HTTPError as e:
         raise HTTPException(status_code=500, detail=str(e))
-    return sets
 
 
 @router.get(
@@ -110,13 +114,17 @@ async def search_beatmapset(
 )
 async def lookup_beatmapset(
     db: Database,
+    request: Request,
     beatmap_id: int = Query(description="谱面 ID"),
     current_user: User = Security(get_current_user, scopes=["public"]),
     fetcher: Fetcher = Depends(get_fetcher),
 ):
     beatmap = await Beatmap.get_or_fetch(db, fetcher, bid=beatmap_id)
     resp = await BeatmapsetResp.from_db(beatmap.beatmapset, session=db, user=current_user)
-    return resp
+    
+    # 处理资源代理
+    processed_resp = await process_response_assets(resp, request)
+    return processed_resp
 
 
 @router.get(

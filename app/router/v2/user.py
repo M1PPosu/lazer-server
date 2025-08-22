@@ -22,11 +22,12 @@ from app.log import logger
 from app.models.score import GameMode
 from app.models.user import BeatmapsetType
 from app.service.user_cache_service import get_user_cache_service
+from app.service.asset_proxy_helper import process_response_assets
 from app.utils import utcnow
 
 from .router import router
 
-from fastapi import BackgroundTasks, HTTPException, Path, Query, Security
+from fastapi import BackgroundTasks, HTTPException, Path, Query, Request, Security
 from pydantic import BaseModel
 from sqlmodel import exists, false, select
 from sqlmodel.sql.expression import col
@@ -47,6 +48,7 @@ class BatchUserResponse(BaseModel):
 @router.get("/users/lookup/", response_model=BatchUserResponse, include_in_schema=False)
 async def get_users(
     session: Database,
+    request: Request,
     background_task: BackgroundTasks,
     user_ids: list[int] = Query(default_factory=list, alias="ids[]", description="要查询的用户 ID 列表"),
     # current_user: User = Security(get_current_user, scopes=["public"]),
@@ -83,7 +85,10 @@ async def get_users(
                     # 异步缓存，不阻塞响应
                     background_task.add_task(cache_service.cache_user, user_resp)
 
-        return BatchUserResponse(users=cached_users)
+        # 处理资源代理
+        response = BatchUserResponse(users=cached_users)
+        processed_response = await process_response_assets(response, request)
+        return processed_response
     else:
         searched_users = (await session.exec(select(User).limit(50))).all()
         users = []
@@ -98,7 +103,10 @@ async def get_users(
                 # 异步缓存
                 background_task.add_task(cache_service.cache_user, user_resp)
 
-        return BatchUserResponse(users=users)
+        # 处理资源代理
+        response = BatchUserResponse(users=users)
+        processed_response = await process_response_assets(response, request)
+        return processed_response
 
 
 @router.get("/users/{user}/recent_activity", tags=["用户"], response_model=list[Event])
@@ -182,6 +190,7 @@ async def get_user_info_ruleset(
 async def get_user_info(
     background_task: BackgroundTasks,
     session: Database,
+    request: Request,
     user_id: str = Path(description="用户 ID 或用户名"),
     # current_user: User = Security(get_current_user, scopes=["public"]),
 ):
@@ -193,7 +202,9 @@ async def get_user_info(
         user_id_int = int(user_id)
         cached_user = await cache_service.get_user_from_cache(user_id_int)
         if cached_user:
-            return cached_user
+            # 处理资源代理
+            processed_user = await process_response_assets(cached_user, request)
+            return processed_user
 
     searched_user = (
         await session.exec(
@@ -214,7 +225,9 @@ async def get_user_info(
     # 异步缓存结果
     background_task.add_task(cache_service.cache_user, user_resp)
 
-    return user_resp
+    # 处理资源代理
+    processed_user = await process_response_assets(user_resp, request)
+    return processed_user
 
 
 @router.get(

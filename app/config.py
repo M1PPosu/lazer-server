@@ -167,6 +167,13 @@ class Settings(BaseSettings):
     user_cache_max_preload_users: int = 200  # 最多预加载的用户数量
     user_cache_concurrent_limit: int = 10  # 并发缓存用户的限制
 
+    # 资源代理设置
+    enable_asset_proxy: bool = True  # 启用资源代理功能
+    custom_asset_domain: str = "g0v0.top"  # 自定义资源域名
+    asset_proxy_prefix: str = "assets-ppy"  # assets.ppy.sh的自定义前缀
+    avatar_proxy_prefix: str = "a-ppy"  # a.ppy.sh的自定义前缀
+    beatmap_proxy_prefix: str = "b-ppy"  # b.ppy.sh的自定义前缀
+
     # 反作弊设置
     suspicious_score_check: bool = True
     banned_name: list[str] = [
