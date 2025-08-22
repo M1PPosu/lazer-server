@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime
+from io import BytesIO
+
+from fastapi import HTTPException
+from PIL import Image
 
 
 def unix_timestamp_to_windows(timestamp: int) -> int:
@@ -124,3 +128,21 @@ def truncate(text: str, limit: int = 100, ellipsis: str = "...") -> str:
     if len(text) > limit:
         return text[:limit] + ellipsis
     return text
+
+
+def check_image(content: bytes, size: int, width: int, height: int) -> None:
+    if len(content) > size:  # 10MB limit
+        raise HTTPException(status_code=400, detail="File size exceeds 10MB limit")
+    elif len(content) == 0:
+        raise HTTPException(status_code=400, detail="File cannot be empty")
+    try:
+        with Image.open(BytesIO(content)) as img:
+            if img.format not in ["PNG", "JPEG", "GIF"]:
+                raise HTTPException(status_code=400, detail="Invalid image format")
+            if img.size[0] > width or img.size[1] > height:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Image size exceeds {width}x{height} pixels",
+                )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error processing image: {e}")
