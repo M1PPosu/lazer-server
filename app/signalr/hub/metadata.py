@@ -202,6 +202,11 @@ class MetadataHub(Hub[MetadataClientState]):
         if store.status is not None and store.status == status_:
             return
         store.status = OnlineStatus(status_)
+        
+        # 刷新用户在线状态
+        from app.service.online_status_manager import online_status_manager
+        await online_status_manager.refresh_user_online_status(user_id, f"status_{status_.name.lower()}")
+        
         tasks = self.broadcast_tasks(user_id, store)
         tasks.add(
             self.call_noblock(
@@ -219,6 +224,12 @@ class MetadataHub(Hub[MetadataClientState]):
         user_id = int(client.connection_id)
         store = self.get_or_create_state(client)
         store.activity = activity
+        
+        # 刷新用户在线状态
+        from app.service.online_status_manager import online_status_manager
+        activity_type = type(activity).__name__ if activity else 'active'
+        await online_status_manager.refresh_user_online_status(user_id, f"activity_{activity_type}")
+        
         tasks = self.broadcast_tasks(user_id, store)
         tasks.add(
             self.call_noblock(
