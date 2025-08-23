@@ -109,6 +109,7 @@ async def send_message(
     if is_bot_command:
         await bot.try_handle(current_user, db_channel, req.message, session)
 
+    await session.refresh(current_user)
     # 为通知系统创建临时 ChatMessage 对象（仅适用于私聊和团队频道）
     if channel_type in [ChannelType.PM, ChannelType.TEAM]:
         temp_msg = ChatMessage(
