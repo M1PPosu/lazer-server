@@ -109,20 +109,26 @@ async def get_users(
         return processed_response
 
 
-@router.get("/users/{user}/recent_activity", tags=["用户"], response_model=list[Event])
+@router.get(
+    "/users/{user_id}/recent_activity",
+    tags=["用户"],
+    response_model=list[Event],
+    name="获取用户最近活动",
+    description="获取用户在最近 30 天内的活动日志。",
+)
 async def get_user_events(
     session: Database,
-    user: int,
-    limit: int | None = Query(None),
-    offset: int | None = Query(None),  # TODO: 搞清楚并且添加这个奇怪的分页偏移
+    user_id: int = Path(description="用户 ID"),
+    limit: int | None = Query(None, description="限制返回的活动数量"),
+    offset: int | None = Query(None, description="活动日志的偏移量"),
 ):
-    db_user = await session.get(User, user)
+    db_user = await session.get(User, user_id)
     if db_user is None or db_user.id == BANCHOBOT_ID:
         raise HTTPException(404, "User Not found")
     events = (
         await session.exec(
             select(Event)
-            .where(Event.user_id == db_user.id)
+            .where(Event.user_id == db_user.id, Event.created_at >= utcnow() - timedelta(days=30))
             .order_by(col(Event.created_at).desc())
             .limit(limit)
             .offset(offset)
