@@ -15,7 +15,7 @@ from app.database import (
 from app.database.events import Event
 from app.database.lazer_user import SEARCH_INCLUDED
 from app.database.pp_best_score import PPBestScore
-from app.database.score import Score, ScoreResp
+from app.database.score import Score, ScoreResp, get_user_first_scores
 from app.dependencies.database import Database, get_redis
 from app.dependencies.user import get_current_user
 from app.log import logger
@@ -360,14 +360,17 @@ async def get_user_scores(
         where_clause &= Score.ended_at > utcnow() - timedelta(hours=24)
         order_by = col(Score.ended_at).desc()
     elif type == "firsts":
-        # TODO
         where_clause &= false()
 
-    scores = (
-        await session.exec(select(Score).where(where_clause).order_by(order_by).limit(limit).offset(offset))
-    ).all()
-    if not scores:
-        return []
+    if type != "firsts":
+        scores = (
+            await session.exec(select(Score).where(where_clause).order_by(order_by).limit(limit).offset(offset))
+        ).all()
+        if not scores:
+            return []
+    else:
+        best_scores = await get_user_first_scores(session, db_user.id, gamemode, limit)
+        scores = [best_score.score for best_score in best_scores]
 
     score_responses = [
         await ScoreResp.from_db(

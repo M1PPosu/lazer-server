@@ -570,6 +570,64 @@ async def get_user_best_score_with_mod_in_beatmap(
     ).first()
 
 
+async def get_user_first_scores(
+    session: AsyncSession, user_id: int, mode: GameMode, limit: int = 5, offset: int = 0
+) -> list[BestScore]:
+    rownum = (
+        func.row_number()
+        .over(
+            partition_by=(col(BestScore.beatmap_id), col(BestScore.gamemode)),
+            order_by=col(BestScore.total_score).desc(),
+        )
+        .label("rn")
+    )
+
+    # Step 1: Fetch top score_ids in Python
+    subq = (
+        select(
+            col(BestScore.score_id).label("score_id"),
+            col(BestScore.user_id).label("user_id"),
+            rownum,
+        )
+        .where(col(BestScore.gamemode) == mode)
+        .subquery()
+    )
+
+    top_ids_stmt = select(subq.c.score_id).where(subq.c.rn == 1, subq.c.user_id == user_id).limit(limit).offset(offset)
+
+    top_ids = await session.exec(top_ids_stmt)
+    top_ids = list(top_ids)
+
+    stmt = select(BestScore).where(col(BestScore.score_id).in_(top_ids)).order_by(col(BestScore.total_score).desc())
+
+    result = await session.exec(stmt)
+    return list(result.all())
+
+
+async def get_user_first_score_count(session: AsyncSession, user_id: int, mode: GameMode) -> int:
+    rownum = (
+        func.row_number()
+        .over(
+            partition_by=(col(BestScore.beatmap_id), col(BestScore.gamemode)),
+            order_by=col(BestScore.total_score).desc(),
+        )
+        .label("rn")
+    )
+    subq = (
+        select(
+            col(BestScore.score_id).label("score_id"),
+            col(BestScore.user_id).label("user_id"),
+            rownum,
+        )
+        .where(col(BestScore.gamemode) == mode)
+        .subquery()
+    )
+    count_stmt = select(func.count()).where(subq.c.rn == 1, subq.c.user_id == user_id)
+
+    result = await session.exec(count_stmt)
+    return result.one()
+
+
 async def get_user_best_pp_in_beatmap(
     session: AsyncSession,
     beatmap: int,
