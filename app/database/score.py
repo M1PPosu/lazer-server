@@ -583,6 +583,20 @@ async def get_user_best_pp_in_beatmap(
     ).first()
 
 
+async def calculate_user_pp(session: AsyncSession, user_id: int, mode: GameMode) -> tuple[float, float]:
+    pp_sum = 0
+    acc_sum = 0
+    bps = await get_user_best_pp(session, user_id, mode)
+    for i, s in enumerate(bps):
+        pp_sum += calculate_weighted_pp(s.pp, i)
+        acc_sum += calculate_weighted_acc(s.acc, i)
+    if len(bps):
+        # https://github.com/ppy/osu-queue-score-statistics/blob/c538ae/osu.Server.Queues.ScoreStatisticsProcessor/Helpers/UserTotalPerformanceAggregateHelper.cs#L41-L45
+        acc_sum *= 100 / (20 * (1 - math.pow(0.95, len(bps))))
+    acc_sum = clamp(acc_sum, 0.0, 100.0)
+    return pp_sum, acc_sum
+
+
 async def get_user_best_pp(
     session: AsyncSession,
     user: int,
@@ -791,18 +805,9 @@ async def process_user(
 
     if score.passed and ranked:
         with session.no_autoflush:
-            best_pp_scores = await get_user_best_pp(session, user.id, score.gamemode)
-            pp_sum = 0.0
-            acc_sum = 0.0
-            for i, bp in enumerate(best_pp_scores):
-                pp_sum += calculate_weighted_pp(bp.pp, i)
-                acc_sum += calculate_weighted_acc(bp.acc, i)
-            if len(best_pp_scores):
-                # https://github.com/ppy/osu-queue-score-statistics/blob/c538ae/osu.Server.Queues.ScoreStatisticsProcessor/Helpers/UserTotalPerformanceAggregateHelper.cs#L41-L45
-                acc_sum *= 100 / (20 * (1 - math.pow(0.95, len(best_pp_scores))))
-            acc_sum = clamp(acc_sum, 0.0, 100.0)
-            statistics.pp = pp_sum
-            statistics.hit_accuracy = acc_sum
+            statistics.pp, statistics.hit_accuracy = await calculate_user_pp(
+                session, statistics.user_id, score.gamemode
+            )
     if add_to_db:
         session.add(mouthly_playcount)
     with session.no_autoflush:
