@@ -12,8 +12,6 @@ from app.calculator import (
     calculate_weighted_pp,
     clamp,
 )
-from app.config import settings
-from app.database.events import Event, EventType
 from app.database.team import TeamMember
 from app.dependencies.database import get_redis
 from app.models.model import (
@@ -484,7 +482,10 @@ async def get_score_position_by_user(
     rownum = (
         func.row_number()
         .over(
-            partition_by=col(BestScore.beatmap_id),
+            partition_by=(
+                col(BestScore.beatmap_id),
+                col(BestScore.gamemode),
+            ),
             order_by=col(BestScore.total_score).desc(),
         )
         .label("row_number")
@@ -511,7 +512,10 @@ async def get_score_position_by_id(
     rownum = (
         func.row_number()
         .over(
-            partition_by=col(BestScore.beatmap_id),
+            partition_by=(
+                col(BestScore.beatmap_id),
+                col(BestScore.gamemode),
+            ),
             order_by=col(BestScore.total_score).desc(),
         )
         .label("row_number")
@@ -710,50 +714,6 @@ async def process_user(
         statistics.ranked_score += difference
         statistics.level_current = calculate_score_to_level(statistics.total_score)
         statistics.maximum_combo = max(statistics.maximum_combo, score.max_combo)
-        new_score_position = await get_score_position_by_user(session, score.beatmap_id, user, score.gamemode)
-        total_users = await session.exec(select(func.count()).select_from(User))
-        score_range = min(50, math.ceil(float(total_users.one()) * 0.01))
-        if new_score_position <= score_range and new_score_position > 0:
-            # Get the scores that might be displaced
-            displaced_scores_query = (
-                select(BestScore)
-                .where(
-                    BestScore.beatmap_id == score.beatmap_id,
-                    BestScore.gamemode == score.gamemode,
-                    BestScore.user_id != user.id,  # Not the current user
-                )
-                .order_by(col(BestScore.total_score).desc())
-                .limit(score_range)
-            )
-            displaced_scores = (await session.exec(displaced_scores_query)).all()
-
-            # Check if any scores were pushed out of the top positions
-            for i, displaced_score in enumerate(displaced_scores):
-                # Get the position of this displaced score
-                displaced_position = await get_score_position_by_id(
-                    session, score.beatmap_id, displaced_score.score_id, score.gamemode
-                )
-
-                # If this score was previously in top positions but now pushed out
-                if i < score_range and displaced_position > score_range and displaced_position is not None:
-                    # Create rank lost event for the displaced user
-                    rank_lost_event = Event(
-                        created_at=utcnow(),
-                        type=EventType.RANK_LOST,
-                        user_id=displaced_score.user_id,
-                    )
-                    rank_lost_event.event_payload = {
-                        "mode": str(score.gamemode),
-                        "beatmap": {
-                            "title": score.beatmap.version,
-                            "url": score.beatmap.url,
-                        },
-                        "user": {
-                            "username": user.username,
-                            "url": settings.web_url + "users/" + str(user.id),
-                        },
-                    }
-                    session.add(rank_lost_event)
     if score.passed and has_leaderboard:
         # 情况1: 没有最佳分数记录，直接添加
         # 情况2: 有最佳分数记录但没有该mod组合的记录，添加新记录
