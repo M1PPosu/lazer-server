@@ -111,12 +111,14 @@ async def authenticate_user_legacy(db: AsyncSession, name: str, password: str) -
     pw_md5 = hashlib.md5(password.encode()).hexdigest()
 
     # 2. 根据用户名查找用户
-    statement = select(User).where(User.username == name).options()
-    user = (await db.exec(statement)).first()
-    if not user:
+    user = None
+    user = (await db.exec(select(User).where(User.username == name))).first()
+    if user is None:
+        user = (await db.exec(select(User).where(User.email == name))).first()
+    if user is None and name.isdigit():
+        user = (await db.exec(select(User).where(User.id == int(name)))).first()
+    if user is None:
         return None
-
-    await db.refresh(user)
 
     # 3. 验证密码
     if user.pw_bcrypt is None or user.pw_bcrypt == "":

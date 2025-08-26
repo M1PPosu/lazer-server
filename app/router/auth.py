@@ -42,7 +42,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import JSONResponse
 from redis.asyncio import Redis
 from sqlalchemy import text
-from sqlmodel import select
+from sqlmodel import exists, select
 
 
 def create_oauth_error_response(error: str, description: str, hint: str, status_code: int = 400):
@@ -101,12 +101,12 @@ async def register_user(
     email_errors = validate_email(user_email)
     password_errors = validate_password(user_password)
 
-    result = await db.exec(select(User).where(User.username == user_username))
+    result = await db.exec(select(exists()).where(User.username == user_username))
     existing_user = result.first()
     if existing_user:
         username_errors.append("Username is already taken")
 
-    result = await db.exec(select(User).where(User.email == user_email))
+    result = await db.exec(select(exists()).where(User.email == user_email))
     existing_email = result.first()
     if existing_email:
         email_errors.append("Email is already taken")
