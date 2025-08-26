@@ -119,7 +119,7 @@ async def calculate_pp(score: "Score", beatmap: str, session: AsyncSession) -> f
     pp = attrs.pp
 
     # mrekk bp1: 2048pp; ppy-sb top1 rxbp1: 2198pp
-    if settings.suspicious_score_check and ((attrs.difficulty.stars > 25 and score.accuracy < 0.8) or pp > 2300):
+    if settings.suspicious_score_check and ((attrs.difficulty.stars > 25 and score.accuracy < 0.8) or pp > 3000):
         logger.warning(
             f"User {score.user_id} played {score.beatmap_id} "
             f"(star={attrs.difficulty.stars}) with {pp=} "

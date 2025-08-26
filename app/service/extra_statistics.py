@@ -45,8 +45,8 @@ async def create_extra_statistics():
                     )
                 ).first()
                 if not is_exist:
-                    statistics_ap = UserStatistics(mode=GameMode.OSUAP, user_id=i)
-                    session.add(statistics_ap)
+                    statistics = UserStatistics(mode=GameMode.OSUAP, user_id=i)
+                    session.add(statistics)
 
             if settings.enable_custom_rulesets:
                 for mode in (GameMode.SENTAKKI,):
@@ -59,7 +59,7 @@ async def create_extra_statistics():
                         )
                     ).first()
                     if not is_exist:
-                        statistics_ap = UserStatistics(mode=mode, user_id=i)
-                        session.add(statistics_ap)
+                        statistics = UserStatistics(mode=mode, user_id=i)
+                        session.add(statistics)
 
         await session.commit()

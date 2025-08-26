@@ -18,10 +18,12 @@ class GameMode(str, Enum):
     TAIKO = "taiko"
     FRUITS = "fruits"
     MANIA = "mania"
+
     OSURX = "osurx"
     OSUAP = "osuap"
     TAIKORX = "taikorx"
     FRUITSRX = "fruitsrx"
+
     SENTAKKI = "Sentakki"
 
     def to_rosu(self) -> "rosu.GameMode":
@@ -229,6 +231,7 @@ class SoloScoreSubmissionInfo(BaseModel):
     def validate_ruleset_id(cls, ruleset_id: int, info: ValidationInfo):
         if ruleset_id >= 10 and not settings.enable_custom_rulesets:
             raise ValueError("Custom rulesets are not enabled")
+        return ruleset_id
 
     @field_serializer("statistics", "maximum_statistics", when_used="json")
     def serialize_statistics(self, v):
