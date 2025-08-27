@@ -118,6 +118,7 @@ async def _recalculate_pp(
                     pp = await calculate_pp(score, beatmap_raw, session)
                     if pp == 0:
                         return
+                    score.pp = pp
                     if score.beatmap_id not in prev or prev[score.beatmap_id].pp < pp:
                         best_score = PPBestScore(
                             user_id=user_id,
