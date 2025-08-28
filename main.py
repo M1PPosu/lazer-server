@@ -37,12 +37,11 @@ from app.service.osu_rx_statistics import create_rx_statistics
 from app.service.redis_message_system import redis_message_system
 from app.utils import bg_tasks, utcnow
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi_limiter import FastAPILimiter
-from fastapi_limiter.depends import RateLimiter
 import sentry_sdk
 
 
@@ -152,13 +151,6 @@ app = FastAPI(
     lifespan=lifespan,
     description=desc,
 )
-if settings.enable_rate_limit:
-    app.router.dependencies.extend(
-        [
-            Depends(RateLimiter(times=1200, minutes=1)),
-            Depends(RateLimiter(times=200, seconds=1)),
-        ]
-    )
 
 
 app.include_router(api_v2_router)
