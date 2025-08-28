@@ -1,5 +1,11 @@
 # g0v0-server
 
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+![ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)
+[![pre-commit.ci status](https://results.pre-commit.ci/badge/github/GooGuTeam/g0v0-server/main.svg)](https://results.pre-commit.ci/latest/github/GooGuTeam/g0v0-server/main)
+![license](https://img.shields.io/github/license/GooGuTeam/g0v0-server)
+[![discord](https://discordapp.com/api/guilds/1404817877504229426/widget.png?style=shield)](https://discord.gg/AhzJXXWYfF)
+
 [简体中文](./README.md) | English
 
 This is an osu! API server implemented with FastAPI + MySQL + Redis, supporting most features of osu! API v1, v2, and osu!lazer.
@@ -43,6 +49,18 @@ This is an osu! API server implemented with FastAPI + MySQL + Redis, supporting 
 ### Updating the Database
 
 Refer to the [Database Migration Guide](https://github.com/GooGuTeam/g0v0-server/wiki/Migrate-Database)
+
+## Security
+
+Use `openssl rand -hex 32` to generate the JWT secret key to ensure the security of the server and the normal operation of the observer server.
+
+Use `openssl rand -hex 40` to generate the frontend secret key.
+
+**If it is in a public network environment, please block external requests to the `/_lio` path.**
+
+## Documentation
+
+Visit the [wiki](https://github.com/GooGuTeam/g0v0-server/wiki) for more information.
 
 ## License
 
