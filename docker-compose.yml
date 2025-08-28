@@ -3,7 +3,7 @@ version: '3.8'
 services:
   app:
     # or use
-    # image: mingxuangame/osu-lazer-api:latest
+    # image: mingxuangame/g0v0-server:latest
     build:
       context: .
       dockerfile: Dockerfile
