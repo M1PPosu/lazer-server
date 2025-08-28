@@ -93,6 +93,7 @@ class Settings(BaseSettings):
     cors_urls: list[HttpUrl] = []
     server_url: HttpUrl = HttpUrl("http://localhost:8000")
     frontend_url: HttpUrl | None = None
+    enable_rate_limit: bool = True
 
     @property
     def web_url(self):

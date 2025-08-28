@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from app.config import settings
-from app.dependencies.database import engine, redis_client
+from app.dependencies.database import engine, get_redis, redis_client
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.scheduler import start_scheduler, stop_scheduler
 from app.log import logger
@@ -37,16 +37,19 @@ from app.service.osu_rx_statistics import create_rx_statistics
 from app.service.redis_message_system import redis_message_system
 from app.utils import bg_tasks, utcnow
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi_limiter import FastAPILimiter
+from fastapi_limiter.depends import RateLimiter
 import sentry_sdk
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # on startup
+    await FastAPILimiter.init(get_redis())
     await get_fetcher()  # 初始化 fetcher
     await init_geoip()  # 初始化 GeoIP 数据库
     await create_rx_statistics()
@@ -80,7 +83,7 @@ async def lifespan(app: FastAPI):
     await redis_client.aclose()
 
 
-desc = """osu! API 模拟服务器，支持 osu! API v1, v2 和 osu!lazer 的绝大部分功能。
+desc = f"""osu! API 模拟服务器，支持 osu! API v1, v2 和 osu!lazer 的绝大部分功能。
 
 ## 端点说明
 
@@ -99,6 +102,19 @@ v2 API 采用 OAuth 2.0 鉴权，支持以下鉴权方式：
 使用 `password` 鉴权的具有全部权限。`authorization_code` 具有指定 scope 的权限。`client_credentials` 只有 `public` 权限。各接口需要的权限请查看每个 Endpoint 的 Authorization。
 
 v1 API 采用 API Key 鉴权，将 API Key 放入 Query `k` 中。
+
+{
+    '''
+## 速率限制
+
+所有 API 请求均受到速率限制，具体限制规则如下：
+
+- 每分钟最多可以发送 1200 个请求
+- 突发请求限制为每秒最多 200 个请求
+'''
+    if settings.enable_rate_limit
+    else ""
+}
 
 ## 参考
 
@@ -136,6 +152,14 @@ app = FastAPI(
     lifespan=lifespan,
     description=desc,
 )
+if settings.enable_rate_limit:
+    app.router.dependencies.extend(
+        [
+            Depends(RateLimiter(times=1200, minutes=1)),
+            Depends(RateLimiter(times=200, seconds=1)),
+        ]
+    )
+
 
 app.include_router(api_v2_router)
 app.include_router(api_v1_router)
