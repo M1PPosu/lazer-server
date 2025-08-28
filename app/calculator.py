@@ -14,6 +14,7 @@ from app.models.score import GameMode
 
 from osupyparser import HitObject, OsuFile
 from osupyparser.osu.objects import Slider
+from redis.asyncio import Redis
 from sqlmodel import col, exists, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -29,6 +30,7 @@ except ImportError:
 
 if TYPE_CHECKING:
     from app.database.score import Score
+    from app.fetcher import Fetcher
 
 
 def clamp[T: int | float](n: T, min_value: T, max_value: T) -> T:
@@ -123,13 +125,15 @@ async def calculate_pp(score: "Score", beatmap: str, session: AsyncSession) -> f
     return pp
 
 
-async def pre_fetch_and_calculate_pp(score: "Score", beatmap_id: int, session: AsyncSession, redis, fetcher) -> float:
+async def pre_fetch_and_calculate_pp(
+    score: "Score", session: AsyncSession, redis: Redis, fetcher: "Fetcher"
+) -> tuple[float, bool]:
     """
     优化版PP计算：预先获取beatmap文件并使用缓存
     """
-    import asyncio
-
     from app.database.beatmap import BannedBeatmaps
+
+    beatmap_id = score.beatmap_id
 
     # 快速检查是否被封禁
     if settings.suspicious_score_check:
@@ -137,14 +141,14 @@ async def pre_fetch_and_calculate_pp(score: "Score", beatmap_id: int, session: A
             await session.exec(select(exists()).where(col(BannedBeatmaps.beatmap_id) == beatmap_id))
         ).first()
         if beatmap_banned:
-            return 0
+            return 0, False
 
     # 异步获取beatmap原始文件，利用已有的Redis缓存机制
     try:
         beatmap_raw = await fetcher.get_or_fetch_beatmap_raw(redis, beatmap_id)
     except Exception as e:
         logger.error(f"Failed to fetch beatmap {beatmap_id}: {e}")
-        return 0
+        return 0, False
 
     # 在获取文件的同时，可以检查可疑beatmap
     if settings.suspicious_score_check:
@@ -158,12 +162,12 @@ async def pre_fetch_and_calculate_pp(score: "Score", beatmap_id: int, session: A
             if is_sus:
                 session.add(BannedBeatmaps(beatmap_id=beatmap_id))
                 logger.warning(f"Beatmap {beatmap_id} is suspicious, banned")
-                return 0
+                return 0, True
         except Exception:
             logger.exception(f"Error checking if beatmap {beatmap_id} is suspicious")
 
     # 调用已优化的PP计算函数
-    return await calculate_pp(score, beatmap_raw, session)
+    return await calculate_pp(score, beatmap_raw, session), True
 
 
 async def batch_calculate_pp(

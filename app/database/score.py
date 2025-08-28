@@ -11,6 +11,7 @@ from app.calculator import (
     calculate_weighted_acc,
     calculate_weighted_pp,
     clamp,
+    pre_fetch_and_calculate_pp,
 )
 from app.database.team import TeamMember
 from app.dependencies.database import get_redis
@@ -880,15 +881,16 @@ async def process_score(
         maximum_statistics=info.maximum_statistics,
         processed=True,
     )
+    successed = True
     if can_get_pp:
-        from app.calculator import pre_fetch_and_calculate_pp
-
-        pp = await pre_fetch_and_calculate_pp(score, beatmap_id, session, redis, fetcher)
+        pp, successed = await pre_fetch_and_calculate_pp(score, session, redis, fetcher)
         score.pp = pp
     session.add(score)
     user_id = user.id
     await session.commit()
     await session.refresh(score)
+    if not successed:
+        await redis.rpush("score:need_recalculate", score.id)  # pyright: ignore[reportGeneralTypeIssues]
     if can_get_pp and score.pp != 0:
         previous_pp_best = await get_user_best_pp_in_beatmap(session, beatmap_id, user_id, score.gamemode)
         if previous_pp_best is None or score.pp > previous_pp_best.pp:
