@@ -23,7 +23,7 @@ from pydantic import BaseModel
 from sqlmodel import exists, select
 
 
-@router.post("/team", name="创建战队", response_model=Team)
+@router.post("/team", name="创建战队", response_model=Team, tags=["战队", "g0v0 API"])
 async def create_team(
     session: Database,
     storage: StorageService = Depends(get_storage_service),
@@ -78,7 +78,7 @@ async def create_team(
     return team
 
 
-@router.patch("/team/{team_id}", name="修改战队", response_model=Team)
+@router.patch("/team/{team_id}", name="修改战队", response_model=Team, tags=["战队", "g0v0 API"])
 async def update_team(
     team_id: int,
     session: Database,
@@ -152,7 +152,7 @@ async def update_team(
     return team
 
 
-@router.delete("/team/{team_id}", name="删除战队", status_code=204)
+@router.delete("/team/{team_id}", name="删除战队", status_code=204, tags=["战队", "g0v0 API"])
 async def delete_team(
     session: Database,
     team_id: int = Path(..., description="战队 ID"),
@@ -178,7 +178,7 @@ class TeamQueryResp(BaseModel):
     members: list[UserResp]
 
 
-@router.get("/team/{team_id}", name="查询战队", response_model=TeamQueryResp)
+@router.get("/team/{team_id}", name="查询战队", response_model=TeamQueryResp, tags=["用户", "g0v0 API"])
 async def get_team(
     session: Database,
     team_id: int = Path(..., description="战队 ID"),
@@ -190,7 +190,7 @@ async def get_team(
     )
 
 
-@router.post("/team/{team_id}/request", name="请求加入战队", status_code=204)
+@router.post("/team/{team_id}/request", name="请求加入战队", status_code=204, tags=["战队", "g0v0 API"])
 async def request_join_team(
     session: Database,
     team_id: int = Path(..., description="战队 ID"),
@@ -216,8 +216,8 @@ async def request_join_team(
     await server.new_private_notification(TeamApplicationStore.init(team_request))
 
 
-@router.post("/team/{team_id}/{user_id}/request", name="接受加入请求", status_code=204)
-@router.delete("/team/{team_id}/{user_id}/request", name="拒绝加入请求", status_code=204)
+@router.post("/team/{team_id}/{user_id}/request", name="接受加入请求", status_code=204, tags=["战队", "g0v0 API"])
+@router.delete("/team/{team_id}/{user_id}/request", name="拒绝加入请求", status_code=204, tags=["战队", "g0v0 API"])
 async def handle_request(
     req: Request,
     session: Database,
@@ -255,7 +255,7 @@ async def handle_request(
     await session.commit()
 
 
-@router.delete("/team/{team_id}/{user_id}", name="踢出成员 / 退出战队", status_code=204)
+@router.delete("/team/{team_id}/{user_id}", name="踢出成员 / 退出战队", status_code=204, tags=["战队", "g0v0 API"])
 async def kick_member(
     session: Database,
     team_id: int = Path(..., description="战队 ID"),

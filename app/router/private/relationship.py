@@ -23,6 +23,7 @@ class CheckResponse(BaseModel):
     name="检查关系状态",
     description="检查当前用户与指定用户的关系状态",
     response_model=CheckResponse,
+    tags=["用户关系", "g0v0 API"],
 )
 async def check_user_relationship(
     db: Database,

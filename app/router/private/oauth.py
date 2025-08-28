@@ -18,6 +18,7 @@ from sqlmodel import select, text
     "/oauth-app/create",
     name="创建 OAuth 应用",
     description="创建一个新的 OAuth 应用程序，并生成客户端 ID 和密钥",
+    tags=["osu! OAuth 认证", "g0v0 API"],
 )
 async def create_oauth_app(
     session: Database,
@@ -58,6 +59,7 @@ async def create_oauth_app(
     "/oauth-apps/{client_id}",
     name="获取 OAuth 应用信息",
     description="通过客户端 ID 获取 OAuth 应用的详细信息",
+    tags=["osu! OAuth 认证", "g0v0 API"],
 )
 async def get_oauth_app(
     session: Database,
@@ -79,6 +81,7 @@ async def get_oauth_app(
     "/oauth-apps",
     name="获取用户的 OAuth 应用列表",
     description="获取当前用户创建的所有 OAuth 应用程序",
+    tags=["osu! OAuth 认证", "g0v0 API"],
 )
 async def get_user_oauth_apps(
     session: Database,
@@ -101,6 +104,7 @@ async def get_user_oauth_apps(
     status_code=204,
     name="删除 OAuth 应用",
     description="删除指定的 OAuth 应用程序及其关联的所有令牌",
+    tags=["osu! OAuth 认证", "g0v0 API"],
 )
 async def delete_oauth_app(
     session: Database,
@@ -125,6 +129,7 @@ async def delete_oauth_app(
     "/oauth-app/{client_id}",
     name="更新 OAuth 应用",
     description="更新指定 OAuth 应用的名称、描述和重定向 URI",
+    tags=["osu! OAuth 认证", "g0v0 API"],
 )
 async def update_oauth_app(
     session: Database,
@@ -158,6 +163,7 @@ async def update_oauth_app(
     "/oauth-app/{client_id}/refresh",
     name="刷新 OAuth 密钥",
     description="为指定的 OAuth 应用生成新的客户端密钥，并使所有现有的令牌失效",
+    tags=["osu! OAuth 认证", "g0v0 API"],
 )
 async def refresh_secret(
     session: Database,
@@ -189,6 +195,7 @@ async def refresh_secret(
     "/oauth-app/{client_id}/code",
     name="生成 OAuth 授权码",
     description="为特定用户和 OAuth 应用生成授权码，用于授权码授权流程",
+    tags=["osu! OAuth 认证", "g0v0 API"],
 )
 async def generate_oauth_code(
     session: Database,

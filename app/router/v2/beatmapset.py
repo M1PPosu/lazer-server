@@ -151,7 +151,7 @@ async def get_beatmapset(
     "/beatmapsets/{beatmapset_id}/download",
     tags=["谱面集"],
     name="下载谱面集",
-    description="**客户端专属**\n下载谱面集文件。基于请求IP地理位置智能分流，支持负载均衡和自动故障转移。中国IP使用Sayobot镜像，其他地区使用Nerinyan和OsuDirect镜像。",
+    description="\n下载谱面集文件。基于请求IP地理位置智能分流，支持负载均衡和自动故障转移。中国IP使用Sayobot镜像，其他地区使用Nerinyan和OsuDirect镜像。",
 )
 async def download_beatmapset(
     request: Request,
@@ -189,7 +189,7 @@ async def download_beatmapset(
     "/beatmapsets/{beatmapset_id}/favourites",
     tags=["谱面集"],
     name="收藏或取消收藏谱面集",
-    description="**客户端专属**\n收藏或取消收藏指定谱面集。",
+    description="\n收藏或取消收藏指定谱面集。",
 )
 async def favourite_beatmapset(
     db: Database,

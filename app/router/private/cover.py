@@ -14,10 +14,7 @@ from .router import router
 from fastapi import Depends, File, Security
 
 
-@router.post(
-    "/cover/upload",
-    name="上传头图",
-)
+@router.post("/cover/upload", name="上传头图", tags=["用户", "g0v0 API"])
 async def upload_cover(
     session: Database,
     content: bytes = File(...),

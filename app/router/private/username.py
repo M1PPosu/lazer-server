@@ -14,10 +14,7 @@ from fastapi import Body, HTTPException, Security
 from sqlmodel import exists, select
 
 
-@router.post(
-    "/rename",
-    name="修改用户名",
-)
+@router.post("/rename", name="修改用户名", tags=["用户", "g0v0 API"])
 async def user_rename(
     session: Database,
     new_name: str = Body(..., description="新的用户名"),

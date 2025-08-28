@@ -9,10 +9,8 @@ from typing import Annotated
 from app.database import User
 from app.dependencies import get_current_user
 from app.dependencies.database import Database, get_redis
-from app.dependencies.geoip import GeoIPHelper, get_geoip_helper
 from app.service.email_verification_service import (
     EmailVerificationService,
-    LoginSessionService,
 )
 from app.service.login_log_service import LoginLogService
 
@@ -32,10 +30,7 @@ class SessionReissueResponse(BaseModel):
 
 
 @router.post(
-    "/session/verify",
-    name="验证会话",
-    description="验证邮件验证码并完成会话认证",
-    status_code=204,
+    "/session/verify", name="验证会话", description="验证邮件验证码并完成会话认证", status_code=204, tags=["验证"]
 )
 async def verify_session(
     request: Request,
@@ -101,6 +96,7 @@ async def verify_session(
     name="重新发送验证码",
     description="重新发送邮件验证码",
     response_model=SessionReissueResponse,
+    tags=["验证"],
 )
 async def reissue_verification_code(
     request: Request,
@@ -141,40 +137,3 @@ async def reissue_verification_code(
         return SessionReissueResponse(success=False, message="无效的用户会话")
     except Exception:
         return SessionReissueResponse(success=False, message="重新发送过程中发生错误")
-
-
-@router.post(
-    "/session/check-new-location",
-    name="检查新位置登录",
-    description="检查登录是否来自新位置（内部接口）",
-)
-async def check_new_location(
-    request: Request,
-    db: Database,
-    user_id: int,
-    geoip: GeoIPHelper = Depends(get_geoip_helper),
-):
-    """
-    检查是否为新位置登录
-    这是一个内部接口，用于登录流程中判断是否需要邮件验证
-    """
-    try:
-        from app.dependencies.geoip import get_client_ip
-
-        ip_address = get_client_ip(request)
-        geo_info = geoip.lookup(ip_address)
-        country_code = geo_info.get("country_iso", "XX")
-
-        is_new_location = await LoginSessionService.check_new_location(db, user_id, ip_address, country_code)
-
-        return {
-            "is_new_location": is_new_location,
-            "ip_address": ip_address,
-            "country_code": country_code,
-        }
-
-    except Exception as e:
-        return {
-            "is_new_location": True,  # 出错时默认为新位置
-            "error": str(e),
-        }

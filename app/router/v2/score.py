@@ -402,7 +402,7 @@ async def get_user_all_beatmap_scores(
     tags=["游玩"],
     response_model=ScoreTokenResp,
     name="创建单曲成绩提交令牌",
-    description="**客户端专属**\n为指定谱面创建一次性的成绩提交令牌。",
+    description="\n为指定谱面创建一次性的成绩提交令牌。",
 )
 async def create_solo_score(
     background_task: BackgroundTasks,
@@ -434,7 +434,7 @@ async def create_solo_score(
     tags=["游玩"],
     response_model=ScoreResp,
     name="提交单曲成绩",
-    description="**客户端专属**\n使用令牌提交单曲成绩。",
+    description="\n使用令牌提交单曲成绩。",
 )
 async def submit_solo_score(
     background_task: BackgroundTasks,
@@ -454,7 +454,7 @@ async def submit_solo_score(
     tags=["游玩"],
     response_model=ScoreTokenResp,
     name="创建房间项目成绩令牌",
-    description="**客户端专属**\n为房间游玩项目创建成绩提交令牌。",
+    description="\n为房间游玩项目创建成绩提交令牌。",
 )
 async def create_playlist_score(
     session: Database,
@@ -520,7 +520,7 @@ async def create_playlist_score(
     "/rooms/{room_id}/playlist/{playlist_id}/scores/{token}",
     tags=["游玩"],
     name="提交房间项目成绩",
-    description="**客户端专属**\n提交房间游玩项目成绩。",
+    description="\n提交房间游玩项目成绩。",
 )
 async def submit_playlist_score(
     background_task: BackgroundTasks,
@@ -753,7 +753,7 @@ async def get_user_playlist_score(
     "/score-pins/{score_id}",
     status_code=204,
     name="置顶成绩",
-    description="**客户端专属**\n将指定成绩置顶到用户主页 (按顺序)。",
+    description="\n将指定成绩置顶到用户主页 (按顺序)。",
     tags=["成绩"],
 )
 async def pin_score(
@@ -798,7 +798,7 @@ async def pin_score(
     "/score-pins/{score_id}",
     status_code=204,
     name="取消置顶成绩",
-    description="**客户端专属**\n取消置顶指定成绩。",
+    description="\n取消置顶指定成绩。",
     tags=["成绩"],
 )
 async def unpin_score(
@@ -833,7 +833,7 @@ async def unpin_score(
     "/score-pins/{score_id}/reorder",
     status_code=204,
     name="调整置顶成绩顺序",
-    description=("**客户端专属**\n调整已置顶成绩的展示顺序。仅提供 after_score_id 或 before_score_id 之一。"),
+    description=("\n调整已置顶成绩的展示顺序。仅提供 after_score_id 或 before_score_id 之一。"),
     tags=["成绩"],
 )
 async def reorder_score_pin(

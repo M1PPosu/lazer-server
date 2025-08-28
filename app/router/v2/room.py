@@ -135,7 +135,7 @@ async def _participate_room(room_id: int, user_id: int, db_room: Room, session: 
     tags=["房间"],
     response_model=APICreatedRoom,
     name="创建房间",
-    description="**客户端专属**\n创建一个新的房间。",
+    description="\n创建一个新的房间。",
 )
 async def create_room(
     db: Database,
@@ -181,7 +181,7 @@ async def get_room(
     "/rooms/{room_id}",
     tags=["房间"],
     name="结束房间",
-    description="**客户端专属**\n结束歌单模式房间。",
+    description="\n结束歌单模式房间。",
 )
 async def delete_room(
     db: Database,
@@ -201,7 +201,7 @@ async def delete_room(
     "/rooms/{room_id}/users/{user_id}",
     tags=["房间"],
     name="加入房间",
-    description="**客户端专属**\n加入指定歌单模式房间。",
+    description="\n加入指定歌单模式房间。",
 )
 async def add_user_to_room(
     db: Database,
@@ -225,7 +225,7 @@ async def add_user_to_room(
     "/rooms/{room_id}/users/{user_id}",
     tags=["房间"],
     name="离开房间",
-    description="**客户端专属**\n离开指定歌单模式房间。",
+    description="\n离开指定歌单模式房间。",
 )
 async def remove_user_from_room(
     db: Database,

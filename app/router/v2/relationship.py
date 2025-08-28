@@ -53,13 +53,13 @@ class AddFriendResp(BaseModel):
     tags=["用户关系"],
     response_model=AddFriendResp,
     name="添加或更新好友关系",
-    description="**客户端专属**\n添加或更新与目标用户的好友关系。",
+    description="\n添加或更新与目标用户的好友关系。",
 )
 @router.post(
     "/blocks",
     tags=["用户关系"],
     name="添加或更新屏蔽关系",
-    description="**客户端专属**\n添加或更新与目标用户的屏蔽关系。",
+    description="\n添加或更新与目标用户的屏蔽关系。",
 )
 async def add_relationship(
     db: Database,
@@ -119,13 +119,13 @@ async def add_relationship(
     "/friends/{target}",
     tags=["用户关系"],
     name="取消好友关系",
-    description="**客户端专属**\n删除与目标用户的好友关系。",
+    description="\n删除与目标用户的好友关系。",
 )
 @router.delete(
     "/blocks/{target}",
     tags=["用户关系"],
     name="取消屏蔽关系",
-    description="**客户端专属**\n删除与目标用户的屏蔽关系。",
+    description="\n删除与目标用户的屏蔽关系。",
 )
 async def delete_relationship(
     db: Database,

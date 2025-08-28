@@ -14,10 +14,7 @@ from .router import router
 from fastapi import Depends, File, Security
 
 
-@router.post(
-    "/avatar/upload",
-    name="上传头像",
-)
+@router.post("/avatar/upload", name="上传头像", tags=["用户", "g0v0 API"])
 async def upload_avatar(
     session: Database,
     content: bytes = File(...),

@@ -14,7 +14,12 @@ from fastapi import Body, HTTPException, Security
 from sqlmodel import col, exists, select
 
 
-@router.get("/beatmapsets/{beatmapset_id}/can_rate", name="判断用户能否为谱面集打分", response_model=bool)
+@router.get(
+    "/beatmapsets/{beatmapset_id}/can_rate",
+    name="判断用户能否为谱面集打分",
+    response_model=bool,
+    tags=["谱面集", "g0v0 API"],
+)
 async def can_rate_beatmapset(
     beatmapset_id: int,
     session: Database,
@@ -44,7 +49,9 @@ async def can_rate_beatmapset(
     return (await session.exec(query)).first() or False
 
 
-@router.post("/beatmapsets/{beatmapset_id}/ratings", name="上传对谱面集的打分", status_code=201)
+@router.post(
+    "/beatmapsets/{beatmapset_id}/ratings", name="上传对谱面集的打分", status_code=201, tags=["谱面集", "g0v0 API"]
+)
 async def rate_beatmaps(
     beatmapset_id: int,
     session: Database,

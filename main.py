@@ -80,11 +80,31 @@ async def lifespan(app: FastAPI):
     await redis_client.aclose()
 
 
-desc = (
-    "osu! API 模拟服务器，支持 osu! API v1, v2 和 osu!lazer 的绝大部分功能。\n\n"
-    "官方文档：[osu!web 文档](https://osu.ppy.sh/docs/index.html)\n\n"
-    "V1 API 文档：[osu-api](https://github.com/ppy/osu-api/wiki)"
-)
+desc = """osu! API 模拟服务器，支持 osu! API v1, v2 和 osu!lazer 的绝大部分功能。
+
+## 端点说明
+
+所有 v2 API 均以 `/api/v2/` 开头，所有 v1 API 均以 `/api/v1` 开头（直接访问 `/api` 的 v1 API 会进行重定向）。
+
+所有 g0v0-server 提供的额外 API（g0v0-api） 均以 `/api/private/` 开头。
+
+## 鉴权
+
+v2 API 采用 OAuth 2.0 鉴权，支持以下鉴权方式：
+
+- `password` 密码鉴权，仅适用于 osu!lazer 客户端和前端等服务，需要提供用户的用户名和密码进行登录。
+- `authorization_code` 授权码鉴权，适用于第三方应用，需要提供用户的授权码进行登录。
+- `client_credentials` 客户端凭证鉴权，适用于服务端应用，需要提供客户端 ID 和客户端密钥进行登录。
+
+使用 `password` 鉴权的具有全部权限。`authorization_code` 具有指定 scope 的权限。`client_credentials` 只有 `public` 权限。各接口需要的权限请查看每个 Endpoint 的 Authorization。
+
+v1 API 采用 API Key 鉴权，将 API Key 放入 Query `k` 中。
+
+## 参考
+
+- v2 API 文档：[osu-web 文档](https://osu.ppy.sh/docs/index.html)
+- v1 API 文档：[osu-api](https://github.com/ppy/osu-api/wiki)
+"""  # noqa: E501
 
 # 检查 New Relic 配置文件是否存在，如果存在则初始化 New Relic
 newrelic_config_path = Path("newrelic.ini")
