@@ -43,7 +43,7 @@ cp .env.example .env
 ```bash
 # 标准服务器
 docker-compose -f docker-compose.yml up -d
-# 启用 osu!RX 和 osu!AP 模式 （偏偏要上班 pp 算法）
+# 启用 osu!RX 和 osu!AP 模式 （基于偏偏要上班 pp 算法的 Gu pp 算法）
 docker-compose -f docker-compose-osurx.yml up -d
 ```
 

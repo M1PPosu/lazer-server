@@ -39,7 +39,7 @@ This is an osu! API server implemented with FastAPI + MySQL + Redis, supporting 
     ```bash
     # Standard server
     docker-compose -f docker-compose.yml up -d
-    # Enable osu!RX and osu!AP statistics (ppy-sb pp algorithm)
+    # Enable osu!RX and osu!AP statistics (Gu pp algorithm based on ppy-sb pp algorithm)
     docker-compose -f docker-compose-osurx.yml up -d
     ```
 4.  Connect to the server from the game
