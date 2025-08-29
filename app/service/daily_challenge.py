@@ -138,42 +138,41 @@ async def process_daily_challenge_top():
                 )
             )
         ).first()
-        if room is None:
-            return
-        scores = (
-            await session.exec(
-                select(PlaylistBestScore)
-                .where(
-                    PlaylistBestScore.room_id == room.id,
-                    PlaylistBestScore.playlist_id == 0,
-                    col(PlaylistBestScore.score).has(col(Score.passed).is_(True)),
-                )
-                .order_by(col(PlaylistBestScore.total_score).desc())
-            )
-        ).all()
-        total_score_count = len(scores)
-        s = []
         participated_users = []
-        for i, score in enumerate(scores):
-            stats = await session.get(DailyChallengeStats, score.user_id)
-            if stats is None:  # not execute
-                return
-            if stats.last_update is None or stats.last_update.replace(tzinfo=UTC).date() != now.date():
-                if total_score_count < 10 or ceil(i + 1 / total_score_count) <= 0.1:
-                    stats.top_10p_placements += 1
-                if total_score_count < 2 or ceil(i + 1 / total_score_count) <= 0.5:
-                    stats.top_50p_placements += 1
-            s.append(s)
-            participated_users.append(score.user_id)
-            stats.last_update = now
-        await session.commit()
-        del s
+        if room is not None:
+            scores = (
+                await session.exec(
+                    select(PlaylistBestScore)
+                    .where(
+                        PlaylistBestScore.room_id == room.id,
+                        PlaylistBestScore.playlist_id == 0,
+                        col(PlaylistBestScore.score).has(col(Score.passed).is_(True)),
+                    )
+                    .order_by(col(PlaylistBestScore.total_score).desc())
+                )
+            ).all()
+            total_score_count = len(scores)
+            s = []
+            for i, score in enumerate(scores):
+                stats = await session.get(DailyChallengeStats, score.user_id)
+                if stats is None:  # not execute
+                    continue
+                if stats.last_update is None or stats.last_update.replace(tzinfo=UTC).date() != now.date():
+                    if total_score_count < 10 or ceil(i + 1 / total_score_count) <= 0.1:
+                        stats.top_10p_placements += 1
+                    if total_score_count < 2 or ceil(i + 1 / total_score_count) <= 0.5:
+                        stats.top_50p_placements += 1
+                s.append(s)
+                participated_users.append(score.user_id)
+                stats.last_update = now
+            await session.commit()
+            del s
 
         user_ids = (await session.exec(select(User.id).where(col(User.id).not_in(participated_users)))).all()
         for id in user_ids:
             stats = await session.get(DailyChallengeStats, id)
             if stats is None:  # not execute
-                return
+                continue
             stats.daily_streak_current = 0
             if stats.last_weekly_streak and not are_same_weeks(
                 stats.last_weekly_streak.replace(tzinfo=UTC), now - timedelta(days=7)
