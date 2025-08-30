@@ -135,10 +135,7 @@ async def save_replay(
 
     storage_service = get_storage_service()
     replay_path = f"replays/{score.id}_{score.beatmap_id}_{score.user_id}_lazer_replay.osr"
-    await storage_service.write_file(
-        replay_path,
-        bytes(data),
-    )
+    await storage_service.write_file(replay_path, bytes(data), "application/x-osu-replay")
 
 
 class SpectatorHub(Hub[StoreClientState]):

@@ -681,7 +681,4 @@ async def save_replay(
 ):
     replay_data = req.mreplay
     replay_path = f"replays/{req.score_id}_{req.beatmap_id}_{req.user_id}_lazer_replay.osr"
-    await storage_service.write_file(
-        replay_path,
-        base64.b64decode(replay_data),
-    )
+    await storage_service.write_file(replay_path, base64.b64decode(replay_data), "application/x-osu-replay")

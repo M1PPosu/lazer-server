@@ -35,7 +35,7 @@ async def upload_avatar(
     """
 
     # check file
-    check_image(content, 5 * 1024 * 1024, 256, 256)
+    format_ = check_image(content, 5 * 1024 * 1024, 256, 256)
 
     if url := current_user.avatar_url:
         path = storage.get_file_name_by_url(url)
@@ -45,7 +45,7 @@ async def upload_avatar(
     filehash = hashlib.sha256(content).hexdigest()
     storage_path = f"avatars/{current_user.id}_{filehash}.png"
     if not await storage.is_exists(storage_path):
-        await storage.write_file(storage_path, content)
+        await storage.write_file(storage_path, content, f"image/{format_}")
     url = await storage.get_file_url(storage_path)
     current_user.avatar_url = url
     await session.commit()

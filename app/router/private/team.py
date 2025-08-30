@@ -52,8 +52,8 @@ async def create_team(
     if is_existed:
         raise HTTPException(status_code=409, detail="Short name already exists")
 
-    check_image(flag, 2 * 1024 * 1024, 240, 120)
-    check_image(cover, 10 * 1024 * 1024, 3000, 2000)
+    flag_format = check_image(flag, 2 * 1024 * 1024, 240, 120)
+    cover_format = check_image(cover, 10 * 1024 * 1024, 3000, 2000)
 
     now = utcnow()
     team = Team(name=name, short_name=short_name, leader_id=user_id, created_at=now)
@@ -64,13 +64,13 @@ async def create_team(
     filehash = hashlib.sha256(flag).hexdigest()
     storage_path = f"team_flag/{team.id}_{filehash}.png"
     if not await storage.is_exists(storage_path):
-        await storage.write_file(storage_path, flag)
+        await storage.write_file(storage_path, flag, f"image/{flag_format}")
     team.flag_url = await storage.get_file_url(storage_path)
 
     filehash = hashlib.sha256(cover).hexdigest()
     storage_path = f"team_cover/{team.id}_{filehash}.png"
     if not await storage.is_exists(storage_path):
-        await storage.write_file(storage_path, cover)
+        await storage.write_file(storage_path, cover, f"image/{cover_format}")
     team.cover_url = await storage.get_file_url(storage_path)
 
     team_member = TeamMember(user_id=user_id, team_id=team.id, joined_at=now)
@@ -120,7 +120,7 @@ async def update_team(
             team.short_name = short_name
 
     if flag:
-        check_image(flag, 2 * 1024 * 1024, 240, 120)
+        format_ = check_image(flag, 2 * 1024 * 1024, 240, 120)
 
         if old_flag := team.flag_url:
             path = storage.get_file_name_by_url(old_flag)
@@ -129,10 +129,10 @@ async def update_team(
         filehash = hashlib.sha256(flag).hexdigest()
         storage_path = f"team_flag/{team.id}_{filehash}.png"
         if not await storage.is_exists(storage_path):
-            await storage.write_file(storage_path, flag)
+            await storage.write_file(storage_path, flag, f"image/{format_}")
         team.flag_url = await storage.get_file_url(storage_path)
     if cover:
-        check_image(cover, 10 * 1024 * 1024, 3000, 2000)
+        format_ = check_image(cover, 10 * 1024 * 1024, 3000, 2000)
 
         if old_cover := team.cover_url:
             path = storage.get_file_name_by_url(old_cover)
@@ -141,7 +141,7 @@ async def update_team(
         filehash = hashlib.sha256(cover).hexdigest()
         storage_path = f"team_cover/{team.id}_{filehash}.png"
         if not await storage.is_exists(storage_path):
-            await storage.write_file(storage_path, cover)
+            await storage.write_file(storage_path, cover, f"image/{format_}")
         team.cover_url = await storage.get_file_url(storage_path)
 
     if leader_id is not None:
