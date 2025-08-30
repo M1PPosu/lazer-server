@@ -4,7 +4,7 @@ import hashlib
 
 from app.database.lazer_user import BASE_INCLUDES, User, UserResp
 from app.database.team import Team, TeamMember, TeamRequest
-from app.dependencies.database import Database
+from app.dependencies.database import Database, get_redis
 from app.dependencies.storage import get_storage_service
 from app.dependencies.user import get_client_user
 from app.models.notification import (
@@ -13,6 +13,7 @@ from app.models.notification import (
     TeamApplicationStore,
 )
 from app.router.notification import server
+from app.service.ranking_cache_service import get_ranking_cache_service
 from app.storage.base import StorageService
 from app.utils import check_image, utcnow
 
@@ -20,6 +21,7 @@ from .router import router
 
 from fastapi import Depends, File, Form, HTTPException, Path, Request, Security
 from pydantic import BaseModel
+from redis.asyncio import Redis
 from sqlmodel import exists, select
 
 
@@ -32,6 +34,7 @@ async def create_team(
     cover: bytes = File(..., description="战队头图文件"),
     name: str = Form(max_length=100, description="战队名称"),
     short_name: str = Form(max_length=10, description="战队缩写"),
+    redis: Redis = Depends(get_redis),
 ):
     """创建战队。
 
@@ -75,6 +78,9 @@ async def create_team(
 
     await session.commit()
     await session.refresh(team)
+
+    cache_service = get_ranking_cache_service(redis)
+    await cache_service.invalidate_team_cache()
     return team
 
 
@@ -157,6 +163,7 @@ async def delete_team(
     session: Database,
     team_id: int = Path(..., description="战队 ID"),
     current_user: User = Security(get_client_user),
+    redis: Redis = Depends(get_redis),
 ):
     team = await session.get(Team, team_id)
     if not team:
@@ -171,6 +178,9 @@ async def delete_team(
 
     await session.delete(team)
     await session.commit()
+
+    cache_service = get_ranking_cache_service(redis)
+    await cache_service.invalidate_team_cache()
 
 
 class TeamQueryResp(BaseModel):
@@ -224,6 +234,7 @@ async def handle_request(
     team_id: int = Path(..., description="战队 ID"),
     user_id: int = Path(..., description="用户 ID"),
     current_user: User = Security(get_client_user),
+    redis: Redis = Depends(get_redis),
 ):
     team = await session.get(Team, team_id)
     if not team:
@@ -249,6 +260,9 @@ async def handle_request(
         session.add(TeamMember(user_id=user_id, team_id=team_id, joined_at=utcnow()))
 
         await server.new_private_notification(TeamApplicationAccept.init(team_request))
+
+        cache_service = get_ranking_cache_service(redis)
+        await cache_service.invalidate_team_cache()
     else:
         await server.new_private_notification(TeamApplicationReject.init(team_request))
     await session.delete(team_request)
@@ -261,6 +275,7 @@ async def kick_member(
     team_id: int = Path(..., description="战队 ID"),
     user_id: int = Path(..., description="用户 ID"),
     current_user: User = Security(get_client_user),
+    redis: Redis = Depends(get_redis),
 ):
     team = await session.get(Team, team_id)
     if not team:
@@ -280,3 +295,6 @@ async def kick_member(
 
     await session.delete(team_member)
     await session.commit()
+
+    cache_service = get_ranking_cache_service(redis)
+    await cache_service.invalidate_team_cache()

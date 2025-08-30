@@ -604,6 +604,21 @@ class RankingCacheService:
         except Exception as e:
             logger.error(f"Error invalidating country cache: {e}")
 
+    async def invalidate_team_cache(self, ruleset: GameMode | None = None) -> None:
+        """使战队排行榜缓存失效"""
+        try:
+            if ruleset:
+                pattern = f"team_ranking:{ruleset}:*"
+            else:
+                pattern = "team_ranking:*"
+
+            keys = await self.redis.keys(pattern)
+            if keys:
+                await self.redis.delete(*keys)
+                logger.info(f"Invalidated {len(keys)} team ranking cache keys")
+        except Exception as e:
+            logger.error(f"Error invalidating team cache: {e}")
+
     async def get_cache_stats(self) -> dict:
         """获取缓存统计信息"""
         try:
