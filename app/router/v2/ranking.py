@@ -24,6 +24,9 @@ class TeamStatistics(BaseModel):
     ranked_score: int
     performance: int
 
+    team: Team
+    member_count: int
+
 
 class TeamResponse(BaseModel):
     ranking: list[TeamStatistics]
@@ -101,10 +104,13 @@ async def get_team_ranking(
             play_count=0,
             ranked_score=0,
             performance=0,
+            team=team,
+            member_count=0,
         )
         for stat in statistics:
             stats.ranked_score += stat.ranked_score
             pp += stat.pp
+            stats.member_count += 1
         stats.performance = round(pp)
         response.ranking.append(stats)
 
