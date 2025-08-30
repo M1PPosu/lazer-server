@@ -31,6 +31,10 @@ class BeatmapRankStatus(IntEnum):
             BeatmapRankStatus.APPROVED,
         }
 
+    def ranked(self) -> bool:
+        # https://osu.ppy.sh/wiki/Gameplay/Score/Ranked_score
+        return self in {BeatmapRankStatus.RANKED, BeatmapRankStatus.APPROVED, BeatmapRankStatus.LOVED}
+
 
 class Genre(IntEnum):
     ANY = 0

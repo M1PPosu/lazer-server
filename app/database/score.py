@@ -13,8 +13,10 @@ from app.calculator import (
     clamp,
     pre_fetch_and_calculate_pp,
 )
+from app.config import settings
 from app.database.team import TeamMember
 from app.dependencies.database import get_redis
+from app.models.beatmap import BeatmapRankStatus
 from app.models.model import (
     CurrentUserAttributes,
     PinAttributes,
@@ -714,9 +716,12 @@ async def process_user(
     score: Score,
     score_token: int,
     beatmap_length: int,
-    ranked: bool = False,
-    has_leaderboard: bool = False,
+    beatmap_status: BeatmapRankStatus,
 ):
+    has_pp = beatmap_status.has_pp() or settings.enable_all_beatmap_pp
+    ranked = beatmap_status.ranked() or settings.enable_all_beatmap_pp
+    has_leaderboard = beatmap_status.has_leaderboard() or settings.enable_all_beatmap_leaderboard
+
     mod_for_save = mod_to_save(score.mods)
     previous_score_best = await get_user_best_score_in_beatmap(session, score.beatmap_id, user.id, score.gamemode)
     previous_score_best_mod = await get_user_best_score_with_mod_in_beatmap(
@@ -809,28 +814,31 @@ async def process_user(
                 previous_score_best_mod.rank = score.rank
                 previous_score_best_mod.score_id = score.id
 
-    statistics.play_count += 1
-    mouthly_playcount.count += 1
     playtime, is_valid = calculate_playtime(score, beatmap_length)
     if is_valid:
         redis = get_redis()
         await redis.xadd(f"score:existed_time:{score_token}", {"time": playtime})
+        statistics.play_count += 1
+        mouthly_playcount.count += 1
         statistics.play_time += playtime
+        with session.no_autoflush:
+            await process_beatmap_playcount(session, user.id, score.beatmap_id)
+
     statistics.count_100 += score.n100 + score.nkatu
     statistics.count_300 += score.n300 + score.ngeki
     statistics.count_50 += score.n50
     statistics.count_miss += score.nmiss
     statistics.total_hits += score.n300 + score.n100 + score.n50 + score.ngeki + score.nkatu
 
-    if score.passed and ranked:
+    if score.passed and has_pp:
         with session.no_autoflush:
             statistics.pp, statistics.hit_accuracy = await calculate_user_pp(
                 session, statistics.user_id, score.gamemode
             )
+
     if add_to_db:
         session.add(mouthly_playcount)
-    with session.no_autoflush:
-        await process_beatmap_playcount(session, user.id, score.beatmap_id)
+
     await session.commit()
     await session.refresh(user)
 
