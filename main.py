@@ -110,6 +110,8 @@ v1 API 采用 API Key 鉴权，将 API Key 放入 Query `k` 中。
 
 - 每分钟最多可以发送 1200 个请求
 - 突发请求限制为每秒最多 200 个请求
+
+此外，下载回放 API (`/api/v1/get_replay`, `/api/v2/scores/{score_id}/download`) 的速率限制为每分钟最多 10 个请求。
 '''
     if settings.enable_rate_limit
     else ""

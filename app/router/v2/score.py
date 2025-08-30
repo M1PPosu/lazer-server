@@ -50,7 +50,6 @@ from app.models.score import (
 )
 from app.service.user_cache_service import get_user_cache_service
 from app.storage.base import StorageService
-from app.storage.local import LocalStorageService
 from app.utils import utcnow
 
 from .router import router
@@ -65,7 +64,8 @@ from fastapi import (
     Query,
     Security,
 )
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
+from fastapi_limiter.depends import RateLimiter
 from httpx import HTTPError
 from pydantic import BaseModel
 from redis.asyncio import Redis
@@ -912,6 +912,7 @@ async def reorder_score_pin(
     name="下载成绩回放",
     description="下载指定成绩的回放文件。",
     tags=["成绩"],
+    dependencies=[Depends(RateLimiter(times=10, minutes=1))],
 )
 async def download_score_replay(
     score_id: int,
@@ -960,14 +961,6 @@ async def download_score_replay(
             db.add(replay_watched_count)
         replay_watched_count.count += 1
         await db.commit()
-    if isinstance(storage_service, LocalStorageService):
-        return FileResponse(
-            path=await storage_service.get_file_url(filepath),
-            filename=filepath,
-            media_type="application/x-osu-replay",
-        )
-    else:
-        return RedirectResponse(
-            await storage_service.get_file_url(filepath),
-            301,
-        )
+    return RedirectResponse(
+        await storage_service.get_file_url(filepath), 301, headers={"Content-Type": "application/x-osu-replay"}
+    )
