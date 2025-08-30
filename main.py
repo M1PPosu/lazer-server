@@ -86,7 +86,7 @@ desc = f"""osu! API 模拟服务器，支持 osu! API v1, v2 和 osu!lazer 的�
 
 ## 端点说明
 
-所有 v2 API 均以 `/api/v2/` 开头，所有 v1 API 均以 `/api/v1` 开头（直接访问 `/api` 的 v1 API 会进行重定向）。
+所有 v2 API 均以 `/api/v2/` 开头，所有 v1 API 均以 `/api/v1/` 开头（直接访问 `/api` 的 v1 API 会进行重定向）。
 
 所有 g0v0-server 提供的额外 API（g0v0-api） 均以 `/api/private/` 开头。
 

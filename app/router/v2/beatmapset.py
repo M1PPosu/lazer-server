@@ -215,17 +215,3 @@ async def favourite_beatmapset(
     else:
         await db.delete(existing_favourite)
     await db.commit()
-
-
-@router.get(
-    "/beatmapsets/download-status",
-    tags=["谱面集"],
-    name="下载服务状态",
-    description="获取谱面下载服务的健康状态和负载均衡信息。",
-)
-async def get_download_service_status(
-    current_user: User = Security(get_current_user, scopes=["public"]),
-    download_service: BeatmapDownloadService = Depends(get_beatmap_download_service),
-):
-    """获取下载服务状态"""
-    return download_service.get_service_status()

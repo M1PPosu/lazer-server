@@ -188,7 +188,7 @@ class TeamQueryResp(BaseModel):
     members: list[UserResp]
 
 
-@router.get("/team/{team_id}", name="查询战队", response_model=TeamQueryResp, tags=["用户", "g0v0 API"])
+@router.get("/team/{team_id}", name="查询战队", response_model=TeamQueryResp, tags=["战队", "g0v0 API"])
 async def get_team(
     session: Database,
     team_id: int = Path(..., description="战队 ID"),
