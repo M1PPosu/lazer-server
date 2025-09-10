@@ -19,6 +19,7 @@ from app.router import (
     private_router,
     redirect_api_router,
 )
+from app.router.v1 import api_v1_public_router
 from app.router.redirect import redirect_router
 from app.scheduler.cache_scheduler import start_cache_scheduler, stop_cache_scheduler
 from app.scheduler.database_cleanup_scheduler import (
@@ -157,6 +158,7 @@ app = FastAPI(
 
 app.include_router(api_v2_router)
 app.include_router(api_v1_router)
+app.include_router(api_v1_public_router)
 app.include_router(chat_router)
 app.include_router(redirect_api_router)
 app.include_router(fetcher_router)
