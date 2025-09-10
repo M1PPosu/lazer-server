@@ -20,6 +20,7 @@ from app.log import logger
 from app.router.v1.public_router import public_router, AllStrModel
 
 from fastapi import HTTPException, Query
+from fastapi.responses import JSONResponse
 from sqlmodel import select
 
 
@@ -133,11 +134,8 @@ async def _count_online_users_optimized(redis):
     首先尝试使用HyperLogLog近似计数，失败则回退到SCAN
     """
     try:
-        # 方案1: 尝试使用更高效的方法 - 如果项目维护了在线用户集合
-        # 检查是否存在在线用户集合键
         online_set_key = "metadata:online_users_set"
         if await redis.exists(online_set_key):
-            # 如果存在维护好的在线用户集合，直接获取数量
             count = await redis.scard(online_set_key)
             logger.debug(f"Using online users set, count: {count}")
             return count
@@ -181,7 +179,6 @@ async def _count_online_users_optimized(redis):
 
 @public_router.get(
     "/get_player_info",
-    response_model=GetPlayerInfoResponse,
     name="获取玩家信息",
     description="返回指定玩家的信息。",
 )
@@ -210,7 +207,11 @@ async def api_get_player_info(
         user = (await session.exec(select(User).where(User.username == name))).first()
     
     if not user:
-        raise HTTPException(404, "User not found")
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=200,
+            content={"status": "Player not found."}
+        )
     
     try:
         if scope == "stats":
