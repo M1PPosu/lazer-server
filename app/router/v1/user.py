@@ -3,31 +3,23 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from app.database.events import Event, EventType
 from app.database.lazer_user import User
-from app.database.rank_history import RankHistory, RankHistoryResp
 from app.database.statistics import UserStatistics, UserStatisticsResp
 from app.dependencies.database import Database, get_redis
 from app.log import logger
 from app.models.score import GameMode
 from app.models.v1_user import (
-    GetPlayerInfoResponse,
-    PlayerAllResponse,
     PlayerEventItem,
-    PlayerEventsResponse,
     PlayerInfo,
-    PlayerInfoResponse,
     PlayerModeStats,
     PlayerStatsHistory,
-    PlayerStatsResponse,
 )
 from app.service.user_cache_service import get_user_cache_service
 
 from .router import AllStrModel, router
 
 from fastapi import BackgroundTasks, HTTPException, Query
-from pydantic import BaseModel, Field
-from sqlmodel import col, select
+from sqlmodel import select
 
 
 class V1User(AllStrModel):
@@ -171,19 +163,17 @@ async def get_user(
 
 # 以下为 get_player_info 接口相关的实现函数
 
+
 async def _get_pp_history_for_mode(session: Database, user_id: int, mode: GameMode, days: int = 30) -> list[float]:
     """获取指定模式的 PP 历史数据"""
     try:
         # 获取最近 30 天的排名历史（由于没有 PP 历史，我们使用当前的 PP 填充）
         stats = (
             await session.exec(
-                select(UserStatistics).where(
-                    UserStatistics.user_id == user_id,
-                    UserStatistics.mode == mode
-                )
+                select(UserStatistics).where(UserStatistics.user_id == user_id, UserStatistics.mode == mode)
             )
         ).first()
-        
+
         current_pp = stats.pp if stats else 0.0
         # 创建 30 天的 PP 历史（使用当前 PP 值填充）
         return [current_pp] * days
@@ -193,10 +183,7 @@ async def _get_pp_history_for_mode(session: Database, user_id: int, mode: GameMo
 
 
 async def _create_player_mode_stats(
-    session: Database, 
-    user: User, 
-    mode: GameMode,
-    user_statistics: list[UserStatistics]
+    session: Database, user: User, mode: GameMode, user_statistics: list[UserStatistics]
 ) -> PlayerModeStats:
     """创建单个模式的玩家统计数据"""
     # 查找对应模式的统计数据
@@ -205,7 +192,7 @@ async def _create_player_mode_stats(
         if stat.mode == mode:
             stats = stat
             break
-    
+
     if not stats:
         # 如果没有统计数据，创建默认数据
         pp_history = [0.0] * 30
@@ -230,26 +217,27 @@ async def _create_player_mode_stats(
             level_progress=0,
             rank=0,
             country_rank=0,
-            history=PlayerStatsHistory(pp=pp_history)
+            history=PlayerStatsHistory(pp=pp_history),
         )
-    
+
     # 获取排名信息
     try:
         from app.database.statistics import get_rank
+
         global_rank = await get_rank(session, stats) or 0
         country_rank = await get_rank(session, stats, user.country_code) or 0
     except Exception as e:
         logger.error(f"Error getting rank for user {user.id}: {e}")
         global_rank = 0
         country_rank = 0
-    
+
     # 获取 PP 历史
     pp_history = await _get_pp_history_for_mode(session, user.id, mode)
-    
+
     # 计算等级进度
     level_current = int(stats.level_current)
     level_progress = int((stats.level_current - level_current) * 100)
-    
+
     return PlayerModeStats(
         id=user.id,
         mode=int(mode),
@@ -271,7 +259,7 @@ async def _create_player_mode_stats(
         level_progress=level_progress,
         rank=global_rank,
         country_rank=country_rank,
-        history=PlayerStatsHistory(pp=pp_history)
+        history=PlayerStatsHistory(pp=pp_history),
     )
 
 
@@ -310,10 +298,10 @@ async def _create_player_info(user: User) -> PlayerInfo:
         userpage_content=user.page.get("html", "") if user.page else "",
         recentFailed=0,
         social_discord=user.discord,
-        social_youtube=None, 
+        social_youtube=None,
         social_twitter=user.twitter,
         social_twitch=None,
         social_github=None,
         social_osu=None,
-        username_history=user.previous_usernames or []
+        username_history=user.previous_usernames or [],
     )

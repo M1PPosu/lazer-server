@@ -5,36 +5,37 @@ from typing import Literal
 from app.database.lazer_user import User
 from app.database.statistics import UserStatistics
 from app.dependencies.database import Database, get_redis
-from app.models.v1_user import (
-    GetPlayerInfoResponse, 
-    PlayerStatsResponse, 
-    PlayerEventsResponse, 
-    PlayerInfoResponse, 
-    PlayerAllResponse,
-    PlayerStatsHistory,
-    GetPlayerCountResponse,
-    PlayerCountData
-)
-from app.models.score import GameMode
 from app.log import logger
-from app.router.v1.public_router import public_router, AllStrModel
+from app.models.score import GameMode
+from app.models.v1_user import (
+    GetPlayerCountResponse,
+    GetPlayerInfoResponse,
+    PlayerAllResponse,
+    PlayerCountData,
+    PlayerEventsResponse,
+    PlayerInfoResponse,
+    PlayerStatsHistory,
+    PlayerStatsResponse,
+)
+from app.router.v1.public_router import public_router
 
 from fastapi import HTTPException, Query
-from fastapi.responses import JSONResponse
 from sqlmodel import select
 
 
-async def _create_player_mode_stats(session: Database, user: User, mode: GameMode, user_statistics: list[UserStatistics]):
+async def _create_player_mode_stats(
+    session: Database, user: User, mode: GameMode, user_statistics: list[UserStatistics]
+):
     """创建指定模式的玩家统计数据"""
     from app.models.v1_user import PlayerModeStats
-    
+
     # 查找对应模式的统计数据
     statistics = None
     for stats in user_statistics:
         if stats.mode == mode:
             statistics = stats
             break
-    
+
     if not statistics:
         # 如果没有统计数据，返回默认值
         return PlayerModeStats(
@@ -58,9 +59,9 @@ async def _create_player_mode_stats(session: Database, user: User, mode: GameMod
             level_progress=0,
             rank=0,
             country_rank=0,
-            history=PlayerStatsHistory()
+            history=PlayerStatsHistory(),
         )
-    
+
     return PlayerModeStats(
         id=user.id,
         mode=int(mode),
@@ -80,16 +81,16 @@ async def _create_player_mode_stats(session: Database, user: User, mode: GameMod
         a_count=statistics.grade_a if statistics.grade_a else 0,
         level=int(statistics.level_current) if statistics.level_current else 1,
         level_progress=0,  # TODO: 计算等级进度
-        rank=0,  # global_rank需要从RankHistory获取 
+        rank=0,  # global_rank需要从RankHistory获取
         country_rank=0,  # country_rank需要从其他地方获取
-        history=PlayerStatsHistory()  # TODO: 获取PP历史数据
+        history=PlayerStatsHistory(),  # TODO: 获取PP历史数据
     )
 
 
 async def _create_player_info(user: User):
     """创建玩家基本信息"""
     from app.models.v1_user import PlayerInfo
-    
+
     return PlayerInfo(
         id=user.id,
         name=user.username,
@@ -117,7 +118,7 @@ async def _create_player_info(user: User):
         social_twitch=None,
         social_github=None,
         social_osu=None,
-        username_history=user.previous_usernames if user.previous_usernames else []
+        username_history=user.previous_usernames if user.previous_usernames else [],
     )
 
 
@@ -139,38 +140,34 @@ async def _count_online_users_optimized(redis):
             count = await redis.scard(online_set_key)
             logger.debug(f"Using online users set, count: {count}")
             return count
-            
+
     except Exception as e:
         logger.debug(f"Online users set not available: {e}")
-    
+
     # 方案2: 回退到优化的SCAN操作
     online_count = 0
     cursor = 0
     scan_iterations = 0
     max_iterations = 50  # 进一步减少最大迭代次数
     batch_size = 10000  # 增加批次大小
-    
+
     try:
         while cursor != 0 or scan_iterations == 0:
             if scan_iterations >= max_iterations:
                 logger.warning(f"Redis SCAN reached max iterations ({max_iterations}), breaking")
                 break
-                
-            cursor, keys = await redis.scan(
-                cursor, 
-                match="metadata:online:*", 
-                count=batch_size
-            )
+
+            cursor, keys = await redis.scan(cursor, match="metadata:online:*", count=batch_size)
             online_count += len(keys)
             scan_iterations += 1
-            
+
             # 如果连续几次没有找到键，可能已经扫描完成
             if len(keys) == 0 and scan_iterations > 2:
                 break
-        
+
         logger.debug(f"Found {online_count} online users after {scan_iterations} scan iterations")
         return online_count
-        
+
     except Exception as e:
         logger.error(f"Error counting online users: {e}")
         # 如果SCAN失败，返回0而不是让整个API失败
@@ -190,7 +187,7 @@ async def api_get_player_info(
 ):
     """
     获取指定玩家的信息
-    
+
     Args:
         scope: 信息范围 - stats(统计), events(事件), info(基本信息), all(全部)
         id: 用户 ID (可选)
@@ -199,87 +196,67 @@ async def api_get_player_info(
     # 验证参数
     if not id and not name:
         raise HTTPException(400, "Must provide either id or name")
-    
+
     # 查询用户
     if id:
         user = await session.get(User, id)
     else:
         user = (await session.exec(select(User).where(User.username == name))).first()
-    
+
     if not user:
         from fastapi.responses import JSONResponse
-        return JSONResponse(
-            status_code=200,
-            content={"status": "Player not found."}
-        )
-    
+
+        return JSONResponse(status_code=200, content={"status": "Player not found."})
+
     try:
         if scope == "stats":
             # 获取所有模式的统计数据
-            user_statistics = list((
-                await session.exec(
-                    select(UserStatistics).where(UserStatistics.user_id == user.id)
-                )
-            ).all())
-            
+            user_statistics = list(
+                (await session.exec(select(UserStatistics).where(UserStatistics.user_id == user.id))).all()
+            )
+
             stats_dict = {}
             # 获取所有游戏模式的统计数据
-            all_modes = [GameMode.OSU, GameMode.TAIKO, GameMode.FRUITS, GameMode.MANIA, 
-                        GameMode.OSURX, GameMode.OSUAP]
-            
+            all_modes = [GameMode.OSU, GameMode.TAIKO, GameMode.FRUITS, GameMode.MANIA, GameMode.OSURX, GameMode.OSUAP]
+
             for mode in all_modes:
                 mode_stats = await _create_player_mode_stats(session, user, mode, user_statistics)
                 stats_dict[str(int(mode))] = mode_stats
-            
-            return GetPlayerInfoResponse(
-                player=PlayerStatsResponse(stats=stats_dict)
-            )
-            
+
+            return GetPlayerInfoResponse(player=PlayerStatsResponse(stats=stats_dict))
+
         elif scope == "events":
             # 获取事件数据
             events = await _get_player_events(session, user.id)
-            return GetPlayerInfoResponse(
-                player=PlayerEventsResponse(events=events)
-            )
-            
+            return GetPlayerInfoResponse(player=PlayerEventsResponse(events=events))
+
         elif scope == "info":
             # 获取基本信息
             info = await _create_player_info(user)
-            return GetPlayerInfoResponse(
-                player=PlayerInfoResponse(info=info)
-            )
-            
+            return GetPlayerInfoResponse(player=PlayerInfoResponse(info=info))
+
         elif scope == "all":
             # 获取所有信息
             # 统计数据
-            user_statistics = list((
-                await session.exec(
-                    select(UserStatistics).where(UserStatistics.user_id == user.id)
-                )
-            ).all())
-            
+            user_statistics = list(
+                (await session.exec(select(UserStatistics).where(UserStatistics.user_id == user.id))).all()
+            )
+
             stats_dict = {}
-            all_modes = [GameMode.OSU, GameMode.TAIKO, GameMode.FRUITS, GameMode.MANIA, 
-                        GameMode.OSURX, GameMode.OSUAP]
-            
+            all_modes = [GameMode.OSU, GameMode.TAIKO, GameMode.FRUITS, GameMode.MANIA, GameMode.OSURX, GameMode.OSUAP]
+
             for mode in all_modes:
                 mode_stats = await _create_player_mode_stats(session, user, mode, user_statistics)
                 stats_dict[str(int(mode))] = mode_stats
-            
+
             # 基本信息
             info = await _create_player_info(user)
-            
+
             # 事件
             events = await _get_player_events(session, user.id)
-            
-            return GetPlayerInfoResponse(
-                player=PlayerAllResponse(
-                    info=info,
-                    stats=stats_dict,
-                    events=events
-                )
-            )
-        
+
+            return GetPlayerInfoResponse(player=PlayerAllResponse(info=info, stats=stats_dict, events=events))
+
     except Exception as e:
         logger.error(f"Error processing get_player_info for user {user.id}: {e}")
         raise HTTPException(500, "Internal server error")
@@ -296,50 +273,49 @@ async def api_get_player_count(
 ):
     """
     获取玩家数量统计
-    
+
     Returns:
         包含在线用户数和总用户数的响应
     """
     try:
         redis = get_redis()
-        
+
         online_cache_key = "stats:online_users_count"
         cached_online = await redis.get(online_cache_key)
-        
+
         if cached_online is not None:
             online_count = int(cached_online)
             logger.debug(f"Using cached online user count: {online_count}")
         else:
             logger.debug("Cache miss, scanning Redis for online users")
             online_count = await _count_online_users_optimized(redis)
-            
+
             await redis.setex(online_cache_key, 30, str(online_count))
             logger.debug(f"Cached online user count: {online_count} for 30 seconds")
-        
+
         cache_key = "stats:total_users"
         cached_total = await redis.get(cache_key)
-        
+
         if cached_total is not None:
             total_count = int(cached_total)
             logger.debug(f"Using cached total user count: {total_count}")
         else:
             logger.debug("Cache miss, querying database for total user count")
             from sqlmodel import func, select
-            total_count_result = await session.exec(
-                select(func.count()).select_from(User)
-            )
+
+            total_count_result = await session.exec(select(func.count()).select_from(User))
             total_count = total_count_result.one()
-            
+
             await redis.setex(cache_key, 3600, str(total_count))
             logger.debug(f"Cached total user count: {total_count} for 1 hour")
-        
+
         return GetPlayerCountResponse(
             counts=PlayerCountData(
                 online=online_count,
-                total=max(0, total_count - 1)  # 减去1个机器人账户，确保不为负数
+                total=max(0, total_count - 1),  # 减去1个机器人账户，确保不为负数
             )
         )
-        
+
     except Exception as e:
         logger.error(f"Error getting player count: {e}")
         raise HTTPException(500, "Internal server error")
