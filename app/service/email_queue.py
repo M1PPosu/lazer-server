@@ -142,7 +142,7 @@ class EmailQueue:
                     continue
 
                 # 解包返回结果（列表名和值）
-                queue_name, email_id = result
+                _, email_id = result
                 if isinstance(email_id, bytes):
                     email_id = email_id.decode("utf-8")
 

@@ -38,7 +38,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 )
 async def get_all_rooms(
     db: Database,
-    mode: Literal["open", "ended", "participated", "owned", None] = Query(
+    mode: Literal["open", "ended", "participated", "owned"] | None = Query(
         default="open",
         description=("房间模式：open 当前开放 / ended 已经结束 / participated 参与过 / owned 自己创建的房间"),
     ),

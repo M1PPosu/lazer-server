@@ -256,7 +256,7 @@ This email was sent automatically, please do not reply.
 
             # 创建验证记录
             (
-                verification,
+                _,
                 code,
             ) = await EmailVerificationService.create_verification_record(
                 db, redis, user_id, email, ip_address, user_agent
