@@ -170,8 +170,10 @@ async def submit_score(
             "rank": resp.rank_global,
             "mode": score.gamemode.readable(),
             "beatmap": {
-                "title": f"{resp.beatmap.beatmapset.artist} - {resp.beatmap.beatmapset.title} [{resp.beatmap.version}]",  # pyright: ignore[reportOptionalMemberAccess]
-                "url": resp.beatmap.url,  # pyright: ignore[reportOptionalMemberAccess]
+                "title": (
+                    f"{score.beatmap.beatmapset.artist} - {score.beatmap.beatmapset.title} [{score.beatmap.version}]"
+                ),
+                "url": score.beatmap.url.replace("https://osu.ppy.sh/", settings.web_url),
             },
             "user": {
                 "username": score.user.username,
@@ -200,11 +202,14 @@ async def submit_score(
                 type=EventType.RANK_LOST,
                 user_id=displaced_score.user_id,
             )
-            rank_lost_event.event_payload = {
+            rank_lost_event.eventgi_payload = {
                 "mode": score.gamemode.readable(),
                 "beatmap": {
-                    "title": score.beatmap.version,
-                    "url": score.beatmap.url,
+                    "title": (
+                        f"{score.beatmap.beatmapset.artist} - {score.beatmap.beatmapset.title} "
+                        f"[{score.beatmap.version}]"
+                    ),
+                    "url": score.beatmap.url.replace("https://osu.ppy.sh/", settings.web_url),
                 },
                 "user": {
                     "username": username,
