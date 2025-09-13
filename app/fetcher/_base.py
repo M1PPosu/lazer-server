@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from urllib.parse import quote
 
 from app.dependencies.database import get_redis
 from app.log import logger
@@ -34,7 +35,7 @@ class BaseFetcher:
     def authorize_url(self) -> str:
         return (
             f"https://osu.ppy.sh/oauth/authorize?client_id={self.client_id}"
-            f"&response_type=code&scope={' '.join(self.scope)}"
+            f"&response_type=code&scope={quote(' '.join(self.scope))}"
             f"&redirect_uri={self.callback_url}"
         )
 
