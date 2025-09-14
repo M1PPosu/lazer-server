@@ -172,6 +172,7 @@ class UserCacheService:
     ) -> list[ScoreResp] | list[LegacyScoreResp] | None:
         """从缓存获取用户成绩"""
         try:
+            model = LegacyScoreResp if is_legacy else ScoreResp
             cache_key = self._get_user_scores_cache_key(
                 user_id, score_type, include_fail, mode, limit, offset, is_legacy
             )
@@ -179,7 +180,7 @@ class UserCacheService:
             if cached_data:
                 logger.debug(f"User scores cache hit for user {user_id}, type {score_type}")
                 data = json.loads(cached_data)
-                return [ScoreResp(**score_data) for score_data in data]
+                return [model(**score_data) for score_data in data]  # pyright: ignore[reportReturnType]
             return None
         except Exception as e:
             logger.error(f"Error getting user scores from cache: {e}")
