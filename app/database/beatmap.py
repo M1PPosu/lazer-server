@@ -206,11 +206,13 @@ class BeatmapResp(BeatmapBase):
                     select(BeatmapTagVote.tag_id, func.count().label("vote_count"))
                     .where(BeatmapTagVote.beatmap_id == beatmap.id)
                     .group_by(col(BeatmapTagVote.tag_id))
+                    .having(func.count() > settings.beatmap_tag_top_count)
                 )
             ).all()
             top_tag_ids: list[dict[str, int]] = []
             for id, votes in all_votes:
                 top_tag_ids.append({"tag_id": id, "count": votes})
+            top_tag_ids.sort(key=lambda x: x["count"], reverse=True)
             beatmap_["top_tag_ids"] = top_tag_ids
 
             if user is not None:

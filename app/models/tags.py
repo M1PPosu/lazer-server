@@ -31,6 +31,7 @@ def load_tags() -> None:
             logger.info(f"tag {ALL_TAGS[tag['id']].name} and tag {tag['name']} have the same tag id")
             raise ValueError("duplicated tag id found")
         ALL_TAGS[tag["id"]] = BeatmapTags.model_validate(tag)
+    logger.success(f"loaded {len(ALL_TAGS)} beatmap tags")
 
 
 def get_tag_by_id(id: int) -> BeatmapTags:
