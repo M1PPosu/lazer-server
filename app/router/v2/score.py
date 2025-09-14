@@ -204,7 +204,7 @@ async def submit_score(
                 type=EventType.RANK_LOST,
                 user_id=displaced_score.user_id,
             )
-            rank_lost_event.eventgi_payload = {
+            rank_lost_event.event_payload = {
                 "mode": score.gamemode.readable(),
                 "beatmap": {
                     "title": (
