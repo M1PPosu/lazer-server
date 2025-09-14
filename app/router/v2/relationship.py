@@ -8,7 +8,7 @@ from .router import router
 
 from fastapi import HTTPException, Path, Query, Request, Security
 from pydantic import BaseModel
-from sqlmodel import select
+from sqlmodel import exists, select
 
 
 @router.get(
@@ -67,6 +67,9 @@ async def add_relationship(
     target: int = Query(description="目标用户 ID"),
     current_user: User = Security(get_client_user),
 ):
+    if not (await db.exec(select(exists()).where(User.id == target))).first():
+        raise HTTPException(404, "Target user not found")
+
     relationship_type = RelationshipType.FOLLOW if request.url.path.endswith("/friends") else RelationshipType.BLOCK
     if target == current_user.id:
         raise HTTPException(422, "Cannot add relationship to yourself")
@@ -133,6 +136,9 @@ async def delete_relationship(
     target: int = Path(..., description="目标用户 ID"),
     current_user: User = Security(get_client_user),
 ):
+    if not (await db.exec(select(exists()).where(User.id == target))).first():
+        raise HTTPException(404, "Target user not found")
+
     relationship_type = RelationshipType.BLOCK if "/blocks/" in request.url.path else RelationshipType.FOLLOW
     relationship = (
         await db.exec(
