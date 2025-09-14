@@ -17,9 +17,13 @@ COPY pyproject.toml uv.lock ./
 COPY packages/ ./packages/
 
 RUN uv sync --frozen --no-dev
-RUN uv pip install rosu-pp-py
 
-COPY . .
+COPY alembic.ini ./
+COPY tools/ ./tools/
+COPY migrations/ ./migrations/
+COPY static/ ./app/static/
+COPY app/ ./app/
+COPY main.py ./
 
 # ---
 
