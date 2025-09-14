@@ -13,7 +13,7 @@ class UTCBaseModel(BaseModel):
         if isinstance(v, datetime):
             if v.tzinfo is None:
                 v = v.replace(tzinfo=UTC)
-            return v.astimezone(UTC).isoformat()
+            return v.astimezone(UTC).isoformat().replace("+00:00", "Z")
         return v
 
 
