@@ -167,7 +167,7 @@ async def get_room(
         default="",
         description=("房间分类：NORMAL 普通歌单模式房间 / REALTIME 多人游戏房间 / DAILY_CHALLENGE 每日挑战 (可选)"),
     ),
-    current_user: User = Security(get_client_user),
+    current_user: User = Security(get_current_user, scopes=["public"]),
     redis: Redis = Depends(get_redis),
 ):
     db_room = (await db.exec(select(Room).where(Room.id == room_id))).first()
