@@ -27,6 +27,7 @@ from sqlmodel import (
     Relationship,
     SQLModel,
     col,
+    func,
     select,
 )
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -118,15 +119,35 @@ class RoomResp(RoomBase):
         resp.difficulty_range = difficulty_range
         resp.current_playlist_item = resp.playlist[-1] if resp.playlist else None
         resp.recent_participants = []
-        for recent_participant in await session.exec(
-            select(RoomParticipatedUser)
-            .where(
-                RoomParticipatedUser.room_id == room.id,
-                col(RoomParticipatedUser.left_at).is_(None),
+        if room.category == RoomCategory.REALTIME:
+            query = (
+                select(RoomParticipatedUser)
+                .where(
+                    RoomParticipatedUser.room_id == room.id,
+                    col(RoomParticipatedUser.left_at).is_(None),
+                )
+                .limit(8)
+                .order_by(col(RoomParticipatedUser.joined_at).desc())
             )
-            .limit(8)
-            .order_by(col(RoomParticipatedUser.joined_at).desc())
-        ):
+        else:
+            query = (
+                select(RoomParticipatedUser)
+                .where(
+                    RoomParticipatedUser.room_id == room.id,
+                )
+                .limit(8)
+                .order_by(col(RoomParticipatedUser.joined_at).desc())
+            )
+            resp.participant_count = (
+                await session.exec(
+                    select(func.count())
+                    .select_from(RoomParticipatedUser)
+                    .where(
+                        RoomParticipatedUser.room_id == room.id,
+                    )
+                )
+            ).first() or 0
+        for recent_participant in await session.exec(query):
             resp.recent_participants.append(
                 await UserResp.from_db(
                     await recent_participant.awaitable_attrs.user,
