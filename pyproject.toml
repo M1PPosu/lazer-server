@@ -11,6 +11,7 @@ dependencies = [
     "alembic>=1.12.1",
     "apscheduler>=3.11.0",
     "bcrypt>=4.1.2",
+    "bleach>=6.1.0",
     "cryptography>=41.0.7",
     "fastapi>=0.104.1",
     "fastapi-limiter>=0.1.6",
@@ -32,6 +33,7 @@ dependencies = [
     "sentry-sdk[fastapi,httpx,loguru,sqlalchemy]>=2.34.1",
     "sqlalchemy>=2.0.23",
     "sqlmodel>=0.0.24",
+    "tinycss2>=1.4.0",
     "uvicorn[standard]>=0.24.0",
 ]
 authors = [{ name = "GooGuTeam" }]

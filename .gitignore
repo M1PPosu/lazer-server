@@ -222,3 +222,4 @@ newrelic.ini
 logs/
 osu-server-spectator-master/*
 spectator-server/
+.github/copilot-instructions.md

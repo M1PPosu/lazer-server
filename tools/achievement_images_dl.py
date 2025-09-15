@@ -7,8 +7,9 @@ download_achievements.py
 
 from __future__ import annotations
 
-import httpx
 from pathlib import Path
+
+import httpx
 
 
 def download_achievement_images(achievements_path: Path) -> None:
