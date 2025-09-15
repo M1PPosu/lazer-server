@@ -25,7 +25,7 @@ class BBCodeService:
 
     # 允许的HTML标签和属性 - 基于官方实现
     ALLOWED_TAGS: ClassVar[list[str]] = [
-        "a", "audio", "blockquote", "br", "center", "code", "del", "div", "em", "h2", "h4",
+        "a", "audio", "blockquote", "br", "button", "center", "code", "del", "div", "em", "h2", "h4",
         "iframe", "img", "li", "ol", "p", "pre", "span", "strong", "u", "ul",
         # imagemap 相关
         "map", "area",
@@ -37,6 +37,7 @@ class BBCodeService:
         "a": ["href", "rel", "class", "data-user-id", "target", "style", "title"],
         "audio": ["controls", "preload", "src"],
         "blockquote": [],
+        "button": ["type", "class", "style"],
         "center": [],
         "code": [],
         "div": ["class", "style"],
@@ -56,7 +57,7 @@ class BBCodeService:
 
     # 危险的BBCode标签（不允许）
     FORBIDDEN_TAGS: ClassVar[list[str]] = [
-        "script", "iframe", "object", "embed", "form", "input", "textarea", "button",
+        "script", "iframe", "object", "embed", "form", "input", "textarea",
         "select", "option", "meta", "link", "style", "title", "head", "html", "body",
     ]
 
@@ -140,8 +141,9 @@ class BBCodeService:
             content = match.group(2)
             return (
                 f"<div class='js-spoilerbox bbcode-spoilerbox'>"
-                f"<a class='js-spoilerbox__link bbcode-spoilerbox__link' href='#'>"
-                f"<span class='bbcode-spoilerbox__link-icon'></span>{title}</a>"
+                f"<button type='button' class='js-spoilerbox__link bbcode-spoilerbox__link' "
+                f"style='background: none; border: none; cursor: pointer; padding: 0; text-align: left; width: 100%;'>"
+                f"<span class='bbcode-spoilerbox__link-icon'></span>{title}</button>"
                 f"<div class='js-spoilerbox__body bbcode-spoilerbox__body'>{content}</div></div>"
             )
 
@@ -154,8 +156,9 @@ class BBCodeService:
             content = match.group(1)
             return (
                 f"<div class='js-spoilerbox bbcode-spoilerbox'>"
-                f"<a class='js-spoilerbox__link bbcode-spoilerbox__link' href='#'>"
-                f"<span class='bbcode-spoilerbox__link-icon'></span>SPOILER</a>"
+                f"<button type='button' class='js-spoilerbox__link bbcode-spoilerbox__link' "
+                f"style='background: none; border: none; cursor: pointer; padding: 0; text-align: left; width: 100%;'>"
+                f"<span class='bbcode-spoilerbox__link-icon'></span>SPOILER</button>"
                 f"<div class='js-spoilerbox__body bbcode-spoilerbox__body'>{content}</div></div>"
             )
 
@@ -438,6 +441,7 @@ class BBCodeService:
         css_sanitizer = CSSSanitizer(
             allowed_css_properties=[
                 "color",
+                "background",
                 "background-color",
                 "font-size",
                 "font-weight",
@@ -456,6 +460,9 @@ class BBCodeService:
                 "aspect-ratio",
                 "z-index",
                 "display",
+                "border",
+                "border-none",
+                "cursor",
             ]
         )
 
