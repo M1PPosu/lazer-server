@@ -139,6 +139,34 @@ async def get_user_events(
 
 
 @router.get(
+    "/users/{user_id}/kudosu",
+    response_model=list,
+    name="获取用户 kudosu 记录",
+    description="获取指定用户的 kudosu 记录。TODO: 可能会实现",
+    tags=["用户"],
+)
+async def get_user_kudosu(
+    session: Database,
+    user_id: int = Path(description="用户 ID"),
+    offset: int = Query(default=0, description="偏移量"),
+    limit: int = Query(default=6, description="返回记录数量限制"),
+):
+    """
+    获取用户的 kudosu 记录
+
+    TODO: 可能会实现
+    目前返回空数组作为占位符
+    """
+    # 验证用户是否存在
+    db_user = await session.get(User, user_id)
+    if db_user is None or db_user.id == BANCHOBOT_ID:
+        raise HTTPException(404, "User not found")
+
+    # TODO: 实现 kudosu 记录获取逻辑
+    return []
+
+
+@router.get(
     "/users/{user_id}/{ruleset}",
     response_model=UserResp,
     name="获取用户信息(指定ruleset)",
@@ -404,25 +432,3 @@ async def get_user_scores(
     )
 
     return score_responses
-
-
-@router.get(
-    "/users/{user_id}/kudosu",
-    response_model=list,
-    name="获取用户 kudosu 记录",
-    description="获取指定用户的 kudosu 记录。TODO: 可能会实现",
-    tags=["用户"],
-)
-async def get_user_kudosu(
-    user_id: int = Path(description="用户 ID"),
-    offset: int = Query(default=0, description="偏移量"),
-    limit: int = Query(default=6, description="返回记录数量限制"),
-):
-    """
-    获取用户的 kudosu 记录
-
-    TODO: 可能会实现
-    目前返回空数组作为占位符
-    """
-    # TODO: 实现 kudosu 记录获取逻辑
-    return []
