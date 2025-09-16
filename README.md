@@ -69,7 +69,9 @@ docker-compose -f docker-compose-osurx.yml up -d
 
 ## 许可证
 
-MIT License
+本项目采用 **GNU Affero General Public License v3.0 (AGPL-3.0-only)** 授权。  
+任何衍生作品、修改或部署 **必须在显著位置清晰署名** 原始作者：  
+**GooGuTeam - https://github.com/GooGuTeam/g0v0-server**
 
 ## 贡献
 
