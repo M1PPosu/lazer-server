@@ -25,12 +25,34 @@ class BBCodeService:
 
     # 允许的HTML标签和属性 - 基于官方实现
     ALLOWED_TAGS: ClassVar[list[str]] = [
-        "a", "audio", "blockquote", "br", "button", "center", "code", "del", "div", "em", "h2", "h4",
-        "iframe", "img", "li", "ol", "p", "pre", "span", "strong", "u", "ul",
+        "a",
+        "audio",
+        "blockquote",
+        "br",
+        "button",
+        "center",
+        "code",
+        "del",
+        "div",
+        "em",
+        "h2",
+        "h4",
+        "iframe",
+        "img",
+        "li",
+        "ol",
+        "p",
+        "pre",
+        "span",
+        "strong",
+        "u",
+        "ul",
         # imagemap 相关
-        "map", "area",
+        "map",
+        "area",
         # 自定义容器
-        "details", "summary",
+        "details",
+        "summary",
     ]
 
     ALLOWED_ATTRIBUTES: ClassVar[dict[str, list[str]]] = {
@@ -57,8 +79,22 @@ class BBCodeService:
 
     # 危险的BBCode标签（不允许）
     FORBIDDEN_TAGS: ClassVar[list[str]] = [
-        "script", "iframe", "object", "embed", "form", "input", "textarea",
-        "select", "option", "meta", "link", "style", "title", "head", "html", "body",
+        "script",
+        "iframe",
+        "object",
+        "embed",
+        "form",
+        "input",
+        "textarea",
+        "select",
+        "option",
+        "meta",
+        "link",
+        "style",
+        "title",
+        "head",
+        "html",
+        "body",
     ]
 
     @classmethod
@@ -256,14 +292,11 @@ class BBCodeService:
 
                         if href == "#":
                             # 无链接区域
-                            links.append(
-                                f'<span class="imagemap__link" style="{style}" title="{title}"></span>'
-                            )
+                            links.append(f'<span class="imagemap__link" style="{style}" title="{title}"></span>')
                         else:
                             # 有链接区域
                             links.append(
-                                f'<a class="imagemap__link" href="{href}" style="{style}" '
-                                f'title="{title}"></a>'
+                                f'<a class="imagemap__link" href="{href}" style="{style}" title="{title}"></a>'
                             )
                     except (ValueError, IndexError):
                         continue
@@ -340,8 +373,7 @@ class BBCodeService:
         """解析 [quote] 标签"""
         # [quote="author"]content[/quote]
         pattern1 = r'\[quote="([^"]+)"\]\s*(.*?)\s*\[/quote\]'
-        text = re.sub(pattern1, r"<blockquote><h4>\1 wrote:</h4>\2</blockquote>", text,
-                      flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(pattern1, r"<blockquote><h4>\1 wrote:</h4>\2</blockquote>", text, flags=re.DOTALL | re.IGNORECASE)
 
         # [quote]content[/quote]
         pattern2 = r"\[quote\]\s*(.*?)\s*\[/quote\]"

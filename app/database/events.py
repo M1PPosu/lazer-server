@@ -61,11 +61,11 @@ class Event(UTCBaseModel, SQLModel, table=True):
         # 临时修复：统一成就事件格式 (TODO: 可在数据迁移完成后移除)
         if self.type == EventType.ACHIEVEMENT and "achievement" in self.event_payload:
             achievement_data = self.event_payload["achievement"]
-            if (
-                "achievement_id" in achievement_data
-                and ("name" not in achievement_data or "slug" not in achievement_data)
+            if "achievement_id" in achievement_data and (
+                "name" not in achievement_data or "slug" not in achievement_data
             ):
                 from app.models.achievement import MEDALS
+
                 achievement_id = achievement_data["achievement_id"]
                 for medal in MEDALS:
                     if medal.id == achievement_id:
