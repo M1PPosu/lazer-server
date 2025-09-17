@@ -13,7 +13,7 @@ class UpdateUserpageRequest(BaseModel):
     body: str = Field(
         description="用户页面的BBCode原始内容",
         max_length=60000,
-        examples=["[b]Hello![/b] This is my profile page.\n[color=blue]Blue text[/color]"]
+        examples=["[b]Hello![/b] This is my profile page.\n[color=blue]Blue text[/color]"],
     )
 
     @field_validator("body")
@@ -47,10 +47,7 @@ class UserpageResponse(BaseModel):
 class ValidateBBCodeRequest(BaseModel):
     """验证BBCode请求模型"""
 
-    content: str = Field(
-        description="要验证的BBCode内容",
-        max_length=60000
-    )
+    content: str = Field(description="要验证的BBCode内容", max_length=60000)
 
 
 class ValidateBBCodeResponse(BaseModel):
