@@ -65,6 +65,7 @@ class AssetProxyService:
                 r"https://a\.ppy\.sh/", f"https://{self.avatar_proxy_prefix}.{self.custom_asset_domain}/", result
             )
 
+
             return result
         else:
             return data
