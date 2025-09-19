@@ -20,8 +20,9 @@ async def init_geoip():
         logger.info("[GeoIP] Initializing GeoIP database...")
 
         # Run the synchronous update method in a background thread
+        # force=False means only download if files don't exist or are expired
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, geoip.update)
+        await loop.run_in_executor(None, lambda: geoip.update(force=False))
 
         logger.info("[GeoIP] GeoIP database initialization completed")
     except Exception as e:
