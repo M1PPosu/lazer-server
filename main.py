@@ -39,7 +39,7 @@ from app.service.osu_rx_statistics import create_rx_statistics
 from app.service.redis_message_system import redis_message_system
 from app.utils import bg_tasks, utcnow
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -196,9 +196,7 @@ async def get_user_avatar_root(
     user_id: int,
     session: Database,
 ):
-    """用户头像重定向端点 (根路径)
-
-    """
+    """用户头像重定向端点 (根路径)"""
     user = await session.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")

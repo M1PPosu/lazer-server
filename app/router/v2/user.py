@@ -436,5 +436,3 @@ async def get_user_scores(
     # 处理资源代理
     processed_scores = await process_response_assets(score_responses, request)
     return processed_scores
-
-

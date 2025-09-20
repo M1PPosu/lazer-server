@@ -115,9 +115,14 @@ class GeoIPHelper:
                 age_days = (time.time() - os.path.getmtime(path)) / 86400
                 if age_days >= self.max_age_days:
                     need = True
-                    logger.info(f"[GeoIP] {eid} database is {age_days:.1f} days old (max: {self.max_age_days}), will download new version")
+                    logger.info(
+                        f"[GeoIP] {eid} database is {age_days:.1f} days old "
+                        f"(max: {self.max_age_days}), will download new version"
+                    )
                 else:
-                    logger.info(f"[GeoIP] {eid} database is {age_days:.1f} days old, still fresh (max: {self.max_age_days})")
+                    logger.info(
+                        f"[GeoIP] {eid} database is {age_days:.1f} days old, still fresh (max: {self.max_age_days})"
+                    )
             else:
                 logger.info(f"[GeoIP] {eid} database not found, will download")
 
