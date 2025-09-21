@@ -172,7 +172,7 @@ async def get_country_ranking_pp(
     page: int = Query(1, ge=1, description="页码"),
     current_user: User = Security(get_current_user, scopes=["public"]),
 ):
-    return await get_country_ranking(session, background_tasks, ruleset, page)
+    return await get_country_ranking(session, background_tasks, ruleset, page, "performance", current_user)
 
 
 @router.get(
