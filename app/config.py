@@ -297,41 +297,47 @@ STORAGE_SETTINGS='{
         "日志设置",
     ]
 
-    # 邮件服务设置
+    # 验证服务设置
+    enable_totp_verification: Annotated[bool, Field(default=True, description="是否启用TOTP双因素验证"), "验证服务设置"]
+    totp_issuer: Annotated[
+        str | None,
+        Field(default=None, description="TOTP 认证器中的发行者名称"),
+        "验证服务设置",
+    ]
     enable_email_verification: Annotated[
         bool,
         Field(default=False, description="是否启用邮件验证功能"),
-        "邮件服务设置",
+        "验证服务设置",
     ]
     smtp_server: Annotated[
         str,
         Field(default="localhost", description="SMTP 服务器地址"),
-        "邮件服务设置",
+        "验证服务设置",
     ]
     smtp_port: Annotated[
         int,
         Field(default=587, description="SMTP 服务器端口"),
-        "邮件服务设置",
+        "验证服务设置",
     ]
     smtp_username: Annotated[
         str,
         Field(default="", description="SMTP 用户名"),
-        "邮件服务设置",
+        "验证服务设置",
     ]
     smtp_password: Annotated[
         str,
         Field(default="", description="SMTP 密码"),
-        "邮件服务设置",
+        "验证服务设置",
     ]
     from_email: Annotated[
         str,
         Field(default="noreply@example.com", description="发件人邮箱"),
-        "邮件服务设置",
+        "验证服务设置",
     ]
     from_name: Annotated[
         str,
         Field(default="osu! server", description="发件人名称"),
-        "邮件服务设置",
+        "验证服务设置",
     ]
 
     # 监控配置
