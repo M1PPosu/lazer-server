@@ -126,7 +126,7 @@ doc.extend(
     [
         module.SPECTATOR_DOC,
         "",
-        f"> 上次生成：{datetime.datetime.now(datetime.UTC).strftime('%Y-%m-%d %H:%M:%S %Z')}",
+        f"> 上次生成：{datetime.datetime.now(datetime.UTC).strftime('%Y-%m-%d %H:%M:%S %Z')}"
         f"于提交 {f'[`{commit}`](https://github.com/GooGuTeam/g0v0-server/commit/{commit})' if commit != 'unknown' else 'unknown'}",  # noqa: E501
         "",
         "> **注意: 在生产环境中，请务必更改默认的密钥和密码！**",
