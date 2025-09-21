@@ -111,14 +111,16 @@ for name, field in model.model_fields.items():
     aliases = []
     other_aliases = field.validation_alias
     if isinstance(other_aliases, str):
-        aliases.append(other_aliases)
+        if other_aliases != alias:
+            aliases.append(other_aliases)
     elif isinstance(other_aliases, AliasChoices):
         for a in other_aliases.convert_to_aliases():
-            aliases.extend(a)
+            if a != alias:
+                aliases.extend(a)
 
-    ins_doc = f"({', '.join([a.upper() for a in aliases])}) " if aliases else ""
+    ins_doc = f"({', '.join([f'`{a.upper()}`' for a in aliases])}) " if aliases else ""
     doc.append(
-        f"| {alias.upper()} {ins_doc}| {field.description or ''} "
+        f"| `{alias.upper()}` {ins_doc}| {field.description or ''} "
         f"| {mapping_type(field.annotation)} | `{serialize_default(field.default)}` |"  # pyright: ignore[reportArgumentType]
     )
 
