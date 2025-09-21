@@ -182,7 +182,7 @@ async def download_beatmapset(
                 f"https://dl.sayobot.cn/beatmaps/download/{'novideo' if no_video else 'full'}/{beatmapset_id}"
             )
         else:
-            return RedirectResponse(f"https://api.nerinyan.moe/d/{beatmapset_id}?noVideo={no_video}")
+            return RedirectResponse(f"https://catboy.best/d/{sid}")
 
 
 @router.post(

@@ -55,21 +55,12 @@ class BeatmapDownloadService:
         # 国外区域端点
         self.international_endpoints = [
             DownloadEndpoint(
-                name="Nerinyan",
-                base_url="https://api.nerinyan.moe",
-                health_check_url="https://api.nerinyan.moe/health",
-                url_template="https://api.nerinyan.moe/d/{sid}?noVideo={no_video}",
+                name="Catboy",
+                base_url="https://catboy.best",
+                health_check_url="https://catboy.best/",
+                url_template="https://catboy.best/d/{sid}",
                 is_china=False,
                 priority=0,
-                timeout=10,
-            ),
-            DownloadEndpoint(
-                name="OsuDirect",
-                base_url="https://osu.direct",
-                health_check_url="https://osu.direct/api/status",
-                url_template="https://osu.direct/api/d/{sid}",
-                is_china=False,
-                priority=1,
                 timeout=10,
             ),
         ]
