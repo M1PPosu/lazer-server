@@ -151,6 +151,11 @@ class Settings(BaseSettings):
     seasonal_backgrounds: Annotated[list[str], BeforeValidator(_parse_list)] = []
     beatmap_tag_top_count: int = 2  # this is 10 in osu-web
 
+    # exclude mods from enable_all_mods_pp mods.
+    disabled_pp_mods: list[str] = Field(default_factory=list)
+    disable_rate_change_pp: bool = False
+
+    
     # 谱面缓存设置
     enable_beatmap_preload: bool = True
     beatmap_cache_expire_hours: int = 24

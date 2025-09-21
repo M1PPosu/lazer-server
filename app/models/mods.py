@@ -170,8 +170,17 @@ def mods_can_get_pp_vanilla(ruleset_id: int, mods: list[APIMod]) -> bool:
 
 
 def mods_can_get_pp(ruleset_id: int, mods: list[APIMod]) -> bool:
+    for mod in mods:
+        if app_settings.disable_rate_change_pp and mod["acronym"] in {"DT", "NC", "HT", "DC"}:
+            if mod.get("settings"):
+                return False
+            
     if app_settings.enable_all_mods_pp:
+        for mod in mods:
+            if mod["acronym"] in app_settings.disabled_pp_mods:
+                return False
         return True
+
     ranked_mods = RANKED_MODS[ruleset_id]
     for mod in mods:
         if app_settings.enable_rx and mod["acronym"] == "RX" and ruleset_id in {0, 1, 2}:
@@ -189,7 +198,9 @@ def mods_can_get_pp(ruleset_id: int, mods: list[APIMod]) -> bool:
                 return False
             if expected_value != NO_CHECK and value != expected_value:
                 return False
+
     return True
+
 
 
 ENUM_TO_STR = {
