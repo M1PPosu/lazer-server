@@ -104,16 +104,34 @@ class GeoIPHelper:
         return max(files, key=os.path.getmtime) if files else None
 
     def update(self, force=False):
+        from app.log import logger
+
         for ed in self.editions:
             eid = EDITIONS[ed]
             path = self._latest_file(eid)
             need = force or not path
+
             if path:
                 age_days = (time.time() - os.path.getmtime(path)) / 86400
                 if age_days >= self.max_age_days:
                     need = True
+                    logger.info(
+                        f"[GeoIP] {eid} database is {age_days:.1f} days old "
+                        f"(max: {self.max_age_days}), will download new version"
+                    )
+                else:
+                    logger.info(
+                        f"[GeoIP] {eid} database is {age_days:.1f} days old, still fresh (max: {self.max_age_days})"
+                    )
+            else:
+                logger.info(f"[GeoIP] {eid} database not found, will download")
+
             if need:
+                logger.info(f"[GeoIP] Downloading {eid} database...")
                 path = self._download_and_extract(eid)
+                logger.info(f"[GeoIP] {eid} database downloaded successfully")
+            else:
+                logger.info(f"[GeoIP] Using existing {eid} database")
 
             old = self._readers.get(ed)
             if old:

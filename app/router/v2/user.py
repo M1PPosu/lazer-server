@@ -352,6 +352,7 @@ async def get_user_beatmapsets(
     tags=["用户"],
 )
 async def get_user_scores(
+    request: Request,
     session: Database,
     api_version: APIVersion,
     background_task: BackgroundTasks,
@@ -376,7 +377,8 @@ async def get_user_scores(
         user_id, type, include_fails, mode, limit, offset, is_legacy_api
     )
     if cached_scores is not None:
-        return cached_scores
+        processed_scores = await process_response_assets(cached_scores, request)
+        return processed_scores
 
     db_user = await session.get(User, user_id)
     if not db_user or db_user.id == BANCHOBOT_ID:
@@ -431,4 +433,6 @@ async def get_user_scores(
         is_legacy_api,
     )
 
-    return score_responses
+    # 处理资源代理
+    processed_scores = await process_response_assets(score_responses, request)
+    return processed_scores

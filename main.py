@@ -4,7 +4,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from app.config import settings
-from app.dependencies.database import engine, get_redis, redis_client
+from app.database import User
+from app.dependencies.database import Database, engine, get_redis, redis_client
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.scheduler import start_scheduler, stop_scheduler
 from app.log import logger
@@ -41,7 +42,7 @@ from app.utils import bg_tasks, utcnow
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi_limiter import FastAPILimiter
 import sentry_sdk
 
@@ -188,6 +189,26 @@ app.add_middleware(
 
 if settings.frontend_url is not None:
     app.include_router(redirect_router)
+
+
+@app.get("/users/{user_id}/avatar", include_in_schema=False)
+async def get_user_avatar_root(
+    user_id: int,
+    session: Database,
+):
+    """用户头像重定向端点 (根路径)"""
+    user = await session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    avatar_url = user.avatar_url
+    if not avatar_url:
+        avatar_url = "https://lazer.g0v0.top/default.jpg"
+
+    separator = "&" if "?" in avatar_url else "?"
+    avatar_url_with_timestamp = f"{avatar_url}{separator}"
+
+    return RedirectResponse(url=avatar_url_with_timestamp, status_code=301)
 
 
 @app.get("/", include_in_schema=False)
