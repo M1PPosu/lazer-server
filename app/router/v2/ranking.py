@@ -342,7 +342,7 @@ async def get_user_ranking(
     wheres = [
         col(UserStatistics.mode) == ruleset,
         col(UserStatistics.pp) > 0,
-        col(UserStatistics.is_ranked) == True,
+        col(UserStatistics.is_ranked),
     ]
     include = ["user"]
     if sort == "performance":
