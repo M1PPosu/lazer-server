@@ -23,8 +23,6 @@ async def get_audio_proxy_dependency(redis_client: Annotated[redis.Redis, Depend
     return get_audio_proxy_service(redis_client)
 
 
-
-
 @router.get("/beatmapset/{beatmapset_id}")
 async def get_beatmapset_audio(
     beatmapset_id: Annotated[int, Path(description="谱面集ID", ge=1)],
@@ -53,7 +51,7 @@ async def get_beatmapset_audio(
             headers={
                 "Cache-Control": "public, max-age=604800",  # 7天缓存
                 "Content-Length": str(len(audio_data)),
-                "Content-Disposition": f"inline; filename=\"{beatmapset_id}.mp3\"",
+                "Content-Disposition": f'inline; filename="{beatmapset_id}.mp3"',
             },
         )
 

@@ -20,6 +20,8 @@ class AssetProxyService:
         self.asset_proxy_prefix = settings.asset_proxy_prefix
         self.avatar_proxy_prefix = settings.avatar_proxy_prefix
         self.beatmap_proxy_prefix = settings.beatmap_proxy_prefix
+        # 音频代理接口URL
+        self.audio_proxy_base_url = f"{settings.server_url}api/private/audio/beatmapset"
 
     async def replace_asset_urls(self, data: Any) -> Any:
         """
@@ -52,13 +54,12 @@ class AssetProxyService:
                 r"https://assets\.ppy\.sh/", f"https://{self.asset_proxy_prefix}.{self.custom_asset_domain}/", result
             )
 
-            # 替换 b.ppy.sh 预览音频 (保持//前缀)
-            result = re.sub(r"//b\.ppy\.sh/", f"//{self.beatmap_proxy_prefix}.{self.custom_asset_domain}/", result)
+            # 替换 b.ppy.sh 预览音频为我们的音频代理接口
+            # 匹配 https://b.ppy.sh/preview/{beatmapset_id}.mp3 格式
+            result = re.sub(r"https://b\.ppy\.sh/preview/(\d+)\.mp3", rf"{self.audio_proxy_base_url}/\1", result)
 
-            # 替换 https://b.ppy.sh 预览音频 (转换为//前缀)
-            result = re.sub(
-                r"https://b\.ppy\.sh/", f"//{self.beatmap_proxy_prefix}.{self.custom_asset_domain}/", result
-            )
+            # 匹配 //b.ppy.sh/preview/{beatmapset_id}.mp3 格式
+            result = re.sub(r"//b\.ppy\.sh/preview/(\d+)\.mp3", rf"{self.audio_proxy_base_url}/\1", result)
 
             # 替换 a.ppy.sh 头像
             result = re.sub(

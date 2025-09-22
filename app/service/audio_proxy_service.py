@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-
 from fastapi import HTTPException
 import httpx
 from loguru import logger
@@ -121,7 +120,6 @@ class AudioProxyService:
         await self.cache_beatmapset_audio(beatmapset_id, audio_data, content_type)
 
         return audio_data, content_type
-
 
 
 def get_audio_proxy_service(redis_client: redis.Redis) -> AudioProxyService:
