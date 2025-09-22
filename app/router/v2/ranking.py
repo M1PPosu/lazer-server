@@ -106,20 +106,25 @@ async def get_team_ranking(
             continue
 
         pp = 0
+        total_ranked_score = 0
+        total_play_count = 0
+        member_count = 0
+
+        for stat in statistics:
+            total_ranked_score += stat.ranked_score
+            total_play_count += stat.play_count
+            pp += stat.pp
+            member_count += 1
+
         stats = TeamStatistics(
             team_id=team.id,
             ruleset_id=int(ruleset),
-            play_count=0,
-            ranked_score=0,
-            performance=0,
+            play_count=total_play_count,
+            ranked_score=total_ranked_score,
+            performance=round(pp),
             team=team,
-            member_count=0,
+            member_count=member_count,
         )
-        for stat in statistics:
-            stats.ranked_score += stat.ranked_score
-            pp += stat.pp
-            stats.member_count += 1
-        stats.performance = round(pp)
         valid_teams.append(stats)
 
     # 排序
@@ -248,19 +253,23 @@ async def get_country_ranking(
             continue
 
         pp = 0
+        active_users = 0
+        total_play_count = 0
+        total_ranked_score = 0
+
+        for stat in statistics:
+            active_users += 1
+            total_play_count += stat.play_count
+            total_ranked_score += stat.ranked_score
+            pp += stat.pp
+
         country_stats = CountryStatistics(
             code=country,
-            active_users=0,
-            play_count=0,
-            ranked_score=0,
-            performance=0,
+            active_users=active_users,
+            play_count=total_play_count,
+            ranked_score=total_ranked_score,
+            performance=round(pp),
         )
-        for stat in statistics:
-            country_stats.active_users += 1
-            country_stats.play_count += stat.play_count
-            country_stats.ranked_score += stat.ranked_score
-            pp += stat.pp
-        country_stats.performance = round(pp)
         response.ranking.append(country_stats)
 
     if sort == "performance":
@@ -333,7 +342,7 @@ async def get_user_ranking(
     wheres = [
         col(UserStatistics.mode) == ruleset,
         col(UserStatistics.pp) > 0,
-        col(UserStatistics.is_ranked).is_(True),
+        col(UserStatistics.is_ranked) == True,
     ]
     include = ["user"]
     if sort == "performance":
@@ -345,7 +354,8 @@ async def get_user_ranking(
         wheres.append(col(UserStatistics.user).has(country_code=country.upper()))
 
     # 查询总数
-    total_count_result = await session.exec(select(func.count()).select_from(UserStatistics).where(*wheres))
+    count_query = select(func.count(UserStatistics.id)).where(*wheres)
+    total_count_result = await session.exec(count_query)
     total_count = total_count_result.one()
 
     statistics_list = await session.exec(
