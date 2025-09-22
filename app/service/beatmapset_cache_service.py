@@ -5,9 +5,9 @@ Beatmapset缓存服务
 
 from __future__ import annotations
 
+from datetime import datetime
 import hashlib
 import json
-from datetime import datetime
 from typing import TYPE_CHECKING
 
 from app.config import settings
@@ -17,7 +17,7 @@ from app.log import logger
 from redis.asyncio import Redis
 
 if TYPE_CHECKING:
-    from app.fetcher import Fetcher
+    pass
 
 
 class DateTimeEncoder(json.JSONEncoder):
@@ -199,7 +199,7 @@ _cache_service: BeatmapsetCacheService | None = None
 
 def get_beatmapset_cache_service(redis: Redis) -> BeatmapsetCacheService:
     """获取beatmapset缓存服务实例"""
-    global _cache_service  # noqa: PLW0603
+    global _cache_service
     if _cache_service is None:
         _cache_service = BeatmapsetCacheService(redis)
     return _cache_service

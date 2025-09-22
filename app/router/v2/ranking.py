@@ -13,7 +13,7 @@ from .router import router
 
 from fastapi import BackgroundTasks, Path, Query, Security
 from pydantic import BaseModel, Field
-from sqlmodel import col, select, func
+from sqlmodel import col, func, select
 
 
 class TeamStatistics(BaseModel):
