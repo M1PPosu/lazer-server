@@ -12,8 +12,8 @@ from app.service.ranking_cache_service import get_ranking_cache_service
 from .router import router
 
 from fastapi import BackgroundTasks, Path, Query, Security
-from pydantic import BaseModel
-from sqlmodel import col, select
+from pydantic import BaseModel, Field
+from sqlmodel import col, select, func
 
 
 class TeamStatistics(BaseModel):
@@ -29,6 +29,7 @@ class TeamStatistics(BaseModel):
 
 class TeamResponse(BaseModel):
     ranking: list[TeamStatistics]
+    total: int = Field(0, description="战队总数")
 
 
 SortType = Literal["performance", "score"]
@@ -76,14 +77,19 @@ async def get_team_ranking(
 
     # 尝试从缓存获取数据（战队排行榜）
     cached_data = await cache_service.get_cached_team_ranking(ruleset, page)
+    cached_stats = await cache_service.get_cached_team_stats(ruleset)
 
-    if cached_data:
+    if cached_data and cached_stats:
         # 从缓存返回数据
-        return TeamResponse(ranking=[TeamStatistics.model_validate(item) for item in cached_data])
+        return TeamResponse(
+            ranking=[TeamStatistics.model_validate(item) for item in cached_data],
+            total=cached_stats.get("total", 0),
+        )
 
     # 缓存未命中，从数据库查询
-    response = TeamResponse(ranking=[])
+    response = TeamResponse(ranking=[], total=0)
     teams = (await session.exec(select(Team))).all()
+    valid_teams = []  # 存储有效的战队统计
 
     for team in teams:
         statistics = (
@@ -114,12 +120,16 @@ async def get_team_ranking(
             pp += stat.pp
             stats.member_count += 1
         stats.performance = round(pp)
-        response.ranking.append(stats)
+        valid_teams.append(stats)
 
+    # 排序
     if sort == "performance":
-        response.ranking.sort(key=lambda x: x.performance, reverse=True)
+        valid_teams.sort(key=lambda x: x.performance, reverse=True)
     else:
-        response.ranking.sort(key=lambda x: x.ranked_score, reverse=True)
+        valid_teams.sort(key=lambda x: x.ranked_score, reverse=True)
+
+    # 计算总数
+    total_count = len(valid_teams)
 
     # 分页处理
     page_size = 50
@@ -127,10 +137,11 @@ async def get_team_ranking(
     end_idx = start_idx + page_size
 
     # 获取当前页的数据
-    current_page_data = response.ranking[start_idx:end_idx]
+    current_page_data = valid_teams[start_idx:end_idx]
 
     # 异步缓存数据（不等待完成）
     cache_data = [item.model_dump() for item in current_page_data]
+    stats_data = {"total": total_count}
 
     # 创建后台任务来缓存数据
     background_tasks.add_task(
@@ -141,8 +152,17 @@ async def get_team_ranking(
         ttl=settings.ranking_cache_expire_minutes * 60,
     )
 
+    # 缓存统计信息
+    background_tasks.add_task(
+        cache_service.cache_team_stats,
+        ruleset,
+        stats_data,
+        ttl=settings.ranking_cache_expire_minutes * 60,
+    )
+
     # 返回当前页的结果
     response.ranking = current_page_data
+    response.total = total_count
     return response
 
 
@@ -275,6 +295,7 @@ async def get_country_ranking(
 
 class TopUsersResponse(BaseModel):
     ranking: list[UserStatisticsResp]
+    total: int
 
 
 @router.get(
@@ -299,10 +320,14 @@ async def get_user_ranking(
 
     # 尝试从缓存获取数据
     cached_data = await cache_service.get_cached_ranking(ruleset, sort, country, page)
+    cached_stats = await cache_service.get_cached_stats(ruleset, sort, country)
 
-    if cached_data:
+    if cached_data and cached_stats:
         # 从缓存返回数据
-        return TopUsersResponse(ranking=[UserStatisticsResp.model_validate(item) for item in cached_data])
+        return TopUsersResponse(
+            ranking=[UserStatisticsResp.model_validate(item) for item in cached_data],
+            total=cached_stats.get("total", 0),
+        )
 
     # 缓存未命中，从数据库查询
     wheres = [
@@ -319,6 +344,10 @@ async def get_user_ranking(
     if country:
         wheres.append(col(UserStatistics.user).has(country_code=country.upper()))
 
+    # 查询总数
+    total_count_result = await session.exec(select(func.count()).select_from(UserStatistics).where(*wheres))
+    total_count = total_count_result.one()
+
     statistics_list = await session.exec(
         select(UserStatistics).where(*wheres).order_by(order_by).limit(50).offset(50 * (page - 1))
     )
@@ -332,8 +361,9 @@ async def get_user_ranking(
     # 异步缓存数据（不等待完成）
     # 使用配置文件中的TTL设置
     cache_data = [item.model_dump() for item in ranking_data]
-    # 创建后台任务来缓存数据
+    stats_data = {"total": total_count}
 
+    # 创建后台任务来缓存数据
     background_tasks.add_task(
         cache_service.cache_ranking,
         ruleset,
@@ -344,5 +374,15 @@ async def get_user_ranking(
         ttl=settings.ranking_cache_expire_minutes * 60,
     )
 
-    resp = TopUsersResponse(ranking=ranking_data)
+    # 缓存统计信息
+    background_tasks.add_task(
+        cache_service.cache_stats,
+        ruleset,
+        sort,
+        stats_data,
+        country,
+        ttl=settings.ranking_cache_expire_minutes * 60,
+    )
+
+    resp = TopUsersResponse(ranking=ranking_data, total=total_count)
     return resp
