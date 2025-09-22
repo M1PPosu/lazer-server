@@ -7,6 +7,7 @@ from urllib.parse import parse_qs
 from app.database import Beatmap, Beatmapset, BeatmapsetResp, FavouriteBeatmapset, User
 from app.database.beatmapset import SearchBeatmapsetsResp
 from app.dependencies.beatmap_download import get_beatmap_download_service
+from app.dependencies.beatmapset_cache import get_beatmapset_cache_dependency
 from app.dependencies.database import Database, get_redis, with_db
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.geoip import get_client_ip, get_geoip_helper
@@ -15,6 +16,7 @@ from app.fetcher import Fetcher
 from app.models.beatmap import SearchQueryModel
 from app.service.asset_proxy_helper import process_response_assets
 from app.service.beatmap_download_service import BeatmapDownloadService
+from app.service.beatmapset_cache_service import BeatmapsetCacheService, generate_hash
 
 from .router import router
 
@@ -54,6 +56,7 @@ async def search_beatmapset(
     current_user: User = Security(get_current_user, scopes=["public"]),
     fetcher: Fetcher = Depends(get_fetcher),
     redis=Depends(get_redis),
+    cache_service: BeatmapsetCacheService = Depends(get_beatmapset_cache_dependency),
 ):
     params = parse_qs(qs=request.url.query, keep_blank_values=True)
     cursor = {}
@@ -94,15 +97,31 @@ async def search_beatmapset(
     ):
         # TODO: search locally
         return SearchBeatmapsetsResp(total=0, beatmapsets=[])
+
+    # 生成查询和游标的哈希用于缓存
+    query_hash = generate_hash(query.model_dump())
+    cursor_hash = generate_hash(cursor)
+
+    # 尝试从缓存获取搜索结果
+    cached_result = await cache_service.get_search_from_cache(query_hash, cursor_hash)
+    if cached_result:
+        sets = SearchBeatmapsetsResp(**cached_result)
+        # 处理资源代理
+        processed_sets = await process_response_assets(sets, request)
+        return processed_sets
+
     try:
         sets = await fetcher.search_beatmapset(query, cursor, redis)
         background_tasks.add_task(_save_to_db, sets)
+
+        # 缓存搜索结果
+        await cache_service.cache_search_result(query_hash, cursor_hash, sets.model_dump())
 
         # 处理资源代理
         processed_sets = await process_response_assets(sets, request)
         return processed_sets
     except HTTPError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get(
@@ -118,13 +137,27 @@ async def lookup_beatmapset(
     beatmap_id: int = Query(description="谱面 ID"),
     current_user: User = Security(get_current_user, scopes=["public"]),
     fetcher: Fetcher = Depends(get_fetcher),
+    cache_service: BeatmapsetCacheService = Depends(get_beatmapset_cache_dependency),
 ):
-    beatmap = await Beatmap.get_or_fetch(db, fetcher, bid=beatmap_id)
-    resp = await BeatmapsetResp.from_db(beatmap.beatmapset, session=db, user=current_user)
+    # 先尝试从缓存获取
+    cached_resp = await cache_service.get_beatmap_lookup_from_cache(beatmap_id)
+    if cached_resp:
+        # 处理资源代理
+        processed_resp = await process_response_assets(cached_resp, request)
+        return processed_resp
 
-    # 处理资源代理
-    processed_resp = await process_response_assets(resp, request)
-    return processed_resp
+    try:
+        beatmap = await Beatmap.get_or_fetch(db, fetcher, bid=beatmap_id)
+        resp = await BeatmapsetResp.from_db(beatmap.beatmapset, session=db, user=current_user)
+
+        # 缓存结果
+        await cache_service.cache_beatmap_lookup(beatmap_id, resp)
+
+        # 处理资源代理
+        processed_resp = await process_response_assets(resp, request)
+        return processed_resp
+    except HTTPError as exc:
+        raise HTTPException(status_code=404, detail="Beatmap not found") from exc
 
 
 @router.get(
@@ -136,15 +169,31 @@ async def lookup_beatmapset(
 )
 async def get_beatmapset(
     db: Database,
+    request: Request,
     beatmapset_id: int = Path(..., description="谱面集 ID"),
     current_user: User = Security(get_current_user, scopes=["public"]),
     fetcher: Fetcher = Depends(get_fetcher),
+    cache_service: BeatmapsetCacheService = Depends(get_beatmapset_cache_dependency),
 ):
+    # 先尝试从缓存获取
+    cached_resp = await cache_service.get_beatmapset_from_cache(beatmapset_id)
+    if cached_resp:
+        # 处理资源代理
+        processed_resp = await process_response_assets(cached_resp, request)
+        return processed_resp
+
     try:
         beatmapset = await Beatmapset.get_or_fetch(db, fetcher, beatmapset_id)
-        return await BeatmapsetResp.from_db(beatmapset, session=db, include=["recent_favourites"], user=current_user)
-    except HTTPError:
-        raise HTTPException(status_code=404, detail="Beatmapset not found")
+        resp = await BeatmapsetResp.from_db(beatmapset, session=db, include=["recent_favourites"], user=current_user)
+
+        # 缓存结果
+        await cache_service.cache_beatmapset(resp)
+
+        # 处理资源代理
+        processed_resp = await process_response_assets(resp, request)
+        return processed_resp
+    except HTTPError as exc:
+        raise HTTPException(status_code=404, detail="Beatmapset not found") from exc
 
 
 @router.get(
