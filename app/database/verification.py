@@ -49,5 +49,7 @@ class LoginSession(SQLModel, table=True):
     verified_at: datetime | None = Field(default=None)
     expires_at: datetime = Field()  # 会话过期时间
     is_new_location: bool = Field(default=False)  # 是否新位置登录
+    session_token: str | None = Field(default=None, max_length=64, index=True)  # 会话令牌
+    verification_method: str | None = Field(default=None, max_length=20)  # 验证方法 (totp/mail)
 
     token: Optional["OAuthToken"] = Relationship(back_populates="login_session")

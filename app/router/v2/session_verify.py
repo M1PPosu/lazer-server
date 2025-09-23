@@ -86,6 +86,7 @@ async def verify_session(
         if verify_method is None:
             # 智能选择验证方法（参考osu-web实现）
             # API版本较老或用户未设置TOTP时强制使用邮件验证
+            print(api_version, totp_key)
             if api_version < 20240101 or totp_key is None:
                 verify_method = "mail"
             else:

@@ -7,10 +7,11 @@ from __future__ import annotations
 from datetime import timedelta
 import secrets
 import string
-from typing import Literal
+from typing import Literal, Optional
 
 from app.config import settings
 from app.database.verification import EmailVerification, LoginSession
+from app.interfaces.session_verification import SessionVerificationInterface
 from app.log import logger
 from app.service.client_detection_service import ClientDetectionService, ClientInfo
 from app.service.device_trust_service import DeviceTrustService
@@ -513,6 +514,26 @@ This email was sent automatically, please do not reply.
 
 class LoginSessionService:
     """登录会话服务"""
+
+    # Session verification interface methods
+    @staticmethod
+    async def find_for_verification(db: AsyncSession, session_id: str) -> Optional[LoginSession]:
+        """根据会话ID查找会话用于验证"""
+        try:
+            result = await db.exec(
+                select(LoginSession).where(
+                    LoginSession.session_token == session_id,
+                    LoginSession.expires_at > utcnow(),
+                )
+            )
+            return result.first()
+        except Exception:
+            return None
+
+    @staticmethod
+    def get_key_for_event(session_id: str) -> str:
+        """获取用于事件广播的会话密钥"""
+        return f"g0v0:{session_id}"
 
     @staticmethod
     async def create_session(
