@@ -48,9 +48,18 @@ class ChatServer:
         user_id = user.id
         if user_id in self.connect_client:
             del self.connect_client[user_id]
+
+        # 创建频道ID列表的副本以避免在迭代过程中修改字典
+        channel_ids_to_process = []
         for channel_id, channel in self.channels.items():
             if user_id in channel:
-                channel.remove(user_id)
+                channel_ids_to_process.append(channel_id)
+
+        # 现在安全地处理每个频道
+        for channel_id in channel_ids_to_process:
+            # 再次检查用户是否仍在频道中（防止并发修改）
+            if channel_id in self.channels and user_id in self.channels[channel_id]:
+                self.channels[channel_id].remove(user_id)
                 # 使用明确的查询避免延迟加载
                 db_channel = (
                     await session.exec(select(ChatChannel).where(ChatChannel.channel_id == channel_id))

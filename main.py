@@ -46,6 +46,8 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi_limiter import FastAPILimiter
 import sentry_sdk
 
+from app.middleware.verify_session import VerifySessionMiddleware
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -170,6 +172,10 @@ app.include_router(lio_router)
 
 # from app.signalr import signalr_router
 # app.include_router(signalr_router)
+
+# 会话验证中间件
+if settings.enable_session_verification:
+    app.add_middleware(VerifySessionMiddleware)
 
 # CORS 配置
 origins = []
