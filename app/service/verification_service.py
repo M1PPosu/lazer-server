@@ -12,11 +12,13 @@ from typing import Literal
 from app.config import settings
 from app.database.verification import EmailVerification, LoginSession
 from app.log import logger
+from app.service.client_detection_service import ClientDetectionService, ClientInfo
+from app.service.device_trust_service import DeviceTrustService
 from app.service.email_queue import email_queue  # 导入邮件队列
 from app.utils import utcnow
 
 from redis.asyncio import Redis
-from sqlmodel import col, exists, select
+from sqlmodel import exists, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
@@ -56,7 +58,7 @@ class EmailVerificationService:
             line-height: 1.6;
         }}
         .header {{
-            background: linear-gradient(135deg, #ff66aa, #ff9966);
+            background: #ED8EA6;
             color: white;
             padding: 20px;
             text-align: center;
@@ -69,7 +71,7 @@ class EmailVerificationService:
         }}
         .code {{
             background: #fff;
-            border: 2px solid #ff66aa;
+            border: 2px solid #ED8EA6;
             border-radius: 8px;
             padding: 15px;
             text-align: center;
@@ -201,7 +203,7 @@ This email was sent automatically, please do not reply.
         existing_result = await db.exec(
             select(EmailVerification).where(
                 EmailVerification.user_id == user_id,
-                col(EmailVerification.is_used).is_(False),
+                EmailVerification.is_used == False,  # noqa: E712
                 EmailVerification.expires_at > utcnow(),
             )
         )
@@ -247,13 +249,36 @@ This email was sent automatically, please do not reply.
         email: str,
         ip_address: str | None = None,
         user_agent: str | None = None,
+        client_id: int | None = None,
+        country_code: str | None = None,
     ) -> bool:
-        """发送验证邮件"""
+        """发送验证邮件（带智能检测）"""
         try:
             # 检查是否启用邮件验证功能
             if not settings.enable_email_verification:
                 logger.debug(f"[Email Verification] Email verification is disabled, skipping for user {user_id}")
                 return True  # 返回成功，但不执行验证流程
+
+            # 检测客户端信息
+            client_info = ClientDetectionService.detect_client(user_agent, client_id)
+            logger.info(
+                f"[Email Verification] Detected client for user {user_id}: "
+                f"{ClientDetectionService.format_client_display_name(client_info)}"
+            )
+
+            # 检查是否需要验证
+            needs_verification, reason = await DeviceTrustService.should_require_verification(
+                redis=redis,
+                user_id=user_id,
+                device_fingerprint=client_info.device_fingerprint,
+                country_code=country_code,
+                client_info=client_info,
+                is_new_location=True,  # 这里需要从调用方传入
+            )
+
+            if not needs_verification:
+                logger.info(f"[Email Verification] Skipping verification for user {user_id}: {reason}")
+                return True
 
             # 创建验证记录
             (
@@ -280,14 +305,118 @@ This email was sent automatically, please do not reply.
             return False
 
     @staticmethod
+    async def send_smart_verification_email(
+        db: AsyncSession,
+        redis: Redis,
+        user_id: int,
+        username: str,
+        email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+        client_id: int | None = None,
+        country_code: str | None = None,
+        is_new_location: bool = False,
+    ) -> tuple[bool, str, ClientInfo | None]:
+        """
+        智能邮件验证发送
+
+        Args:
+            db: 数据库会话
+            redis: Redis 连接
+            user_id: 用户 ID
+            username: 用户名
+            email: 邮箱地址
+            ip_address: IP 地址
+            user_agent: 用户代理
+            client_id: 客户端 ID
+            country_code: 国家代码
+            is_new_location: 是否为新位置登录
+
+        Returns:
+            tuple[bool, str, ClientInfo | None]: (是否成功, 消息, 客户端信息)
+        """
+        try:
+            # 检查是否启用邮件验证功能
+            if not settings.enable_email_verification:
+                logger.debug(f"[Smart Verification] Email verification is disabled, skipping for user {user_id}")
+                return True, "邮件验证功能已禁用", None
+
+            # 检查是否启用智能验证
+            if not settings.enable_smart_verification:
+                logger.debug(
+                    f"[Smart Verification] Smart verification is disabled, using legacy logic for user {user_id}"
+                )
+                # 回退到传统验证逻辑
+                verification, code = await EmailVerificationService.create_verification_record(
+                    db, redis, user_id, email, ip_address, user_agent
+                )
+                success = await EmailVerificationService.send_verification_email_via_queue(
+                    email, code, username, user_id
+                )
+                return success, "使用传统验证逻辑发送邮件" if success else "传统验证邮件发送失败", None
+
+            # 检测客户端信息
+            client_info = ClientDetectionService.detect_client(user_agent, client_id)
+            client_display_name = ClientDetectionService.format_client_display_name(client_info)
+
+            logger.info(f"[Smart Verification] Detected client for user {user_id}: {client_display_name}")
+
+            # 检查是否需要验证
+            needs_verification, reason = await DeviceTrustService.should_require_verification(
+                redis=redis,
+                user_id=user_id,
+                device_fingerprint=client_info.device_fingerprint,
+                country_code=country_code,
+                client_info=client_info,
+                is_new_location=is_new_location,
+            )
+
+            if not needs_verification:
+                logger.info(f"[Smart Verification] Skipping verification for user {user_id}: {reason}")
+
+                # 即使不需要验证，也要更新设备信任信息
+                if client_info.device_fingerprint:
+                    await DeviceTrustService.trust_device(redis, user_id, client_info.device_fingerprint, client_info)
+                if country_code:
+                    await DeviceTrustService.trust_location(redis, user_id, country_code)
+
+                return True, f"跳过验证: {reason}", client_info
+
+            # 创建验证记录
+            verification, code = await EmailVerificationService.create_verification_record(
+                db, redis, user_id, email, ip_address, user_agent
+            )
+            _ = verification  # 避免未使用变量警告
+
+            # 使用邮件队列发送验证邮件
+            success = await EmailVerificationService.send_verification_email_via_queue(email, code, username, user_id)
+
+            if success:
+                logger.info(
+                    f"[Smart Verification] Successfully sent verification email to {email} "
+                    f"for user {username} using {client_display_name}"
+                )
+                return True, "验证邮件已发送", client_info
+            else:
+                logger.error(f"[Smart Verification] Failed to send verification email: {email} (user: {username})")
+                return False, "验证邮件发送失败", client_info
+
+        except Exception as e:
+            logger.error(f"[Smart Verification] Exception during smart verification: {e}")
+            return False, f"验证过程中发生错误: {e!s}", None
+
+    @staticmethod
     async def verify_email_code(
         db: AsyncSession,
         redis: Redis,
         user_id: int,
         code: str,
         ip_address: str | None = None,
+        user_agent: str | None = None,
+        client_id: int | None = None,
+        country_code: str | None = None,
     ) -> tuple[bool, str]:
-        """验证邮箱验证码"""
+        """验证邮箱验证码（带智能信任更新）"""
         try:
             # 检查是否启用邮件验证功能
             if not settings.enable_email_verification:
@@ -305,7 +434,7 @@ This email was sent automatically, please do not reply.
                     EmailVerification.id == int(verification_id),
                     EmailVerification.user_id == user_id,
                     EmailVerification.verification_code == code,
-                    col(EmailVerification.is_used).is_(False),
+                    EmailVerification.is_used == False,  # noqa: E712
                     EmailVerification.expires_at > utcnow(),
                 )
             )
@@ -322,6 +451,16 @@ This email was sent automatically, please do not reply.
 
             # 删除 Redis 记录
             await redis.delete(f"email_verification:{user_id}:{code}")
+
+            # 检测客户端信息并更新信任状态
+            client_info = ClientDetectionService.detect_client(user_agent, client_id)
+            await DeviceTrustService.mark_verification_successful(
+                redis=redis,
+                user_id=user_id,
+                device_fingerprint=client_info.device_fingerprint,
+                country_code=country_code,
+                client_info=client_info,
+            )
 
             logger.info(f"[Email Verification] User {user_id} verification code verified successfully")
             return True, "验证成功"
@@ -342,6 +481,8 @@ This email was sent automatically, please do not reply.
     ) -> tuple[bool, str]:
         """重新发送验证码"""
         try:
+            # 避免未使用参数警告
+            _ = user_agent
             # 检查是否启用邮件验证功能
             if not settings.enable_email_verification:
                 logger.debug(f"[Email Verification] Email verification is disabled, skipping resend for user {user_id}")
@@ -465,7 +606,7 @@ class LoginSessionService:
             result = await db.exec(
                 select(LoginSession).where(
                     LoginSession.user_id == user_id,
-                    col(LoginSession.is_verified).is_(False),
+                    LoginSession.is_verified == False,  # noqa: E712
                     LoginSession.expires_at > utcnow(),
                     LoginSession.token_id == token_id,
                 )
@@ -497,7 +638,7 @@ class LoginSessionService:
                 await db.exec(
                     select(exists()).where(
                         LoginSession.user_id == user_id,
-                        col(LoginSession.is_verified).is_(False),
+                        LoginSession.is_verified == False,  # noqa: E712
                         LoginSession.expires_at > utcnow(),
                         LoginSession.token_id == token_id,
                     )

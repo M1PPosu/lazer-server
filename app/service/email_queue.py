@@ -242,13 +242,15 @@ class EmailQueue:
             if html_content:
                 msg.attach(MIMEText(html_content, "html", "utf-8"))
 
-            # 发送邮件
-            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
-                if self.smtp_username and self.smtp_password:
-                    server.starttls()
-                    server.login(self.smtp_username, self.smtp_password)
+            # 发送邮件 - 使用线程池避免阻塞事件循环
+            def send_smtp_email():
+                with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+                    if self.smtp_username and self.smtp_password:
+                        server.starttls()
+                        server.login(self.smtp_username, self.smtp_password)
+                    server.send_message(msg)
 
-                server.send_message(msg)
+            await self._run_in_executor(send_smtp_email)
 
             return True
 

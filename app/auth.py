@@ -217,15 +217,41 @@ async def store_token(
     access_token: str,
     refresh_token: str,
     expires_in: int,
+    allow_multiple_devices: bool = True,
 ) -> OAuthToken:
-    """存储令牌到数据库"""
+    """存储令牌到数据库（支持多设备）"""
     expires_at = utcnow() + timedelta(seconds=expires_in)
 
-    # 删除用户的旧令牌
-    statement = select(OAuthToken).where(OAuthToken.user_id == user_id, OAuthToken.client_id == client_id)
-    old_tokens = (await db.exec(statement)).all()
-    for token in old_tokens:
-        await db.delete(token)
+    if not allow_multiple_devices:
+        # 旧的行为：删除用户的旧令牌（单设备模式）
+        statement = select(OAuthToken).where(OAuthToken.user_id == user_id, OAuthToken.client_id == client_id)
+        old_tokens = (await db.exec(statement)).all()
+        for token in old_tokens:
+            await db.delete(token)
+    else:
+        # 新的行为：只删除过期的令牌，保留有效的令牌（多设备模式）
+        statement = select(OAuthToken).where(
+            OAuthToken.user_id == user_id, OAuthToken.client_id == client_id, OAuthToken.expires_at <= utcnow()
+        )
+        expired_tokens = (await db.exec(statement)).all()
+        for token in expired_tokens:
+            await db.delete(token)
+
+        # 限制每个用户每个客户端的最大令牌数量（防止无限增长）
+        max_tokens_per_client = settings.max_tokens_per_client
+        statement = (
+            select(OAuthToken)
+            .where(OAuthToken.user_id == user_id, OAuthToken.client_id == client_id, OAuthToken.expires_at > utcnow())
+            .order_by(OAuthToken.created_at.desc())
+        )
+
+        active_tokens = (await db.exec(statement)).all()
+        if len(active_tokens) >= max_tokens_per_client:
+            # 删除最旧的令牌
+            tokens_to_delete = active_tokens[max_tokens_per_client - 1 :]
+            for token in tokens_to_delete:
+                await db.delete(token)
+            logger.info(f"[Auth] Cleaned up {len(tokens_to_delete)} old tokens for user {user_id}")
 
     # 检查是否有重复的 access_token
     duplicate_token = (await db.exec(select(OAuthToken).where(OAuthToken.access_token == access_token))).first()
@@ -244,6 +270,10 @@ async def store_token(
     db.add(token_record)
     await db.commit()
     await db.refresh(token_record)
+
+    logger.info(
+        f"[Auth] Created new token for user {user_id}, client {client_id} (multi-device: {allow_multiple_devices})"
+    )
     return token_record
 
 

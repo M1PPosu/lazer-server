@@ -309,6 +309,31 @@ STORAGE_SETTINGS='{
         Field(default=False, description="是否启用邮件验证功能"),
         "验证服务设置",
     ]
+    enable_smart_verification: Annotated[
+        bool,
+        Field(default=True, description="是否启用智能验证（基于客户端类型和设备信任）"),
+        "验证服务设置",
+    ]
+    enable_multi_device_login: Annotated[
+        bool,
+        Field(default=True, description="是否允许多设备同时登录"),
+        "验证服务设置",
+    ]
+    max_tokens_per_client: Annotated[
+        int,
+        Field(default=10, description="每个用户每个客户端的最大令牌数量"),
+        "验证服务设置",
+    ]
+    device_trust_duration_days: Annotated[
+        int,
+        Field(default=30, description="设备信任持续天数"),
+        "验证服务设置",
+    ]
+    location_trust_duration_days: Annotated[
+        int,
+        Field(default=90, description="位置信任持续天数"),
+        "验证服务设置",
+    ]
     smtp_server: Annotated[
         str,
         Field(default="localhost", description="SMTP 服务器地址"),

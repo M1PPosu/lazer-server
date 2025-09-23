@@ -214,6 +214,9 @@ async def oauth_token(
 ):
     scopes = scope.split(" ")
 
+    # 打印请求头
+    # logger.info(f"Request headers: {request.headers}")
+
     client = (
         await db.exec(
             select(OAuthClient).where(
@@ -303,6 +306,7 @@ async def oauth_token(
             access_token,
             refresh_token_str,
             settings.access_token_expire_minutes * 60,
+            allow_multiple_devices=settings.enable_multi_device_login,  # 使用配置决定是否启用多设备支持
         )
         token_id = token.id
 
@@ -333,24 +337,41 @@ async def oauth_token(
             await db.refresh(user)
             session_verification_method = "mail"
 
-            # 发送邮件验证码
-            verification_sent = await EmailVerificationService.send_verification_email(
-                db, redis, user_id, user.username, user.email, ip_address, user_agent
+            # 使用智能验证发送邮件
+            (
+                verification_sent,
+                verification_message,
+                client_info,
+            ) = await EmailVerificationService.send_smart_verification_email(
+                db,
+                redis,
+                user_id,
+                user.username,
+                user.email,
+                ip_address,
+                user_agent,
+                client_id,
+                country_code,
+                is_new_location,
             )
 
             # 记录需要二次验证的登录尝试
+            client_display_name = client_info.client_type if client_info else "unknown"
             await LoginLogService.record_login(
                 db=db,
                 user_id=user_id,
                 request=request,
                 login_success=True,
                 login_method="password_pending_verification",
-                notes=f"新位置登录，需要邮件验证 - IP: {ip_address}, 国家: {country_code}",
+                notes=f"智能验证: {verification_message} - 客户端: {client_display_name}, "
+                f"IP: {ip_address}, 国家: {country_code}",
             )
 
             if not verification_sent:
                 # 邮件发送失败，记录错误
-                logger.error(f"[Auth] Failed to send email verification code for user {user_id}")
+                logger.error(f"[Auth] Smart verification failed for user {user_id}: {verification_message}")
+            else:
+                logger.info(f"[Auth] Smart verification result for user {user_id}: {verification_message}")
         elif is_new_location:
             # 新位置登录但邮件验证功能被禁用，直接标记会话为已验证
             await LoginSessionService.mark_session_verified(db, redis, user_id, token_id)
@@ -428,6 +449,7 @@ async def oauth_token(
             access_token,
             new_refresh_token,
             settings.access_token_expire_minutes * 60,
+            allow_multiple_devices=settings.enable_multi_device_login,  # 使用配置决定是否启用多设备支持
         )
         return TokenResponse(
             access_token=access_token,
@@ -492,6 +514,7 @@ async def oauth_token(
             access_token,
             refresh_token_str,
             settings.access_token_expire_minutes * 60,
+            allow_multiple_devices=settings.enable_multi_device_login,  # 使用配置决定是否启用多设备支持
         )
 
         # 打印jwt
@@ -538,6 +561,7 @@ async def oauth_token(
             access_token,
             refresh_token_str,
             settings.access_token_expire_minutes * 60,
+            allow_multiple_devices=settings.enable_multi_device_login,  # 使用配置决定是否启用多设备支持
         )
 
         return TokenResponse(

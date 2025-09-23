@@ -141,7 +141,7 @@ class PasswordResetService:
             line-height: 1.6;
         }}
         .header {{
-            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            background: #ED8EA6;
             color: white;
             padding: 20px;
             text-align: center;
@@ -154,7 +154,7 @@ class PasswordResetService:
         }}
         .code {{
             background: #fff;
-            border: 2px solid #ff6b6b;
+            border: 2px solid #ED8EA6;
             border-radius: 8px;
             padding: 15px;
             text-align: center;
