@@ -74,10 +74,13 @@ class DatabaseCleanupScheduler:
                 # 清理过期的登录会话
                 expired_sessions = await DatabaseCleanupService.cleanup_expired_login_sessions(db)
 
+                # 清理1小时前未验证的登录会话
+                unverified_sessions = await DatabaseCleanupService.cleanup_unverified_login_sessions(db, 1)
+
                 # 只在有清理记录时输出总结
-                total_cleaned = expired_codes + expired_sessions
+                total_cleaned = expired_codes + expired_sessions + unverified_sessions
                 if total_cleaned > 0:
-                    logger.debug(f"Scheduled cleanup completed - codes: {expired_codes}, sessions: {expired_sessions}")
+                    logger.debug(f"Scheduled cleanup completed - codes: {expired_codes}, sessions: {expired_sessions}, unverified: {unverified_sessions}")
 
         except Exception as e:
             logger.error(f"Error during scheduled database cleanup: {e!s}")
