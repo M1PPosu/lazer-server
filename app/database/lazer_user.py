@@ -73,7 +73,7 @@ COUNTRIES = json.loads((STATIC_DIR / "iso3166.json").read_text())
 
 class UserBase(UTCBaseModel, SQLModel):
     avatar_url: str = ""
-    country_code: str = Field(default="CN", max_length=2, index=True)
+    country_code: str = Field(default="PL", max_length=2, index=True)
     # ? default_group: str|None
     is_active: bool = True
     is_bot: bool = False
