@@ -5,7 +5,7 @@ from app.auth import (
     finish_create_totp_key,
     start_create_totp_key,
     totp_redis_key,
-    verify_totp_key,
+    verify_totp_key_with_replay_protection,
 )
 from app.config import settings
 from app.const import BACKUP_CODE_LENGTH
@@ -92,12 +92,21 @@ async def finish_create_totp(
 async def disable_totp(
     session: Database,
     code: str = Body(..., embed=True, description="用户提供的 TOTP 代码或备份码"),
+    redis: Redis = Depends(get_redis),
     current_user: User = Security(get_client_user),
 ):
     totp = await session.get(TotpKeys, current_user.id)
     if not totp:
         raise HTTPException(status_code=400, detail="TOTP is not enabled for this user")
-    if verify_totp_key(totp.secret, code) or (len(code) == BACKUP_CODE_LENGTH and check_totp_backup_code(totp, code)):
+
+    # 使用防重放保护的TOTP验证或备份码验证
+    is_totp_valid = False
+    if len(code) == 6 and code.isdigit():
+        is_totp_valid = await verify_totp_key_with_replay_protection(current_user.id, totp.secret, code, redis)
+    elif len(code) == BACKUP_CODE_LENGTH:
+        is_totp_valid = check_totp_backup_code(totp, code)
+
+    if is_totp_valid:
         await session.delete(totp)
         await session.commit()
     else:

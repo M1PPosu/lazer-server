@@ -331,6 +331,23 @@ def verify_totp_key(secret: str, code: str) -> bool:
     return pyotp.TOTP(secret).verify(code, valid_window=1)
 
 
+async def verify_totp_key_with_replay_protection(
+    user_id: int, secret: str, code: str, redis: Redis
+) -> bool:
+    """验证TOTP密钥，并防止密钥重放攻击"""
+    if not pyotp.TOTP(secret).verify(code, valid_window=1):
+        return False
+
+    # 防止120秒内重复使用同一密钥（参考osu-web实现）
+    cache_key = f"totp:{user_id}:{code}"
+    if await redis.exists(cache_key):
+        return False
+
+    # 设置120秒过期时间
+    await redis.setex(cache_key, 120, "1")
+    return True
+
+
 def _generate_backup_codes(count=10, length=BACKUP_CODE_LENGTH) -> list[str]:
     alphabet = string.ascii_uppercase + string.digits
     return ["".join(secrets.choice(alphabet) for _ in range(length)) for _ in range(count)]
