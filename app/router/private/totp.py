@@ -5,9 +5,8 @@ from app.auth import (
     finish_create_totp_key,
     start_create_totp_key,
     totp_redis_key,
-    verify_totp_key,
+    verify_totp_key_with_replay_protection,
 )
-from app.config import settings
 from app.const import BACKUP_CODE_LENGTH
 from app.database.auth import TotpKeys
 from app.database.lazer_user import User
@@ -19,7 +18,36 @@ from .router import router
 
 from fastapi import Body, Depends, HTTPException, Security
 import pyotp
+from pydantic import BaseModel
 from redis.asyncio import Redis
+
+
+class TotpStatusResp(BaseModel):
+    """TOTP状态响应"""
+    enabled: bool
+    created_at: str | None = None
+
+
+@router.get(
+    "/totp/status",
+    name="检查 TOTP 状态",
+    description="检查当前用户是否已启用 TOTP 双因素验证",
+    tags=["验证", "g0v0 API"],
+    response_model=TotpStatusResp,
+)
+async def get_totp_status(
+    current_user: User = Security(get_client_user),
+):
+    """检查用户是否已创建TOTP"""
+    totp_key = await current_user.awaitable_attrs.totp_key
+
+    if totp_key:
+        return TotpStatusResp(
+            enabled=True,
+            created_at=totp_key.created_at.isoformat()
+        )
+    else:
+        return TotpStatusResp(enabled=False)
 
 
 @router.post(
@@ -44,11 +72,16 @@ async def start_create_totp(
 
     previous = await redis.hgetall(totp_redis_key(current_user))  # pyright: ignore[reportGeneralTypeIssues]
     if previous:  # pyright: ignore[reportGeneralTypeIssues]
+        from app.auth import _generate_totp_account_label, _generate_totp_issuer_name
+
+        account_label = _generate_totp_account_label(current_user)
+        issuer_name = _generate_totp_issuer_name()
+
         return StartCreateTotpKeyResp(
             secret=previous["secret"],
             uri=pyotp.totp.TOTP(previous["secret"]).provisioning_uri(
-                name=current_user.email,
-                issuer_name=settings.totp_issuer,
+                name=account_label,
+                issuer_name=issuer_name,
             ),
         )
     return await start_create_totp_key(current_user, redis)
@@ -92,12 +125,21 @@ async def finish_create_totp(
 async def disable_totp(
     session: Database,
     code: str = Body(..., embed=True, description="用户提供的 TOTP 代码或备份码"),
+    redis: Redis = Depends(get_redis),
     current_user: User = Security(get_client_user),
 ):
     totp = await session.get(TotpKeys, current_user.id)
     if not totp:
         raise HTTPException(status_code=400, detail="TOTP is not enabled for this user")
-    if verify_totp_key(totp.secret, code) or (len(code) == BACKUP_CODE_LENGTH and check_totp_backup_code(totp, code)):
+
+    # 使用防重放保护的TOTP验证或备份码验证
+    is_totp_valid = False
+    if len(code) == 6 and code.isdigit():
+        is_totp_valid = await verify_totp_key_with_replay_protection(current_user.id, totp.secret, code, redis)
+    elif len(code) == BACKUP_CODE_LENGTH:
+        is_totp_valid = check_totp_backup_code(totp, code)
+
+    if is_totp_valid:
         await session.delete(totp)
         await session.commit()
     else:

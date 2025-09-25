@@ -304,9 +304,49 @@ STORAGE_SETTINGS='{
         Field(default=None, description="TOTP 认证器中的发行者名称"),
         "验证服务设置",
     ]
+    totp_service_name: Annotated[
+        str,
+        Field(default="g0v0! Lazer Server", description="TOTP 认证器中显示的服务名称"),
+        "验证服务设置",
+    ]
+    totp_use_username_in_label: Annotated[
+        bool,
+        Field(default=True, description="在TOTP标签中使用用户名而不是邮箱"),
+        "验证服务设置",
+    ]
     enable_email_verification: Annotated[
         bool,
         Field(default=False, description="是否启用邮件验证功能"),
+        "验证服务设置",
+    ]
+    enable_smart_verification: Annotated[
+        bool,
+        Field(default=True, description="是否启用智能验证（基于客户端类型和设备信任）"),
+        "验证服务设置",
+    ]
+    enable_session_verification: Annotated[
+        bool,
+        Field(default=True, description="是否启用会话验证中间件"),
+        "验证服务设置",
+    ]
+    enable_multi_device_login: Annotated[
+        bool,
+        Field(default=True, description="是否允许多设备同时登录"),
+        "验证服务设置",
+    ]
+    max_tokens_per_client: Annotated[
+        int,
+        Field(default=10, description="每个用户每个客户端的最大令牌数量"),
+        "验证服务设置",
+    ]
+    device_trust_duration_days: Annotated[
+        int,
+        Field(default=30, description="设备信任持续天数"),
+        "验证服务设置",
+    ]
+    location_trust_duration_days: Annotated[
+        int,
+        Field(default=90, description="位置信任持续天数"),
         "验证服务设置",
     ]
     smtp_server: Annotated[

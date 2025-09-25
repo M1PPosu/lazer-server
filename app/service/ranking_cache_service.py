@@ -330,6 +330,7 @@ class RankingCacheService:
 
             # 计算统计信息
             stats = {
+                "total": total_users,
                 "total_users": total_users,
                 "last_updated": utcnow().isoformat(),
                 "type": type,

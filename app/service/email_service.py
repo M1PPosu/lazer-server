@@ -52,7 +52,7 @@ class EmailService:
             line-height: 1.6;
         }}
         .header {{
-            background: linear-gradient(135deg, #ff66aa, #ff9966);
+            background: #ED8EA6;
             color: white;
             padding: 20px;
             text-align: center;
@@ -65,7 +65,7 @@ class EmailService:
         }}
         .code {{
             background: #fff;
-            border: 2px solid #ff66aa;
+            border: 2px solid #ED8EA6;
             border-radius: 8px;
             padding: 15px;
             text-align: center;
