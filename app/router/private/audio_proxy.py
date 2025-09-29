@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from app.dependencies.database import get_redis
+from app.dependencies.database import get_redis, get_redis_binary
 from app.service.audio_proxy_service import AudioProxyService, get_audio_proxy_service
 
 from fastapi import APIRouter, Depends, HTTPException, Path
@@ -18,9 +18,12 @@ import redis.asyncio as redis
 router = APIRouter(prefix="/audio", tags=["Audio Proxy"])
 
 
-async def get_audio_proxy_dependency(redis_client: Annotated[redis.Redis, Depends(get_redis)]) -> AudioProxyService:
+async def get_audio_proxy_dependency(
+    redis_binary_client: Annotated[redis.Redis, Depends(get_redis_binary)],
+    redis_text_client: Annotated[redis.Redis, Depends(get_redis)],
+) -> AudioProxyService:
     """音频代理服务依赖注入"""
-    return get_audio_proxy_service(redis_client)
+    return get_audio_proxy_service(redis_binary_client, redis_text_client)
 
 
 @router.get("/beatmapset/{beatmapset_id}")
