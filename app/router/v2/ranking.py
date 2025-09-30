@@ -354,7 +354,7 @@ async def get_user_ranking(
         wheres.append(col(UserStatistics.user).has(country_code=country.upper()))
 
     # 查询总数
-    count_query = select(func.count(UserStatistics.id)).where(*wheres)
+    count_query = select(func.count()).select_from(UserStatistics).where(*wheres)
     total_count_result = await session.exec(count_query)
     total_count = total_count_result.one()
 

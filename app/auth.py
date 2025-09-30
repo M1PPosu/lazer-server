@@ -22,7 +22,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 import pyotp
 from redis.asyncio import Redis
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 # 密码哈希上下文
@@ -242,7 +242,7 @@ async def store_token(
         statement = (
             select(OAuthToken)
             .where(OAuthToken.user_id == user_id, OAuthToken.client_id == client_id, OAuthToken.expires_at > utcnow())
-            .order_by(OAuthToken.created_at.desc())
+            .order_by(col(OAuthToken.created_at).desc())
         )
 
         active_tokens = (await db.exec(statement)).all()
@@ -369,9 +369,7 @@ def verify_totp_key(secret: str, code: str) -> bool:
     return pyotp.TOTP(secret).verify(code, valid_window=1)
 
 
-async def verify_totp_key_with_replay_protection(
-    user_id: int, secret: str, code: str, redis: Redis
-) -> bool:
+async def verify_totp_key_with_replay_protection(user_id: int, secret: str, code: str, redis: Redis) -> bool:
     """验证TOTP密钥，并防止密钥重放攻击"""
     if not pyotp.TOTP(secret).verify(code, valid_window=1):
         return False

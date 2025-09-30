@@ -1,9 +1,5 @@
-"""
-中间件模块
+from __future__ import annotations
 
-提供会话验证和其他中间件功能
-"""
+from .verify_session import SessionState, VerifySessionMiddleware
 
-from .verify_session import VerifySessionMiddleware, SessionState
-
-__all__ = ["VerifySessionMiddleware", "SessionState"]
+__all__ = ["SessionState", "VerifySessionMiddleware"]
