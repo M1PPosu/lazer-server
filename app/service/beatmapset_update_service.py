@@ -156,8 +156,13 @@ class BeatmapsetUpdateService:
             )
             total = 0
             for missing in missings:
-                if await self.add_missing_beatmapset(missing):
-                    total += 1
+                try:
+                    if await self.add_missing_beatmapset(missing):
+                        total += 1
+                except Exception as e:
+                    logger.opt(colors=True).error(
+                        f"<cyan>[BeatmapsetUpdateService]</cyan> failed to add missing beatmapset {missing}: {e}"
+                    )
             if total > 0:
                 logger.opt(colors=True).info(f"<cyan>[BeatmapsetUpdateService]</cyan> added {total} missing beatmapset")
         self._adding_missing = False
