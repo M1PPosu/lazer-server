@@ -147,7 +147,8 @@ class BeatmapsetUpdateService:
         self._adding_missing = True
         async with with_db() as session:
             missings = await session.exec(
-                select(Beatmapset.id).where(
+                select(Beatmapset.id)
+                .where(
                     col(Beatmapset.beatmap_status).in_(
                         [
                             BeatmapRankStatus.WIP,
@@ -158,6 +159,7 @@ class BeatmapsetUpdateService:
                     ),
                     col(Beatmapset.id).notin_(select(BeatmapSync.beatmapset_id)),
                 )
+                .order_by(col(Beatmapset.last_updated).desc())
             )
             total = 0
             for missing in missings:
@@ -227,7 +229,11 @@ class BeatmapsetUpdateService:
         async with with_db() as session:
             logger.opt(colors=True).info("<cyan>[BeatmapsetUpdateService]</cyan> checking for beatmapset updates...")
             now = utcnow()
-            records = await session.exec(select(BeatmapSync).where(BeatmapSync.next_sync_time <= now))
+            records = await session.exec(
+                select(BeatmapSync)
+                .where(BeatmapSync.next_sync_time <= now)
+                .order_by(col(BeatmapSync.next_sync_time).desc())
+            )
             for record in records:
                 logger.opt(colors=True).info(
                     f"<cyan>[BeatmapsetUpdateService]</cyan> [{record.beatmapset_id}] syncing..."
