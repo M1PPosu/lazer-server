@@ -94,7 +94,12 @@ class ProcessingBeatmapset:
             next_delta = min(max_seconds, delta)
         else:
             next_delta = MIN_DELTA
-        jitter = timedelta(minutes=random.randint(JITTER_MIN, JITTER_MAX))
+
+        if next_delta > 86400:
+            minor = round(next_delta / 10)
+            jitter = timedelta(seconds=random.randint(-minor, minor))
+        else:
+            jitter = timedelta(minutes=random.randint(JITTER_MIN, JITTER_MAX))
         return timedelta(seconds=next_delta) + jitter
 
     @property
