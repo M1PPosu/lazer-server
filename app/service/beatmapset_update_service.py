@@ -242,12 +242,12 @@ class BeatmapsetUpdateService:
                     beatmapset = await self.fetcher.get_beatmapset(record.beatmapset_id)
                 except Exception as e:
                     if isinstance(e, HTTPError):
-                        logger.warning(
+                        logger.opt(colors=True).warning(
                             f"<cyan>[BeatmapsetUpdateService]</cyan> [{record.beatmapset_id}] "
-                            f"failed to fetch beatmapset: {e}, retrying later"
+                            f"failed to fetch beatmapset: [{e.__class__.__name__}] {e}, retrying later"
                         )
                     else:
-                        logger.exception(
+                        logger.opt(colors=True).exception(
                             f"<cyan>[BeatmapsetUpdateService]</cyan> [{record.beatmapset_id}] "
                             f"unexpected error: {e}, retrying later"
                         )
