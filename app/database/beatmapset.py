@@ -167,6 +167,7 @@ class Beatmapset(AsyncAttrs, BeatmapsetBase, table=True):
             session.add(beatmapset)
             await session.commit()
         await Beatmap.from_resp_batch(session, resp.beatmaps, from_=from_)
+        beatmapset = (await session.exec(select(Beatmapset).where(Beatmapset.id == resp.id))).one()
         return beatmapset
 
     @classmethod
