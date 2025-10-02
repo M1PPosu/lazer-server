@@ -111,14 +111,11 @@ class SessionVerificationState:
     async def mark_verified(self) -> None:
         """标记会话为已验证"""
         try:
-            # 创建专用数据库会话
-            db = with_db()
-            try:
+            async with with_db() as db:
+                # 创建专用数据库会话
                 token_id = self.session.token_id
                 if token_id is not None:
                     await LoginSessionService.mark_session_verified(db, self.redis, self.user.id, token_id)
-            finally:
-                await db.close()
         except Exception as e:
             logger.error(f"[Session Verification] Error marking session verified: {e}")
 
@@ -141,13 +138,10 @@ class SessionVerificationState:
                 from app.service.verification_service import EmailVerificationService
 
                 # 创建专用数据库会话发送邮件
-                db = with_db()
-                try:
+                async with with_db() as db:
                     await EmailVerificationService.send_verification_email(
                         db, self.redis, self.user.id, self.user.username, self.user.email, None, None
                     )
-                finally:
-                    await db.close()
         except Exception as e:
             logger.error(f"[Session Verification] Error issuing mail: {e}")
 
@@ -229,26 +223,26 @@ class SessionVerificationMiddleware:
                 return await call_next(request)
 
             # 获取数据库和Redis连接
-            db = await self._get_db()
-            redis = await self._get_redis()
+            async with with_db() as db:
+                redis = await self._get_redis()
 
-            # 获取会话验证状态
-            state = await SessionVerificationState.get_current(request, db, redis, user)
-            if not state:
-                # 无法获取会话状态，继续请求
-                return await call_next(request)
+                # 获取会话验证状态
+                state = await SessionVerificationState.get_current(request, db, redis, user)
+                if not state:
+                    # 无法获取会话状态，继续请求
+                    return await call_next(request)
 
-            # 检查是否已验证
-            if state.is_verified():
-                # 已验证，继续请求
-                return await call_next(request)
+                # 检查是否已验证
+                if state.is_verified():
+                    # 已验证，继续请求
+                    return await call_next(request)
 
-            # 检查是否需要验证
-            if not self._requires_verification(request):
-                return await call_next(request)
+                # 检查是否需要验证
+                if not self._requires_verification(request):
+                    return await call_next(request)
 
-            # 启动验证流程
-            return await SessionVerificationController.initiate_verification(state, request)
+                # 启动验证流程
+                return await SessionVerificationController.initiate_verification(state, request)
 
         except Exception as e:
             logger.error(f"[Session Verification Middleware] Unexpected error: {e}")
@@ -263,10 +257,6 @@ class SessionVerificationMiddleware:
             return None  # 暂时返回None，需要实际实现
         except Exception:
             return None
-
-    async def _get_db(self) -> AsyncSession:
-        """获取数据库连接"""
-        return with_db()
 
     async def _get_redis(self) -> Redis:
         """获取Redis连接"""
