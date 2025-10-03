@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import asyncio
 from copy import deepcopy
 from enum import Enum

@@ -1,7 +1,5 @@
 """资源代理辅助方法与路由装饰器。"""
 
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable
 from functools import wraps
 import re

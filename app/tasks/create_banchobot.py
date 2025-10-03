@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from app.const import BANCHOBOT_ID
 from app.database.statistics import UserStatistics
 from app.database.user import User

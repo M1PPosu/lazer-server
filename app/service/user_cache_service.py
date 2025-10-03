@@ -3,8 +3,6 @@
 用于缓存用户信息，提供热缓存和实时刷新功能
 """
 
-from __future__ import annotations
-
 from datetime import datetime
 import json
 from typing import TYPE_CHECKING, Any

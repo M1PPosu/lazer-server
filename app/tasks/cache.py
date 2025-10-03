@@ -1,7 +1,5 @@
 """缓存相关的 APScheduler 任务入口。"""
 
-from __future__ import annotations
-
 import asyncio
 from datetime import UTC, timedelta
 from typing import Final

@@ -4,8 +4,6 @@ BBCode处理服务
 支持所有 osu! 官方 BBCode 标签
 """
 
-from __future__ import annotations
-
 import html
 import re
 from typing import ClassVar

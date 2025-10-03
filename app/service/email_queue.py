@@ -3,8 +3,6 @@
 用于异步发送邮件
 """
 
-from __future__ import annotations
-
 import asyncio
 import concurrent.futures
 from datetime import datetime

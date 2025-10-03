@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Annotated
 
 from app.auth import get_token_by_access_token

@@ -6,8 +6,6 @@ Create Date: 2025-10-02 11:03:09.803140
 
 """
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 
 from alembic import op

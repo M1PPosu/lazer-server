@@ -3,8 +3,6 @@
 用于缓存用户排行榜数据，减轻数据库压力
 """
 
-from __future__ import annotations
-
 import asyncio
 from datetime import datetime
 import json

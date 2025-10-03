@@ -3,8 +3,6 @@
 提供从osu!官方获取beatmapset音频预览并缓存的功能
 """
 
-from __future__ import annotations
-
 from app.log import logger
 
 from fastapi import HTTPException

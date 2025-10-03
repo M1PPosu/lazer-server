@@ -2,8 +2,6 @@
 扩展的 OAuth 响应模型，支持二次验证
 """
 
-from __future__ import annotations
-
 from pydantic import BaseModel
 
 

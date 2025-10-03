@@ -2,8 +2,6 @@
 密码重置服务
 """
 
-from __future__ import annotations
-
 from datetime import datetime
 import json
 import secrets

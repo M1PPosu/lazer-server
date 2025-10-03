@@ -2,8 +2,6 @@
 用户页面相关的异常类
 """
 
-from __future__ import annotations
-
 
 class UserpageError(Exception):
     """用户页面处理错误基类"""

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from app.calculator import pre_fetch_and_calculate_pp
 from app.database.score import Score, calculate_user_pp
 from app.database.statistics import UserStatistics

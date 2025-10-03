@@ -2,8 +2,6 @@
 邮件验证管理服务
 """
 
-from __future__ import annotations
-
 from datetime import timedelta
 import secrets
 import string

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Annotated, cast
 
 from app.config import (

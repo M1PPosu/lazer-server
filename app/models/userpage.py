@@ -2,8 +2,6 @@
 用户页面编辑相关的API模型
 """
 
-from __future__ import annotations
-
 from pydantic import BaseModel, Field, field_validator
 
 

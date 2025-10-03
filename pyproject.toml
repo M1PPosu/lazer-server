@@ -81,12 +81,11 @@ ignore = [
 ]
 
 [tool.ruff.lint.extend-per-file-ignores]
-"app/database/**/*.py" = ["I002"]
 "tools/*.py" = ["PTH", "INP001"]
 "migrations/**/*.py" = ["INP001"]
 ".github/**/*.py" = ["INP001"]
 "app/achievements/*.py" = ["INP001", "ARG"]
-"app/router/**/*.py" = ["ARG001", "I002"]
+"app/router/**/*.py" = ["ARG001"]
 
 [tool.ruff.lint.isort]
 force-sort-within-sections = true
@@ -94,7 +93,6 @@ force-wrap-aliases = true
 combine-as-imports = true
 order-by-type = true
 relative-imports-order = "closest-to-furthest"
-required-imports = ["from __future__ import annotations"]
 extra-standard-library = ["typing_extensions"]
 section-order = ["future", "standard-library", "first-party", "local-folder", "third-party"]
 

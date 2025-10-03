@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from datetime import datetime
 
 from app.database.beatmap import calculate_beatmap_attributes

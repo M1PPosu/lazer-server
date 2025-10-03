@@ -3,8 +3,6 @@ Beatmapset缓存服务
 用于缓存beatmapset数据，减少数据库查询频率
 """
 
-from __future__ import annotations
-
 from datetime import datetime
 import hashlib
 import json

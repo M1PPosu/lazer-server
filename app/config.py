@@ -1,4 +1,3 @@
-# ruff: noqa: I002
 from enum import Enum
 from typing import Annotated, Any
 

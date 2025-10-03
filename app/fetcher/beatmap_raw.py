@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from app.log import fetcher_logger
 
 from ._base import BaseFetcher

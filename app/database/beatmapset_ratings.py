@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from app.database.beatmapset import Beatmapset
 from app.database.user import User
 

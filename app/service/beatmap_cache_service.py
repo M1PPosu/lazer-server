@@ -3,8 +3,6 @@ Beatmap缓存预取服务
 用于提前缓存热门beatmap，减少成绩计算时的获取延迟
 """
 
-from __future__ import annotations
-
 import asyncio
 from datetime import timedelta
 from typing import TYPE_CHECKING

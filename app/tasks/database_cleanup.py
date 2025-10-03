@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from app.dependencies.database import with_db
 from app.dependencies.scheduler import get_scheduler
 from app.log import logger

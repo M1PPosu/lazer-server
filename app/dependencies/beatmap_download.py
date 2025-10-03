@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Annotated
 
 from app.service.beatmap_download_service import BeatmapDownloadService, download_service

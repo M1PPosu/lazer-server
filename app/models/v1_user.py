@@ -1,7 +1,5 @@
 """V1 API 用户相关模型"""
 
-from __future__ import annotations
-
 from pydantic import BaseModel, Field
 
 

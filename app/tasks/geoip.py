@@ -3,8 +3,6 @@ Scheduled Update Service
 Periodically update the MaxMind GeoIP database
 """
 
-from __future__ import annotations
-
 from app.config import settings
 from app.dependencies.geoip import get_geoip_helper
 from app.dependencies.scheduler import get_scheduler

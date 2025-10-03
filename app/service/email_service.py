@@ -2,8 +2,6 @@
 邮件验证服务
 """
 
-from __future__ import annotations
-
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import secrets

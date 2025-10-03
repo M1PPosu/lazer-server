@@ -5,8 +5,6 @@
 - 支持消息状态同步和故障恢复
 """
 
-from __future__ import annotations
-
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime

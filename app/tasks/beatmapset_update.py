@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from datetime import datetime, timedelta
 
 from app.dependencies.scheduler import get_scheduler

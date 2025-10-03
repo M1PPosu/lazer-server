@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from app.config import settings
 from app.middleware.verify_session import VerifySessionMiddleware
 

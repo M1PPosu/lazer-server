@@ -2,8 +2,6 @@
 数据库清理服务 - 清理过期的验证码和会话
 """
 
-from __future__ import annotations
-
 from datetime import timedelta
 
 from app.database.auth import OAuthToken

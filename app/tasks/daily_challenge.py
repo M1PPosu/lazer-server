@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from datetime import UTC, timedelta
 import json
 from math import ceil

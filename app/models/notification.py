@@ -1,5 +1,4 @@
 # ruff: noqa: ARG002
-from __future__ import annotations
 
 from abc import abstractmethod
 from enum import Enum
@@ -161,7 +160,7 @@ class ChannelMessageTeam(ChannelMessageBase):
         cls,
         message: "ChatMessage",
         user: "User",
-    ) -> ChannelMessageTeam:
+    ) -> Self:
         from app.database import ChannelType
 
         return super().init(message, user, [], ChannelType.TEAM)

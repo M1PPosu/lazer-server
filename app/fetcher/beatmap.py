@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from app.database.beatmap import BeatmapResp
 from app.log import fetcher_logger
 

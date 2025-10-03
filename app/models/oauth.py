@@ -1,4 +1,4 @@
-# OAuth 相关模型  # noqa: I002
+# OAuth 相关模型
 from typing import Annotated, Any, cast
 from typing_extensions import Doc
 

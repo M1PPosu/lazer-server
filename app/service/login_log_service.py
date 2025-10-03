@@ -2,8 +2,6 @@
 用户登录记录服务
 """
 
-from __future__ import annotations
-
 import asyncio
 
 from app.database.user_login_log import UserLoginLog

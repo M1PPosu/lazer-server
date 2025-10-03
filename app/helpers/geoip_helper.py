@@ -2,8 +2,6 @@
 GeoLite2 Helper Class (asynchronous)
 """
 
-from __future__ import annotations
-
 import asyncio
 from contextlib import suppress
 import os
