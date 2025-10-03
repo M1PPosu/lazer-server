@@ -5,7 +5,7 @@ import time
 from urllib.parse import quote
 
 from app.dependencies.database import get_redis
-from app.log import logger
+from app.log import fetcher_logger
 
 from httpx import AsyncClient
 
@@ -14,6 +14,9 @@ class TokenAuthError(Exception):
     """Token 授权失败异常"""
 
     pass
+
+
+logger = fetcher_logger("Fetcher")
 
 
 class BaseFetcher:

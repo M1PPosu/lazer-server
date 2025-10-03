@@ -15,7 +15,7 @@ from app.dependencies.database import Database, Redis, get_redis
 from app.dependencies.geoip import IPAddress
 from app.dependencies.user import UserAndToken, get_client_user_and_token
 from app.dependencies.user_agent import UserAgentInfo
-from app.log import logger
+from app.log import log
 from app.service.login_log_service import LoginLogService
 from app.service.verification_service import (
     EmailVerificationService,
@@ -254,7 +254,7 @@ async def fallback_email(
         user_agent,
     )
     if not success:
-        logger.error(
-            f"[Email Fallback] Failed to send fallback email to user {current_user.id} (token: {token_id}): {message}"
+        log("Verification").error(
+            f"Failed to send fallback email to user {current_user.id} (token: {token_id}): {message}"
         )
     return VerifyMethod()

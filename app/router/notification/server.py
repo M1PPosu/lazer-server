@@ -14,7 +14,7 @@ from app.dependencies.database import (
     with_db,
 )
 from app.dependencies.user import get_current_user_and_token
-from app.log import logger
+from app.log import log
 from app.models.chat import ChatEvent
 from app.models.notification import NotificationDetail
 from app.service.subscribers.chat import ChatSubscriber
@@ -25,6 +25,8 @@ from fastapi.security import SecurityScopes
 from fastapi.websockets import WebSocketState
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
+
+logger = log("NotificationServer")
 
 
 class ChatServer:
@@ -285,10 +287,10 @@ async def _listen_stop(ws: WebSocket, user_id: int, factory: DBFactory):
                 await ws.close(code=1000)
                 break
     except WebSocketDisconnect as e:
-        logger.info(f"[NotificationServer] Client {user_id} disconnected: {e.code}, {e.reason}")
+        logger.info(f"Client {user_id} disconnected: {e.code}, {e.reason}")
     except RuntimeError as e:
         if "disconnect message" in str(e):
-            logger.info(f"[NotificationServer] Client {user_id} closed the connection.")
+            logger.info(f"Client {user_id} closed the connection.")
         else:
             logger.exception(f"RuntimeError in client {user_id}: {e}")
     except Exception:

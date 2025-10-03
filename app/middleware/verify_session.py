@@ -14,7 +14,7 @@ from app.const import SUPPORT_TOTP_VERIFICATION_VER
 from app.database.user import User
 from app.database.verification import LoginSession
 from app.dependencies.database import get_redis, with_db
-from app.log import logger
+from app.log import log
 from app.service.verification_service import LoginSessionService
 from app.utils import extract_user_agent
 
@@ -24,6 +24,8 @@ from redis.asyncio import Redis
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.middleware.base import BaseHTTPMiddleware
+
+logger = log("Middleware")
 
 
 class VerifySessionMiddleware(BaseHTTPMiddleware):
@@ -84,7 +86,7 @@ class VerifySessionMiddleware(BaseHTTPMiddleware):
             return await self._initiate_verification(request, session_state)
 
         except Exception as e:
-            logger.error(f"[Verify Session Middleware] Error: {e}")
+            logger.error(f"Error: {e}")
             # 出错时允许请求继续，避免阻塞
             return await call_next(request)
 
@@ -145,7 +147,7 @@ class VerifySessionMiddleware(BaseHTTPMiddleware):
                 return user
 
         except Exception as e:
-            logger.debug(f"[Verify Session Middleware] Error getting user: {e}")
+            logger.debug(f"Error getting user: {e}")
             return None
 
     async def _get_session_state(self, request: Request, user: User) -> SessionState | None:
@@ -178,7 +180,7 @@ class VerifySessionMiddleware(BaseHTTPMiddleware):
                 return SessionState(session, user, redis, db, api_version)
 
         except Exception as e:
-            logger.error(f"[Verify Session Middleware] Error getting session state: {e}")
+            logger.error(f"Error getting session state: {e}")
             return None
 
     async def _initiate_verification(self, request: Request, state: SessionState) -> Response:
@@ -195,7 +197,7 @@ class VerifySessionMiddleware(BaseHTTPMiddleware):
             )
 
         except Exception as e:
-            logger.error(f"[Verify Session Middleware] Error initiating verification: {e}")
+            logger.error(f"Error initiating verification: {e}")
             return JSONResponse(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"error": "Verification initiation failed"}
             )
@@ -261,7 +263,7 @@ class SessionState:
                     self.session.web_uuid,
                 )
         except Exception as e:
-            logger.error(f"[Session State] Error marking verified: {e}")
+            logger.error(f"Error marking verified: {e}")
 
     async def issue_mail_if_needed(self) -> None:
         """如果需要，发送验证邮件"""
@@ -274,7 +276,7 @@ class SessionState:
                     self.db, self.redis, self.user.id, self.user.username, self.user.email, None, None
                 )
         except Exception as e:
-            logger.error(f"[Session State] Error issuing mail: {e}")
+            logger.error(f"Error issuing mail: {e}")
 
     def get_key(self) -> str:
         """获取会话密钥"""

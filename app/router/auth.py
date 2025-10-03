@@ -22,7 +22,7 @@ from app.database.statistics import UserStatistics
 from app.dependencies.database import Database, Redis
 from app.dependencies.geoip import GeoIPService, IPAddress
 from app.dependencies.user_agent import UserAgentInfo
-from app.log import logger
+from app.log import log
 from app.models.extended_auth import ExtendedTokenResponse
 from app.models.oauth import (
     OAuthErrorResponse,
@@ -43,6 +43,8 @@ from fastapi import APIRouter, Form, Header, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlmodel import exists, select
+
+logger = log("Auth")
 
 
 def create_oauth_error_response(error: str, description: str, hint: str, status_code: int = 400):
@@ -360,9 +362,7 @@ async def oauth_token(
             await LoginSessionService.mark_session_verified(
                 db, redis, user_id, token_id, ip_address, user_agent, web_uuid
             )
-            logger.debug(
-                f"[Auth] New location login detected but email verification disabled, auto-verifying user {user_id}"
-            )
+            logger.debug(f"New location login detected but email verification disabled, auto-verifying user {user_id}")
         else:
             # 不是新设备登录，正常登录
             await LoginLogService.record_login(
@@ -505,7 +505,7 @@ async def oauth_token(
         )
 
         # 打印jwt
-        logger.info(f"[Auth] Generated JWT for user {user_id}: {access_token}")
+        logger.info(f"Generated JWT for user {user_id}: {access_token}")
 
         return TokenResponse(
             access_token=access_token,

@@ -16,7 +16,7 @@ from app.calculator import (
 from app.config import settings
 from app.database.team import TeamMember
 from app.dependencies.database import get_redis
-from app.log import logger
+from app.log import log
 from app.models.beatmap import BeatmapRankStatus
 from app.models.model import (
     CurrentUserAttributes,
@@ -73,6 +73,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 if TYPE_CHECKING:
     from app.fetcher import Fetcher
+
+logger = log("Score")
 
 
 class ScoreBase(AsyncAttrs, SQLModel, UTCBaseModel):
@@ -854,8 +856,7 @@ async def process_score(
 ) -> Score:
     gamemode = GameMode.from_int(info.ruleset_id).to_special_mode(info.mods)
     logger.info(
-        "[Score] Creating score for user {user_id} | beatmap={beatmap_id} "
-        "ruleset={ruleset} passed={passed} total={total}",
+        "Creating score for user {user_id} | beatmap={beatmap_id} ruleset={ruleset} passed={passed} total={total}",
         user_id=user.id,
         beatmap_id=beatmap_id,
         ruleset=gamemode,
@@ -897,7 +898,7 @@ async def process_score(
     )
     session.add(score)
     logger.debug(
-        "[Score] Score staged for commit | token={token} mods={mods} total_hits={hits}",
+        "Score staged for commit | token={token} mods={mods} total_hits={hits}",
         token=score_token.id,
         mods=info.mods,
         hits=sum(info.statistics.values()) if info.statistics else 0,
@@ -910,7 +911,7 @@ async def process_score(
 async def _process_score_pp(score: Score, session: AsyncSession, redis: Redis, fetcher: "Fetcher"):
     if score.pp != 0:
         logger.debug(
-            "[Score] Skipping PP calculation for score {score_id} | already set {pp:.2f}",
+            "Skipping PP calculation for score {score_id} | already set {pp:.2f}",
             score_id=score.id,
             pp=score.pp,
         )
@@ -918,7 +919,7 @@ async def _process_score_pp(score: Score, session: AsyncSession, redis: Redis, f
     can_get_pp = score.passed and score.ranked and mods_can_get_pp(int(score.gamemode), score.mods)
     if not can_get_pp:
         logger.debug(
-            "[Score] Skipping PP calculation for score {score_id} | passed={passed} ranked={ranked} mods={mods}",
+            "Skipping PP calculation for score {score_id} | passed={passed} ranked={ranked} mods={mods}",
             score_id=score.id,
             passed=score.passed,
             ranked=score.ranked,
@@ -928,10 +929,10 @@ async def _process_score_pp(score: Score, session: AsyncSession, redis: Redis, f
     pp, successed = await pre_fetch_and_calculate_pp(score, session, redis, fetcher)
     if not successed:
         await redis.rpush("score:need_recalculate", score.id)  # pyright: ignore[reportGeneralTypeIssues]
-        logger.warning("[Score] Queued score {score_id} for PP recalculation", score_id=score.id)
+        logger.warning("Queued score {score_id} for PP recalculation", score_id=score.id)
         return
     score.pp = pp
-    logger.info("[Score] Calculated PP for score {score_id} | pp={pp:.2f}", score_id=score.id, pp=pp)
+    logger.info("Calculated PP for score {score_id} | pp={pp:.2f}", score_id=score.id, pp=pp)
     user_id = score.user_id
     beatmap_id = score.beatmap_id
     previous_pp_best = await get_user_best_pp_in_beatmap(session, beatmap_id, user_id, score.gamemode)
@@ -947,7 +948,7 @@ async def _process_score_pp(score: Score, session: AsyncSession, redis: Redis, f
         session.add(best_score)
         await session.delete(previous_pp_best) if previous_pp_best else None
         logger.info(
-            "[Score] Updated PP best for user {user_id} | score_id={score_id} pp={pp:.2f}",
+            "Updated PP best for user {user_id} | score_id={score_id} pp={pp:.2f}",
             user_id=user_id,
             score_id=score.id,
             pp=score.pp,
@@ -966,15 +967,14 @@ async def _process_score_events(score: Score, session: AsyncSession):
 
     if rank_global == 0 or total_users == 0:
         logger.debug(
-            "[Score] Skipping event creation for score {score_id} | "
-            "rank_global={rank_global} total_users={total_users}",
+            "Skipping event creation for score {score_id} | rank_global={rank_global} total_users={total_users}",
             score_id=score.id,
             rank_global=rank_global,
             total_users=total_users,
         )
         return
     logger.debug(
-        "[Score] Processing events for score {score_id} | rank_global={rank_global} total_users={total_users}",
+        "Processing events for score {score_id} | rank_global={rank_global} total_users={total_users}",
         score_id=score.id,
         rank_global=rank_global,
         total_users=total_users,
@@ -1003,7 +1003,7 @@ async def _process_score_events(score: Score, session: AsyncSession):
         }
         session.add(rank_event)
         logger.info(
-            "[Score] Registered rank event for user {user_id} | score_id={score_id} rank={rank}",
+            "Registered rank event for user {user_id} | score_id={score_id} rank={rank}",
             user_id=score.user_id,
             score_id=score.id,
             rank=rank_global,
@@ -1045,12 +1045,12 @@ async def _process_score_events(score: Score, session: AsyncSession):
             }
             session.add(rank_lost_event)
             logger.info(
-                "[Score] Registered rank lost event | displaced_user={user_id} new_score_id={score_id}",
+                "Registered rank lost event | displaced_user={user_id} new_score_id={score_id}",
                 user_id=displaced_score.user_id,
                 score_id=score.id,
             )
     logger.debug(
-        "[Score] Event processing committed for score {score_id}",
+        "Event processing committed for score {score_id}",
         score_id=score.id,
     )
 
@@ -1074,7 +1074,7 @@ async def _process_statistics(
         session, score.beatmap_id, user.id, mod_for_save, score.gamemode
     )
     logger.debug(
-        "[Score] Existing best scores for user {user_id} | global={global_id} mod={mod_id}",
+        "Existing best scores for user {user_id} | global={global_id} mod={mod_id}",
         user_id=user.id,
         global_id=previous_score_best.score_id if previous_score_best else None,
         mod_id=previous_score_best_mod.score_id if previous_score_best_mod else None,
@@ -1104,7 +1104,7 @@ async def _process_statistics(
     statistics.total_score += score.total_score
     difference = score.total_score - previous_score_best.total_score if previous_score_best else score.total_score
     logger.debug(
-        "[Score] Score delta computed for {score_id}: {difference}",
+        "Score delta computed for {score_id}: {difference}",
         score_id=score.id,
         difference=difference,
     )
@@ -1151,7 +1151,7 @@ async def _process_statistics(
                 )
             )
             logger.info(
-                "[Score] Created new best score entry for user {user_id} | score_id={score_id} mods={mods}",
+                "Created new best score entry for user {user_id} | score_id={score_id} mods={mods}",
                 user_id=user.id,
                 score_id=score.id,
                 mods=mod_for_save,
@@ -1163,7 +1163,7 @@ async def _process_statistics(
             previous_score_best.rank = score.rank
             previous_score_best.score_id = score.id
             logger.info(
-                "[Score] Updated existing best score for user {user_id} | score_id={score_id} total={total}",
+                "Updated existing best score for user {user_id} | score_id={score_id} total={total}",
                 user_id=user.id,
                 score_id=score.id,
                 total=score.total_score,
@@ -1175,7 +1175,7 @@ async def _process_statistics(
             if difference > 0:
                 # 下方的 if 一定会触发。将高分设置为此分数，删除自己防止重复的 score_id
                 logger.info(
-                    "[Score] Replacing global best score for user {user_id} | old_score_id={old_score_id}",
+                    "Replacing global best score for user {user_id} | old_score_id={old_score_id}",
                     user_id=user.id,
                     old_score_id=previous_score_best.score_id,
                 )
@@ -1188,7 +1188,7 @@ async def _process_statistics(
                 previous_score_best_mod.rank = score.rank
                 previous_score_best_mod.score_id = score.id
                 logger.info(
-                    "[Score] Replaced mod-specific best for user {user_id} | mods={mods} score_id={score_id}",
+                    "Replaced mod-specific best for user {user_id} | mods={mods} score_id={score_id}",
                     user_id=user.id,
                     mods=mod_for_save,
                     score_id=score.id,
@@ -1202,14 +1202,14 @@ async def _process_statistics(
         mouthly_playcount.count += 1
         statistics.play_time += playtime
         logger.debug(
-            "[Score] Recorded playtime {playtime}s for score {score_id} (user {user_id})",
+            "Recorded playtime {playtime}s for score {score_id} (user {user_id})",
             playtime=playtime,
             score_id=score.id,
             user_id=user.id,
         )
     else:
         logger.debug(
-            "[Score] Playtime {playtime}s for score {score_id} did not meet validity checks",
+            "Playtime {playtime}s for score {score_id} did not meet validity checks",
             playtime=playtime,
             score_id=score.id,
         )
@@ -1242,7 +1242,7 @@ async def _process_statistics(
     if add_to_db:
         session.add(mouthly_playcount)
         logger.debug(
-            "[Score] Created monthly playcount record for user {user_id} ({year}-{month})",
+            "Created monthly playcount record for user {user_id} ({year}-{month})",
             user_id=user.id,
             year=mouthly_playcount.year,
             month=mouthly_playcount.month,
@@ -1262,7 +1262,7 @@ async def process_user(
     score_id = score.id
     user_id = user.id
     logger.info(
-        "[Score] Processing score {score_id} for user {user_id} on beatmap {beatmap_id}",
+        "Processing score {score_id} for user {user_id} on beatmap {beatmap_id}",
         score_id=score_id,
         user_id=user_id,
         beatmap_id=score.beatmap_id,
@@ -1287,14 +1287,14 @@ async def process_user(
     score_ = (await session.exec(select(Score).where(Score.id == score_id).options(joinedload(Score.beatmap)))).first()
     if score_ is None:
         logger.warning(
-            "[Score] Score {score_id} disappeared after commit, skipping event processing",
+            "Score {score_id} disappeared after commit, skipping event processing",
             score_id=score_id,
         )
         return
     await _process_score_events(score_, session)
     await session.commit()
     logger.info(
-        "[Score] Finished processing score {score_id} for user {user_id}",
+        "Finished processing score {score_id} for user {user_id}",
         score_id=score_id,
         user_id=user_id,
     )

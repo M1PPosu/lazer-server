@@ -39,7 +39,7 @@ from app.dependencies.database import Database, Redis, get_redis, with_db
 from app.dependencies.fetcher import Fetcher, get_fetcher
 from app.dependencies.storage import StorageService
 from app.dependencies.user import ClientUser, get_current_user
-from app.log import logger
+from app.log import log
 from app.models.beatmap import BeatmapRankStatus
 from app.models.room import RoomCategory
 from app.models.score import (
@@ -73,6 +73,7 @@ from sqlmodel import col, exists, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 READ_SCORE_TIMEOUT = 10
+logger = log("Score")
 
 
 async def _process_user_achievement(score_id: int):

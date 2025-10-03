@@ -147,11 +147,11 @@ class EmailService:
 
                 server.send_message(msg)
 
-            logger.info(f"[Email Verification] Successfully sent verification code to {email}")
+            logger.info(f"Successfully sent verification code to {email}")
             return True
 
         except Exception as e:
-            logger.error(f"[Email Verification] Failed to send email: {e}")
+            logger.error(f"Failed to send email: {e}")
             return False
 
 

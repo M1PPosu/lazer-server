@@ -8,7 +8,7 @@ from app.database import User
 from app.dependencies.database import Database, engine, get_redis, redis_client
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.scheduler import start_scheduler, stop_scheduler
-from app.log import logger
+from app.log import logger, system_logger
 from app.middleware.verify_session import VerifySessionMiddleware
 from app.models.mods import init_mods, init_ranked_mods
 from app.router import (
@@ -136,13 +136,9 @@ if newrelic_config_path.exists():
         environment = settings.new_relic_environment or ("production" if not settings.debug else "development")
 
         newrelic.agent.initialize(newrelic_config_path, environment)
-        logger.info(f"[NewRelic] Enabled, environment: {environment}")
-    except ImportError:
-        logger.warning("[NewRelic] Config file found but 'newrelic' package is not installed")
+        system_logger("NewRelic").info(f"Enabled, environment: {environment}")
     except Exception as e:
-        logger.error(f"[NewRelic] Initialization failed: {e}")
-else:
-    logger.info("[NewRelic] No newrelic.ini config file found, skipping initialization")
+        system_logger("NewRelic").error(f"Initialization failed: {e}")
 
 if settings.sentry_dsn is not None:
     sentry_sdk.init(
@@ -245,10 +241,14 @@ async def http_exception_handler(requst: Request, exc: HTTPException):
 
 
 if settings.secret_key == "your_jwt_secret_here":
-    logger.warning("jwt_secret_key is unset. Your server is unsafe. Use this command to generate: openssl rand -hex 32")
+    system_logger("Security").opt(colors=True).warning(
+        "<y>jwt_secret_key</y> is unset. Your server is unsafe. "
+        "Use this command to generate: <blue>openssl rand -hex 32</blue>."
+    )
 if settings.osu_web_client_secret == "your_osu_web_client_secret_here":
-    logger.warning(
-        "osu_web_client_secret is unset. Your server is unsafe. Use this command to generate: openssl rand -hex 40"
+    system_logger("Security").opt(colors=True).warning(
+        "<y>osu_web_client_secret</y> is unset. Your server is unsafe. "
+        "Use this command to generate: <blue>openssl rand -hex 40</blue>."
     )
 
 if __name__ == "__main__":

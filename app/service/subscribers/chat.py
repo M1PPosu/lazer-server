@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from app.log import logger
+from app.log import log
 from app.models.notification import NotificationDetails
 
 from .base import RedisSubscriber
@@ -16,6 +16,8 @@ if TYPE_CHECKING:
 JOIN_CHANNEL = "chat:room:joined"
 EXIT_CHANNEL = "chat:room:left"
 ON_NOTIFICATION = "chat:notification"
+
+logger = log("Chat")
 
 
 class ChatSubscriber(RedisSubscriber):
@@ -49,7 +51,7 @@ class ChatSubscriber(RedisSubscriber):
         try:
             detail = TypeAdapter(NotificationDetails).validate_json(s)
         except ValueError:
-            logger.exception("")
+            logger.exception("Failed to parse notification detail")
             return
         except Exception:
             logger.exception("Failed to parse notification detail")

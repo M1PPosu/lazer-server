@@ -19,7 +19,7 @@ from app.database.user import SEARCH_INCLUDED
 from app.dependencies.api_version import APIVersion
 from app.dependencies.database import Database, get_redis
 from app.dependencies.user import get_current_user
-from app.log import logger
+from app.log import log
 from app.models.score import GameMode
 from app.models.user import BeatmapsetType
 from app.service.asset_proxy_helper import process_response_assets
@@ -336,7 +336,7 @@ async def get_user_beatmapsets(
         try:
             await cache_service.cache_user_beatmapsets(user_id, type.value, resp, limit, offset)
         except Exception as e:
-            logger.error(f"Error caching user beatmapsets for user {user_id}, type {type.value}: {e}")
+            log("Beatmapset").error(f"Error caching user beatmapsets for user {user_id}, type {type.value}: {e}")
 
     background_task.add_task(cache_beatmapsets)
 

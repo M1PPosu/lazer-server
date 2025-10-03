@@ -16,7 +16,7 @@ from app.database.user import User
 from app.dependencies.database import Database, Redis
 from app.dependencies.param import BodyOrForm
 from app.dependencies.user import get_current_user
-from app.log import logger
+from app.log import log
 from app.models.notification import ChannelMessage, ChannelMessageTeam
 from app.router.v2 import api_v2_router as router
 from app.service.redis_message_system import redis_message_system
@@ -31,6 +31,9 @@ from sqlmodel import col, select
 
 class KeepAliveResp(BaseModel):
     silences: list[UserSilenceResp] = Field(default_factory=list)
+
+
+logger = log("Chat")
 
 
 @router.post(

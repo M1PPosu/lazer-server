@@ -5,7 +5,7 @@ from typing import Annotated
 from app.config import settings
 from app.dependencies.database import get_redis
 from app.fetcher import Fetcher as OriginFetcher
-from app.log import logger
+from app.log import fetcher_logger
 
 from fastapi import Depends
 
@@ -29,7 +29,9 @@ async def get_fetcher() -> OriginFetcher:
         if refresh_token:
             fetcher.refresh_token = str(refresh_token)
         if not fetcher.access_token or not fetcher.refresh_token:
-            logger.opt(colors=True).info(f"Login to initialize fetcher: <y>{fetcher.authorize_url}</y>")
+            fetcher_logger("Fetcher").opt(colors=True).info(
+                f"Login to initialize fetcher: <y>{fetcher.authorize_url}</y>"
+            )
     return fetcher
 
 

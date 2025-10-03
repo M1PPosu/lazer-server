@@ -13,7 +13,7 @@ from app.database import (
     User,
 )
 from app.database.auth import TotpKeys
-from app.log import logger
+from app.log import log
 from app.models.totp import FinishStatus, StartCreateTotpKeyResp
 from app.utils import utcnow
 
@@ -30,6 +30,8 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # bcrypt 缓存（模拟应用状态缓存）
 bcrypt_cache = {}
+
+logger = log("Auth")
 
 
 def validate_username(username: str) -> list[str]:
@@ -253,7 +255,7 @@ async def store_token(
             tokens_to_delete = active_tokens[max_tokens_per_client - 1 :]
             for token in tokens_to_delete:
                 await db.delete(token)
-            logger.info(f"[Auth] Cleaned up {len(tokens_to_delete)} old tokens for user {user_id}")
+            logger.info(f"Cleaned up {len(tokens_to_delete)} old tokens for user {user_id}")
 
     # 检查是否有重复的 access_token
     duplicate_token = (await db.exec(select(OAuthToken).where(OAuthToken.access_token == access_token))).first()
@@ -274,9 +276,7 @@ async def store_token(
     await db.commit()
     await db.refresh(token_record)
 
-    logger.info(
-        f"[Auth] Created new token for user {user_id}, client {client_id} (multi-device: {allow_multiple_devices})"
-    )
+    logger.info(f"Created new token for user {user_id}, client {client_id} (multi-device: {allow_multiple_devices})")
     return token_record
 
 

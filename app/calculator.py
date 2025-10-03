@@ -7,7 +7,7 @@ import math
 from typing import TYPE_CHECKING
 
 from app.config import settings
-from app.log import logger
+from app.log import log
 from app.models.beatmap import BeatmapAttributes
 from app.models.mods import APIMod, parse_enum_to_str
 from app.models.score import GameMode
@@ -17,6 +17,8 @@ from osupyparser.osu.objects import Slider
 from redis.asyncio import Redis
 from sqlmodel import col, exists, select
 from sqlmodel.ext.asyncio.session import AsyncSession
+
+logger = log("Calculator")
 
 try:
     import rosu_pp_py as rosu

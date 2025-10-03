@@ -14,7 +14,7 @@ from app.database.user import User
 from app.dependencies.database import Database, Redis
 from app.dependencies.fetcher import Fetcher
 from app.dependencies.storage import StorageService
-from app.log import logger
+from app.log import log
 from app.models.multiplayer_hub import PlaylistItem as HubPlaylistItem
 from app.models.room import MatchType, QueueMode, RoomCategory, RoomStatus
 from app.utils import utcnow
@@ -27,6 +27,7 @@ from sqlalchemy import update
 from sqlmodel import col, select
 
 router = APIRouter(prefix="/_lio", include_in_schema=False)
+logger = log("LegacyIO")
 
 
 async def _ensure_room_chat_channel(

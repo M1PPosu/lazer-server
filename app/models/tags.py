@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from app.log import logger
+from app.log import log
 from app.path import STATIC_DIR
 
 from pydantic import BaseModel
@@ -16,6 +16,7 @@ class BeatmapTags(BaseModel):
 
 
 ALL_TAGS: dict[int, BeatmapTags] = {}
+logger = log("BeatmapTag")
 
 
 def load_tags() -> None:

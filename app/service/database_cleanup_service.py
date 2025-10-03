@@ -46,13 +46,13 @@ class DatabaseCleanupService:
             await db.commit()
 
             if deleted_count > 0:
-                logger.debug(f"[Cleanup Service] Cleaned up {deleted_count} expired email verification codes")
+                logger.debug(f"Cleaned up {deleted_count} expired email verification codes")
 
             return deleted_count
 
         except Exception as e:
             await db.rollback()
-            logger.error(f"[Cleanup Service] Error cleaning expired verification codes: {e!s}")
+            logger.error(f"Error cleaning expired verification codes: {e!s}")
             return 0
 
     @staticmethod
@@ -85,13 +85,13 @@ class DatabaseCleanupService:
             await db.commit()
 
             if deleted_count > 0:
-                logger.debug(f"[Cleanup Service] Cleaned up {deleted_count} expired login sessions")
+                logger.debug(f"Cleaned up {deleted_count} expired login sessions")
 
             return deleted_count
 
         except Exception as e:
             await db.rollback()
-            logger.error(f"[Cleanup Service] Error cleaning expired login sessions: {e!s}")
+            logger.error(f"Error cleaning expired login sessions: {e!s}")
             return 0
 
     @staticmethod
@@ -126,15 +126,13 @@ class DatabaseCleanupService:
             await db.commit()
 
             if deleted_count > 0:
-                logger.debug(
-                    f"[Cleanup Service] Cleaned up {deleted_count} used verification codes older than {days_old} days"
-                )
+                logger.debug(f"Cleaned up {deleted_count} used verification codes older than {days_old} days")
 
             return deleted_count
 
         except Exception as e:
             await db.rollback()
-            logger.error(f"[Cleanup Service] Error cleaning old used verification codes: {e!s}")
+            logger.error(f"Error cleaning old used verification codes: {e!s}")
             return 0
 
     @staticmethod
@@ -169,16 +167,13 @@ class DatabaseCleanupService:
             await db.commit()
 
             if deleted_count > 0:
-                logger.debug(
-                    f"[Cleanup Service] Cleaned up {deleted_count} unverified "
-                    f"login sessions older than {hours_old} hour(s)"
-                )
+                logger.debug(f"Cleaned up {deleted_count} unverified login sessions older than {hours_old} hour(s)")
 
             return deleted_count
 
         except Exception as e:
             await db.rollback()
-            logger.error(f"[Cleanup Service] Error cleaning unverified login sessions: {e!s}")
+            logger.error(f"Error cleaning unverified login sessions: {e!s}")
             return 0
 
     @staticmethod
@@ -206,13 +201,13 @@ class DatabaseCleanupService:
             await db.commit()
 
             if deleted_count > 0:
-                logger.debug(f"[Cleanup Service] Cleaned up {deleted_count} outdated verified sessions")
+                logger.debug(f"Cleaned up {deleted_count} outdated verified sessions")
 
             return deleted_count
 
         except Exception as e:
             await db.rollback()
-            logger.error(f"[Cleanup Service] Error cleaning outdated verified sessions: {e!s}")
+            logger.error(f"Error cleaning outdated verified sessions: {e!s}")
             return 0
 
     @staticmethod
@@ -243,13 +238,13 @@ class DatabaseCleanupService:
             await db.commit()
 
             if deleted_count > 0:
-                logger.debug(f"[Cleanup Service] Cleaned up {deleted_count} expired trusted devices")
+                logger.debug(f"Cleaned up {deleted_count} expired trusted devices")
 
             return deleted_count
 
         except Exception as e:
             await db.rollback()
-            logger.error(f"[Cleanup Service] Error cleaning expired trusted devices: {e!s}")
+            logger.error(f"Error cleaning expired trusted devices: {e!s}")
             return 0
 
     @staticmethod
@@ -278,13 +273,13 @@ class DatabaseCleanupService:
             await db.commit()
 
             if deleted_count > 0:
-                logger.debug(f"[Cleanup Service] Cleaned up {deleted_count} expired OAuth tokens")
+                logger.debug(f"Cleaned up {deleted_count} expired OAuth tokens")
 
             return deleted_count
 
         except Exception as e:
             await db.rollback()
-            logger.error(f"[Cleanup Service] Error cleaning expired OAuth tokens: {e!s}")
+            logger.error(f"Error cleaning expired OAuth tokens: {e!s}")
             return 0
 
     @staticmethod
@@ -323,9 +318,7 @@ class DatabaseCleanupService:
 
         total_cleaned = sum(results.values())
         if total_cleaned > 0:
-            logger.debug(
-                f"[Cleanup Service] Full cleanup completed, total cleaned: {total_cleaned} records - {results}"
-            )
+            logger.debug(f"Full cleanup completed, total cleaned: {total_cleaned} records - {results}")
 
         return results
 
@@ -421,7 +414,7 @@ class DatabaseCleanupService:
             }
 
         except Exception as e:
-            logger.error(f"[Cleanup Service] Error getting cleanup statistics: {e!s}")
+            logger.error(f"Error getting cleanup statistics: {e!s}")
             return {
                 "expired_verification_codes": 0,
                 "expired_login_sessions": 0,

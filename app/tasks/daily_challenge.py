@@ -80,9 +80,7 @@ async def daily_challenge_job():
         allowed_mods = await redis.hget(key, "allowed_mods")  # pyright: ignore[reportGeneralTypeIssues]
 
         if beatmap is None or ruleset_id is None:
-            logger.warning(
-                f"[DailyChallenge] Missing required data for daily challenge {now}. Will try again in 5 minutes."
-            )
+            logger.warning(f"Missing required data for daily challenge {now}. Will try again in 5 minutes.")
             get_scheduler().add_job(
                 daily_challenge_job,
                 "date",
@@ -111,12 +109,12 @@ async def daily_challenge_job():
             duration=int((next_day - now - timedelta(minutes=2)).total_seconds() / 60),
         )
         await MetadataHubs.broadcast_call("DailyChallengeUpdated", DailyChallengeInfo(room_id=room.id))
-        logger.success(f"[DailyChallenge] Added today's daily challenge: {beatmap=}, {ruleset_id=}, {required_mods=}")
+        logger.success(f"Added today's daily challenge: {beatmap=}, {ruleset_id=}, {required_mods=}")
         return
     except (ValueError, json.JSONDecodeError) as e:
-        logger.warning(f"[DailyChallenge] Error processing daily challenge data: {e} Will try again in 5 minutes.")
+        logger.warning(f"Error processing daily challenge data: {e} Will try again in 5 minutes.")
     except Exception as e:
-        logger.exception(f"[DailyChallenge] Unexpected error in daily challenge job: {e} Will try again in 5 minutes.")
+        logger.exception(f"Unexpected error in daily challenge job: {e} Will try again in 5 minutes.")
     get_scheduler().add_job(
         daily_challenge_job,
         "date",

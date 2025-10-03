@@ -221,11 +221,6 @@ class EmailQueue:
             是否发送成功
         """
         try:
-            # 如果邮件发送功能被禁用，则只记录日志
-            if not getattr(settings, "enable_email_sending", True):
-                logger.info(f"[Mock Email] Would send to {email_data.get('to_email')}: {email_data.get('subject')}")
-                return True
-
             # 创建邮件
             msg = MIMEMultipart("alternative")
             msg["From"] = f"{self.from_name} <{self.from_email}>"
