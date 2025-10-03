@@ -7,7 +7,7 @@ from app.database import User
 from app.dependencies.database import Database, engine, get_redis, redis_client
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.scheduler import start_scheduler, stop_scheduler
-from app.log import logger, system_logger
+from app.log import system_logger
 from app.middleware.verify_session import VerifySessionMiddleware
 from app.models.mods import init_mods, init_ranked_mods
 from app.router import (
@@ -71,7 +71,7 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
 
     # 显示资源代理状态
     if settings.enable_asset_proxy:
-        logger.info(f"Asset Proxy enabled - Domain: {settings.custom_asset_domain}")
+        system_logger("AssetProxy").info(f"Asset Proxy enabled - Domain: {settings.custom_asset_domain}")
 
     # on shutdown
     yield

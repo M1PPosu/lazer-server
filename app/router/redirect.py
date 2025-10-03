@@ -25,7 +25,6 @@ async def redirect(request: Request):
     redirect_url = urllib.parse.urljoin(str(settings.frontend_url), target_path)
     if query_string:
         redirect_url = f"{redirect_url}?{query_string}"
-
     return RedirectResponse(
         redirect_url,
         status_code=301,

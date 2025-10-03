@@ -138,27 +138,27 @@ def get_caller_class_name(module_prefix: str = "", just_last_part: bool = True) 
     return None
 
 
-def service_logger(name: str) -> Logger:
+def service_logger(name: str) -> "Logger":
     return logger.bind(service=name)
 
 
-def fetcher_logger(name: str) -> Logger:
+def fetcher_logger(name: str) -> "Logger":
     return logger.bind(fetcher=name)
 
 
-def task_logger(name: str) -> Logger:
+def task_logger(name: str) -> "Logger":
     return logger.bind(task=name)
 
 
-def system_logger(name: str) -> Logger:
+def system_logger(name: str) -> "Logger":
     return logger.bind(system=name)
 
 
-def uvicorn_logger() -> Logger:
+def uvicorn_logger() -> "Logger":
     return logger.bind(uvicorn="Uvicorn")
 
 
-def log(name: str) -> Logger:
+def log(name: str) -> "Logger":
     return logger.bind(real_name=name)
 
 
@@ -196,9 +196,10 @@ def dynamic_format(record):
         real_name = record["extra"].get("real_name", "") or record["name"]
         name = f"<fg #FFC1C1>{real_name}</fg #FFC1C1>"
 
-    return (
-        f"<green>{{time:YYYY-MM-DD HH:mm:ss}}</green> [<level>{{level}}</level>] | {name} | {{message}}{{exception}}\n"
-    )
+    format = f"<green>{{time:YYYY-MM-DD HH:mm:ss}}</green> [<level>{{level}}</level>] | {name} | {{message}}\n"
+    if record["exception"]:
+        format += "{exception}\n"
+    return format
 
 
 logger.remove()
