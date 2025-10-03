@@ -128,7 +128,11 @@ class LoginLogService:
             login_success=False,
             login_method=login_method,
             user_agent=user_agent,
-            notes=f"Failed login attempt: {attempted_username}" if attempted_username else "Failed login attempt",
+            notes=(
+                f"Failed login attempt on user {attempted_username}: {notes}"
+                if attempted_username
+                else "Failed login attempt"
+            ),
         )
 
 

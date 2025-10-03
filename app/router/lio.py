@@ -130,7 +130,7 @@ def _coerce_playlist_item(item_data: dict[str, Any], default_order: int, host_us
         "allowed_mods": item_data.get("allowed_mods", []),
         "expired": bool(item_data.get("expired", False)),
         "playlist_order": item_data.get("playlist_order", default_order),
-        "played_at": item_data.get("played_at", None),
+        "played_at": item_data.get("played_at"),
         "freestyle": bool(item_data.get("freestyle", True)),
         "beatmap_checksum": item_data.get("beatmap_checksum", ""),
         "star_rating": item_data.get("star_rating", 0.0),

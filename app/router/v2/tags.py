@@ -44,9 +44,7 @@ async def check_user_can_vote(user: User, beatmap_id: int, session: AsyncSession
             .where(col(Score.beatmap).has(col(Beatmap.mode) == Score.gamemode))
         )
     ).first()
-    if user_beatmap_score is None:
-        return False
-    return True
+    return user_beatmap_score is not None
 
 
 @router.put(
@@ -75,10 +73,9 @@ async def vote_beatmap_tags(
                 .where(BeatmapTagVote.user_id == current_user.id)
             )
         ).first()
-        if previous_votes is None:
-            if check_user_can_vote(current_user, beatmap_id, session):
-                new_vote = BeatmapTagVote(tag_id=tag_id, beatmap_id=beatmap_id, user_id=current_user.id)
-                session.add(new_vote)
+        if previous_votes is None and check_user_can_vote(current_user, beatmap_id, session):
+            new_vote = BeatmapTagVote(tag_id=tag_id, beatmap_id=beatmap_id, user_id=current_user.id)
+            session.add(new_vote)
         await session.commit()
     except ValueError:
         raise HTTPException(400, "Tag is not found")

@@ -157,10 +157,7 @@ async def _help(user: User, args: list[str], _session: AsyncSession, channel: Ch
 
 @bot.command("roll")
 def _roll(user: User, args: list[str], _session: AsyncSession, channel: ChatChannel) -> str:
-    if len(args) > 0 and args[0].isdigit():
-        r = random.randint(1, int(args[0]))
-    else:
-        r = random.randint(1, 100)
+    r = random.randint(1, int(args[0])) if len(args) > 0 and args[0].isdigit() else random.randint(1, 100)
     return f"{user.username} rolls {r} point(s)"
 
 
@@ -179,10 +176,7 @@ async def _stats(user: User, args: list[str], session: AsyncSession, channel: Ch
     if gamemode is None:
         subquery = select(func.max(Score.id)).where(Score.user_id == target_user.id).scalar_subquery()
         last_score = (await session.exec(select(Score).where(Score.id == subquery))).first()
-        if last_score is not None:
-            gamemode = last_score.gamemode
-        else:
-            gamemode = target_user.playmode
+        gamemode = last_score.gamemode if last_score is not None else target_user.playmode
 
     statistics = (
         await session.exec(

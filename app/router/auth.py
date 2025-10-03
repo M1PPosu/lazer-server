@@ -126,21 +126,22 @@ async def register_user(
 
     try:
         # 获取客户端 IP 并查询地理位置
-        country_code = "CN"  # 默认国家代码
+        country_code = None  # 默认国家代码
 
         try:
             # 查询 IP 地理位置
             geo_info = geoip.lookup(client_ip)
-            if geo_info and geo_info.get("country_iso"):
-                country_code = geo_info["country_iso"]
+            if geo_info and (country_code := geo_info.get("country_iso")):
                 logger.info(f"User {user_username} registering from {client_ip}, country: {country_code}")
             else:
                 logger.warning(f"Could not determine country for IP {client_ip}")
         except Exception as e:
             logger.warning(f"GeoIP lookup failed for {client_ip}: {e}")
+        if country_code is None:
+            country_code = "CN"
 
         # 创建新用户
-        # 确保 AUTO_INCREMENT 值从3开始（ID=1是BanchoBot，ID=2预留给ppy）
+        # 确保 AUTO_INCREMENT 值从3开始（ID=2是BanchoBot）
         result = await db.execute(
             text(
                 "SELECT AUTO_INCREMENT FROM information_schema.TABLES "
@@ -157,7 +158,7 @@ async def register_user(
             email=user_email,
             pw_bcrypt=get_password_hash(user_password),
             priv=1,  # 普通用户权限
-            country_code=country_code,  # 根据 IP 地理位置设置国家
+            country_code=country_code,
             join_date=utcnow(),
             last_visit=utcnow(),
             is_supporter=settings.enable_supporter_for_all_users,
@@ -386,7 +387,7 @@ async def oauth_token(
 
         return TokenResponse(
             access_token=access_token,
-            token_type="Bearer",
+            token_type="Bearer",  # noqa: S106
             expires_in=settings.access_token_expire_minutes * 60,
             refresh_token=refresh_token_str,
             scope=scope,
@@ -439,7 +440,7 @@ async def oauth_token(
         )
         return TokenResponse(
             access_token=access_token,
-            token_type="Bearer",
+            token_type="Bearer",  # noqa: S106
             expires_in=settings.access_token_expire_minutes * 60,
             refresh_token=new_refresh_token,
             scope=scope,
@@ -509,7 +510,7 @@ async def oauth_token(
 
         return TokenResponse(
             access_token=access_token,
-            token_type="Bearer",
+            token_type="Bearer",  # noqa: S106
             expires_in=settings.access_token_expire_minutes * 60,
             refresh_token=refresh_token_str,
             scope=" ".join(scopes),
@@ -554,7 +555,7 @@ async def oauth_token(
 
         return TokenResponse(
             access_token=access_token,
-            token_type="Bearer",
+            token_type="Bearer",  # noqa: S106
             expires_in=settings.access_token_expire_minutes * 60,
             refresh_token=refresh_token_str,
             scope=" ".join(scopes),

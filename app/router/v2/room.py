@@ -166,7 +166,6 @@ async def get_room(
     db: Database,
     room_id: Annotated[int, Path(..., description="房间 ID")],
     current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
-    redis: Redis,
     category: Annotated[
         str,
         Query(

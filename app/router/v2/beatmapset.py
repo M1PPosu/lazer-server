@@ -46,7 +46,6 @@ async def _save_to_db(sets: SearchBeatmapsetsResp):
     response_model=SearchBeatmapsetsResp,
 )
 async def search_beatmapset(
-    db: Database,
     query: Annotated[SearchQueryModel, Query(...)],
     request: Request,
     background_tasks: BackgroundTasks,
@@ -104,7 +103,7 @@ async def search_beatmapset(
     if cached_result:
         sets = SearchBeatmapsetsResp(**cached_result)
         # 处理资源代理
-        processed_sets = await process_response_assets(sets, request)
+        processed_sets = await process_response_assets(sets)
         return processed_sets
 
     try:
@@ -115,7 +114,7 @@ async def search_beatmapset(
         await cache_service.cache_search_result(query_hash, cursor_hash, sets.model_dump())
 
         # 处理资源代理
-        processed_sets = await process_response_assets(sets, request)
+        processed_sets = await process_response_assets(sets)
         return processed_sets
     except HTTPError as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -140,7 +139,7 @@ async def lookup_beatmapset(
     cached_resp = await cache_service.get_beatmap_lookup_from_cache(beatmap_id)
     if cached_resp:
         # 处理资源代理
-        processed_resp = await process_response_assets(cached_resp, request)
+        processed_resp = await process_response_assets(cached_resp)
         return processed_resp
 
     try:
@@ -151,7 +150,7 @@ async def lookup_beatmapset(
         await cache_service.cache_beatmap_lookup(beatmap_id, resp)
 
         # 处理资源代理
-        processed_resp = await process_response_assets(resp, request)
+        processed_resp = await process_response_assets(resp)
         return processed_resp
     except HTTPError as exc:
         raise HTTPException(status_code=404, detail="Beatmap not found") from exc
@@ -176,7 +175,7 @@ async def get_beatmapset(
     cached_resp = await cache_service.get_beatmapset_from_cache(beatmapset_id)
     if cached_resp:
         # 处理资源代理
-        processed_resp = await process_response_assets(cached_resp, request)
+        processed_resp = await process_response_assets(cached_resp)
         return processed_resp
 
     try:
@@ -187,7 +186,7 @@ async def get_beatmapset(
         await cache_service.cache_beatmapset(resp)
 
         # 处理资源代理
-        processed_resp = await process_response_assets(resp, request)
+        processed_resp = await process_response_assets(resp)
         return processed_resp
     except HTTPError as exc:
         raise HTTPException(status_code=404, detail="Beatmapset not found") from exc

@@ -7,7 +7,7 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, ValidationError
 
 
-def BodyOrForm[T: BaseModel](model: type[T]):
+def BodyOrForm[T: BaseModel](model: type[T]):  # noqa: N802
     async def dependency(
         request: Request,
     ) -> T:

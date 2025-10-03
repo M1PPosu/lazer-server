@@ -35,19 +35,19 @@ class ChatSubscriber(RedisSubscriber):
         self.add_handler(ON_NOTIFICATION, self.on_notification)
         self.start()
 
-    async def on_join_room(self, c: str, s: str):
+    async def on_join_room(self, c: str, s: str):  # noqa: ARG002
         channel_id, user_id = s.split(":")
         if self.chat_server is None:
             return
         await self.chat_server.join_room_channel(int(channel_id), int(user_id))
 
-    async def on_leave_room(self, c: str, s: str):
+    async def on_leave_room(self, c: str, s: str):  # noqa: ARG002
         channel_id, user_id = s.split(":")
         if self.chat_server is None:
             return
         await self.chat_server.leave_room_channel(int(channel_id), int(user_id))
 
-    async def on_notification(self, c: str, s: str):
+    async def on_notification(self, c: str, s: str):  # noqa: ARG002
         try:
             detail = TypeAdapter(NotificationDetails).validate_json(s)
         except ValueError:

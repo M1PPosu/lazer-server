@@ -288,10 +288,6 @@ This email was sent automatically, please do not reply.
         redis: Redis,
         user_id: int,
         code: str,
-        ip_address: str | None = None,
-        user_agent: str | None = None,
-        client_id: int | None = None,
-        country_code: str | None = None,
     ) -> tuple[bool, str]:
         """验证邮箱验证码"""
         try:

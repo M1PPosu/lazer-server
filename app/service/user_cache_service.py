@@ -357,6 +357,7 @@ class UserCacheService:
                     if size:
                         total_size += size
                 except Exception:
+                    logger.warning(f"Failed to get memory usage for key {key}")
                     continue
 
             return {

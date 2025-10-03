@@ -71,10 +71,10 @@ class Beatmap(BeatmapBase, table=True):
     failtimes: FailTime | None = Relationship(back_populates="beatmap", sa_relationship_kwargs={"lazy": "joined"})
 
     @classmethod
-    async def from_resp_no_save(cls, session: AsyncSession, resp: "BeatmapResp") -> "Beatmap":
+    async def from_resp_no_save(cls, _session: AsyncSession, resp: "BeatmapResp") -> "Beatmap":
         d = resp.model_dump()
         del d["beatmapset"]
-        beatmap = Beatmap.model_validate(
+        beatmap = cls.model_validate(
             {
                 **d,
                 "beatmapset_id": resp.beatmapset_id,
@@ -90,8 +90,7 @@ class Beatmap(BeatmapBase, table=True):
         if not (await session.exec(select(exists()).where(Beatmap.id == resp.id))).first():
             session.add(beatmap)
             await session.commit()
-        beatmap = (await session.exec(select(Beatmap).where(Beatmap.id == resp.id))).one()
-        return beatmap
+        return (await session.exec(select(Beatmap).where(Beatmap.id == resp.id))).one()
 
     @classmethod
     async def from_resp_batch(cls, session: AsyncSession, inp: list["BeatmapResp"], from_: int = 0) -> list["Beatmap"]:
@@ -250,7 +249,7 @@ async def calculate_beatmap_attributes(
     redis: Redis,
     fetcher: "Fetcher",
 ):
-    key = f"beatmap:{beatmap_id}:{ruleset}:{hashlib.md5(str(mods_).encode()).hexdigest()}:attributes"
+    key = f"beatmap:{beatmap_id}:{ruleset}:{hashlib.sha256(str(mods_).encode()).hexdigest()}:attributes"
     if await redis.exists(key):
         return BeatmapAttributes.model_validate_json(await redis.get(key))
     resp = await fetcher.get_or_fetch_beatmap_raw(redis, beatmap_id)

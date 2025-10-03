@@ -55,12 +55,20 @@ select = [
   "ASYNC", # flake8-async
   "C4",    # flake8-comprehensions
   "T10",   # flake8-debugger
-  # "T20",   # flake8-print
   "PYI",   # flake8-pyi
   "PT",    # flake8-pytest-style
   "Q",     # flake8-quotes
   "TID",   # flake8-tidy-imports
   "RUF",   # Ruff-specific rules
+  "FAST",  # FastAPI
+  "YTT",   # flake8-2020
+  "S",     # flake8-bandit
+  "INP",   # flake8-no-pep420
+  "SIM",   # flake8-simplify
+  "ARG",   # flake8-unused-arguments
+  "PTH",   # flake8-use-pathlib
+  "N",     # pep8-naming
+  "FURB"   # refurb
 ]
 ignore = [
   "E402",   # module-import-not-at-top-of-file
@@ -68,10 +76,17 @@ ignore = [
   "RUF001", # ambiguous-unicode-character-string
   "RUF002", # ambiguous-unicode-character-docstring
   "RUF003", # ambiguous-unicode-character-comment
+  "S101",   # assert
+  "S311",   # suspicious-non-cryptographic-random-usage
 ]
 
 [tool.ruff.lint.extend-per-file-ignores]
 "app/database/**/*.py" = ["I002"]
+"tools/*.py" = ["PTH", "INP001"]
+"migrations/**/*.py" = ["INP001"]
+".github/**/*.py" = ["INP001"]
+"app/achievements/*.py" = ["INP001", "ARG"]
+"app/router/**/*.py" = ["ARG001"]
 
 [tool.ruff.lint.isort]
 force-sort-within-sections = true

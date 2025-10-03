@@ -91,7 +91,7 @@ async def get_users(
 
         # 处理资源代理
         response = BatchUserResponse(users=cached_users)
-        processed_response = await process_response_assets(response, request)
+        processed_response = await process_response_assets(response)
         return processed_response
     else:
         searched_users = (await session.exec(select(User).limit(50))).all()
@@ -109,7 +109,7 @@ async def get_users(
 
         # 处理资源代理
         response = BatchUserResponse(users=users)
-        processed_response = await process_response_assets(response, request)
+        processed_response = await process_response_assets(response)
         return processed_response
 
 
@@ -240,7 +240,7 @@ async def get_user_info(
         cached_user = await cache_service.get_user_from_cache(user_id_int)
         if cached_user:
             # 处理资源代理
-            processed_user = await process_response_assets(cached_user, request)
+            processed_user = await process_response_assets(cached_user)
             return processed_user
 
     searched_user = (
@@ -263,7 +263,7 @@ async def get_user_info(
     background_task.add_task(cache_service.cache_user, user_resp)
 
     # 处理资源代理
-    processed_user = await process_response_assets(user_resp, request)
+    processed_user = await process_response_assets(user_resp)
     return processed_user
 
 
@@ -381,7 +381,7 @@ async def get_user_scores(
         user_id, type, include_fails, mode, limit, offset, is_legacy_api
     )
     if cached_scores is not None:
-        processed_scores = await process_response_assets(cached_scores, request)
+        processed_scores = await process_response_assets(cached_scores)
         return processed_scores
 
     db_user = await session.get(User, user_id)
@@ -438,5 +438,5 @@ async def get_user_scores(
     )
 
     # 处理资源代理
-    processed_scores = await process_response_assets(score_responses, request)
+    processed_scores = await process_response_assets(score_responses)
     return processed_scores

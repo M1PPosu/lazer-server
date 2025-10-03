@@ -256,8 +256,6 @@ class UserResp(UserBase):
         session: AsyncSession,
         include: list[str] = [],
         ruleset: GameMode | None = None,
-        *,
-        token_id: int | None = None,
     ) -> "UserResp":
         from app.dependencies.database import get_redis
 
@@ -310,16 +308,16 @@ class UserResp(UserBase):
                 ).all()
             ]
 
-        if "team" in include:
-            if team_membership := await obj.awaitable_attrs.team_membership:
-                u.team = team_membership.team
+        if "team" in include and (team_membership := await obj.awaitable_attrs.team_membership):
+            u.team = team_membership.team
 
         if "account_history" in include:
             u.account_history = [UserAccountHistoryResp.from_db(ah) for ah in await obj.awaitable_attrs.account_history]
 
-        if "daily_challenge_user_stats":
-            if daily_challenge_stats := await obj.awaitable_attrs.daily_challenge_stats:
-                u.daily_challenge_user_stats = DailyChallengeStatsResp.from_db(daily_challenge_stats)
+        if "daily_challenge_user_stats" in include and (
+            daily_challenge_stats := await obj.awaitable_attrs.daily_challenge_stats
+        ):
+            u.daily_challenge_user_stats = DailyChallengeStatsResp.from_db(daily_challenge_stats)
 
         if "statistics" in include:
             current_stattistics = None
@@ -443,7 +441,7 @@ class MeResp(UserResp):
         from app.dependencies.database import get_redis
         from app.service.verification_service import LoginSessionService
 
-        u = await super().from_db(obj, session, ALL_INCLUDED, ruleset, token_id=token_id)
+        u = await super().from_db(obj, session, ALL_INCLUDED, ruleset)
         u.session_verified = (
             not await LoginSessionService.check_is_need_verification(session, user_id=obj.id, token_id=token_id)
             if token_id

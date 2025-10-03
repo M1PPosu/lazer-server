@@ -313,10 +313,7 @@ async def chat_websocket(
         # 优先使用查询参数中的token，支持token或access_token参数名
         auth_token = token or access_token
         if not auth_token and authorization:
-            if authorization.startswith("Bearer "):
-                auth_token = authorization[7:]
-            else:
-                auth_token = authorization
+            auth_token = authorization.removeprefix("Bearer ")
 
         if not auth_token:
             await websocket.close(code=1008, reason="Missing authentication token")

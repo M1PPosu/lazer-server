@@ -10,7 +10,7 @@ from fastapi.responses import RedirectResponse
 redirect_router = APIRouter(include_in_schema=False)
 
 
-@redirect_router.get("/users/{path:path}")
+@redirect_router.get("/users/{path:path}")  # noqa: FAST003
 @redirect_router.get("/teams/{team_id}")
 @redirect_router.get("/u/{user_id}")
 @redirect_router.get("/b/{beatmap_id}")

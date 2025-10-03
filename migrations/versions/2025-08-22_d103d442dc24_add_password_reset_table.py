@@ -1,3 +1,4 @@
+# ruff: noqa
 """add_password_reset_table
 
 Revision ID: d103d442dc24

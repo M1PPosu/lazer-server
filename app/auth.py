@@ -69,7 +69,7 @@ def verify_password_legacy(plain_password: str, bcrypt_hash: str) -> bool:
     2. MD5哈希 -> bcrypt验证
     """
     # 1. 明文密码转 MD5
-    pw_md5 = hashlib.md5(plain_password.encode()).hexdigest().encode()
+    pw_md5 = hashlib.md5(plain_password.encode()).hexdigest().encode()  # noqa: S324
 
     # 2. 检查缓存
     if bcrypt_hash in bcrypt_cache:
@@ -103,7 +103,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def get_password_hash(password: str) -> str:
     """生成密码哈希 - 使用 osu! 的方式"""
     # 1. 明文密码 -> MD5
-    pw_md5 = hashlib.md5(password.encode()).hexdigest().encode()
+    pw_md5 = hashlib.md5(password.encode()).hexdigest().encode()  # noqa: S324
     # 2. MD5 -> bcrypt
     pw_bcrypt = bcrypt.hashpw(pw_md5, bcrypt.gensalt())
     return pw_bcrypt.decode()
@@ -114,7 +114,7 @@ async def authenticate_user_legacy(db: AsyncSession, name: str, password: str) -
     验证用户身份 - 使用类似 from_login 的逻辑
     """
     # 1. 明文密码转 MD5
-    pw_md5 = hashlib.md5(password.encode()).hexdigest()
+    pw_md5 = hashlib.md5(password.encode()).hexdigest()  # noqa: S324
 
     # 2. 根据用户名查找用户
     user = None
@@ -325,12 +325,7 @@ def _generate_totp_account_label(user: User) -> str:
 
     根据配置选择使用用户名或邮箱，并添加服务器信息使标签更具描述性
     """
-    if settings.totp_use_username_in_label:
-        # 使用用户名作为主要标识
-        primary_identifier = user.username
-    else:
-        # 使用邮箱作为标识
-        primary_identifier = user.email
+    primary_identifier = user.username if settings.totp_use_username_in_label else user.email
 
     # 如果配置了服务名称，添加到标签中以便在认证器中区分
     if settings.totp_service_name:

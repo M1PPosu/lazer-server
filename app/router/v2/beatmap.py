@@ -158,7 +158,10 @@ async def get_beatmap_attributes(
     if ruleset is None:
         beatmap_db = await Beatmap.get_or_fetch(db, fetcher, beatmap_id)
         ruleset = beatmap_db.mode
-    key = f"beatmap:{beatmap_id}:{ruleset}:{hashlib.md5(str(mods_).encode()).hexdigest()}:attributes"
+    key = (
+        f"beatmap:{beatmap_id}:{ruleset}:"
+        f"{hashlib.md5(str(mods_).encode(), usedforsecurity=False).hexdigest()}:attributes"
+    )
     if await redis.exists(key):
         return BeatmapAttributes.model_validate_json(await redis.get(key))  # pyright: ignore[reportArgumentType]
     try:

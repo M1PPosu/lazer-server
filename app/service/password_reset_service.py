@@ -120,7 +120,7 @@ class PasswordResetService:
                     await redis.delete(reset_code_key)
                     await redis.delete(rate_limit_key)
                 except Exception:
-                    pass
+                    logger.warning("Failed to clean up Redis data after error")
                 logger.exception("Redis operation failed")
                 return False, "服务暂时不可用，请稍后重试"
 

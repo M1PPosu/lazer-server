@@ -22,7 +22,7 @@ class TokenRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
-    token_type: str = "Bearer"
+    token_type: str = "Bearer"  # noqa: S105
     expires_in: int
     refresh_token: str
     scope: str = "*"
@@ -67,7 +67,7 @@ class RegistrationRequestErrors(BaseModel):
 class OAuth2ClientCredentialsBearer(OAuth2):
     def __init__(
         self,
-        tokenUrl: Annotated[
+        tokenUrl: Annotated[  # noqa: N803
             str,
             Doc(
                 """
@@ -75,7 +75,7 @@ class OAuth2ClientCredentialsBearer(OAuth2):
                 """
             ),
         ],
-        refreshUrl: Annotated[
+        refreshUrl: Annotated[  # noqa: N803
             str | None,
             Doc(
                 """

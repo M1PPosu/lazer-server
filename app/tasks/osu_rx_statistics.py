@@ -16,7 +16,7 @@ async def create_rx_statistics():
     async with with_db() as session:
         users = (await session.exec(select(User.id))).all()
         total_users = len(users)
-        logger.info("Ensuring RX/AP statistics exist for %s users", total_users)
+        logger.info(f"Ensuring RX/AP statistics exist for {total_users} users")
         rx_created = 0
         ap_created = 0
         for i in users:
@@ -57,7 +57,5 @@ async def create_rx_statistics():
         await session.commit()
         if rx_created or ap_created:
             logger.success(
-                "Created %s RX statistics rows and %s AP statistics rows during backfill",
-                rx_created,
-                ap_created,
+                f"Created {rx_created} RX statistics rows and {ap_created} AP statistics rows during backfill"
             )

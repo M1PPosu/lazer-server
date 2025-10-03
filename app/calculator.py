@@ -419,9 +419,8 @@ def too_dense(hit_objects: list[HitObject], per_1s: int, per_10s: int) -> bool:
         if len(hit_objects) > i + per_1s:
             if hit_objects[i + per_1s].start_time - hit_objects[i].start_time < 1000:
                 return True
-        elif len(hit_objects) > i + per_10s:
-            if hit_objects[i + per_10s].start_time - hit_objects[i].start_time < 10000:
-                return True
+        elif len(hit_objects) > i + per_10s and hit_objects[i + per_10s].start_time - hit_objects[i].start_time < 10000:
+            return True
     return False
 
 
@@ -448,10 +447,7 @@ def slider_is_sus(hit_objects: list[HitObject]) -> bool:
 
 
 def is_2b(hit_objects: list[HitObject]) -> bool:
-    for i in range(0, len(hit_objects) - 1):
-        if hit_objects[i] == hit_objects[i + 1].start_time:
-            return True
-    return False
+    return any(hit_objects[i] == hit_objects[i + 1].start_time for i in range(0, len(hit_objects) - 1))
 
 
 def is_suspicious_beatmap(content: str) -> bool:

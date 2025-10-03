@@ -12,7 +12,7 @@ from app.service.asset_proxy_service import get_asset_proxy_service
 from fastapi import Request
 
 
-async def process_response_assets(data: Any, request: Request) -> Any:
+async def process_response_assets(data: Any) -> Any:
     """
     根据配置处理响应数据中的资源URL
 
@@ -72,7 +72,7 @@ def asset_proxy_response(func):
 
         # 如果有request对象且启用了资源代理，则处理响应
         if request and settings.enable_asset_proxy and should_process_asset_proxy(request.url.path):
-            result = await process_response_assets(result, request)
+            result = await process_response_assets(result)
 
         return result
 

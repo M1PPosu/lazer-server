@@ -97,9 +97,7 @@ class InterceptHandler(logging.Handler):
                 status_color = "green"
             elif 300 <= status < 400:
                 status_color = "yellow"
-            elif 400 <= status < 500:
-                status_color = "red"
-            elif 500 <= status < 600:
+            elif 400 <= status < 500 or 500 <= status < 600:
                 status_color = "red"
 
             return (

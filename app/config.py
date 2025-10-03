@@ -217,7 +217,7 @@ STORAGE_SETTINGS='{
     # 服务器设置
     host: Annotated[
         str,
-        Field(default="0.0.0.0", description="服务器监听地址"),
+        Field(default="0.0.0.0", description="服务器监听地址"),  # noqa: S104
         "服务器设置",
     ]
     port: Annotated[
@@ -609,26 +609,26 @@ STORAGE_SETTINGS='{
     ]
 
     @field_validator("fetcher_scopes", mode="before")
+    @classmethod
     def validate_fetcher_scopes(cls, v: Any) -> list[str]:
         if isinstance(v, str):
             return v.split(",")
         return v
 
     @field_validator("storage_settings", mode="after")
+    @classmethod
     def validate_storage_settings(
         cls,
         v: LocalStorageSettings | CloudflareR2Settings | AWSS3StorageSettings,
         info: ValidationInfo,
     ) -> LocalStorageSettings | CloudflareR2Settings | AWSS3StorageSettings:
-        if info.data.get("storage_service") == StorageServiceType.CLOUDFLARE_R2:
-            if not isinstance(v, CloudflareR2Settings):
-                raise ValueError("When storage_service is 'r2', storage_settings must be CloudflareR2Settings")
-        elif info.data.get("storage_service") == StorageServiceType.LOCAL:
-            if not isinstance(v, LocalStorageSettings):
-                raise ValueError("When storage_service is 'local', storage_settings must be LocalStorageSettings")
-        elif info.data.get("storage_service") == StorageServiceType.AWS_S3:
-            if not isinstance(v, AWSS3StorageSettings):
-                raise ValueError("When storage_service is 's3', storage_settings must be AWSS3StorageSettings")
+        service = info.data.get("storage_service")
+        if service == StorageServiceType.CLOUDFLARE_R2 and not isinstance(v, CloudflareR2Settings):
+            raise ValueError("When storage_service is 'r2', storage_settings must be CloudflareR2Settings")
+        if service == StorageServiceType.LOCAL and not isinstance(v, LocalStorageSettings):
+            raise ValueError("When storage_service is 'local', storage_settings must be LocalStorageSettings")
+        if service == StorageServiceType.AWS_S3 and not isinstance(v, AWSS3StorageSettings):
+            raise ValueError("When storage_service is 's3', storage_settings must be AWSS3StorageSettings")
         return v
 
 

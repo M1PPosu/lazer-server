@@ -258,10 +258,7 @@ class BackgroundTasks:
         self.tasks = set(tasks) if tasks else set()
 
     def add_task(self, func: Callable[P, Any], *args: P.args, **kwargs: P.kwargs) -> None:
-        if is_async_callable(func):
-            coro = func(*args, **kwargs)
-        else:
-            coro = run_in_threadpool(func, *args, **kwargs)
+        coro = func(*args, **kwargs) if is_async_callable(func) else run_in_threadpool(func, *args, **kwargs)
         task = asyncio.create_task(coro)
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import json
 from pathlib import Path
 
 from app.config import settings
@@ -50,7 +51,7 @@ import sentry_sdk
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI):  # noqa: ARG001
     # on startup
     init_mods()
     init_ranked_mods()
@@ -223,26 +224,26 @@ async def health_check():
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
+async def validation_exception_handler(request: Request, exc: RequestValidationError):  # noqa: ARG001
     return JSONResponse(
         status_code=422,
         content={
-            "error": exc.errors(),
+            "error": json.dumps(exc.errors()),
         },
     )
 
 
 @app.exception_handler(HTTPException)
-async def http_exception_handler(requst: Request, exc: HTTPException):
+async def http_exception_handler(request: Request, exc: HTTPException):  # noqa: ARG001
     return JSONResponse(status_code=exc.status_code, content={"error": exc.detail})
 
 
-if settings.secret_key == "your_jwt_secret_here":
+if settings.secret_key == "your_jwt_secret_here":  # noqa: S105
     system_logger("Security").opt(colors=True).warning(
         "<y>jwt_secret_key</y> is unset. Your server is unsafe. "
         "Use this command to generate: <blue>openssl rand -hex 32</blue>."
     )
-if settings.osu_web_client_secret == "your_osu_web_client_secret_here":
+if settings.osu_web_client_secret == "your_osu_web_client_secret_here":  # noqa: S105
     system_logger("Security").opt(colors=True).warning(
         "<y>osu_web_client_secret</y> is unset. Your server is unsafe. "
         "Use this command to generate: <blue>openssl rand -hex 40</blue>."

@@ -41,7 +41,7 @@ async def warmup_cache() -> None:
         logger.info("Beatmap cache warmup completed successfully")
 
     except Exception as e:
-        logger.error("Beatmap cache warmup failed: %s", e)
+        logger.error(f"Beatmap cache warmup failed: {e}")
 
 
 async def refresh_ranking_cache() -> None:
@@ -59,7 +59,7 @@ async def refresh_ranking_cache() -> None:
         logger.info("Ranking cache refresh completed successfully")
 
     except Exception as e:
-        logger.error("Ranking cache refresh failed: %s", e)
+        logger.error(f"Ranking cache refresh failed: {e}")
 
 
 async def schedule_user_cache_preload_task() -> None:
@@ -93,14 +93,14 @@ async def schedule_user_cache_preload_task() -> None:
             if active_user_ids:
                 user_ids = [row[0] for row in active_user_ids]
                 await cache_service.preload_user_cache(session, user_ids)
-                logger.info("Preloaded cache for %s active users", len(user_ids))
+                logger.info(f"Preloaded cache for {len(user_ids)} active users")
             else:
                 logger.info("No active users found for cache preload")
 
         logger.info("User cache preload task completed successfully")
 
     except Exception as e:
-        logger.error("User cache preload task failed: %s", e)
+        logger.error(f"User cache preload task failed: {e}")
 
 
 async def schedule_user_cache_warmup_task() -> None:
@@ -131,18 +131,18 @@ async def schedule_user_cache_warmup_task() -> None:
                     if top_users:
                         user_ids = list(top_users)
                         await cache_service.preload_user_cache(session, user_ids)
-                        logger.info("Warmed cache for top 100 users in %s", mode)
+                        logger.info(f"Warmed cache for top 100 users in {mode}")
 
                         await asyncio.sleep(1)
 
                 except Exception as e:
-                    logger.error("Failed to warm cache for %s: %s", mode, e)
+                    logger.error(f"Failed to warm cache for {mode}: {e}")
                     continue
 
         logger.info("User cache warmup task completed successfully")
 
     except Exception as e:
-        logger.error("User cache warmup task failed: %s", e)
+        logger.error(f"User cache warmup task failed: {e}")
 
 
 async def schedule_user_cache_cleanup_task() -> None:
@@ -155,11 +155,11 @@ async def schedule_user_cache_cleanup_task() -> None:
         cache_service = get_user_cache_service(redis)
         stats = await cache_service.get_cache_stats()
 
-        logger.info("User cache stats: %s", stats)
+        logger.info(f"User cache stats: {stats}")
         logger.info("User cache cleanup task completed successfully")
 
     except Exception as e:
-        logger.error("User cache cleanup task failed: %s", e)
+        logger.error(f"User cache cleanup task failed: {e}")
 
 
 async def warmup_user_cache() -> None:
@@ -167,7 +167,7 @@ async def warmup_user_cache() -> None:
     try:
         await schedule_user_cache_warmup_task()
     except Exception as e:
-        logger.error("User cache warmup failed: %s", e)
+        logger.error(f"User cache warmup failed: {e}")
 
 
 async def preload_user_cache() -> None:
@@ -175,7 +175,7 @@ async def preload_user_cache() -> None:
     try:
         await schedule_user_cache_preload_task()
     except Exception as e:
-        logger.error("User cache preload failed: %s", e)
+        logger.error(f"User cache preload failed: {e}")
 
 
 async def cleanup_user_cache() -> None:
@@ -183,7 +183,7 @@ async def cleanup_user_cache() -> None:
     try:
         await schedule_user_cache_cleanup_task()
     except Exception as e:
-        logger.error("User cache cleanup failed: %s", e)
+        logger.error(f"User cache cleanup failed: {e}")
 
 
 def register_cache_jobs() -> None:

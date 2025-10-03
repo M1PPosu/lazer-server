@@ -35,11 +35,7 @@ async def process_tth(
     ).first()
     if not stats:
         return False
-    if tth <= stats.total_hits < next_tth:
-        return True
-    elif next_tth == 0 and stats.play_count >= tth:
-        return True
-    return False
+    return bool(tth <= stats.total_hits < next_tth or (next_tth == 0 and stats.play_count >= tth))
 
 
 MEDALS: Medals = {

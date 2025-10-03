@@ -36,11 +36,8 @@ def safe_json_dumps(data) -> str:
 
 def generate_hash(data) -> str:
     """生成数据的MD5哈希值"""
-    if isinstance(data, str):
-        content = data
-    else:
-        content = safe_json_dumps(data)
-    return hashlib.md5(content.encode()).hexdigest()
+    content = data if isinstance(data, str) else safe_json_dumps(data)
+    return hashlib.md5(content.encode(), usedforsecurity=False).hexdigest()
 
 
 class BeatmapsetCacheService:

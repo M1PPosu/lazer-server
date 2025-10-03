@@ -82,7 +82,7 @@ class VerifySessionMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # 启动验证流程
-        return await self._initiate_verification(request, session_state)
+        return await self._initiate_verification(session_state)
 
     def _should_skip_verification(self, request: Request) -> bool:
         """检查是否应该跳过验证"""
@@ -93,10 +93,7 @@ class VerifySessionMiddleware(BaseHTTPMiddleware):
             return True
 
         # 非API请求跳过
-        if not path.startswith("/api/"):
-            return True
-
-        return False
+        return bool(not path.startswith("/api/"))
 
     def _requires_verification(self, request: Request, user: User) -> bool:
         """检查是否需要验证"""
@@ -177,7 +174,7 @@ class VerifySessionMiddleware(BaseHTTPMiddleware):
             logger.error(f"Error getting session state: {e}")
             return None
 
-    async def _initiate_verification(self, request: Request, state: SessionState) -> Response:
+    async def _initiate_verification(self, state: SessionState) -> Response:
         """启动验证流程"""
         try:
             method = await state.get_method()

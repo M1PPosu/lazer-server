@@ -168,10 +168,7 @@ async def get_beatmaps(
     elif beatmapset_id is not None:
         beatmapset = await Beatmapset.get_or_fetch(session, fetcher, beatmapset_id)
         await beatmapset.awaitable_attrs.beatmaps
-        if len(beatmapset.beatmaps) > limit:
-            beatmaps = beatmapset.beatmaps[:limit]
-        else:
-            beatmaps = beatmapset.beatmaps
+        beatmaps = beatmapset.beatmaps[:limit] if len(beatmapset.beatmaps) > limit else beatmapset.beatmaps
     elif user is not None:
         where = Beatmapset.user_id == user if type == "id" or user.isdigit() else Beatmapset.creator == user
         beatmapsets = (await session.exec(select(Beatmapset).where(where))).all()

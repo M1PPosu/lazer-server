@@ -847,10 +847,7 @@ async def reorder_score_pin(
         detail = "After score not found" if after_score_id else "Before score not found"
         raise HTTPException(status_code=404, detail=detail)
 
-    if after_score_id:
-        target_order = reference_score.pinned_order + 1
-    else:
-        target_order = reference_score.pinned_order
+    target_order = reference_score.pinned_order + 1 if after_score_id else reference_score.pinned_order
 
     current_order = score_record.pinned_order
 

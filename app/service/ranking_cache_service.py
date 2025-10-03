@@ -593,10 +593,7 @@ class RankingCacheService:
     async def invalidate_country_cache(self, ruleset: GameMode | None = None) -> None:
         """使地区排行榜缓存失效"""
         try:
-            if ruleset:
-                pattern = f"country_ranking:{ruleset}:*"
-            else:
-                pattern = "country_ranking:*"
+            pattern = f"country_ranking:{ruleset}:*" if ruleset else "country_ranking:*"
 
             keys = await self.redis.keys(pattern)
             if keys:
@@ -608,10 +605,7 @@ class RankingCacheService:
     async def invalidate_team_cache(self, ruleset: GameMode | None = None) -> None:
         """使战队排行榜缓存失效"""
         try:
-            if ruleset:
-                pattern = f"team_ranking:{ruleset}:*"
-            else:
-                pattern = "team_ranking:*"
+            pattern = f"team_ranking:{ruleset}:*" if ruleset else "team_ranking:*"
 
             keys = await self.redis.keys(pattern)
             if keys:
@@ -637,6 +631,7 @@ class RankingCacheService:
                     if size:
                         total_size += size
                 except Exception:
+                    logger.warning(f"Failed to get memory usage for key {key}")
                     continue
 
             return {

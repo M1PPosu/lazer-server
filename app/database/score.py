@@ -520,12 +520,11 @@ async def _score_where(
             wheres.append(col(BestScore.user).has(col(User.country_code) == user.country_code))
         else:
             return None
-    elif type == LeaderboardType.TEAM:
-        if user:
-            team_membership = await user.awaitable_attrs.team_membership
-            if team_membership:
-                team_id = team_membership.team_id
-                wheres.append(col(BestScore.user).has(col(User.team_membership).has(TeamMember.team_id == team_id)))
+    elif type == LeaderboardType.TEAM and user:
+        team_membership = await user.awaitable_attrs.team_membership
+        if team_membership:
+            team_id = team_membership.team_id
+            wheres.append(col(BestScore.user).has(col(User.team_membership).has(TeamMember.team_id == team_id)))
     if mods:
         if user and user.is_supporter:
             wheres.append(

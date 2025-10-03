@@ -119,10 +119,7 @@ async def get_client_user(
         if verify_method is None:
             # 智能选择验证方式（有TOTP优先TOTP）
             totp_key = await user.awaitable_attrs.totp_key
-            if totp_key is not None and api_version >= SUPPORT_TOTP_VERIFICATION_VER:
-                verify_method = "totp"
-            else:
-                verify_method = "mail"
+            verify_method = "totp" if totp_key is not None and api_version >= SUPPORT_TOTP_VERIFICATION_VER else "mail"
 
             # 设置选择的验证方法到Redis中，避免重复选择
             if api_version >= 20250913:

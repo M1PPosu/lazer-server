@@ -40,7 +40,7 @@ class SessionReissueResponse(BaseModel):
     message: str
 
 
-class VerifyFailed(Exception):
+class VerifyFailedError(Exception):
     def __init__(self, message: str, reason: str | None = None, should_reissue: bool = False):
         super().__init__(message)
         self.reason = reason
@@ -93,10 +93,7 @@ async def verify_session(
             # 智能选择验证方法（参考osu-web实现）
             # API版本较老或用户未设置TOTP时强制使用邮件验证
             # print(api_version, totp_key)
-            if api_version < 20240101 or totp_key is None:
-                verify_method = "mail"
-            else:
-                verify_method = "totp"
+            verify_method = "mail" if api_version < 20240101 or totp_key is None else "totp"
             await LoginSessionService.set_login_method(user_id, token_id, verify_method, redis)
         login_method = verify_method
 
@@ -109,7 +106,7 @@ async def verify_session(
                         db, redis, user_id, current_user.username, current_user.email, ip_address, user_agent
                     )
                     verify_method = "mail"
-                    raise VerifyFailed("用户TOTP已被删除，已切换到邮件验证")
+                    raise VerifyFailedError("用户TOTP已被删除，已切换到邮件验证")
                 # 如果未开启邮箱验证，则直接认为认证通过
                 # 正常不会进入到这里
 
@@ -120,16 +117,16 @@ async def verify_session(
             else:
                 # 记录详细的验证失败原因（参考osu-web的错误处理）
                 if len(verification_key) != 6:
-                    raise VerifyFailed("TOTP验证码长度错误，应为6位数字", reason="incorrect_length")
+                    raise VerifyFailedError("TOTP验证码长度错误，应为6位数字", reason="incorrect_length")
                 elif not verification_key.isdigit():
-                    raise VerifyFailed("TOTP验证码格式错误，应为纯数字", reason="incorrect_format")
+                    raise VerifyFailedError("TOTP验证码格式错误，应为纯数字", reason="incorrect_format")
                 else:
                     # 可能是密钥错误或者重放攻击
-                    raise VerifyFailed("TOTP 验证失败，请检查验证码是否正确且未过期", reason="incorrect_key")
+                    raise VerifyFailedError("TOTP 验证失败，请检查验证码是否正确且未过期", reason="incorrect_key")
         else:
             success, message = await EmailVerificationService.verify_email_code(db, redis, user_id, verification_key)
             if not success:
-                raise VerifyFailed(f"邮件验证失败: {message}")
+                raise VerifyFailedError(f"邮件验证失败: {message}")
 
         await LoginLogService.record_login(
             db=db,
@@ -144,7 +141,7 @@ async def verify_session(
         await db.commit()
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-    except VerifyFailed as e:
+    except VerifyFailedError as e:
         await LoginLogService.record_failed_login(
             db=db,
             request=request,
@@ -171,7 +168,9 @@ async def verify_session(
                 )
                 error_response["reissued"] = True
             except Exception:
-                pass  # 忽略重发邮件失败的错误
+                log("Verification").exception(
+                    f"Failed to resend verification email to user {current_user.id} (token: {token_id})"
+                )
 
         return JSONResponse(status_code=status.HTTP_401_UNAUTHORIZED, content=error_response)
 

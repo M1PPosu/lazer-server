@@ -113,6 +113,7 @@ class BeatmapCacheService:
                     if size:
                         total_size += size
                 except Exception:
+                    logger.debug(f"Failed to get size for key {key}")
                     continue
 
             return {

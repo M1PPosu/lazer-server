@@ -110,9 +110,7 @@ class ProcessingBeatmapset:
         changed_beatmaps = []
         for bm in self.beatmapset.beatmaps:
             saved = next((s for s in self.record.beatmaps if s["beatmap_id"] == bm.id), None)
-            if not saved:
-                changed_beatmaps.append(ChangedBeatmap(bm.id, BeatmapChangeType.MAP_ADDED))
-            elif saved["is_deleted"]:
+            if not saved or saved["is_deleted"]:
                 changed_beatmaps.append(ChangedBeatmap(bm.id, BeatmapChangeType.MAP_ADDED))
             elif saved["md5"] != bm.checksum:
                 changed_beatmaps.append(ChangedBeatmap(bm.id, BeatmapChangeType.MAP_UPDATED))
@@ -285,7 +283,7 @@ class BeatmapsetUpdateService:
     async def _process_changed_beatmapset(self, beatmapset: BeatmapsetResp):
         async with with_db() as session:
             db_beatmapset = await session.get(Beatmapset, beatmapset.id)
-            new_beatmapset = await Beatmapset.from_resp_no_save(session, beatmapset)
+            new_beatmapset = await Beatmapset.from_resp_no_save(beatmapset)
             if db_beatmapset:
                 await session.merge(new_beatmapset)
             await session.commit()
@@ -356,5 +354,7 @@ def init_beatmapset_update_service(fetcher: "Fetcher") -> BeatmapsetUpdateServic
 
 
 def get_beatmapset_update_service() -> BeatmapsetUpdateService:
+    if service is None:
+        raise ValueError("BeatmapsetUpdateService is not initialized")
     assert service is not None, "BeatmapsetUpdateService is not initialized"
     return service
