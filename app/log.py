@@ -200,7 +200,9 @@ def dynamic_format(record):
         real_name = record["extra"].get("real_name", "") or record["name"]
         name = f"<fg #FFC1C1>{real_name}</fg #FFC1C1>"
 
-    return f"<green>{{time:YYYY-MM-DD HH:mm:ss}}</green> [<level>{{level}}</level>] | {name} | {{message}}\n"
+    return (
+        f"<green>{{time:YYYY-MM-DD HH:mm:ss}}</green> [<level>{{level}}</level>] | {name} | {{message}}{{exception}}\n"
+    )
 
 
 logger.remove()

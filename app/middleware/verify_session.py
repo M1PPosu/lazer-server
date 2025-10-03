@@ -57,38 +57,32 @@ class VerifySessionMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """中间件主处理逻辑"""
-        try:
-            # 检查是否跳过验证
-            if self._should_skip_verification(request):
-                return await call_next(request)
-
-            # 获取当前用户
-            user = await self._get_current_user(request)
-            if not user:
-                # 未登录用户跳过验证
-                return await call_next(request)
-
-            # 获取会话状态
-            session_state = await self._get_session_state(request, user)
-            if not session_state:
-                # 无会话状态，继续请求
-                return await call_next(request)
-
-            # 检查是否已验证
-            if session_state.is_verified():
-                return await call_next(request)
-
-            # 检查是否需要验证
-            if not self._requires_verification(request, user):
-                return await call_next(request)
-
-            # 启动验证流程
-            return await self._initiate_verification(request, session_state)
-
-        except Exception as e:
-            logger.error(f"Error: {e}")
-            # 出错时允许请求继续，避免阻塞
+        # 检查是否跳过验证
+        if self._should_skip_verification(request):
             return await call_next(request)
+
+        # 获取当前用户
+        user = await self._get_current_user(request)
+        if not user:
+            # 未登录用户跳过验证
+            return await call_next(request)
+
+        # 获取会话状态
+        session_state = await self._get_session_state(request, user)
+        if not session_state:
+            # 无会话状态，继续请求
+            return await call_next(request)
+
+        # 检查是否已验证
+        if session_state.is_verified():
+            return await call_next(request)
+
+        # 检查是否需要验证
+        if not self._requires_verification(request, user):
+            return await call_next(request)
+
+        # 启动验证流程
+        return await self._initiate_verification(request, session_state)
 
     def _should_skip_verification(self, request: Request) -> bool:
         """检查是否应该跳过验证"""
