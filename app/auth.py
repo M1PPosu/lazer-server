@@ -217,10 +217,12 @@ async def store_token(
     access_token: str,
     refresh_token: str,
     expires_in: int,
+    refresh_token_expires_in: int,
     allow_multiple_devices: bool = True,
 ) -> OAuthToken:
     """存储令牌到数据库（支持多设备）"""
     expires_at = utcnow() + timedelta(seconds=expires_in)
+    refresh_token_expires_at = utcnow() + timedelta(seconds=refresh_token_expires_in)
 
     if not allow_multiple_devices:
         # 旧的行为：删除用户的旧令牌（单设备模式）
@@ -266,6 +268,7 @@ async def store_token(
         scope=",".join(scopes),
         refresh_token=refresh_token,
         expires_at=expires_at,
+        refresh_token_expires_at=refresh_token_expires_at,
     )
     db.add(token_record)
     await db.commit()
@@ -290,7 +293,7 @@ async def get_token_by_refresh_token(db: AsyncSession, refresh_token: str) -> OA
     """根据刷新令牌获取令牌记录"""
     statement = select(OAuthToken).where(
         OAuthToken.refresh_token == refresh_token,
-        OAuthToken.expires_at > utcnow(),
+        OAuthToken.refresh_token_expires_at > utcnow(),
     )
     return (await db.exec(statement)).first()
 

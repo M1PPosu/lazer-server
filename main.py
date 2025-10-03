@@ -25,10 +25,6 @@ from app.router import (
 from app.router.redirect import redirect_router
 from app.router.v1 import api_v1_public_router
 from app.scheduler.cache_scheduler import start_cache_scheduler, stop_cache_scheduler
-from app.scheduler.database_cleanup_scheduler import (
-    start_database_cleanup_scheduler,
-    stop_database_cleanup_scheduler,
-)
 from app.service.beatmap_download_service import download_service
 from app.service.beatmapset_update_service import init_beatmapset_update_service
 from app.service.calculate_all_user_rank import calculate_user_rank
@@ -68,7 +64,6 @@ async def lifespan(app: FastAPI):
     await start_email_processor()  # 启动邮件队列处理器
     await download_service.start_health_check()  # 启动下载服务健康检查
     await start_cache_scheduler()  # 启动缓存调度器
-    await start_database_cleanup_scheduler()  # 启动数据库清理调度器
     init_beatmapset_update_service(fetcher)  # 初始化谱面集更新服务
     redis_message_system.start()  # 启动 Redis 消息系统
     load_achievements()
@@ -83,7 +78,6 @@ async def lifespan(app: FastAPI):
     stop_scheduler()
     redis_message_system.stop()  # 停止 Redis 消息系统
     await stop_cache_scheduler()  # 停止缓存调度器
-    await stop_database_cleanup_scheduler()  # 停止数据库清理调度器
     await download_service.stop_health_check()  # 停止下载服务健康检查
     await stop_email_processor()  # 停止邮件队列处理器
     await engine.dispose()

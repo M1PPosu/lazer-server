@@ -170,6 +170,11 @@ STORAGE_SETTINGS='{
         Field(default=1440, description="访问令牌过期时间（分钟）"),
         "JWT 设置",
     ]
+    refresh_token_expire_minutes: Annotated[
+        int,
+        Field(default=21600, description="刷新令牌过期时间（分钟）"),
+        "JWT 设置",
+    ]  # 15 days
     jwt_audience: Annotated[
         str,
         Field(default="5", description="JWT 受众"),
@@ -347,11 +352,6 @@ STORAGE_SETTINGS='{
     device_trust_duration_days: Annotated[
         int,
         Field(default=30, description="设备信任持续天数"),
-        "验证服务设置",
-    ]
-    location_trust_duration_days: Annotated[
-        int,
-        Field(default=90, description="位置信任持续天数"),
         "验证服务设置",
     ]
     smtp_server: Annotated[
