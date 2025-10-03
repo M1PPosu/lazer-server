@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import asyncio
-from typing import overload
+from typing import Annotated, overload
 
 from app.database.chat import ChannelType, ChatChannel, ChatChannelResp, ChatMessageResp
 from app.database.notification import UserNotification, insert_notification
 from app.database.user import User
 from app.dependencies.database import (
     DBFactory,
+    Redis,
     get_db_factory,
     get_redis,
     with_db,
@@ -22,7 +23,6 @@ from app.utils import bg_tasks
 from fastapi import APIRouter, Depends, Header, Query, WebSocket, WebSocketDisconnect
 from fastapi.security import SecurityScopes
 from fastapi.websockets import WebSocketState
-from redis.asyncio import Redis
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -298,10 +298,10 @@ async def _listen_stop(ws: WebSocket, user_id: int, factory: DBFactory):
 @chat_router.websocket("/notification-server")
 async def chat_websocket(
     websocket: WebSocket,
-    token: str | None = Query(None, description="认证令牌，支持通过URL参数传递"),
-    access_token: str | None = Query(None, description="访问令牌，支持通过URL参数传递"),
-    authorization: str | None = Header(None, description="Bearer认证头"),
-    factory: DBFactory = Depends(get_db_factory),
+    factory: Annotated[DBFactory, Depends(get_db_factory)],
+    token: Annotated[str | None, Query(description="认证令牌，支持通过URL参数传递")] = None,
+    access_token: Annotated[str | None, Query(description="访问令牌，支持通过URL参数传递")] = None,
+    authorization: Annotated[str | None, Header(description="Bearer认证头")] = None,
 ):
     if not server._subscribed:
         server._subscribed = True

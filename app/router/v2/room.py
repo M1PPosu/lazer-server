@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC
-from typing import Literal
+from typing import Annotated, Literal
 
 from app.database.beatmap import Beatmap, BeatmapResp
 from app.database.beatmapset import BeatmapsetResp
@@ -12,8 +12,8 @@ from app.database.room import APIUploadedRoom, Room, RoomResp
 from app.database.room_participated_user import RoomParticipatedUser
 from app.database.score import Score
 from app.database.user import User, UserResp
-from app.dependencies.database import Database, get_redis
-from app.dependencies.user import get_client_user, get_current_user
+from app.dependencies.database import Database, Redis
+from app.dependencies.user import ClientUser, get_current_user
 from app.models.room import RoomCategory, RoomStatus
 from app.service.room import create_playlist_room_from_api
 from app.signalr.hub import MultiplayerHubs
@@ -21,9 +21,8 @@ from app.utils import utcnow
 
 from .router import router
 
-from fastapi import Depends, HTTPException, Path, Query, Security
+from fastapi import HTTPException, Path, Query, Security
 from pydantic import BaseModel, Field
-from redis.asyncio import Redis
 from sqlalchemy.sql.elements import ColumnElement
 from sqlmodel import col, exists, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -38,16 +37,20 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 )
 async def get_all_rooms(
     db: Database,
-    mode: Literal["open", "ended", "participated", "owned"] | None = Query(
-        default="open",
-        description=("房间模式：open 当前开放 / ended 已经结束 / participated 参与过 / owned 自己创建的房间"),
-    ),
-    category: RoomCategory = Query(
-        RoomCategory.NORMAL,
-        description=("房间分类：NORMAL 普通歌单模式房间 / REALTIME 多人游戏房间 / DAILY_CHALLENGE 每日挑战"),
-    ),
-    status: RoomStatus | None = Query(None, description="房间状态（可选）"),
-    current_user: User = Security(get_current_user, scopes=["public"]),
+    current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
+    mode: Annotated[
+        Literal["open", "ended", "participated", "owned"] | None,
+        Query(
+            description=("房间模式：open 当前开放 / ended 已经结束 / participated 参与过 / owned 自己创建的房间"),
+        ),
+    ] = "open",
+    category: Annotated[
+        RoomCategory,
+        Query(
+            description=("房间分类：NORMAL 普通歌单模式房间 / REALTIME 多人游戏房间 / DAILY_CHALLENGE 每日挑战"),
+        ),
+    ] = RoomCategory.NORMAL,
+    status: Annotated[RoomStatus | None, Query(description="房间状态（可选）")] = None,
 ):
     resp_list: list[RoomResp] = []
     where_clauses: list[ColumnElement[bool]] = [col(Room.category) == category]
@@ -140,8 +143,8 @@ async def _participate_room(room_id: int, user_id: int, db_room: Room, session: 
 async def create_room(
     db: Database,
     room: APIUploadedRoom,
-    current_user: User = Security(get_client_user),
-    redis: Redis = Depends(get_redis),
+    current_user: ClientUser,
+    redis: Redis,
 ):
     user_id = current_user.id
     db_room = await create_playlist_room_from_api(db, room, user_id)
@@ -162,13 +165,15 @@ async def create_room(
 )
 async def get_room(
     db: Database,
-    room_id: int = Path(..., description="房间 ID"),
-    category: str = Query(
-        default="",
-        description=("房间分类：NORMAL 普通歌单模式房间 / REALTIME 多人游戏房间 / DAILY_CHALLENGE 每日挑战 (可选)"),
-    ),
-    current_user: User = Security(get_current_user, scopes=["public"]),
-    redis: Redis = Depends(get_redis),
+    room_id: Annotated[int, Path(..., description="房间 ID")],
+    current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
+    redis: Redis,
+    category: Annotated[
+        str,
+        Query(
+            description=("房间分类：NORMAL 普通歌单模式房间 / REALTIME 多人游戏房间 / DAILY_CHALLENGE 每日挑战 (可选)"),
+        ),
+    ] = "",
 ):
     db_room = (await db.exec(select(Room).where(Room.id == room_id))).first()
     if db_room is None:
@@ -185,8 +190,8 @@ async def get_room(
 )
 async def delete_room(
     db: Database,
-    room_id: int = Path(..., description="房间 ID"),
-    current_user: User = Security(get_client_user),
+    room_id: Annotated[int, Path(..., description="房间 ID")],
+    current_user: ClientUser,
 ):
     db_room = (await db.exec(select(Room).where(Room.id == room_id))).first()
     if db_room is None:
@@ -205,10 +210,10 @@ async def delete_room(
 )
 async def add_user_to_room(
     db: Database,
-    room_id: int = Path(..., description="房间 ID"),
-    user_id: int = Path(..., description="用户 ID"),
-    redis: Redis = Depends(get_redis),
-    current_user: User = Security(get_client_user),
+    room_id: Annotated[int, Path(..., description="房间 ID")],
+    user_id: Annotated[int, Path(..., description="用户 ID")],
+    redis: Redis,
+    current_user: ClientUser,
 ):
     db_room = (await db.exec(select(Room).where(Room.id == room_id))).first()
     if db_room is not None:
@@ -229,10 +234,10 @@ async def add_user_to_room(
 )
 async def remove_user_from_room(
     db: Database,
-    room_id: int = Path(..., description="房间 ID"),
-    user_id: int = Path(..., description="用户 ID"),
-    current_user: User = Security(get_client_user),
-    redis: Redis = Depends(get_redis),
+    room_id: Annotated[int, Path(..., description="房间 ID")],
+    user_id: Annotated[int, Path(..., description="用户 ID")],
+    current_user: ClientUser,
+    redis: Redis,
 ):
     db_room = (await db.exec(select(Room).where(Room.id == room_id))).first()
     if db_room is not None:
@@ -273,8 +278,8 @@ class APILeaderboard(BaseModel):
 )
 async def get_room_leaderboard(
     db: Database,
-    room_id: int = Path(..., description="房间 ID"),
-    current_user: User = Security(get_current_user, scopes=["public"]),
+    room_id: Annotated[int, Path(..., description="房间 ID")],
+    current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
 ):
     db_room = (await db.exec(select(Room).where(Room.id == room_id))).first()
     if db_room is None:
@@ -329,11 +334,11 @@ class RoomEvents(BaseModel):
 )
 async def get_room_events(
     db: Database,
-    room_id: int = Path(..., description="房间 ID"),
-    current_user: User = Security(get_current_user, scopes=["public"]),
-    limit: int = Query(100, ge=1, le=1000, description="返回条数 (1-1000)"),
-    after: int | None = Query(None, ge=0, description="仅包含大于该事件 ID 的事件"),
-    before: int | None = Query(None, ge=0, description="仅包含小于该事件 ID 的事件"),
+    room_id: Annotated[int, Path(..., description="房间 ID")],
+    current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
+    limit: Annotated[int, Query(ge=1, le=1000, description="返回条数 (1-1000)")] = 100,
+    after: Annotated[int | None, Query(ge=0, description="仅包含大于该事件 ID 的事件")] = None,
+    before: Annotated[int | None, Query(ge=0, description="仅包含小于该事件 ID 的事件")] = None,
 ):
     events = (
         await db.exec(

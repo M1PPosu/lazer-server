@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from typing import Literal
+from typing import Annotated, Literal
 
 from app.config import settings
 from app.const import BANCHOBOT_ID
@@ -51,9 +51,12 @@ async def get_users(
     session: Database,
     request: Request,
     background_task: BackgroundTasks,
-    user_ids: list[int] = Query(default_factory=list, alias="ids[]", description="要查询的用户 ID 列表"),
+    user_ids: Annotated[list[int], Query(default_factory=list, alias="ids[]", description="要查询的用户 ID 列表")],
     # current_user: User = Security(get_current_user, scopes=["public"]),
-    include_variant_statistics: bool = Query(default=False, description="是否包含各模式的统计信息"),  # TODO: future use
+    include_variant_statistics: Annotated[
+        bool,
+        Query(description="是否包含各模式的统计信息"),
+    ] = False,  # TODO: future use
 ):
     redis = get_redis()
     cache_service = get_user_cache_service(redis)
@@ -119,9 +122,9 @@ async def get_users(
 )
 async def get_user_events(
     session: Database,
-    user_id: int = Path(description="用户 ID"),
-    limit: int | None = Query(None, description="限制返回的活动数量"),
-    offset: int | None = Query(None, description="活动日志的偏移量"),
+    user_id: Annotated[int, Path(description="用户 ID")],
+    limit: Annotated[int | None, Query(description="限制返回的活动数量")] = None,
+    offset: Annotated[int | None, Query(description="活动日志的偏移量")] = None,
 ):
     db_user = await session.get(User, user_id)
     if db_user is None or db_user.id == BANCHOBOT_ID:
@@ -147,9 +150,9 @@ async def get_user_events(
 )
 async def get_user_kudosu(
     session: Database,
-    user_id: int = Path(description="用户 ID"),
-    offset: int = Query(default=0, description="偏移量"),
-    limit: int = Query(default=6, description="返回记录数量限制"),
+    user_id: Annotated[int, Path(description="用户 ID")],
+    offset: Annotated[int, Query(description="偏移量")] = 0,
+    limit: Annotated[int, Query(description="返回记录数量限制")] = 6,
 ):
     """
     获取用户的 kudosu 记录
@@ -176,8 +179,8 @@ async def get_user_kudosu(
 async def get_user_info_ruleset(
     session: Database,
     background_task: BackgroundTasks,
-    user_id: str = Path(description="用户 ID 或用户名"),
-    ruleset: GameMode | None = Path(description="指定 ruleset"),
+    user_id: Annotated[str, Path(description="用户 ID 或用户名")],
+    ruleset: Annotated[GameMode | None, Path(description="指定 ruleset")],
     # current_user: User = Security(get_current_user, scopes=["public"]),
 ):
     redis = get_redis()
@@ -225,7 +228,7 @@ async def get_user_info(
     background_task: BackgroundTasks,
     session: Database,
     request: Request,
-    user_id: str = Path(description="用户 ID 或用户名"),
+    user_id: Annotated[str, Path(description="用户 ID 或用户名")],
     # current_user: User = Security(get_current_user, scopes=["public"]),
 ):
     redis = get_redis()
@@ -274,11 +277,11 @@ async def get_user_info(
 async def get_user_beatmapsets(
     session: Database,
     background_task: BackgroundTasks,
-    user_id: int = Path(description="用户 ID"),
-    type: BeatmapsetType = Path(description="谱面集类型"),
-    current_user: User = Security(get_current_user, scopes=["public"]),
-    limit: int = Query(100, ge=1, le=1000, description="返回条数 (1-1000)"),
-    offset: int = Query(0, ge=0, description="偏移量"),
+    user_id: Annotated[int, Path(description="用户 ID")],
+    type: Annotated[BeatmapsetType, Path(description="谱面集类型")],
+    current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
+    limit: Annotated[int, Query(ge=1, le=1000, description="返回条数 (1-1000)")] = 100,
+    offset: Annotated[int, Query(ge=0, description="偏移量")] = 0,
 ):
     redis = get_redis()
     cache_service = get_user_cache_service(redis)
@@ -356,16 +359,17 @@ async def get_user_scores(
     session: Database,
     api_version: APIVersion,
     background_task: BackgroundTasks,
-    user_id: int = Path(description="用户 ID"),
-    type: Literal["best", "recent", "firsts", "pinned"] = Path(
-        description=("成绩类型: best 最好成绩 / recent 最近 24h 游玩成绩 / firsts 第一名成绩 / pinned 置顶成绩")
-    ),
-    legacy_only: bool = Query(False, description="是否只查询 Stable 成绩"),
-    include_fails: bool = Query(False, description="是否包含失败的成绩"),
-    mode: GameMode | None = Query(None, description="指定 ruleset (可选，默认为用户主模式)"),
-    limit: int = Query(100, ge=1, le=1000, description="返回条数 (1-1000)"),
-    offset: int = Query(0, ge=0, description="偏移量"),
-    current_user: User = Security(get_current_user, scopes=["public"]),
+    user_id: Annotated[int, Path(description="用户 ID")],
+    type: Annotated[
+        Literal["best", "recent", "firsts", "pinned"],
+        Path(description=("成绩类型: best 最好成绩 / recent 最近 24h 游玩成绩 / firsts 第一名成绩 / pinned 置顶成绩")),
+    ],
+    current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
+    legacy_only: Annotated[bool, Query(description="是否只查询 Stable 成绩")] = False,
+    include_fails: Annotated[bool, Query(description="是否包含失败的成绩")] = False,
+    mode: Annotated[GameMode | None, Query(description="指定 ruleset (可选，默认为用户主模式)")] = None,
+    limit: Annotated[int, Query(ge=1, le=1000, description="返回条数 (1-1000)")] = 100,
+    offset: Annotated[int, Query(ge=0, description="偏移量")] = 0,
 ):
     is_legacy_api = api_version < 20220705
     redis = get_redis()

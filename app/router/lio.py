@@ -11,21 +11,18 @@ from app.database.playlists import Playlist as DBPlaylist
 from app.database.room import Room
 from app.database.room_participated_user import RoomParticipatedUser
 from app.database.user import User
-from app.dependencies.database import Database, get_redis
-from app.dependencies.fetcher import get_fetcher
-from app.dependencies.storage import get_storage_service
-from app.fetcher import Fetcher
+from app.dependencies.database import Database, Redis
+from app.dependencies.fetcher import Fetcher
+from app.dependencies.storage import StorageService
 from app.log import logger
 from app.models.multiplayer_hub import PlaylistItem as HubPlaylistItem
 from app.models.room import MatchType, QueueMode, RoomCategory, RoomStatus
-from app.storage.base import StorageService
 from app.utils import utcnow
 
 from .notification.server import server
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel
-from redis.asyncio import Redis
 from sqlalchemy import update
 from sqlmodel import col, select
 
@@ -637,8 +634,8 @@ async def add_user_to_room(
 async def ensure_beatmap_present(
     beatmap_data: BeatmapEnsureRequest,
     db: Database,
-    redis: Redis = Depends(get_redis),
-    fetcher: Fetcher = Depends(get_fetcher),
+    redis: Redis,
+    fetcher: Fetcher,
 ) -> dict[str, Any]:
     """
     确保谱面在服务器中存在（包括元数据和原始文件缓存）。
@@ -677,7 +674,7 @@ class ReplayDataRequest(BaseModel):
 @router.post("/scores/replay")
 async def save_replay(
     req: ReplayDataRequest,
-    storage_service: StorageService = Depends(get_storage_service),
+    storage_service: StorageService,
 ):
     replay_data = req.mreplay
     replay_path = f"replays/{req.score_id}_{req.beatmap_id}_{req.user_id}_lazer_replay.osr"

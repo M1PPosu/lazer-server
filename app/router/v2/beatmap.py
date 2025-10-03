@@ -3,13 +3,13 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+from typing import Annotated
 
 from app.database import Beatmap, BeatmapResp, User
 from app.database.beatmap import calculate_beatmap_attributes
-from app.dependencies.database import Database, get_redis
-from app.dependencies.fetcher import get_fetcher
+from app.dependencies.database import Database, Redis
+from app.dependencies.fetcher import Fetcher
 from app.dependencies.user import get_current_user
-from app.fetcher import Fetcher
 from app.models.beatmap import BeatmapAttributes
 from app.models.mods import APIMod, int_to_mods
 from app.models.score import (
@@ -18,10 +18,9 @@ from app.models.score import (
 
 from .router import router
 
-from fastapi import Depends, HTTPException, Path, Query, Security
+from fastapi import HTTPException, Path, Query, Security
 from httpx import HTTPError, HTTPStatusError
 from pydantic import BaseModel
-from redis.asyncio import Redis
 import rosu_pp_py as rosu
 from sqlmodel import col, select
 
@@ -44,11 +43,11 @@ class BatchGetResp(BaseModel):
 )
 async def lookup_beatmap(
     db: Database,
-    id: int | None = Query(default=None, alias="id", description="谱面 ID"),
-    md5: str | None = Query(default=None, alias="checksum", description="谱面文件 MD5"),
-    filename: str | None = Query(default=None, alias="filename", description="谱面文件名"),
-    current_user: User = Security(get_current_user, scopes=["public"]),
-    fetcher: Fetcher = Depends(get_fetcher),
+    current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
+    fetcher: Fetcher,
+    id: Annotated[int | None, Query(alias="id", description="谱面 ID")] = None,
+    md5: Annotated[str | None, Query(alias="checksum", description="谱面文件 MD5")] = None,
+    filename: Annotated[str | None, Query(alias="filename", description="谱面文件名")] = None,
 ):
     if id is None and md5 is None and filename is None:
         raise HTTPException(
@@ -75,9 +74,9 @@ async def lookup_beatmap(
 )
 async def get_beatmap(
     db: Database,
-    beatmap_id: int = Path(..., description="谱面 ID"),
-    current_user: User = Security(get_current_user, scopes=["public"]),
-    fetcher: Fetcher = Depends(get_fetcher),
+    beatmap_id: Annotated[int, Path(..., description="谱面 ID")],
+    current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
+    fetcher: Fetcher,
 ):
     try:
         beatmap = await Beatmap.get_or_fetch(db, fetcher, beatmap_id)
@@ -95,9 +94,12 @@ async def get_beatmap(
 )
 async def batch_get_beatmaps(
     db: Database,
-    beatmap_ids: list[int] = Query(alias="ids[]", default_factory=list, description="谱面 ID 列表 （最多 50 个）"),
-    current_user: User = Security(get_current_user, scopes=["public"]),
-    fetcher: Fetcher = Depends(get_fetcher),
+    beatmap_ids: Annotated[
+        list[int],
+        Query(alias="ids[]", default_factory=list, description="谱面 ID 列表 （最多 50 个）"),
+    ],
+    current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
+    fetcher: Fetcher,
 ):
     if not beatmap_ids:
         beatmaps = (await db.exec(select(Beatmap).order_by(col(Beatmap.last_updated).desc()).limit(50))).all()
@@ -127,16 +129,19 @@ async def batch_get_beatmaps(
 )
 async def get_beatmap_attributes(
     db: Database,
-    beatmap_id: int = Path(..., description="谱面 ID"),
-    current_user: User = Security(get_current_user, scopes=["public"]),
-    mods: list[str] = Query(
-        default_factory=list,
-        description="Mods 列表；可为整型位掩码(单元素)或 JSON/简称",
-    ),
-    ruleset: GameMode | None = Query(default=None, description="指定 ruleset；为空则使用谱面自身模式"),
-    ruleset_id: int | None = Query(default=None, description="以数字指定 ruleset （与 ruleset 二选一）", ge=0, le=3),
-    redis: Redis = Depends(get_redis),
-    fetcher: Fetcher = Depends(get_fetcher),
+    beatmap_id: Annotated[int, Path(..., description="谱面 ID")],
+    current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
+    mods: Annotated[
+        list[str],
+        Query(
+            default_factory=list,
+            description="Mods 列表；可为整型位掩码(单元素)或 JSON/简称",
+        ),
+    ],
+    redis: Redis,
+    fetcher: Fetcher,
+    ruleset: Annotated[GameMode | None, Query(description="指定 ruleset；为空则使用谱面自身模式")] = None,
+    ruleset_id: Annotated[int | None, Query(description="以数字指定 ruleset （与 ruleset 二选一）", ge=0, le=3)] = None,
 ):
     mods_ = []
     if mods and mods[0].isdigit():

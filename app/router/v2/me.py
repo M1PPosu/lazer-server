@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from typing import Annotated
+
 from app.database import MeResp, User
-from app.dependencies import get_current_user
 from app.dependencies.database import Database
-from app.dependencies.user import UserAndToken, get_current_user_and_token
+from app.dependencies.user import UserAndToken, get_current_user, get_current_user_and_token
 from app.exceptions.userpage import UserpageError
 from app.models.score import GameMode
 from app.models.user import Page
@@ -29,8 +30,8 @@ from fastapi import HTTPException, Path, Security
 )
 async def get_user_info_with_ruleset(
     session: Database,
-    ruleset: GameMode = Path(description="指定 ruleset"),
-    user_and_token: UserAndToken = Security(get_current_user_and_token, scopes=["identify"]),
+    ruleset: Annotated[GameMode, Path(description="指定 ruleset")],
+    user_and_token: Annotated[UserAndToken, Security(get_current_user_and_token, scopes=["identify"])],
 ):
     user_resp = await MeResp.from_db(user_and_token[0], session, ruleset, token_id=user_and_token[1].id)
     return user_resp
@@ -45,7 +46,7 @@ async def get_user_info_with_ruleset(
 )
 async def get_user_info_default(
     session: Database,
-    user_and_token: UserAndToken = Security(get_current_user_and_token, scopes=["identify"]),
+    user_and_token: Annotated[UserAndToken, Security(get_current_user_and_token, scopes=["identify"])],
 ):
     user_resp = await MeResp.from_db(user_and_token[0], session, None, token_id=user_and_token[1].id)
     return user_resp
@@ -85,8 +86,8 @@ async def get_user_info_default(
 async def update_userpage(
     request: UpdateUserpageRequest,
     session: Database,
-    user_id: int = Path(description="用户ID"),
-    current_user: User = Security(get_current_user, scopes=["edit"]),
+    user_id: Annotated[int, Path(description="用户ID")],
+    current_user: Annotated[User, Security(get_current_user, scopes=["edit"])],
 ):
     """更新用户页面内容（匹配官方osu-web实现）"""
     # 检查权限：只能编辑自己的页面（除非是管理员）

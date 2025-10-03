@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from typing import Annotated
+
 from app.database import Relationship, RelationshipResp, RelationshipType, User
 from app.database.user import UserResp
 from app.dependencies.api_version import APIVersion
 from app.dependencies.database import Database
-from app.dependencies.user import get_client_user, get_current_user
+from app.dependencies.user import ClientUser, get_current_user
 
 from .router import router
 
@@ -56,7 +58,7 @@ async def get_relationship(
     db: Database,
     request: Request,
     api_version: APIVersion,
-    current_user: User = Security(get_current_user, scopes=["friends.read"]),
+    current_user: Annotated[User, Security(get_current_user, scopes=["friends.read"])],
 ):
     relationship_type = RelationshipType.FOLLOW if request.url.path.endswith("/friends") else RelationshipType.BLOCK
     relationships = await db.exec(
@@ -107,8 +109,8 @@ class AddFriendResp(BaseModel):
 async def add_relationship(
     db: Database,
     request: Request,
-    target: int = Query(description="目标用户 ID"),
-    current_user: User = Security(get_client_user),
+    target: Annotated[int, Query(description="目标用户 ID")],
+    current_user: ClientUser,
 ):
     if not (await db.exec(select(exists()).where(User.id == target))).first():
         raise HTTPException(404, "Target user not found")
@@ -176,8 +178,8 @@ async def add_relationship(
 async def delete_relationship(
     db: Database,
     request: Request,
-    target: int = Path(..., description="目标用户 ID"),
-    current_user: User = Security(get_client_user),
+    target: Annotated[int, Path(..., description="目标用户 ID")],
+    current_user: ClientUser,
 ):
     if not (await db.exec(select(exists()).where(User.id == target))).first():
         raise HTTPException(404, "Target user not found")

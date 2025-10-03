@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from app.database.statistics import UserStatistics
 from app.database.user import User
@@ -181,9 +181,9 @@ async def _count_online_users_optimized(redis):
 )
 async def api_get_player_info(
     session: Database,
-    scope: Literal["stats", "events", "info", "all"] = Query(..., description="信息范围"),
-    id: int | None = Query(None, ge=3, le=2147483647, description="用户 ID"),
-    name: str | None = Query(None, regex=r"^[\w \[\]-]{2,32}$", description="用户名"),
+    scope: Annotated[Literal["stats", "events", "info", "all"], Query(..., description="信息范围")],
+    id: Annotated[int | None, Query(ge=3, le=2147483647, description="用户 ID")] = None,
+    name: Annotated[str | None, Query(regex=r"^[\w \[\]-]{2,32}$", description="用户名")] = None,
 ):
     """
     获取指定玩家的信息

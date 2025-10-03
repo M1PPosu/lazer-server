@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from app.config import settings
 from app.database import Team, TeamMember, User, UserStatistics, UserStatisticsResp
-from app.dependencies import get_current_user
 from app.dependencies.database import Database, get_redis
+from app.dependencies.user import get_current_user
 from app.models.score import GameMode
 from app.service.ranking_cache_service import get_ranking_cache_service
 
@@ -45,11 +45,11 @@ SortType = Literal["performance", "score"]
 async def get_team_ranking_pp(
     session: Database,
     background_tasks: BackgroundTasks,
-    ruleset: GameMode = Path(..., description="指定 ruleset"),
-    page: int = Query(1, ge=1, description="页码"),
-    current_user: User = Security(get_current_user, scopes=["public"]),
+    ruleset: Annotated[GameMode, Path(..., description="指定 ruleset")],
+    current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
+    page: Annotated[int, Query(ge=1, description="页码")] = 1,
 ):
-    return await get_team_ranking(session, background_tasks, "performance", ruleset, page, current_user)
+    return await get_team_ranking(session, background_tasks, "performance", ruleset, current_user, page)
 
 
 @router.get(
@@ -62,14 +62,17 @@ async def get_team_ranking_pp(
 async def get_team_ranking(
     session: Database,
     background_tasks: BackgroundTasks,
-    sort: SortType = Path(
-        ...,
-        description="排名类型：performance 表现分 / score 计分成绩总分 "
-        "**这个参数是本服务器额外添加的，不属于 v2 API 的一部分**",
-    ),
-    ruleset: GameMode = Path(..., description="指定 ruleset"),
-    page: int = Query(1, ge=1, description="页码"),
-    current_user: User = Security(get_current_user, scopes=["public"]),
+    sort: Annotated[
+        SortType,
+        Path(
+            ...,
+            description="排名类型：performance 表现分 / score 计分成绩总分 "
+            "**这个参数是本服务器额外添加的，不属于 v2 API 的一部分**",
+        ),
+    ],
+    ruleset: Annotated[GameMode, Path(..., description="指定 ruleset")],
+    current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
+    page: Annotated[int, Query(ge=1, description="页码")] = 1,
 ):
     # 获取 Redis 连接和缓存服务
     redis = get_redis()
@@ -193,11 +196,11 @@ class CountryResponse(BaseModel):
 async def get_country_ranking_pp(
     session: Database,
     background_tasks: BackgroundTasks,
-    ruleset: GameMode = Path(..., description="指定 ruleset"),
-    page: int = Query(1, ge=1, description="页码"),
-    current_user: User = Security(get_current_user, scopes=["public"]),
+    ruleset: Annotated[GameMode, Path(..., description="指定 ruleset")],
+    current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
+    page: Annotated[int, Query(ge=1, description="页码")] = 1,
 ):
-    return await get_country_ranking(session, background_tasks, ruleset, page, "performance", current_user)
+    return await get_country_ranking(session, background_tasks, ruleset, "performance", current_user, page)
 
 
 @router.get(
@@ -210,14 +213,17 @@ async def get_country_ranking_pp(
 async def get_country_ranking(
     session: Database,
     background_tasks: BackgroundTasks,
-    ruleset: GameMode = Path(..., description="指定 ruleset"),
-    page: int = Query(1, ge=1, description="页码"),
-    sort: SortType = Path(
-        ...,
-        description="排名类型：performance 表现分 / score 计分成绩总分 "
-        "**这个参数是本服务器额外添加的，不属于 v2 API 的一部分**",
-    ),
-    current_user: User = Security(get_current_user, scopes=["public"]),
+    ruleset: Annotated[GameMode, Path(..., description="指定 ruleset")],
+    sort: Annotated[
+        SortType,
+        Path(
+            ...,
+            description="排名类型：performance 表现分 / score 计分成绩总分 "
+            "**这个参数是本服务器额外添加的，不属于 v2 API 的一部分**",
+        ),
+    ],
+    current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
+    page: Annotated[int, Query(ge=1, description="页码")] = 1,
 ):
     # 获取 Redis 连接和缓存服务
     redis = get_redis()
@@ -317,11 +323,11 @@ class TopUsersResponse(BaseModel):
 async def get_user_ranking(
     session: Database,
     background_tasks: BackgroundTasks,
-    ruleset: GameMode = Path(..., description="指定 ruleset"),
-    sort: SortType = Path(..., description="排名类型：performance 表现分 / score 计分成绩总分"),
-    country: str | None = Query(None, description="国家代码"),
-    page: int = Query(1, ge=1, description="页码"),
-    current_user: User = Security(get_current_user, scopes=["public"]),
+    ruleset: Annotated[GameMode, Path(..., description="指定 ruleset")],
+    sort: Annotated[SortType, Path(..., description="排名类型：performance 表现分 / score 计分成绩总分")],
+    current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
+    country: Annotated[str | None, Query(description="国家代码")] = None,
+    page: Annotated[int, Query(ge=1, description="页码")] = 1,
 ):
     # 获取 Redis 连接和缓存服务
     redis = get_redis()

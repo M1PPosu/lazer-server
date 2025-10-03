@@ -91,6 +91,9 @@ def get_redis():
     return redis_client
 
 
+Redis = Annotated[redis.Redis, Depends(get_redis)]
+
+
 def get_redis_binary():
     """获取二进制数据专用的 Redis 客户端 (不自动解码响应)"""
     return redis_binary_client

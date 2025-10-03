@@ -1,17 +1,14 @@
 from __future__ import annotations
 
 from app.database.score import Score
-from app.database.user import User
-from app.dependencies.database import Database, get_redis
-from app.dependencies.storage import get_storage_service
-from app.dependencies.user import get_client_user
+from app.dependencies.database import Database, Redis
+from app.dependencies.storage import StorageService
+from app.dependencies.user import ClientUser
 from app.service.user_cache_service import refresh_user_cache_background
-from app.storage.base import StorageService
 
 from .router import router
 
-from fastapi import BackgroundTasks, Depends, HTTPException, Security
-from redis.asyncio import Redis
+from fastapi import BackgroundTasks, HTTPException
 
 
 @router.delete(
@@ -24,9 +21,9 @@ async def delete_score(
     session: Database,
     background_task: BackgroundTasks,
     score_id: int,
-    redis: Redis = Depends(get_redis),
-    current_user: User = Security(get_client_user),
-    storage_service: StorageService = Depends(get_storage_service),
+    redis: Redis,
+    current_user: ClientUser,
+    storage_service: StorageService,
 ):
     """删除成绩
 

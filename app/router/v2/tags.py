@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from typing import Annotated
+
 from app.database.beatmap import Beatmap
 from app.database.beatmap_tags import BeatmapTagVote
 from app.database.score import Score
 from app.database.user import User
-from app.dependencies.database import get_db
+from app.dependencies.database import Database
 from app.dependencies.user import get_client_user
 from app.models.score import Rank
 from app.models.tags import BeatmapTags, get_all_tags, get_tag_by_id
@@ -55,10 +57,10 @@ async def check_user_can_vote(user: User, beatmap_id: int, session: AsyncSession
     description="为指定谱面添加标签投票。",
 )
 async def vote_beatmap_tags(
-    beatmap_id: int = Path(..., description="谱面 ID"),
-    tag_id: int = Path(..., description="标签 ID"),
-    session: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_client_user),
+    beatmap_id: Annotated[int, Path(..., description="谱面 ID")],
+    tag_id: Annotated[int, Path(..., description="标签 ID")],
+    session: Database,
+    current_user: Annotated[User, Depends(get_client_user)],
 ):
     try:
         get_tag_by_id(tag_id)
@@ -90,10 +92,10 @@ async def vote_beatmap_tags(
     description="取消对指定谱面标签的投票。",
 )
 async def devote_beatmap_tags(
-    beatmap_id: int = Path(..., description="谱面 ID"),
-    tag_id: int = Path(..., description="标签 ID"),
-    session: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_client_user),
+    beatmap_id: Annotated[int, Path(..., description="谱面 ID")],
+    tag_id: Annotated[int, Path(..., description="标签 ID")],
+    session: Database,
+    current_user: Annotated[User, Depends(get_client_user)],
 ):
     """
     取消对谱面指定标签的投票。

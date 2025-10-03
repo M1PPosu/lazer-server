@@ -4,6 +4,7 @@ from typing import Annotated
 
 from app.auth import get_token_by_access_token
 from app.config import settings
+from app.const import SUPPORT_TOTP_VERIFICATION_VER
 from app.database import User
 from app.database.auth import OAuthToken, V1APIKeys
 from app.models.oauth import OAuth2ClientCredentialsBearer
@@ -11,7 +12,7 @@ from app.models.oauth import OAuth2ClientCredentialsBearer
 from .api_version import APIVersion
 from .database import Database, get_redis
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Security
 from fastapi.security import (
     APIKeyQuery,
     HTTPBearer,
@@ -112,13 +113,13 @@ async def get_client_user(
     if await LoginSessionService.check_is_need_verification(db, user.id, token.id):
         # 获取当前验证方式
         verify_method = None
-        if api_version >= 20250913:
+        if api_version >= SUPPORT_TOTP_VERIFICATION_VER:
             verify_method = await LoginSessionService.get_login_method(user.id, token.id, redis)
 
         if verify_method is None:
             # 智能选择验证方式（有TOTP优先TOTP）
             totp_key = await user.awaitable_attrs.totp_key
-            if totp_key is not None and api_version >= 20240101:
+            if totp_key is not None and api_version >= SUPPORT_TOTP_VERIFICATION_VER:
                 verify_method = "totp"
             else:
                 verify_method = "mail"
@@ -169,3 +170,6 @@ async def get_current_user(
     user_and_token: UserAndToken = Depends(get_current_user_and_token),
 ) -> User:
     return user_and_token[0]
+
+
+ClientUser = Annotated[User, Security(get_client_user, scopes=["*"])]

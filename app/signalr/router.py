@@ -7,9 +7,8 @@ from typing import Literal
 import uuid
 
 from app.database import User as DBUser
-from app.dependencies import get_current_user
 from app.dependencies.database import DBFactory, get_db_factory
-from app.dependencies.user import get_current_user_and_token
+from app.dependencies.user import get_current_user, get_current_user_and_token
 from app.log import logger
 from app.models.signalr import NegotiateResponse, Transport
 

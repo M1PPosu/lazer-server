@@ -5,14 +5,13 @@
 
 from __future__ import annotations
 
-from app.dependencies.database import get_redis
+from app.dependencies.database import Redis
 from app.service.user_cache_service import get_user_cache_service
 
 from .router import router
 
-from fastapi import Depends, HTTPException
+from fastapi import HTTPException
 from pydantic import BaseModel
-from redis.asyncio import Redis
 
 
 class CacheStatsResponse(BaseModel):
@@ -28,7 +27,7 @@ class CacheStatsResponse(BaseModel):
     tags=["缓存管理"],
 )
 async def get_cache_stats(
-    redis: Redis = Depends(get_redis),
+    redis: Redis,
     # current_user: User = Security(get_current_user, scopes=["admin"]),  # 暂时注释，可根据需要启用
 ):
     try:
@@ -68,7 +67,7 @@ async def get_cache_stats(
 )
 async def invalidate_user_cache(
     user_id: int,
-    redis: Redis = Depends(get_redis),
+    redis: Redis,
     # current_user: User = Security(get_current_user, scopes=["admin"]),  # 暂时注释
 ):
     try:
@@ -87,7 +86,7 @@ async def invalidate_user_cache(
     tags=["缓存管理"],
 )
 async def clear_all_user_cache(
-    redis: Redis = Depends(get_redis),
+    redis: Redis,
     # current_user: User = Security(get_current_user, scopes=["admin"]),  # 暂时注释
 ):
     try:
@@ -119,7 +118,7 @@ class CacheWarmupRequest(BaseModel):
 )
 async def warmup_cache(
     request: CacheWarmupRequest,
-    redis: Redis = Depends(get_redis),
+    redis: Redis,
     # current_user: User = Security(get_current_user, scopes=["admin"]),  # 暂时注释
 ):
     try:

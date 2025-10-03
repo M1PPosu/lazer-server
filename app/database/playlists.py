@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING
 
 from app.models.model import UTCBaseModel
 from app.models.mods import APIMod
-from app.models.multiplayer_hub import PlaylistItem
 
 from .beatmap import Beatmap, BeatmapResp
 
@@ -22,6 +21,8 @@ from sqlmodel import (
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 if TYPE_CHECKING:
+    from app.models.multiplayer_hub import PlaylistItem
+
     from .room import Room
 
 
@@ -72,7 +73,7 @@ class Playlist(PlaylistBase, table=True):
         return result.one()
 
     @classmethod
-    async def from_hub(cls, playlist: PlaylistItem, room_id: int, session: AsyncSession) -> "Playlist":
+    async def from_hub(cls, playlist: "PlaylistItem", room_id: int, session: AsyncSession) -> "Playlist":
         next_id = await cls.get_next_id_for_room(room_id, session=session)
         return cls(
             id=next_id,
@@ -89,7 +90,7 @@ class Playlist(PlaylistBase, table=True):
         )
 
     @classmethod
-    async def update(cls, playlist: PlaylistItem, room_id: int, session: AsyncSession):
+    async def update(cls, playlist: "PlaylistItem", room_id: int, session: AsyncSession):
         db_playlist = await session.exec(select(cls).where(cls.id == playlist.id, cls.room_id == room_id))
         db_playlist = db_playlist.first()
         if db_playlist is None:
@@ -106,7 +107,7 @@ class Playlist(PlaylistBase, table=True):
         await session.commit()
 
     @classmethod
-    async def add_to_db(cls, playlist: PlaylistItem, room_id: int, session: AsyncSession):
+    async def add_to_db(cls, playlist: "PlaylistItem", room_id: int, session: AsyncSession):
         db_playlist = await cls.from_hub(playlist, room_id, session)
         session.add(db_playlist)
         await session.commit()

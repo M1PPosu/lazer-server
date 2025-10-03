@@ -1,24 +1,26 @@
 from __future__ import annotations
 
+from typing import Annotated
+
 from app.auth import validate_username
 from app.config import settings
 from app.database.events import Event, EventType
 from app.database.user import User
 from app.dependencies.database import Database
-from app.dependencies.user import get_client_user
+from app.dependencies.user import ClientUser
 from app.utils import utcnow
 
 from .router import router
 
-from fastapi import Body, HTTPException, Security
+from fastapi import Body, HTTPException
 from sqlmodel import exists, select
 
 
 @router.post("/rename", name="修改用户名", tags=["用户", "g0v0 API"])
 async def user_rename(
     session: Database,
-    new_name: str = Body(..., description="新的用户名"),
-    current_user: User = Security(get_client_user),
+    new_name: Annotated[str, Body(..., description="新的用户名")],
+    current_user: ClientUser,
 ):
     """修改用户名
 

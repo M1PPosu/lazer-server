@@ -1,17 +1,18 @@
 from __future__ import annotations
 
+from typing import Annotated
+
 from app.database.beatmap import Beatmap
 from app.database.beatmapset import Beatmapset
 from app.database.beatmapset_ratings import BeatmapRating
 from app.database.score import Score
-from app.database.user import User
 from app.dependencies.database import Database
-from app.dependencies.user import get_client_user
+from app.dependencies.user import ClientUser
 from app.service.beatmapset_update_service import get_beatmapset_update_service
 
 from .router import router
 
-from fastapi import Body, Depends, HTTPException, Security
+from fastapi import Body, Depends, HTTPException
 from fastapi_limiter.depends import RateLimiter
 from sqlmodel import col, exists, select
 
@@ -25,7 +26,7 @@ from sqlmodel import col, exists, select
 async def can_rate_beatmapset(
     beatmapset_id: int,
     session: Database,
-    current_user: User = Security(get_client_user),
+    current_user: ClientUser,
 ):
     """检查用户是否可以评价谱面集
 
@@ -57,8 +58,8 @@ async def can_rate_beatmapset(
 async def rate_beatmaps(
     beatmapset_id: int,
     session: Database,
-    rating: int = Body(..., ge=0, le=10),
-    current_user: User = Security(get_client_user),
+    rating: Annotated[int, Body(..., ge=0, le=10)],
+    current_user: ClientUser,
 ):
     """为谱面集评分
 
@@ -96,7 +97,7 @@ async def rate_beatmaps(
 async def sync_beatmapset(
     beatmapset_id: int,
     session: Database,
-    current_user: User = Security(get_client_user),
+    current_user: ClientUser,
 ):
     """请求同步谱面集
 

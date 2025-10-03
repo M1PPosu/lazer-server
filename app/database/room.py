@@ -1,9 +1,9 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from app.database.item_attempts_count import PlaylistAggregateScore
 from app.database.room_participated_user import RoomParticipatedUser
 from app.models.model import UTCBaseModel
-from app.models.multiplayer_hub import ServerMultiplayerRoom
 from app.models.room import (
     MatchType,
     QueueMode,
@@ -31,6 +31,9 @@ from sqlmodel import (
     select,
 )
 from sqlmodel.ext.asyncio.session import AsyncSession
+
+if TYPE_CHECKING:
+    from app.models.multiplayer_hub import ServerMultiplayerRoom
 
 
 class RoomBase(SQLModel, UTCBaseModel):
@@ -161,7 +164,7 @@ class RoomResp(RoomBase):
         return resp
 
     @classmethod
-    async def from_hub(cls, server_room: ServerMultiplayerRoom) -> "RoomResp":
+    async def from_hub(cls, server_room: "ServerMultiplayerRoom") -> "RoomResp":
         room = server_room.room
         resp = cls(
             id=room.room_id,
