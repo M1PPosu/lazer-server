@@ -7,7 +7,7 @@ import json
 
 from app.database.beatmapset import BeatmapsetResp, SearchBeatmapsetsResp
 from app.helpers.rate_limiter import osu_api_rate_limiter
-from app.log import logger
+from app.log import fetcher_logger
 from app.models.beatmap import SearchQueryModel
 from app.models.model import Cursor
 from app.utils import bg_tasks
@@ -22,6 +22,9 @@ class RateLimitError(Exception):
     """速率限制异常"""
 
     pass
+
+
+logger = fetcher_logger("BeatmapsetFetcher")
 
 
 class BeatmapsetFetcher(BaseFetcher):
@@ -135,7 +138,7 @@ class BeatmapsetFetcher(BaseFetcher):
             return {}
 
     async def get_beatmapset(self, beatmap_set_id: int) -> BeatmapsetResp:
-        logger.opt(colors=True).debug(f"<blue>[BeatmapsetFetcher]</blue> get_beatmapset: <y>{beatmap_set_id}</y>")
+        logger.opt(colors=True).debug(f"get_beatmapset: <y>{beatmap_set_id}</y>")
 
         return BeatmapsetResp.model_validate(
             await self.request_api(f"https://osu.ppy.sh/api/v2/beatmapsets/{beatmap_set_id}")
@@ -144,7 +147,7 @@ class BeatmapsetFetcher(BaseFetcher):
     async def search_beatmapset(
         self, query: SearchQueryModel, cursor: Cursor, redis_client: redis.Redis
     ) -> SearchBeatmapsetsResp:
-        logger.opt(colors=True).debug(f"<blue>[BeatmapsetFetcher]</blue> search_beatmapset: <y>{query}</y>")
+        logger.opt(colors=True).debug(f"search_beatmapset: <y>{query}</y>")
 
         # 生成缓存键
         cache_key = self._generate_cache_key(query, cursor)
@@ -152,17 +155,15 @@ class BeatmapsetFetcher(BaseFetcher):
         # 尝试从缓存获取结果
         cached_result = await redis_client.get(cache_key)
         if cached_result:
-            logger.opt(colors=True).debug(f"<green>[BeatmapsetFetcher]</green> Cache hit for key: <y>{cache_key}</y>")
+            logger.opt(colors=True).debug(f"Cache hit for key: <y>{cache_key}</y>")
             try:
                 cached_data = json.loads(cached_result)
                 return SearchBeatmapsetsResp.model_validate(cached_data)
             except Exception as e:
-                logger.opt(colors=True).warning(
-                    f"<yellow>[BeatmapsetFetcher]</yellow> Cache data invalid, fetching from API: {e}"
-                )
+                logger.opt(colors=True).warning(f"Cache data invalid, fetching from API: {e}")
 
         # 缓存未命中，从 API 获取数据
-        logger.opt(colors=True).debug("<blue>[BeatmapsetFetcher]</blue> Cache miss, fetching from API")
+        logger.opt(colors=True).debug("Cache miss, fetching from API")
 
         params = query.model_dump(exclude_none=True, exclude_unset=True, exclude_defaults=True)
 
@@ -186,9 +187,7 @@ class BeatmapsetFetcher(BaseFetcher):
         cache_ttl = 15 * 60  # 15 分钟
         await redis_client.set(cache_key, json.dumps(api_response, separators=(",", ":")), ex=cache_ttl)
 
-        logger.opt(colors=True).debug(
-            f"<green>[BeatmapsetFetcher]</green> Cached result for key: <y>{cache_key}</y> (TTL: {cache_ttl}s)"
-        )
+        logger.opt(colors=True).debug(f"Cached result for key: <y>{cache_key}</y> (TTL: {cache_ttl}s)")
 
         resp = SearchBeatmapsetsResp.model_validate(api_response)
 
@@ -204,9 +203,7 @@ class BeatmapsetFetcher(BaseFetcher):
                 try:
                     await self.prefetch_next_pages(query, api_response["cursor"], redis_client, pages=1)
                 except RateLimitError:
-                    logger.opt(colors=True).info(
-                        "<yellow>[BeatmapsetFetcher]</yellow> Prefetch skipped due to rate limit"
-                    )
+                    logger.opt(colors=True).info("Prefetch skipped due to rate limit")
 
             bg_tasks.add_task(delayed_prefetch)
 
@@ -230,14 +227,14 @@ class BeatmapsetFetcher(BaseFetcher):
                 # 使用当前 cursor 请求下一页
                 next_query = query.model_copy()
 
-                logger.opt(colors=True).debug(f"<cyan>[BeatmapsetFetcher]</cyan> Prefetching page {page + 1}")
+                logger.opt(colors=True).debug(f"Prefetching page {page + 1}")
 
                 # 生成下一页的缓存键
                 next_cache_key = self._generate_cache_key(next_query, cursor)
 
                 # 检查是否已经缓存
                 if await redis_client.exists(next_cache_key):
-                    logger.opt(colors=True).debug(f"<cyan>[BeatmapsetFetcher]</cyan> Page {page + 1} already cached")
+                    logger.opt(colors=True).debug(f"Page {page + 1} already cached")
                     # 尝试从缓存获取cursor继续预取
                     cached_data = await redis_client.get(next_cache_key)
                     if cached_data:
@@ -282,22 +279,18 @@ class BeatmapsetFetcher(BaseFetcher):
                     ex=prefetch_ttl,
                 )
 
-                logger.opt(colors=True).debug(
-                    f"<cyan>[BeatmapsetFetcher]</cyan> Prefetched page {page + 1} (TTL: {prefetch_ttl}s)"
-                )
+                logger.opt(colors=True).debug(f"Prefetched page {page + 1} (TTL: {prefetch_ttl}s)")
 
         except RateLimitError:
-            logger.opt(colors=True).info("<yellow>[BeatmapsetFetcher]</yellow> Prefetch stopped due to rate limit")
+            logger.opt(colors=True).info("Prefetch stopped due to rate limit")
         except Exception as e:
-            logger.opt(colors=True).warning(f"<yellow>[BeatmapsetFetcher]</yellow> Prefetch failed: {e}")
+            logger.opt(colors=True).warning(f"Prefetch failed: {e}")
 
     async def warmup_homepage_cache(self, redis_client: redis.Redis) -> None:
         """预热主页缓存"""
         homepage_queries = self._get_homepage_queries()
 
-        logger.opt(colors=True).info(
-            f"<magenta>[BeatmapsetFetcher]</magenta> Starting homepage cache warmup ({len(homepage_queries)} queries)"
-        )
+        logger.opt(colors=True).info(f"Starting homepage cache warmup ({len(homepage_queries)} queries)")
 
         for i, (query, cursor) in enumerate(homepage_queries):
             try:
@@ -309,9 +302,7 @@ class BeatmapsetFetcher(BaseFetcher):
 
                 # 检查是否已经缓存
                 if await redis_client.exists(cache_key):
-                    logger.opt(colors=True).debug(
-                        f"<magenta>[BeatmapsetFetcher]</magenta> Query {query.sort} already cached"
-                    )
+                    logger.opt(colors=True).debug(f"Query {query.sort} already cached")
                     continue
 
                 # 请求并缓存
@@ -334,24 +325,15 @@ class BeatmapsetFetcher(BaseFetcher):
                     ex=cache_ttl,
                 )
 
-                logger.opt(colors=True).info(
-                    f"<magenta>[BeatmapsetFetcher]</magenta> Warmed up cache for {query.sort} (TTL: {cache_ttl}s)"
-                )
+                logger.opt(colors=True).info(f"Warmed up cache for {query.sort} (TTL: {cache_ttl}s)")
 
                 if api_response.get("cursor"):
                     try:
                         await self.prefetch_next_pages(query, api_response["cursor"], redis_client, pages=2)
                     except RateLimitError:
-                        logger.opt(colors=True).info(
-                            f"<yellow>[BeatmapsetFetcher]</yellow> Warmup prefetch "
-                            f"skipped for {query.sort} due to rate limit"
-                        )
+                        logger.opt(colors=True).info(f"Warmup prefetch skipped for {query.sort} due to rate limit")
 
             except RateLimitError:
-                logger.opt(colors=True).warning(
-                    f"<yellow>[BeatmapsetFetcher]</yellow> Warmup skipped for {query.sort} due to rate limit"
-                )
+                logger.opt(colors=True).warning(f"Warmup skipped for {query.sort} due to rate limit")
             except Exception as e:
-                logger.opt(colors=True).error(
-                    f"<red>[BeatmapsetFetcher]</red> Failed to warmup cache for {query.sort}: {e}"
-                )
+                logger.opt(colors=True).error(f"Failed to warmup cache for {query.sort}: {e}")

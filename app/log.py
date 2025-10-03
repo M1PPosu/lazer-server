@@ -5,6 +5,7 @@ import inspect
 import logging
 import re
 from sys import stdout
+from types import FunctionType
 from typing import TYPE_CHECKING
 
 from app.config import settings
@@ -107,11 +108,67 @@ class InterceptHandler(logging.Handler):
         return message
 
 
+def get_caller_class_name(module_prefix: str = ""):
+    """获取调用类名/模块名，仅对指定模块前缀生效"""
+    stack = inspect.stack()
+    for frame_info in stack[2:]:
+        module = frame_info.frame.f_globals.get("__name__", "")
+        if module_prefix and not module.startswith(module_prefix):
+            continue
+
+        local_vars = frame_info.frame.f_locals
+        # 实例方法
+        if "self" in local_vars:
+            return local_vars["self"].__class__.__name__
+        # 类方法
+        if "cls" in local_vars:
+            return local_vars["cls"].__name__
+
+        # 静态方法 / 普通函数 -> 尝试通过函数名匹配类
+        func_name = frame_info.function
+        for obj_name, obj in frame_info.frame.f_globals.items():
+            if isinstance(obj, type):  # 遍历模块内类
+                cls = obj
+                attr = getattr(cls, func_name, None)
+                if isinstance(attr, (staticmethod, classmethod, FunctionType)):
+                    return cls.__name__
+
+        # 如果没找到类，返回模块名
+        return module
+    return None
+
+
+def service_logger(name: str) -> Logger:
+    return logger.bind(service=name)
+
+
+def fetcher_logger(name: str) -> Logger:
+    return logger.bind(fetcher=name)
+
+
+def dynamic_format(record):
+    prefix = ""
+
+    fetcher = record["extra"].get("fetcher")
+    if not fetcher:
+        fetcher = get_caller_class_name("app.fetcher")
+    if fetcher:
+        prefix = f"<magenta>[{fetcher}]</magenta> "
+
+    service = record["extra"].get("service")
+    if not service:
+        service = get_caller_class_name("app.service")
+    if service:
+        prefix = f"<blue>[{service}]</blue> "
+
+    return f"<green>{{time:YYYY-MM-DD HH:mm:ss}}</green> [<level>{{level}}</level>] | {prefix}{{message}}\n"
+
+
 logger.remove()
 logger.add(
     stdout,
     colorize=True,
-    format=("<green>{time:YYYY-MM-DD HH:mm:ss}</green> [<level>{level}</level>] | {message}"),
+    format=dynamic_format,
     level=settings.log_level,
     diagnose=settings.debug,
 )

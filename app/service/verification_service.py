@@ -430,7 +430,7 @@ class LoginSessionService:
         await db.commit()
         await db.refresh(session)
 
-        logger.info(f"[Login Session] Created session for user {user_id} (new device: {is_new_device})")
+        logger.info(f"Created session for user {user_id} (new device: {is_new_device})")
         return session
 
     @classmethod
@@ -562,7 +562,7 @@ class LoginSessionService:
                     session.device_id = device_info.id
 
             if sessions:
-                logger.info(f"[Login Session] Marked {len(sessions)} session(s) as verified for user {user_id}")
+                logger.info(f"Marked {len(sessions)} session(s) as verified for user {user_id}")
 
             await LoginSessionService.clear_login_method(user_id, token_id, redis)
             await db.commit()
@@ -570,7 +570,7 @@ class LoginSessionService:
             return len(sessions) > 0
 
         except Exception as e:
-            logger.error(f"[Login Session] Exception during marking sessions as verified: {e}")
+            logger.error(f"Exception during marking sessions as verified: {e}")
             return False
 
     @staticmethod
