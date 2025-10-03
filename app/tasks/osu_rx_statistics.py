@@ -5,6 +5,7 @@ from app.const import BANCHOBOT_ID
 from app.database.statistics import UserStatistics
 from app.database.user import User
 from app.dependencies.database import with_db
+from app.log import logger
 from app.models.score import GameMode
 
 from sqlalchemy import exists
@@ -14,6 +15,10 @@ from sqlmodel import select
 async def create_rx_statistics():
     async with with_db() as session:
         users = (await session.exec(select(User.id))).all()
+        total_users = len(users)
+        logger.info("Ensuring RX/AP statistics exist for %s users", total_users)
+        rx_created = 0
+        ap_created = 0
         for i in users:
             if i == BANCHOBOT_ID:
                 continue
@@ -35,6 +40,7 @@ async def create_rx_statistics():
                     if not is_exist:
                         statistics_rx = UserStatistics(mode=mode, user_id=i)
                         session.add(statistics_rx)
+                        rx_created += 1
             if settings.enable_ap:
                 is_exist = (
                     await session.exec(
@@ -47,4 +53,11 @@ async def create_rx_statistics():
                 if not is_exist:
                     statistics_ap = UserStatistics(mode=GameMode.OSUAP, user_id=i)
                     session.add(statistics_ap)
+                    ap_created += 1
         await session.commit()
+        if rx_created or ap_created:
+            logger.success(
+                "Created %s RX statistics rows and %s AP statistics rows during backfill",
+                rx_created,
+                ap_created,
+            )

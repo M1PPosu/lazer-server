@@ -6,6 +6,7 @@ from app.database import RankHistory, UserStatistics
 from app.database.rank_history import RankTop
 from app.dependencies.database import with_db
 from app.dependencies.scheduler import get_scheduler
+from app.log import logger
 from app.models.score import GameMode
 from app.utils import utcnow
 
@@ -16,8 +17,10 @@ from sqlmodel import col, exists, select, update
 async def calculate_user_rank(is_today: bool = False):
     today = utcnow().date()
     target_date = today if is_today else today - timedelta(days=1)
+    logger.info("Starting user rank calculation for {}", target_date)
     async with with_db() as session:
         for gamemode in GameMode:
+            logger.info("Calculating ranks for {} on {}", gamemode.name, target_date)
             users = await session.exec(
                 select(UserStatistics)
                 .where(
@@ -31,6 +34,7 @@ async def calculate_user_rank(is_today: bool = False):
                 )
             )
             rank = 1
+            processed_users = 0
             for user in users:
                 is_exist = (
                     await session.exec(
@@ -82,4 +86,15 @@ async def calculate_user_rank(is_today: bool = False):
                         rank_top.date = today
 
                 rank += 1
+                processed_users += 1
             await session.commit()
+            if processed_users > 0:
+                logger.info(
+                    "Updated ranks for {} on {} ({} users)",
+                    gamemode.name,
+                    target_date,
+                    processed_users,
+                )
+            else:
+                logger.info("No users found for {} on {}", gamemode.name, target_date)
+    logger.success("User rank calculation completed for {}", target_date)

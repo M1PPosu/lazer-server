@@ -17,7 +17,7 @@ import uuid
 
 from app.config import settings
 from app.log import logger
-from app.utils import bg_tasks  # 添加同步Redis导入
+from app.utils import bg_tasks
 
 import redis as sync_redis
 

@@ -4,6 +4,7 @@ from app.const import BANCHOBOT_ID
 from app.database.statistics import UserStatistics
 from app.database.user import User
 from app.dependencies.database import with_db
+from app.log import logger
 from app.models.score import GameMode
 
 from sqlmodel import exists, select
@@ -27,3 +28,4 @@ async def create_banchobot():
             statistics = UserStatistics(user_id=BANCHOBOT_ID, mode=GameMode.OSU)
             session.add(statistics)
             await session.commit()
+            logger.success("BanchoBot user created")

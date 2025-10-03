@@ -132,21 +132,20 @@ class Beatmapset(AsyncAttrs, BeatmapsetBase, table=True):
     @classmethod
     async def from_resp_no_save(cls, session: AsyncSession, resp: "BeatmapsetResp", from_: int = 0) -> "Beatmapset":
         d = resp.model_dump()
-        update = {}
         if resp.nominations:
-            update["nominations_required"] = resp.nominations.required
-            update["nominations_current"] = resp.nominations.current
+            d["nominations_required"] = resp.nominations.required
+            d["nominations_current"] = resp.nominations.current
         if resp.hype:
-            update["hype_current"] = resp.hype.current
-            update["hype_required"] = resp.hype.required
+            d["hype_current"] = resp.hype.current
+            d["hype_required"] = resp.hype.required
         if resp.genre_id:
-            update["beatmap_genre"] = Genre(resp.genre_id)
+            d["beatmap_genre"] = Genre(resp.genre_id)
         elif resp.genre:
-            update["beatmap_genre"] = Genre(resp.genre.id)
+            d["beatmap_genre"] = Genre(resp.genre.id)
         if resp.language_id:
-            update["beatmap_language"] = Language(resp.language_id)
+            d["beatmap_language"] = Language(resp.language_id)
         elif resp.language:
-            update["beatmap_language"] = Language(resp.language.id)
+            d["beatmap_language"] = Language(resp.language.id)
         beatmapset = Beatmapset.model_validate(
             {
                 **d,

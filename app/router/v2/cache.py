@@ -133,9 +133,7 @@ async def warmup_cache(
             return {"message": f"Warmed up cache for {len(request.user_ids)} users"}
         else:
             # 预热活跃用户
-            from app.scheduler.user_cache_scheduler import (
-                schedule_user_cache_preload_task,
-            )
+            from app.tasks.cache import schedule_user_cache_preload_task
 
             await schedule_user_cache_preload_task()
             return {"message": f"Warmed up cache for top {request.limit} active users"}

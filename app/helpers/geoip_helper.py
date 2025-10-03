@@ -116,22 +116,20 @@ class GeoIPHelper:
                 if age_days >= self.max_age_days:
                     need = True
                     logger.info(
-                        f"[GeoIP] {eid} database is {age_days:.1f} days old "
+                        f"{eid} database is {age_days:.1f} days old "
                         f"(max: {self.max_age_days}), will download new version"
                     )
                 else:
-                    logger.info(
-                        f"[GeoIP] {eid} database is {age_days:.1f} days old, still fresh (max: {self.max_age_days})"
-                    )
+                    logger.info(f"{eid} database is {age_days:.1f} days old, still fresh (max: {self.max_age_days})")
             else:
-                logger.info(f"[GeoIP] {eid} database not found, will download")
+                logger.info(f"{eid} database not found, will download")
 
             if need:
-                logger.info(f"[GeoIP] Downloading {eid} database...")
+                logger.info(f"Downloading {eid} database...")
                 path = self._download_and_extract(eid)
-                logger.info(f"[GeoIP] {eid} database downloaded successfully")
+                logger.info(f"{eid} database downloaded successfully")
             else:
-                logger.info(f"[GeoIP] Using existing {eid} database")
+                logger.info(f"Using existing {eid} database")
 
             old = self._readers.get(ed)
             if old:

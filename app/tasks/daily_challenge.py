@@ -17,9 +17,8 @@ from app.log import logger
 from app.models.metadata_hub import DailyChallengeInfo
 from app.models.mods import APIMod, get_available_mods
 from app.models.room import RoomCategory
+from app.service.room import create_playlist_room
 from app.utils import are_same_weeks, utcnow
-
-from .room import create_playlist_room
 
 from sqlmodel import col, select
 

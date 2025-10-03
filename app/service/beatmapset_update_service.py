@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from enum import Enum
 import math
 import random
@@ -12,7 +12,6 @@ from app.database.beatmap_sync import BeatmapSync, SavedBeatmapMeta
 from app.database.beatmapset import Beatmapset, BeatmapsetResp
 from app.database.score import Score
 from app.dependencies.database import with_db
-from app.dependencies.scheduler import get_scheduler
 from app.dependencies.storage import get_storage_service
 from app.log import logger
 from app.models.beatmap import BeatmapRankStatus
@@ -347,15 +346,3 @@ def init_beatmapset_update_service(fetcher: "Fetcher") -> BeatmapsetUpdateServic
 def get_beatmapset_update_service() -> BeatmapsetUpdateService:
     assert service is not None, "BeatmapsetUpdateService is not initialized"
     return service
-
-
-@get_scheduler().scheduled_job(
-    "interval",
-    id="update_beatmaps",
-    minutes=SCHEDULER_INTERVAL_MINUTES,
-    next_run_time=datetime.now() + timedelta(minutes=1),
-)
-async def beatmapset_update_job():
-    if service is not None:
-        bg_tasks.add_task(service.add_missing_beatmapsets)
-        await service._update_beatmaps()

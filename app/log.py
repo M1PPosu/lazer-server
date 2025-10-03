@@ -9,6 +9,7 @@ from types import FunctionType
 from typing import TYPE_CHECKING
 
 from app.config import settings
+from app.utils import snake_to_pascal
 
 import loguru
 
@@ -108,7 +109,7 @@ class InterceptHandler(logging.Handler):
         return message
 
 
-def get_caller_class_name(module_prefix: str = ""):
+def get_caller_class_name(module_prefix: str = "", just_last_part: bool = True) -> str | None:
     """获取调用类名/模块名，仅对指定模块前缀生效"""
     stack = inspect.stack()
     for frame_info in stack[2:]:
@@ -134,6 +135,8 @@ def get_caller_class_name(module_prefix: str = ""):
                     return cls.__name__
 
         # 如果没找到类，返回模块名
+        if just_last_part:
+            return module.rsplit(".", 1)[-1]
         return module
     return None
 
@@ -144,6 +147,14 @@ def service_logger(name: str) -> Logger:
 
 def fetcher_logger(name: str) -> Logger:
     return logger.bind(fetcher=name)
+
+
+def task_logger(name: str) -> Logger:
+    return logger.bind(task=name)
+
+
+def system_logger(name: str) -> Logger:
+    return logger.bind(system=name)
 
 
 def dynamic_format(record):
@@ -160,6 +171,13 @@ def dynamic_format(record):
         service = get_caller_class_name("app.service")
     if service:
         prefix = f"<blue>[{service}]</blue> "
+
+    task = record["extra"].get("task")
+    if not task:
+        task = get_caller_class_name("app.tasks")
+    if task:
+        task = snake_to_pascal(task)
+        prefix = f"<green>[{task}]</green> "
 
     return f"<green>{{time:YYYY-MM-DD HH:mm:ss}}</green> [<level>{{level}}</level>] | {prefix}{{message}}\n"
 
@@ -197,3 +215,4 @@ for logger_name in uvicorn_loggers:
     uvicorn_logger.propagate = False
 
 logging.getLogger("httpx").setLevel("WARNING")
+logging.getLogger("apscheduler").setLevel("WARNING")
