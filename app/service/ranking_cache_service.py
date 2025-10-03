@@ -12,9 +12,9 @@ from typing import TYPE_CHECKING, Literal
 
 from app.config import settings
 from app.database.statistics import UserStatistics, UserStatisticsResp
+from app.helpers.asset_proxy_helper import replace_asset_urls
 from app.log import logger
 from app.models.score import GameMode
-from app.service.asset_proxy_service import get_asset_proxy_service
 from app.utils import utcnow
 
 from redis.asyncio import Redis
@@ -357,16 +357,15 @@ class RankingCacheService:
                     for statistics in statistics_data:
                         user_stats_resp = await UserStatisticsResp.from_db(statistics, session, None, include)
 
+                        user_dict = user_stats_resp.model_dump()
+
                         # 应用资源代理处理
                         if settings.enable_asset_proxy:
                             try:
-                                asset_proxy_service = get_asset_proxy_service()
-                                user_stats_resp = await asset_proxy_service.replace_asset_urls(user_stats_resp)
+                                user_dict = await replace_asset_urls(user_dict)
                             except Exception as e:
                                 logger.warning(f"Asset proxy processing failed for ranking cache: {e}")
 
-                        # 将 UserStatisticsResp 转换为字典，处理所有序列化问题
-                        user_dict = json.loads(user_stats_resp.model_dump_json())
                         ranking_data.append(user_dict)
 
                     # 缓存这一页的数据

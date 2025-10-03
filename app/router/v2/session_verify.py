@@ -2,8 +2,6 @@
 会话验证路由 - 实现类似 osu! 的邮件验证流程 (API v2)
 """
 
-from __future__ import annotations
-
 from typing import Annotated, Literal
 
 from app.auth import check_totp_backup_code, verify_totp_key_with_replay_protection

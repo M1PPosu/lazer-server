@@ -3,8 +3,6 @@
 提供从osu!官方获取beatmapset音频预览的代理服务
 """
 
-from __future__ import annotations
-
 from typing import Annotated
 
 from app.dependencies.database import get_redis, get_redis_binary

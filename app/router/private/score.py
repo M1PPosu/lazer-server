@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from app.database.score import Score
 from app.dependencies.database import Database, Redis
 from app.dependencies.storage import StorageService

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from datetime import UTC, date
 import time
 from typing import Annotated

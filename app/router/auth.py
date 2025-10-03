@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from datetime import timedelta
 import re
 from typing import Annotated, Literal

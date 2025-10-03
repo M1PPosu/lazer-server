@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from app.dependencies.fetcher import Fetcher
 
 from fastapi import APIRouter

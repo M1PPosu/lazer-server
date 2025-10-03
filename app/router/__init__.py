@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from .auth import router as auth_router
 from .fetcher import fetcher_router as fetcher_router
 from .file import file_router as file_router

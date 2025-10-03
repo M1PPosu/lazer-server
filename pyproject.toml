@@ -86,7 +86,7 @@ ignore = [
 "migrations/**/*.py" = ["INP001"]
 ".github/**/*.py" = ["INP001"]
 "app/achievements/*.py" = ["INP001", "ARG"]
-"app/router/**/*.py" = ["ARG001"]
+"app/router/**/*.py" = ["ARG001", "I002"]
 
 [tool.ruff.lint.isort]
 force-sort-within-sections = true

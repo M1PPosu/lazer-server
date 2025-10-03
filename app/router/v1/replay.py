@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import base64
 from datetime import date
 from typing import Annotated, Literal

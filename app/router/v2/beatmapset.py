@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import re
 from typing import Annotated, Literal
 from urllib.parse import parse_qs
@@ -12,8 +10,8 @@ from app.dependencies.database import Database, Redis, with_db
 from app.dependencies.fetcher import Fetcher
 from app.dependencies.geoip import IPAddress, get_geoip_helper
 from app.dependencies.user import ClientUser, get_current_user
+from app.helpers.asset_proxy_helper import asset_proxy_response
 from app.models.beatmap import SearchQueryModel
-from app.service.asset_proxy_helper import process_response_assets
 from app.service.beatmapset_cache_service import generate_hash
 
 from .router import router
@@ -45,8 +43,9 @@ async def _save_to_db(sets: SearchBeatmapsetsResp):
     tags=["谱面集"],
     response_model=SearchBeatmapsetsResp,
 )
+@asset_proxy_response
 async def search_beatmapset(
-    query: Annotated[SearchQueryModel, Query(...)],
+    query: Annotated[SearchQueryModel, Query()],
     request: Request,
     background_tasks: BackgroundTasks,
     current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
@@ -102,9 +101,7 @@ async def search_beatmapset(
     cached_result = await cache_service.get_search_from_cache(query_hash, cursor_hash)
     if cached_result:
         sets = SearchBeatmapsetsResp(**cached_result)
-        # 处理资源代理
-        processed_sets = await process_response_assets(sets)
-        return processed_sets
+        return sets
 
     try:
         sets = await fetcher.search_beatmapset(query, cursor, redis)
@@ -112,10 +109,7 @@ async def search_beatmapset(
 
         # 缓存搜索结果
         await cache_service.cache_search_result(query_hash, cursor_hash, sets.model_dump())
-
-        # 处理资源代理
-        processed_sets = await process_response_assets(sets)
-        return processed_sets
+        return sets
     except HTTPError as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -127,6 +121,7 @@ async def search_beatmapset(
     response_model=BeatmapsetResp,
     description=("通过谱面 ID 查询所属谱面集。"),
 )
+@asset_proxy_response
 async def lookup_beatmapset(
     db: Database,
     request: Request,
@@ -138,9 +133,7 @@ async def lookup_beatmapset(
     # 先尝试从缓存获取
     cached_resp = await cache_service.get_beatmap_lookup_from_cache(beatmap_id)
     if cached_resp:
-        # 处理资源代理
-        processed_resp = await process_response_assets(cached_resp)
-        return processed_resp
+        return cached_resp
 
     try:
         beatmap = await Beatmap.get_or_fetch(db, fetcher, bid=beatmap_id)
@@ -148,10 +141,7 @@ async def lookup_beatmapset(
 
         # 缓存结果
         await cache_service.cache_beatmap_lookup(beatmap_id, resp)
-
-        # 处理资源代理
-        processed_resp = await process_response_assets(resp)
-        return processed_resp
+        return resp
     except HTTPError as exc:
         raise HTTPException(status_code=404, detail="Beatmap not found") from exc
 
@@ -163,6 +153,7 @@ async def lookup_beatmapset(
     response_model=BeatmapsetResp,
     description="获取单个谱面集详情。",
 )
+@asset_proxy_response
 async def get_beatmapset(
     db: Database,
     request: Request,
@@ -174,9 +165,7 @@ async def get_beatmapset(
     # 先尝试从缓存获取
     cached_resp = await cache_service.get_beatmapset_from_cache(beatmapset_id)
     if cached_resp:
-        # 处理资源代理
-        processed_resp = await process_response_assets(cached_resp)
-        return processed_resp
+        return cached_resp
 
     try:
         beatmapset = await Beatmapset.get_or_fetch(db, fetcher, beatmapset_id)
@@ -184,10 +173,7 @@ async def get_beatmapset(
 
         # 缓存结果
         await cache_service.cache_beatmapset(resp)
-
-        # 处理资源代理
-        processed_resp = await process_response_assets(resp)
-        return processed_resp
+        return resp
     except HTTPError as exc:
         raise HTTPException(status_code=404, detail="Beatmapset not found") from exc
 

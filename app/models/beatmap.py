@@ -204,3 +204,6 @@ class SearchQueryModel(BaseModel):
         default=None,
         description="游标字符串，用于分页",
     )
+
+
+SearchQueryModel.model_rebuild()

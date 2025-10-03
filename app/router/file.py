@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from app.dependencies.storage import StorageService as StorageServiceDep
 from app.storage import LocalStorageService
 

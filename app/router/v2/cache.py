@@ -3,8 +3,6 @@
 提供缓存统计、清理和预热功能
 """
 
-from __future__ import annotations
-
 from app.dependencies.database import Redis
 from app.service.user_cache_service import get_user_cache_service
 

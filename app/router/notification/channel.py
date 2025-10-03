@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Annotated, Any, Literal, Self
 
 from app.database.chat import (

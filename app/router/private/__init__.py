@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from app.config import settings
 
 from . import admin, audio_proxy, avatar, beatmapset, cover, oauth, relationship, score, team, username  # noqa: F401

@@ -15,9 +15,9 @@ from app.database import User, UserResp
 from app.database.score import LegacyScoreResp, ScoreResp
 from app.database.user import SEARCH_INCLUDED
 from app.dependencies.database import with_db
+from app.helpers.asset_proxy_helper import replace_asset_urls
 from app.log import logger
 from app.models.score import GameMode
-from app.service.asset_proxy_service import get_asset_proxy_service
 
 from redis.asyncio import Redis
 from sqlmodel import col, select
@@ -318,8 +318,7 @@ class UserCacheService:
             # 应用资源代理处理
             if settings.enable_asset_proxy:
                 try:
-                    asset_proxy_service = get_asset_proxy_service()
-                    user_resp = await asset_proxy_service.replace_asset_urls(user_resp)
+                    user_resp = await replace_asset_urls(user_resp)
                 except Exception as e:
                     logger.warning(f"Asset proxy processing failed for user cache {user.id}: {e}")
 
