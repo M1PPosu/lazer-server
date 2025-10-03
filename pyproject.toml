@@ -1,7 +1,7 @@
 [project]
 name = "g0v0-server"
 version = "0.1.0"
-description = "3rd-party osu!lazer server which supports the latest osu!lazer."
+description = "3rd-party osu!lazer private server which supports the latest osu!lazer."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -18,7 +18,6 @@ dependencies = [
     "httpx>=0.28.1",
     "loguru>=0.7.3",
     "maxminddb>=2.8.2",
-    "msgpack-lazer-api",
     "newrelic>=10.1.0",
     "osupyparser>=1.0.7",
     "passlib[bcrypt]>=1.7.4",
@@ -103,20 +102,14 @@ exclude = ["migrations/", ".venv/", "venv/"]
 
 [tool.uv.workspace]
 members = [
-    "packages/msgpack_lazer_api",
     "packages/osupyparser",
 ]
 
 [tool.uv.sources]
-msgpack-lazer-api = { workspace = true }
 osupyparser = { git = "https://github.com/MingxuanGame/osupyparser.git" }
-
-[tool.uv]
-cache-keys = [{file = "pyproject.toml"}, {file = "packages/msgpack_lazer_api/Cargo.toml"}, {file = "**/*.rs"}]
 
 [dependency-groups]
 dev = [
-    "maturin>=1.9.2",
     "pre-commit>=4.2.0",
     "pyright>=1.1.404",
     "ruff>=0.12.4",

@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import TYPE_CHECKING
 
 from app.database.item_attempts_count import PlaylistAggregateScore
 from app.database.room_participated_user import RoomParticipatedUser
@@ -31,9 +30,6 @@ from sqlmodel import (
     select,
 )
 from sqlmodel.ext.asyncio.session import AsyncSession
-
-if TYPE_CHECKING:
-    from app.models.multiplayer_hub import ServerMultiplayerRoom
 
 
 class RoomBase(SQLModel, UTCBaseModel):
@@ -161,25 +157,6 @@ class RoomResp(RoomBase):
         resp.host = await UserResp.from_db(await room.awaitable_attrs.host, session, include=["statistics"])
         if "current_user_score" in include and user:
             resp.current_user_score = await PlaylistAggregateScore.from_db(room.id, user.id, session)
-        return resp
-
-    @classmethod
-    async def from_hub(cls, server_room: "ServerMultiplayerRoom") -> "RoomResp":
-        room = server_room.room
-        resp = cls(
-            id=room.room_id,
-            name=room.settings.name,
-            type=room.settings.match_type,
-            queue_mode=room.settings.queue_mode,
-            auto_skip=room.settings.auto_skip,
-            auto_start_duration=int(room.settings.auto_start_duration.total_seconds()),
-            status=server_room.status,
-            category=server_room.category,
-            # duration = room.settings.duration,
-            starts_at=server_room.start_at,
-            participant_count=len(room.users),
-            channel_id=server_room.room.channel_id or 0,
-        )
         return resp
 
 

@@ -166,9 +166,6 @@ app.include_router(auth_router)
 app.include_router(private_router)
 app.include_router(lio_router)
 
-# from app.signalr import signalr_router
-# app.include_router(signalr_router)
-
 # 会话验证中间件
 if settings.enable_session_verification:
     app.add_middleware(VerifySessionMiddleware)

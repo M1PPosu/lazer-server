@@ -16,7 +16,6 @@ from app.dependencies.database import Database, Redis
 from app.dependencies.user import ClientUser, get_current_user
 from app.models.room import RoomCategory, RoomStatus
 from app.service.room import create_playlist_room_from_api
-from app.signalr.hub import MultiplayerHubs
 from app.utils import utcnow
 
 from .router import router
@@ -391,14 +390,12 @@ async def get_room_events(
         first_event_id = min(first_event_id, event.id)
         last_event_id = max(last_event_id, event.id)
 
-    if room := MultiplayerHubs.rooms.get(room_id):
-        current_playlist_item_id = room.queue.current_item.id
-        room_resp = await RoomResp.from_hub(room)
-    else:
-        room = (await db.exec(select(Room).where(Room.id == room_id))).first()
-        if room is None:
-            raise HTTPException(404, "Room not found")
-        room_resp = await RoomResp.from_db(room, db)
+    room = (await db.exec(select(Room).where(Room.id == room_id))).first()
+    if room is None:
+        raise HTTPException(404, "Room not found")
+    room_resp = await RoomResp.from_db(room, db)
+    if room.category == RoomCategory.REALTIME and room_resp.current_playlist_item:
+        current_playlist_item_id = room_resp.current_playlist_item.id
 
     users = await db.exec(select(User).where(col(User.id).in_(user_ids)))
     user_resps = [await UserResp.from_db(user, db) for user in users]

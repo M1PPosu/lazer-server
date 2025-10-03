@@ -217,8 +217,7 @@ class MessageQueueProcessor:
     ):
         """通知客户端消息ID已更新"""
         try:
-            # 这里我们需要通过 SignalR 发送消息更新通知
-            # 但为了避免循环依赖，我们将通过 Redis 发布消息更新事件
+            # 通过 Redis 发布消息更新事件，由聊天通知服务分发到客户端
             update_event = {
                 "event": "chat.message.update",
                 "data": {
@@ -229,7 +228,6 @@ class MessageQueueProcessor:
                 },
             }
 
-            # 发布到 Redis 频道，让 SignalR 服务处理
             await self._redis_exec(
                 self.redis_message.publish,
                 f"chat_updates:{channel_id}",

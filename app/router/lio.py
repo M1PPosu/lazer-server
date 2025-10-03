@@ -15,7 +15,7 @@ from app.dependencies.database import Database, Redis
 from app.dependencies.fetcher import Fetcher
 from app.dependencies.storage import StorageService
 from app.log import log
-from app.models.multiplayer_hub import PlaylistItem as HubPlaylistItem
+from app.models.playlist import PlaylistItem
 from app.models.room import MatchType, QueueMode, RoomCategory, RoomStatus
 from app.utils import utcnow
 
@@ -216,7 +216,7 @@ async def _add_playlist_items(db: Database, room_id: int, room_data: dict[str, A
 
     # Insert playlist items
     for item_data in items_raw:
-        hub_item = HubPlaylistItem(
+        playlist_item = PlaylistItem(
             id=-1,  # Placeholder, will be assigned by add_to_db
             owner_id=item_data["owner_id"],
             ruleset_id=item_data["ruleset_id"],
@@ -230,7 +230,7 @@ async def _add_playlist_items(db: Database, room_id: int, room_data: dict[str, A
             beatmap_checksum=item_data["beatmap_checksum"],
             star_rating=item_data["star_rating"],
         )
-        await DBPlaylist.add_to_db(hub_item, room_id=room_id, session=db)
+        await DBPlaylist.add_to_db(playlist_item, room_id=room_id, session=db)
 
 
 async def _add_host_as_participant(db: Database, room_id: int, host_user_id: int) -> None:

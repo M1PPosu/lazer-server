@@ -266,18 +266,6 @@ STORAGE_SETTINGS='{
         else:
             return "/"
 
-    # SignalR 设置
-    signalr_negotiate_timeout: Annotated[
-        int,
-        Field(default=30, description="SignalR 协商超时时间（秒）"),
-        "SignalR 服务器设置",
-    ]
-    signalr_ping_interval: Annotated[
-        int,
-        Field(default=15, description="SignalR ping 间隔（秒）"),
-        "SignalR 服务器设置",
-    ]
-
     # Fetcher 设置
     fetcher_client_id: Annotated[
         str,

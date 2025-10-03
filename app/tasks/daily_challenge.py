@@ -14,7 +14,6 @@ from app.database.user import User
 from app.dependencies.database import get_redis, with_db
 from app.dependencies.scheduler import get_scheduler
 from app.log import logger
-from app.models.metadata_hub import DailyChallengeInfo
 from app.models.mods import APIMod, get_available_mods
 from app.models.room import RoomCategory
 from app.service.room import create_playlist_room
@@ -54,8 +53,6 @@ async def create_daily_challenge_room(
 
 @get_scheduler().scheduled_job("cron", hour=0, minute=0, second=0, id="daily_challenge")
 async def daily_challenge_job():
-    from app.signalr.hub import MetadataHubs
-
     now = utcnow()
     redis = get_redis()
     key = f"daily_challenge:{now.date()}"
@@ -108,7 +105,6 @@ async def daily_challenge_job():
             allowed_mods=allowed_mods_list,
             duration=int((next_day - now - timedelta(minutes=2)).total_seconds() / 60),
         )
-        await MetadataHubs.broadcast_call("DailyChallengeUpdated", DailyChallengeInfo(room_id=room.id))
         logger.success(f"Added today's daily challenge: {beatmap=}, {ruleset_id=}, {required_mods=}")
         return
     except (ValueError, json.JSONDecodeError) as e:
