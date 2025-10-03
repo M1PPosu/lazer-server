@@ -12,7 +12,7 @@ from .beatmapset import (
     BeatmapsetResp,
 )
 from .beatmapset_ratings import BeatmapRating
-from .best_score import BestScore
+from .best_scores import PPBestScore
 from .chat import (
     ChannelType,
     ChatChannel,
@@ -28,22 +28,16 @@ from .counts import (
 from .daily_challenge import DailyChallengeStats, DailyChallengeStatsResp
 from .events import Event
 from .favourite_beatmapset import FavouriteBeatmapset
-from .lazer_user import (
-    MeResp,
-    User,
-    UserResp,
-)
-from .multiplayer_event import MultiplayerEvent, MultiplayerEventResp
-from .notification import Notification, UserNotification
-from .password_reset import PasswordReset
-from .playlist_attempts import (
+from .item_attempts_count import (
     ItemAttemptsCount,
     ItemAttemptsResp,
     PlaylistAggregateScore,
 )
+from .multiplayer_event import MultiplayerEvent, MultiplayerEventResp
+from .notification import Notification, UserNotification
+from .password_reset import PasswordReset
 from .playlist_best_score import PlaylistBestScore
 from .playlists import Playlist, PlaylistResp
-from .pp_best_score import PPBestScore
 from .rank_history import RankHistory, RankHistoryResp, RankTop
 from .relationship import Relationship, RelationshipResp, RelationshipType
 from .room import APIUploadedRoom, Room, RoomResp
@@ -62,6 +56,12 @@ from .statistics import (
     UserStatisticsResp,
 )
 from .team import Team, TeamMember, TeamRequest
+from .total_score_best_scores import BestScore
+from .user import (
+    MeResp,
+    User,
+    UserResp,
+)
 from .user_account_history import (
     UserAccountHistory,
     UserAccountHistoryResp,

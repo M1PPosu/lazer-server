@@ -38,17 +38,17 @@ from app.utils import utcnow
 
 from .beatmap import Beatmap, BeatmapResp
 from .beatmapset import BeatmapsetResp
-from .best_score import BestScore
+from .best_scores import PPBestScore
 from .counts import MonthlyPlaycounts
 from .events import Event, EventType
-from .lazer_user import User, UserResp
 from .playlist_best_score import PlaylistBestScore
-from .pp_best_score import PPBestScore
 from .relationship import (
     Relationship as DBRelationship,
     RelationshipType,
 )
 from .score_token import ScoreToken
+from .total_score_best_scores import BestScore
+from .user import User, UserResp
 
 from pydantic import BaseModel, field_serializer, field_validator
 from redis.asyncio import Redis

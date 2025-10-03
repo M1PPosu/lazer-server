@@ -3,7 +3,7 @@ from __future__ import annotations
 from app.auth import validate_username
 from app.config import settings
 from app.database.events import Event, EventType
-from app.database.lazer_user import User
+from app.database.user import User
 from app.dependencies.database import Database
 from app.dependencies.user import get_client_user
 from app.utils import utcnow

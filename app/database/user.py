@@ -261,11 +261,11 @@ class UserResp(UserBase):
     ) -> "UserResp":
         from app.dependencies.database import get_redis
 
-        from .best_score import BestScore
+        from .best_scores import PPBestScore
         from .favourite_beatmapset import FavouriteBeatmapset
-        from .pp_best_score import PPBestScore
         from .relationship import Relationship, RelationshipResp, RelationshipType
         from .score import Score, get_user_first_score_count
+        from .total_score_best_scores import BestScore
 
         ruleset = ruleset or obj.playmode
 

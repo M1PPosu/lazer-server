@@ -14,7 +14,7 @@ from app.config import settings
 from app.const import BANCHOBOT_ID
 from app.database import BestScore, UserStatistics
 from app.database.beatmap import Beatmap
-from app.database.pp_best_score import PPBestScore
+from app.database.best_scores import PPBestScore
 from app.database.score import Score, calculate_playtime, calculate_user_pp
 from app.dependencies.database import engine, get_redis
 from app.dependencies.fetcher import get_fetcher

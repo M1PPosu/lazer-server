@@ -7,10 +7,10 @@ import json
 from typing import Any
 
 from app.database.chat import ChannelType, ChatChannel  # ChatChannel 模型 & 枚举
-from app.database.lazer_user import User
 from app.database.playlists import Playlist as DBPlaylist
 from app.database.room import Room
 from app.database.room_participated_user import RoomParticipatedUser
+from app.database.user import User
 from app.dependencies.database import Database, get_redis
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.storage import get_storage_service

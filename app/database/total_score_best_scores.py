@@ -4,7 +4,7 @@ from app.calculator import calculate_score_to_level
 from app.database.statistics import UserStatistics
 from app.models.score import GameMode, Rank
 
-from .lazer_user import User
+from .user import User
 
 from sqlmodel import (
     JSON,

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Literal
 
-from app.database.lazer_user import User
 from app.database.statistics import UserStatistics
+from app.database.user import User
 from app.dependencies.database import Database, get_redis
 from app.log import logger
 from app.models.score import GameMode

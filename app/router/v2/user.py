@@ -12,10 +12,10 @@ from app.database import (
     User,
     UserResp,
 )
+from app.database.best_scores import PPBestScore
 from app.database.events import Event
-from app.database.lazer_user import SEARCH_INCLUDED
-from app.database.pp_best_score import PPBestScore
 from app.database.score import LegacyScoreResp, Score, ScoreResp, get_user_first_scores
+from app.database.user import SEARCH_INCLUDED
 from app.dependencies.api_version import APIVersion
 from app.dependencies.database import Database, get_redis
 from app.dependencies.user import get_current_user

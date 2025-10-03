@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Literal
 
-from app.database.pp_best_score import PPBestScore
+from app.database.best_scores import PPBestScore
 from app.database.score import Score, get_leaderboard
 from app.dependencies.database import Database
 from app.models.mods import int_to_mods, mod_to_save, mods_to_int

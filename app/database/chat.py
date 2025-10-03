@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Self
 
-from app.database.lazer_user import RANKING_INCLUDES, User, UserResp
+from app.database.user import RANKING_INCLUDES, User, UserResp
 from app.models.model import UTCBaseModel
 from app.utils import utcnow
 

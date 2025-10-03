@@ -6,7 +6,7 @@ import json
 from app.calculator import calculate_pp
 from app.config import settings
 from app.database.beatmap import BannedBeatmaps, Beatmap
-from app.database.pp_best_score import PPBestScore
+from app.database.best_scores import PPBestScore
 from app.database.score import Score, calculate_user_pp
 from app.database.statistics import UserStatistics
 from app.dependencies.database import get_redis, with_db

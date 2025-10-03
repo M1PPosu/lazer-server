@@ -7,11 +7,11 @@ from typing import override
 from app.database import Room
 from app.database.beatmap import Beatmap
 from app.database.chat import ChannelType, ChatChannel
-from app.database.lazer_user import User
 from app.database.multiplayer_event import MultiplayerEvent
 from app.database.playlists import Playlist
 from app.database.relationship import Relationship, RelationshipType
 from app.database.room_participated_user import RoomParticipatedUser
+from app.database.user import User
 from app.dependencies.database import get_redis, with_db
 from app.dependencies.fetcher import get_fetcher
 from app.exception import InvokeException

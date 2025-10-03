@@ -5,7 +5,7 @@ from app.config import settings
 from app.models.beatmap import BeatmapRankStatus, Genre, Language
 from app.models.score import GameMode
 
-from .lazer_user import BASE_INCLUDES, User, UserResp
+from .user import BASE_INCLUDES, User, UserResp
 
 from pydantic import BaseModel, field_validator, model_validator
 from sqlalchemy import JSON, Boolean, Column, DateTime, Text

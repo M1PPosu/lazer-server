@@ -18,7 +18,7 @@ from app.database import (
 from app.database.achievement import process_achievements
 from app.database.counts import ReplayWatchedCount
 from app.database.daily_challenge import process_daily_challenge_score
-from app.database.playlist_attempts import ItemAttemptsCount
+from app.database.item_attempts_count import ItemAttemptsCount
 from app.database.playlist_best_score import (
     PlaylistBestScore,
     get_position,

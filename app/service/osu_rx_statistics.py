@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from app.config import settings
 from app.const import BANCHOBOT_ID
-from app.database.lazer_user import User
 from app.database.statistics import UserStatistics
+from app.database.user import User
 from app.dependencies.database import with_db
 from app.models.score import GameMode
 

@@ -23,7 +23,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 if TYPE_CHECKING:
     from app.fetcher import Fetcher
 
-    from .lazer_user import User
+    from .user import User
 
 
 class BeatmapOwner(SQLModel):

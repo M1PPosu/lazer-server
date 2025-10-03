@@ -3,8 +3,8 @@ from __future__ import annotations
 from app.database.beatmap import Beatmap
 from app.database.beatmapset import Beatmapset
 from app.database.beatmapset_ratings import BeatmapRating
-from app.database.lazer_user import User
 from app.database.score import Score
+from app.database.user import User
 from app.dependencies.database import Database
 from app.dependencies.user import get_client_user
 from app.service.beatmapset_update_service import get_beatmapset_update_service

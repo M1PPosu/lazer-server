@@ -5,13 +5,13 @@ from typing import Literal
 
 from app.database.beatmap import Beatmap, BeatmapResp
 from app.database.beatmapset import BeatmapsetResp
-from app.database.lazer_user import User, UserResp
+from app.database.item_attempts_count import ItemAttemptsCount, ItemAttemptsResp
 from app.database.multiplayer_event import MultiplayerEvent, MultiplayerEventResp
-from app.database.playlist_attempts import ItemAttemptsCount, ItemAttemptsResp
 from app.database.playlists import Playlist, PlaylistResp
 from app.database.room import APIUploadedRoom, Room, RoomResp
 from app.database.room_participated_user import RoomParticipatedUser
 from app.database.score import Score
+from app.database.user import User, UserResp
 from app.dependencies.database import Database, get_redis
 from app.dependencies.user import get_client_user, get_current_user
 from app.models.room import RoomCategory, RoomStatus

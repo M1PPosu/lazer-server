@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from app.database.lazer_user import User
 from app.database.score import Score
+from app.database.user import User
 from app.dependencies.database import Database, get_redis
 from app.dependencies.storage import get_storage_service
 from app.dependencies.user import get_client_user

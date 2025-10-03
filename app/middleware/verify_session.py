@@ -11,7 +11,7 @@ from typing import ClassVar
 
 from app.auth import get_token_by_access_token
 from app.const import SUPPORT_TOTP_VERIFICATION_VER
-from app.database.lazer_user import User
+from app.database.user import User
 from app.database.verification import LoginSession
 from app.dependencies.database import get_redis, with_db
 from app.log import logger

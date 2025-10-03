@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 from app.database.statistics import UserStatistics
 from app.models.score import GameMode
 
-from .lazer_user import User
+from .user import User
 
 from sqlmodel import (
     BigInteger,

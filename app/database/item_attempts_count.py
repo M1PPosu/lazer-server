@@ -1,5 +1,5 @@
-from .lazer_user import User, UserResp
 from .playlist_best_score import PlaylistBestScore
+from .user import User, UserResp
 
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncAttrs

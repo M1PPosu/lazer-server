@@ -10,7 +10,7 @@ from app.database.chat import (
     ChatMessageResp,
     MessageType,
 )
-from app.database.lazer_user import User
+from app.database.user import User
 from app.log import logger
 from app.service.message_queue import message_queue
 
@@ -71,7 +71,7 @@ class OptimizedMessageService:
         # 创建临时响应对象（简化版本，用于立即响应）
         from datetime import datetime
 
-        from app.database.lazer_user import UserResp
+        from app.database.user import UserResp
 
         # 创建基本的用户响应对象
         user_resp = UserResp(

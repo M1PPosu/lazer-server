@@ -6,11 +6,11 @@ from math import ceil
 
 from app.const import BANCHOBOT_ID
 from app.database.daily_challenge import DailyChallengeStats
-from app.database.lazer_user import User
 from app.database.playlist_best_score import PlaylistBestScore
 from app.database.playlists import Playlist
 from app.database.room import Room
 from app.database.score import Score
+from app.database.user import User
 from app.dependencies.database import get_redis, with_db
 from app.dependencies.scheduler import get_scheduler
 from app.log import logger

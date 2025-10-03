@@ -12,8 +12,8 @@ from typing import TYPE_CHECKING, Any
 from app.config import settings
 from app.const import BANCHOBOT_ID
 from app.database import User, UserResp
-from app.database.lazer_user import SEARCH_INCLUDED
 from app.database.score import LegacyScoreResp, ScoreResp
+from app.database.user import SEARCH_INCLUDED
 from app.dependencies.database import with_db
 from app.log import logger
 from app.models.score import GameMode

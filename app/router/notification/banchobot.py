@@ -12,9 +12,9 @@ from app.const import BANCHOBOT_ID
 from app.database import ChatMessageResp
 from app.database.beatmap import Beatmap
 from app.database.chat import ChannelType, ChatChannel, ChatMessage, MessageType
-from app.database.lazer_user import User
 from app.database.score import Score, get_best_id
 from app.database.statistics import UserStatistics, get_rank
+from app.database.user import User
 from app.dependencies.fetcher import get_fetcher
 from app.exception import InvokeException
 from app.models.mods import APIMod, get_available_mods, mod_to_save

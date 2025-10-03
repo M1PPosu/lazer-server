@@ -9,7 +9,7 @@ from app.auth import (
 )
 from app.const import BACKUP_CODE_LENGTH
 from app.database.auth import TotpKeys
-from app.database.lazer_user import User
+from app.database.user import User
 from app.dependencies.database import Database, get_redis
 from app.dependencies.user import get_client_user
 from app.models.totp import FinishStatus, StartCreateTotpKeyResp

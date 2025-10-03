@@ -4,8 +4,8 @@ import asyncio
 from typing import overload
 
 from app.database.chat import ChannelType, ChatChannel, ChatChannelResp, ChatMessageResp
-from app.database.lazer_user import User
 from app.database.notification import UserNotification, insert_notification
+from app.database.user import User
 from app.dependencies.database import (
     DBFactory,
     get_db_factory,

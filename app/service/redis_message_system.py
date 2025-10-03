@@ -15,7 +15,7 @@ import time
 from typing import Any
 
 from app.database.chat import ChatMessage, ChatMessageResp, MessageType
-from app.database.lazer_user import RANKING_INCLUDES, User, UserResp
+from app.database.user import RANKING_INCLUDES, User, UserResp
 from app.dependencies.database import get_redis_message, with_db
 from app.log import logger
 from app.utils import bg_tasks

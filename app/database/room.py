@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from app.database.playlist_attempts import PlaylistAggregateScore
+from app.database.item_attempts_count import PlaylistAggregateScore
 from app.database.room_participated_user import RoomParticipatedUser
 from app.models.model import UTCBaseModel
 from app.models.multiplayer_hub import ServerMultiplayerRoom
@@ -14,8 +14,8 @@ from app.models.room import (
 )
 from app.utils import utcnow
 
-from .lazer_user import User, UserResp
 from .playlists import Playlist, PlaylistResp
+from .user import User, UserResp
 
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlmodel import (

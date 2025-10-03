@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import hashlib
 
-from app.database.lazer_user import BASE_INCLUDES, User, UserResp
 from app.database.team import Team, TeamMember, TeamRequest
+from app.database.user import BASE_INCLUDES, User, UserResp
 from app.dependencies.database import Database, get_redis
 from app.dependencies.storage import get_storage_service
 from app.dependencies.user import get_client_user
