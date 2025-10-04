@@ -119,7 +119,7 @@ async def batch_get_beatmaps(
         )
         for beatmap in beatmaps:
             await db.refresh(beatmap)
-
+    await db.refresh(current_user)
     return BatchGetResp(beatmaps=[await BeatmapResp.from_db(bm, session=db, user=current_user) for bm in beatmaps])
 
 
