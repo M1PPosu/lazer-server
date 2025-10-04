@@ -12,7 +12,7 @@ from .beatmapset import (
     BeatmapsetResp,
 )
 from .beatmapset_ratings import BeatmapRating
-from .best_scores import PPBestScore
+from .best_scores import BestScore
 from .chat import (
     ChannelType,
     ChatChannel,
@@ -56,7 +56,7 @@ from .statistics import (
     UserStatisticsResp,
 )
 from .team import Team, TeamMember, TeamRequest
-from .total_score_best_scores import BestScore
+from .total_score_best_scores import TotalScoreBestScore
 from .user import (
     MeResp,
     User,
@@ -105,7 +105,6 @@ __all__ = [
     "Notification",
     "OAuthClient",
     "OAuthToken",
-    "PPBestScore",
     "PasswordReset",
     "Playlist",
     "PlaylistAggregateScore",
@@ -131,6 +130,7 @@ __all__ = [
     "Team",
     "TeamMember",
     "TeamRequest",
+    "TotalScoreBestScore",
     "TotpKeys",
     "TrustedDevice",
     "TrustedDeviceResp",

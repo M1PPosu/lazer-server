@@ -259,11 +259,11 @@ class UserResp(UserBase):
     ) -> "UserResp":
         from app.dependencies.database import get_redis
 
-        from .best_scores import PPBestScore
+        from .best_scores import BestScore
         from .favourite_beatmapset import FavouriteBeatmapset
         from .relationship import Relationship, RelationshipResp, RelationshipType
         from .score import Score, get_user_first_score_count
-        from .total_score_best_scores import BestScore
+        from .total_score_best_scores import TotalScoreBestScore
 
         ruleset = ruleset or obj.playmode
 
@@ -284,9 +284,9 @@ class UserResp(UserBase):
         u.scores_best_count = (
             await session.exec(
                 select(func.count())
-                .select_from(BestScore)
+                .select_from(TotalScoreBestScore)
                 .where(
-                    BestScore.user_id == obj.id,
+                    TotalScoreBestScore.user_id == obj.id,
                 )
                 .limit(200)
             )
@@ -391,10 +391,10 @@ class UserResp(UserBase):
         u.scores_best_count = (
             await session.exec(
                 select(func.count())
-                .select_from(PPBestScore)
+                .select_from(BestScore)
                 .where(
-                    PPBestScore.user_id == obj.id,
-                    PPBestScore.gamemode == ruleset,
+                    BestScore.user_id == obj.id,
+                    BestScore.gamemode == ruleset,
                 )
                 .limit(200)
             )

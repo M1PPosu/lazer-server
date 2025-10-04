@@ -4,7 +4,7 @@ import json
 from app.calculator import calculate_pp
 from app.config import settings
 from app.database.beatmap import BannedBeatmaps, Beatmap
-from app.database.best_scores import PPBestScore
+from app.database.best_scores import BestScore
 from app.database.score import Score, calculate_user_pp
 from app.database.statistics import UserStatistics
 from app.dependencies.database import get_redis, with_db
@@ -35,7 +35,7 @@ async def recalculate_banned_beatmap():
         unbanned_beatmaps = [b for b in last_banned_beatmaps if b not in current_banned]
         for i in new_banned_beatmaps:
             last_banned_beatmaps.add(i)
-            await session.execute(delete(PPBestScore).where(col(PPBestScore.beatmap_id) == i))
+            await session.execute(delete(BestScore).where(col(BestScore.beatmap_id) == i))
             scores = (await session.exec(select(Score).where(Score.beatmap_id == i, Score.pp > 0))).all()
             for score in scores:
                 score.pp = 0
@@ -58,7 +58,7 @@ async def recalculate_banned_beatmap():
                     logger.exception(f"Failed to query scores for unbanned beatmap {beatmap_id}")
                     continue
 
-                prev: dict[tuple[int, int], PPBestScore] = {}
+                prev: dict[tuple[int, int], BestScore] = {}
                 for score in scores:
                     attempts = 3
                     while attempts > 0:
@@ -90,7 +90,7 @@ async def recalculate_banned_beatmap():
                             continue
                         key = (score.beatmap_id, score.user_id)
                         if key not in prev or prev[key].pp < pp:
-                            best_score = PPBestScore(
+                            best_score = BestScore(
                                 user_id=score.user_id,
                                 beatmap_id=beatmap_id,
                                 acc=score.accuracy,

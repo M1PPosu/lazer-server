@@ -10,7 +10,7 @@ from app.database import (
     User,
     UserResp,
 )
-from app.database.best_scores import PPBestScore
+from app.database.best_scores import BestScore
 from app.database.events import Event
 from app.database.score import LegacyScoreResp, Score, ScoreResp, get_user_first_scores
 from app.database.user import SEARCH_INCLUDED
@@ -392,7 +392,7 @@ async def get_user_scores(
         where_clause &= Score.pinned_order > 0
         order_by = col(Score.pinned_order).asc()
     elif type == "best":
-        where_clause &= exists().where(col(PPBestScore.score_id) == Score.id)
+        where_clause &= exists().where(col(BestScore.score_id) == Score.id)
         order_by = col(Score.pp).desc()
     elif type == "recent":
         where_clause &= Score.ended_at > utcnow() - timedelta(hours=24)

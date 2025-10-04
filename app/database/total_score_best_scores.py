@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from .score import Score
 
 
-class BestScore(SQLModel, table=True):
+class TotalScoreBestScore(SQLModel, table=True):
     __tablename__: str = "total_score_best_scores"
     user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True))
     score_id: int = Field(sa_column=Column(BigInteger, ForeignKey("scores.id"), primary_key=True))
@@ -41,7 +41,7 @@ class BestScore(SQLModel, table=True):
     user: User = Relationship()
     score: "Score" = Relationship(
         sa_relationship_kwargs={
-            "foreign_keys": "[BestScore.score_id]",
+            "foreign_keys": "[TotalScoreBestScore.score_id]",
             "lazy": "joined",
         },
         back_populates="best_score",
@@ -75,7 +75,7 @@ class BestScore(SQLModel, table=True):
                 await session.exec(
                     select(func.max(Score.max_combo)).where(
                         Score.user_id == self.user_id,
-                        col(Score.id).in_(select(BestScore.score_id)),
+                        col(Score.id).in_(select(TotalScoreBestScore.score_id)),
                         Score.gamemode == self.gamemode,
                     )
                 )

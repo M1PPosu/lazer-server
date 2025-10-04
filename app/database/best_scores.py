@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from .score import Score
 
 
-class PPBestScore(SQLModel, table=True):
+class BestScore(SQLModel, table=True):
     __tablename__: str = "best_scores"
     user_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True))
     score_id: int = Field(sa_column=Column(BigInteger, ForeignKey("scores.id"), primary_key=True))

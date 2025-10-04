@@ -38,7 +38,7 @@ from app.utils import utcnow
 
 from .beatmap import Beatmap, BeatmapResp
 from .beatmapset import BeatmapsetResp
-from .best_scores import PPBestScore
+from .best_scores import BestScore
 from .counts import MonthlyPlaycounts
 from .events import Event, EventType
 from .playlist_best_score import PlaylistBestScore
@@ -47,7 +47,7 @@ from .relationship import (
     RelationshipType,
 )
 from .score_token import ScoreToken
-from .total_score_best_scores import BestScore
+from .total_score_best_scores import TotalScoreBestScore
 from .user import User, UserResp
 
 from pydantic import BaseModel, field_serializer, field_validator
@@ -195,13 +195,13 @@ class Score(ScoreBase, table=True):
     # optional
     beatmap: Mapped[Beatmap] = Relationship()
     user: Mapped[User] = Relationship(sa_relationship_kwargs={"lazy": "joined"})
-    best_score: Mapped[BestScore | None] = Relationship(
+    best_score: Mapped[TotalScoreBestScore | None] = Relationship(
         back_populates="score",
         sa_relationship_kwargs={
             "cascade": "all, delete-orphan",
         },
     )
-    ranked_score: Mapped[PPBestScore | None] = Relationship(
+    ranked_score: Mapped[BestScore | None] = Relationship(
         back_populates="score",
         sa_relationship_kwargs={
             "cascade": "all, delete-orphan",
@@ -481,10 +481,10 @@ class ScoreAround(SQLModel):
 async def get_best_id(session: AsyncSession, score_id: int) -> int | None:
     rownum = (
         func.row_number()
-        .over(partition_by=(col(PPBestScore.user_id), col(PPBestScore.gamemode)), order_by=col(PPBestScore.pp).desc())
+        .over(partition_by=(col(BestScore.user_id), col(BestScore.gamemode)), order_by=col(BestScore.pp).desc())
         .label("rn")
     )
-    subq = select(PPBestScore, rownum).subquery()
+    subq = select(BestScore, rownum).subquery()
     stmt = select(subq.c.rn).where(subq.c.score_id == score_id)
     result = await session.exec(stmt)
     return result.one_or_none()
@@ -498,8 +498,8 @@ async def _score_where(
     user: User | None = None,
 ) -> list[ColumnElement[bool] | TextClause] | None:
     wheres: list[ColumnElement[bool] | TextClause] = [
-        col(BestScore.beatmap_id) == beatmap,
-        col(BestScore.gamemode) == mode,
+        col(TotalScoreBestScore.beatmap_id) == beatmap,
+        col(TotalScoreBestScore.gamemode) == mode,
     ]
 
     if type == LeaderboardType.FRIENDS:
@@ -512,19 +512,21 @@ async def _score_where(
                 )
                 .subquery()
             )
-            wheres.append(col(BestScore.user_id).in_(select(subq.c.target_id)))
+            wheres.append(col(TotalScoreBestScore.user_id).in_(select(subq.c.target_id)))
         else:
             return None
     elif type == LeaderboardType.COUNTRY:
         if user and user.is_supporter:
-            wheres.append(col(BestScore.user).has(col(User.country_code) == user.country_code))
+            wheres.append(col(TotalScoreBestScore.user).has(col(User.country_code) == user.country_code))
         else:
             return None
     elif type == LeaderboardType.TEAM and user:
         team_membership = await user.awaitable_attrs.team_membership
         if team_membership:
             team_id = team_membership.team_id
-            wheres.append(col(BestScore.user).has(col(User.team_membership).has(TeamMember.team_id == team_id)))
+            wheres.append(
+                col(TotalScoreBestScore.user).has(col(User.team_membership).has(TeamMember.team_id == team_id))
+            )
     if mods:
         if user and user.is_supporter:
             wheres.append(
@@ -558,10 +560,10 @@ async def get_leaderboard(
     max_score = sys.maxsize
     while limit > 0:
         query = (
-            select(BestScore)
-            .where(*wheres, BestScore.total_score < max_score)
+            select(TotalScoreBestScore)
+            .where(*wheres, TotalScoreBestScore.total_score < max_score)
             .limit(limit)
-            .order_by(col(BestScore.total_score).desc())
+            .order_by(col(TotalScoreBestScore.total_score).desc())
         )
         extra_need = 0
         for s in await session.exec(query):
@@ -580,13 +582,13 @@ async def get_leaderboard(
     user_score = None
     if user:
         self_query = (
-            select(BestScore)
-            .where(BestScore.user_id == user.id)
+            select(TotalScoreBestScore)
+            .where(TotalScoreBestScore.user_id == user.id)
             .where(
-                col(BestScore.beatmap_id) == beatmap,
-                col(BestScore.gamemode) == mode,
+                col(TotalScoreBestScore.beatmap_id) == beatmap,
+                col(TotalScoreBestScore.gamemode) == mode,
             )
-            .order_by(col(BestScore.total_score).desc())
+            .order_by(col(TotalScoreBestScore.total_score).desc())
             .limit(1)
         )
         if mods:
@@ -619,14 +621,14 @@ async def get_score_position_by_user(
         func.row_number()
         .over(
             partition_by=(
-                col(BestScore.beatmap_id),
-                col(BestScore.gamemode),
+                col(TotalScoreBestScore.beatmap_id),
+                col(TotalScoreBestScore.gamemode),
             ),
-            order_by=col(BestScore.total_score).desc(),
+            order_by=col(TotalScoreBestScore.total_score).desc(),
         )
         .label("row_number")
     )
-    subq = select(BestScore, rownum).join(Beatmap).where(*wheres).subquery()
+    subq = select(TotalScoreBestScore, rownum).join(Beatmap).where(*wheres).subquery()
     stmt = select(subq.c.row_number).where(subq.c.user_id == user.id)
     result = await session.exec(stmt)
     s = result.first()
@@ -649,14 +651,14 @@ async def get_score_position_by_id(
         func.row_number()
         .over(
             partition_by=(
-                col(BestScore.beatmap_id),
-                col(BestScore.gamemode),
+                col(TotalScoreBestScore.beatmap_id),
+                col(TotalScoreBestScore.gamemode),
             ),
-            order_by=col(BestScore.total_score).desc(),
+            order_by=col(TotalScoreBestScore.total_score).desc(),
         )
         .label("row_number")
     )
-    subq = select(BestScore, rownum).join(Beatmap).where(*wheres).subquery()
+    subq = select(TotalScoreBestScore, rownum).join(Beatmap).where(*wheres).subquery()
     stmt = select(subq.c.row_number).where(subq.c.score_id == score_id)
     result = await session.exec(stmt)
     s = result.one_or_none()
@@ -668,16 +670,16 @@ async def get_user_best_score_in_beatmap(
     beatmap: int,
     user: int,
     mode: GameMode | None = None,
-) -> BestScore | None:
+) -> TotalScoreBestScore | None:
     return (
         await session.exec(
-            select(BestScore)
+            select(TotalScoreBestScore)
             .where(
-                BestScore.gamemode == mode if mode is not None else true(),
-                BestScore.beatmap_id == beatmap,
-                BestScore.user_id == user,
+                TotalScoreBestScore.gamemode == mode if mode is not None else true(),
+                TotalScoreBestScore.beatmap_id == beatmap,
+                TotalScoreBestScore.user_id == user,
             )
-            .order_by(col(BestScore.total_score).desc())
+            .order_by(col(TotalScoreBestScore.total_score).desc())
         )
     ).first()
 
@@ -688,32 +690,32 @@ async def get_user_best_score_with_mod_in_beatmap(
     user: int,
     mod: list[str],
     mode: GameMode | None = None,
-) -> BestScore | None:
+) -> TotalScoreBestScore | None:
     return (
         await session.exec(
-            select(BestScore)
+            select(TotalScoreBestScore)
             .where(
-                BestScore.gamemode == mode if mode is not None else True,
-                BestScore.beatmap_id == beatmap,
-                BestScore.user_id == user,
+                TotalScoreBestScore.gamemode == mode if mode is not None else True,
+                TotalScoreBestScore.beatmap_id == beatmap,
+                TotalScoreBestScore.user_id == user,
                 text(
                     "JSON_CONTAINS(total_score_best_scores.mods, :w)"
                     " AND JSON_CONTAINS(:w, total_score_best_scores.mods)"
                 ).params(w=json.dumps(mod)),
             )
-            .order_by(col(BestScore.total_score).desc())
+            .order_by(col(TotalScoreBestScore.total_score).desc())
         )
     ).first()
 
 
 async def get_user_first_scores(
     session: AsyncSession, user_id: int, mode: GameMode, limit: int = 5, offset: int = 0
-) -> list[BestScore]:
+) -> list[TotalScoreBestScore]:
     rownum = (
         func.row_number()
         .over(
-            partition_by=(col(BestScore.beatmap_id), col(BestScore.gamemode)),
-            order_by=col(BestScore.total_score).desc(),
+            partition_by=(col(TotalScoreBestScore.beatmap_id), col(TotalScoreBestScore.gamemode)),
+            order_by=col(TotalScoreBestScore.total_score).desc(),
         )
         .label("rn")
     )
@@ -721,11 +723,11 @@ async def get_user_first_scores(
     # Step 1: Fetch top score_ids in Python
     subq = (
         select(
-            col(BestScore.score_id).label("score_id"),
-            col(BestScore.user_id).label("user_id"),
+            col(TotalScoreBestScore.score_id).label("score_id"),
+            col(TotalScoreBestScore.user_id).label("user_id"),
             rownum,
         )
-        .where(col(BestScore.gamemode) == mode)
+        .where(col(TotalScoreBestScore.gamemode) == mode)
         .subquery()
     )
 
@@ -734,7 +736,11 @@ async def get_user_first_scores(
     top_ids = await session.exec(top_ids_stmt)
     top_ids = list(top_ids)
 
-    stmt = select(BestScore).where(col(BestScore.score_id).in_(top_ids)).order_by(col(BestScore.total_score).desc())
+    stmt = (
+        select(TotalScoreBestScore)
+        .where(col(TotalScoreBestScore.score_id).in_(top_ids))
+        .order_by(col(TotalScoreBestScore.total_score).desc())
+    )
 
     result = await session.exec(stmt)
     return list(result.all())
@@ -744,18 +750,18 @@ async def get_user_first_score_count(session: AsyncSession, user_id: int, mode: 
     rownum = (
         func.row_number()
         .over(
-            partition_by=(col(BestScore.beatmap_id), col(BestScore.gamemode)),
-            order_by=col(BestScore.total_score).desc(),
+            partition_by=(col(TotalScoreBestScore.beatmap_id), col(TotalScoreBestScore.gamemode)),
+            order_by=col(TotalScoreBestScore.total_score).desc(),
         )
         .label("rn")
     )
     subq = (
         select(
-            col(BestScore.score_id).label("score_id"),
-            col(BestScore.user_id).label("user_id"),
+            col(TotalScoreBestScore.score_id).label("score_id"),
+            col(TotalScoreBestScore.user_id).label("user_id"),
             rownum,
         )
-        .where(col(BestScore.gamemode) == mode)
+        .where(col(TotalScoreBestScore.gamemode) == mode)
         .subquery()
     )
     count_stmt = select(func.count()).where(subq.c.rn == 1, subq.c.user_id == user_id)
@@ -769,13 +775,13 @@ async def get_user_best_pp_in_beatmap(
     beatmap: int,
     user: int,
     mode: GameMode,
-) -> PPBestScore | None:
+) -> BestScore | None:
     return (
         await session.exec(
-            select(PPBestScore).where(
-                PPBestScore.beatmap_id == beatmap,
-                PPBestScore.user_id == user,
-                PPBestScore.gamemode == mode,
+            select(BestScore).where(
+                BestScore.beatmap_id == beatmap,
+                BestScore.user_id == user,
+                BestScore.gamemode == mode,
             )
         )
     ).first()
@@ -800,12 +806,12 @@ async def get_user_best_pp(
     user: int,
     mode: GameMode,
     limit: int = 1000,
-) -> Sequence[PPBestScore]:
+) -> Sequence[BestScore]:
     return (
         await session.exec(
-            select(PPBestScore)
-            .where(PPBestScore.user_id == user, PPBestScore.gamemode == mode)
-            .order_by(col(PPBestScore.pp).desc())
+            select(BestScore)
+            .where(BestScore.user_id == user, BestScore.gamemode == mode)
+            .order_by(col(BestScore.pp).desc())
             .limit(limit)
         )
     ).all()
@@ -936,7 +942,7 @@ async def _process_score_pp(score: Score, session: AsyncSession, redis: Redis, f
     beatmap_id = score.beatmap_id
     previous_pp_best = await get_user_best_pp_in_beatmap(session, beatmap_id, user_id, score.gamemode)
     if previous_pp_best is None or score.pp > previous_pp_best.pp:
-        best_score = PPBestScore(
+        best_score = BestScore(
             user_id=user_id,
             score_id=score.id,
             beatmap_id=beatmap_id,
@@ -1010,12 +1016,12 @@ async def _process_score_events(score: Score, session: AsyncSession):
     if rank_global == 1:
         displaced_score = (
             await session.exec(
-                select(BestScore)
+                select(TotalScoreBestScore)
                 .where(
-                    BestScore.beatmap_id == score.beatmap_id,
-                    BestScore.gamemode == score.gamemode,
+                    TotalScoreBestScore.beatmap_id == score.beatmap_id,
+                    TotalScoreBestScore.gamemode == score.gamemode,
                 )
-                .order_by(col(BestScore.total_score).desc())
+                .order_by(col(TotalScoreBestScore.total_score).desc())
                 .limit(1)
                 .offset(1)
             )
@@ -1139,7 +1145,7 @@ async def _process_statistics(
         # 情况2: 有最佳分数记录但没有该mod组合的记录，添加新记录
         if previous_score_best is None or previous_score_best_mod is None:
             session.add(
-                BestScore(
+                TotalScoreBestScore(
                     user_id=user.id,
                     beatmap_id=score.beatmap_id,
                     gamemode=score.gamemode,
