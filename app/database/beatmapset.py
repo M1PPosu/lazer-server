@@ -339,5 +339,5 @@ class BeatmapsetResp(BeatmapsetBase):
 class SearchBeatmapsetsResp(SQLModel):
     beatmapsets: list[BeatmapsetResp]
     total: int
-    cursor: dict[str, int | float] | None = None
+    cursor: dict[str, int | float | str] | None = None
     cursor_string: str | None = None
