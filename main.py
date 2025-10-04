@@ -260,9 +260,8 @@ async def http_exception_handler(request: Request, exc: HTTPException):  # noqa:
 
 
 if settings.secret_key == "your_jwt_secret_here":  # noqa: S105
-    system_logger("Security").opt(colors=True).warning(
-        "<y>jwt_secret_key</y> is unset. Your server is unsafe. "
-        "Use this command to generate: <blue>openssl rand -hex 32</blue>."
+    raise RuntimeError(
+        "jwt_secret_key is unset. Your server is unsafe. Use this command to generate: openssl rand -hex 32"
     )
 if settings.osu_web_client_secret == "your_osu_web_client_secret_here":  # noqa: S105
     system_logger("Security").opt(colors=True).warning(
