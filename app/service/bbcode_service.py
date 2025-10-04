@@ -8,7 +8,7 @@ import html
 import re
 from typing import ClassVar
 
-from app.exceptions.userpage import (
+from app.models.userpage import (
     ContentEmptyError,
     ContentTooLongError,
     ForbiddenTagError,
