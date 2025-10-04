@@ -193,11 +193,9 @@ class BeatmapResp(BeatmapBase):
         if session:
             beatmap_["playcount"] = (
                 await session.exec(
-                    select(func.count())
-                    .select_from(BeatmapPlaycounts)
-                    .where(BeatmapPlaycounts.beatmap_id == beatmap.id)
+                    select(func.sum(BeatmapPlaycounts.playcount)).where(BeatmapPlaycounts.beatmap_id == beatmap.id)
                 )
-            ).one()
+            ).first() or 0
             beatmap_["passcount"] = (
                 await session.exec(
                     select(func.count())

@@ -14,6 +14,7 @@ from app.calculator import (
     pre_fetch_and_calculate_pp,
 )
 from app.config import settings
+from app.database.beatmap_playcounts import BeatmapPlaycounts
 from app.database.team import TeamMember
 from app.dependencies.database import get_redis
 from app.log import log
@@ -1206,6 +1207,9 @@ async def _process_statistics(
         statistics.play_count += 1
         mouthly_playcount.count += 1
         statistics.play_time += playtime
+
+        await _process_beatmap_playcount(session, score.beatmap_id, user.id)
+
         logger.debug(
             "Recorded playtime {playtime}s for score {score_id} (user {user_id})",
             playtime=playtime,
@@ -1251,6 +1255,33 @@ async def _process_statistics(
             user_id=user.id,
             year=mouthly_playcount.year,
             month=mouthly_playcount.month,
+        )
+
+
+async def _process_beatmap_playcount(session: AsyncSession, beatmap_id: int, user_id: int):
+    beatmap_playcount = (
+        await session.exec(
+            select(BeatmapPlaycounts).where(
+                BeatmapPlaycounts.beatmap_id == beatmap_id,
+                BeatmapPlaycounts.user_id == user_id,
+            )
+        )
+    ).first()
+    if beatmap_playcount is None:
+        beatmap_playcount = BeatmapPlaycounts(beatmap_id=beatmap_id, user_id=user_id, playcount=1)
+        session.add(beatmap_playcount)
+        logger.debug(
+            "Created beatmap playcount record for user {user_id} on beatmap {beatmap_id}",
+            user_id=user_id,
+            beatmap_id=beatmap_id,
+        )
+    else:
+        beatmap_playcount.playcount += 1
+        logger.debug(
+            "Incremented beatmap playcount for user {user_id} on beatmap {beatmap_id} to {count}",
+            user_id=user_id,
+            beatmap_id=beatmap_id,
+            count=beatmap_playcount.playcount,
         )
 
 

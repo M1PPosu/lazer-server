@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, NotRequired, Self, TypedDict
 
 from app.config import settings
+from app.database.beatmap_playcounts import BeatmapPlaycounts
 from app.models.beatmap import BeatmapRankStatus, Genre, Language
 from app.models.score import GameMode
 
@@ -74,7 +75,6 @@ class BeatmapsetBase(SQLModel):
     covers: BeatmapCovers | None = Field(sa_column=Column(JSON))
     creator: str = Field(index=True)
     nsfw: bool = Field(default=False, sa_column=Column(Boolean))
-    play_count: int = Field(index=True)
     preview_url: str
     source: str = Field(default="")
 
@@ -204,6 +204,7 @@ class BeatmapsetResp(BeatmapsetBase):
     has_favourited: bool = False
     favourite_count: int = 0
     recent_favourites: list[UserResp] = Field(default_factory=list)
+    play_count: int = 0
 
     @field_validator(
         "nsfw",
@@ -240,7 +241,7 @@ class BeatmapsetResp(BeatmapsetBase):
         session: AsyncSession | None = None,
         user: User | None = None,
     ) -> "BeatmapsetResp":
-        from .beatmap import BeatmapResp
+        from .beatmap import Beatmap, BeatmapResp
         from .favourite_beatmapset import FavouriteBeatmapset
 
         update = {
@@ -331,6 +332,14 @@ class BeatmapsetResp(BeatmapsetBase):
                     .where(FavouriteBeatmapset.beatmapset_id == beatmapset.id)
                 )
             ).one()
+
+            update["play_count"] = (
+                await session.exec(
+                    select(func.sum(BeatmapPlaycounts.playcount)).where(
+                        col(BeatmapPlaycounts.beatmap).has(col(Beatmap.beatmapset_id) == beatmapset.id)
+                    )
+                )
+            ).first() or 0
         return cls.model_validate(
             update,
         )
