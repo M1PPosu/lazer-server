@@ -31,12 +31,12 @@ class EmailQueue:
         self._retry_limit = 3  # 重试次数限制
 
         # 邮件配置
-        self.smtp_server = getattr(settings, "smtp_server", "localhost")
-        self.smtp_port = getattr(settings, "smtp_port", 587)
-        self.smtp_username = getattr(settings, "smtp_username", "")
-        self.smtp_password = getattr(settings, "smtp_password", "")
-        self.from_email = getattr(settings, "from_email", "noreply@example.com")
-        self.from_name = getattr(settings, "from_name", "osu! server")
+        self.smtp_server = settings.smtp_server
+        self.smtp_port = settings.smtp_port
+        self.smtp_username = settings.smtp_username
+        self.smtp_password = settings.smtp_password
+        self.from_email = settings.from_email
+        self.from_name = settings.from_name
 
     async def _run_in_executor(self, func, *args):
         """在线程池中运行同步操作"""

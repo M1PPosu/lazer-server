@@ -43,7 +43,7 @@ class BeatmapsetCacheService:
 
     def __init__(self, redis: Redis):
         self.redis = redis
-        self._default_ttl = getattr(settings, "beatmapset_cache_expire_seconds", 3600)  # 1小时默认TTL
+        self._default_ttl = settings.beatmapset_cache_expire_seconds
 
     def _get_beatmapset_cache_key(self, beatmapset_id: int) -> str:
         """生成beatmapset缓存键"""

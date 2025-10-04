@@ -316,11 +316,6 @@ STORAGE_SETTINGS='{
         Field(default=False, description="是否启用邮件验证功能"),
         "验证服务设置",
     ]
-    enable_smart_verification: Annotated[
-        bool,
-        Field(default=True, description="是否启用智能验证（基于客户端类型和设备信任）"),
-        "验证服务设置",
-    ]
     enable_session_verification: Annotated[
         bool,
         Field(default=True, description="是否启用会话验证中间件"),
@@ -471,6 +466,12 @@ STORAGE_SETTINGS='{
     beatmap_cache_expire_hours: Annotated[
         int,
         Field(default=24, description="谱面缓存过期时间（小时）"),
+        "缓存设置",
+        "谱面缓存",
+    ]
+    beatmapset_cache_expire_seconds: Annotated[
+        int,
+        Field(default=3600, description="Beatmapset 缓存过期时间（秒）"),
         "缓存设置",
         "谱面缓存",
     ]

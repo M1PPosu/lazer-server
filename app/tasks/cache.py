@@ -62,8 +62,7 @@ async def refresh_ranking_cache() -> None:
 
 async def schedule_user_cache_preload_task() -> None:
     """定时用户缓存预加载任务"""
-    enable_user_cache_preload = getattr(settings, "enable_user_cache_preload", True)
-    if not enable_user_cache_preload:
+    if not settings.enable_user_cache_preload:
         return
 
     try:

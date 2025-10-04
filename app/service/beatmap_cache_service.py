@@ -155,8 +155,7 @@ async def schedule_preload_task(session: AsyncSession, redis: Redis, fetcher: "F
     定时预加载任务
     """
     # 默认启用预加载，除非明确禁用
-    enable_preload = getattr(settings, "enable_beatmap_preload", True)
-    if not enable_preload:
+    if not settings.enable_beatmap_preload:
         return
 
     cache_service = get_beatmap_cache_service(redis, fetcher)

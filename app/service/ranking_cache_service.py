@@ -658,8 +658,7 @@ def get_ranking_cache_service(redis: Redis) -> RankingCacheService:
 async def schedule_ranking_refresh_task(session: AsyncSession, redis: Redis):
     """定时排行榜刷新任务"""
     # 默认启用排行榜缓存，除非明确禁用
-    enable_ranking_cache = getattr(settings, "enable_ranking_cache", True)
-    if not enable_ranking_cache:
+    if not settings.enable_ranking_cache:
         return
 
     cache_service = get_ranking_cache_service(redis)
