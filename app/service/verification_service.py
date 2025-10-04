@@ -2,8 +2,6 @@
 邮件验证管理服务
 """
 
-from __future__ import annotations
-
 from datetime import timedelta
 import secrets
 import string
@@ -180,7 +178,7 @@ This email was sent automatically, please do not reply.
             return True
 
         except Exception as e:
-            logger.error(f"[Email Verification] Failed to enqueue email: {e}")
+            logger.error(f"Failed to enqueue email: {e}")
             return False
 
     @staticmethod
@@ -237,7 +235,7 @@ This email was sent automatically, please do not reply.
             str(verification.id) if verification.id else "0",
         )
 
-        logger.info(f"[Email Verification] Created verification code for user {user_id}: {code}")
+        logger.info(f"Created verification code for user {user_id}: {code}")
         return verification, code
 
     @staticmethod
@@ -254,11 +252,11 @@ This email was sent automatically, please do not reply.
         try:
             # 检查是否启用邮件验证功能
             if not settings.enable_email_verification:
-                logger.debug(f"[Email Verification] Email verification is disabled, skipping for user {user_id}")
+                logger.debug(f"Email verification is disabled, skipping for user {user_id}")
                 return True  # 返回成功，但不执行验证流程
 
             # 检测客户端信息
-            logger.info(f"[Email Verification] Detected client for user {user_id}: {user_agent}")
+            logger.info(f"Detected client for user {user_id}: {user_agent}")
 
             # 创建验证记录
             (
@@ -272,16 +270,14 @@ This email was sent automatically, please do not reply.
             success = await EmailVerificationService.send_verification_email_via_queue(email, code, username, user_id)
 
             if success:
-                logger.info(
-                    f"[Email Verification] Successfully enqueued verification email to {email} (user: {username})"
-                )
+                logger.info(f"Successfully enqueued verification email to {email} (user: {username})")
                 return True
             else:
-                logger.error(f"[Email Verification] Failed to enqueue verification email: {email} (user: {username})")
+                logger.error(f"Failed to enqueue verification email: {email} (user: {username})")
                 return False
 
         except Exception as e:
-            logger.error(f"[Email Verification] Exception during sending verification email: {e}")
+            logger.error(f"Exception during sending verification email: {e}")
             return False
 
     @staticmethod
@@ -290,16 +286,12 @@ This email was sent automatically, please do not reply.
         redis: Redis,
         user_id: int,
         code: str,
-        ip_address: str | None = None,
-        user_agent: str | None = None,
-        client_id: int | None = None,
-        country_code: str | None = None,
     ) -> tuple[bool, str]:
         """验证邮箱验证码"""
         try:
             # 检查是否启用邮件验证功能
             if not settings.enable_email_verification:
-                logger.debug(f"[Email Verification] Email verification is disabled, auto-approving for user {user_id}")
+                logger.debug(f"Email verification is disabled, auto-approving for user {user_id}")
                 return True, "验证成功（邮件验证功能已禁用）"
 
             # 先从 Redis 检查
@@ -331,11 +323,11 @@ This email was sent automatically, please do not reply.
             # 删除 Redis 记录
             await redis.delete(f"email_verification:{user_id}:{code}")
 
-            logger.info(f"[Email Verification] User {user_id} verification code verified successfully")
+            logger.info(f"User {user_id} verification code verified successfully")
             return True, "验证成功"
 
         except Exception as e:
-            logger.error(f"[Email Verification] Exception during verification code validation: {e}")
+            logger.error(f"Exception during verification code validation: {e}")
             return False, "验证过程中发生错误"
 
     @staticmethod
@@ -354,7 +346,7 @@ This email was sent automatically, please do not reply.
             _ = user_agent
             # 检查是否启用邮件验证功能
             if not settings.enable_email_verification:
-                logger.debug(f"[Email Verification] Email verification is disabled, skipping resend for user {user_id}")
+                logger.debug(f"Email verification is disabled, skipping resend for user {user_id}")
                 return True, "验证码已发送（邮件验证功能已禁用）"
 
             # 检查重发频率限制（60秒内只能发送一次）
@@ -376,7 +368,7 @@ This email was sent automatically, please do not reply.
                 return False, "重新发送失败，请稍后再试"
 
         except Exception as e:
-            logger.error(f"[Email Verification] Exception during resending verification code: {e}")
+            logger.error(f"Exception during resending verification code: {e}")
             return False, "重新发送过程中发生错误"
 
 
@@ -430,7 +422,7 @@ class LoginSessionService:
         await db.commit()
         await db.refresh(session)
 
-        logger.info(f"[Login Session] Created session for user {user_id} (new device: {is_new_device})")
+        logger.info(f"Created session for user {user_id} (new device: {is_new_device})")
         return session
 
     @classmethod
@@ -562,7 +554,7 @@ class LoginSessionService:
                     session.device_id = device_info.id
 
             if sessions:
-                logger.info(f"[Login Session] Marked {len(sessions)} session(s) as verified for user {user_id}")
+                logger.info(f"Marked {len(sessions)} session(s) as verified for user {user_id}")
 
             await LoginSessionService.clear_login_method(user_id, token_id, redis)
             await db.commit()
@@ -570,7 +562,7 @@ class LoginSessionService:
             return len(sessions) > 0
 
         except Exception as e:
-            logger.error(f"[Login Session] Exception during marking sessions as verified: {e}")
+            logger.error(f"Exception during marking sessions as verified: {e}")
             return False
 
     @staticmethod

@@ -1,4 +1,3 @@
-# ruff: noqa: I002
 from enum import Enum
 from typing import Annotated, Any
 
@@ -142,7 +141,7 @@ STORAGE_SETTINGS='{
     ]
     redis_url: Annotated[
         str,
-        Field(default="redis://127.0.0.1:6379/0", description="Redis 连接 URL"),
+        Field(default="redis://127.0.0.1:6379", description="Redis 连接 URL"),
         "数据库设置",
     ]
 
@@ -217,7 +216,7 @@ STORAGE_SETTINGS='{
     # 服务器设置
     host: Annotated[
         str,
-        Field(default="0.0.0.0", description="服务器监听地址"),
+        Field(default="0.0.0.0", description="服务器监听地址"),  # noqa: S104
         "服务器设置",
     ]
     port: Annotated[
@@ -265,18 +264,6 @@ STORAGE_SETTINGS='{
             return str(self.server_url)
         else:
             return "/"
-
-    # SignalR 设置
-    signalr_negotiate_timeout: Annotated[
-        int,
-        Field(default=30, description="SignalR 协商超时时间（秒）"),
-        "SignalR 服务器设置",
-    ]
-    signalr_ping_interval: Annotated[
-        int,
-        Field(default=15, description="SignalR ping 间隔（秒）"),
-        "SignalR 服务器设置",
-    ]
 
     # Fetcher 设置
     fetcher_client_id: Annotated[
@@ -327,11 +314,6 @@ STORAGE_SETTINGS='{
     enable_email_verification: Annotated[
         bool,
         Field(default=False, description="是否启用邮件验证功能"),
-        "验证服务设置",
-    ]
-    enable_smart_verification: Annotated[
-        bool,
-        Field(default=True, description="是否启用智能验证（基于客户端类型和设备信任）"),
         "验证服务设置",
     ]
     enable_session_verification: Annotated[
@@ -487,6 +469,12 @@ STORAGE_SETTINGS='{
         "缓存设置",
         "谱面缓存",
     ]
+    beatmapset_cache_expire_seconds: Annotated[
+        int,
+        Field(default=3600, description="Beatmapset 缓存过期时间（秒）"),
+        "缓存设置",
+        "谱面缓存",
+    ]
 
     # 排行榜缓存设置
     enable_ranking_cache: Annotated[
@@ -548,12 +536,6 @@ STORAGE_SETTINGS='{
     user_cache_max_preload_users: Annotated[
         int,
         Field(default=200, description="最多预加载的用户数量"),
-        "缓存设置",
-        "用户缓存",
-    ]
-    user_cache_concurrent_limit: Annotated[
-        int,
-        Field(default=10, description="并发缓存用户的限制"),
         "缓存设置",
         "用户缓存",
     ]
@@ -621,26 +603,26 @@ STORAGE_SETTINGS='{
     ]
 
     @field_validator("fetcher_scopes", mode="before")
+    @classmethod
     def validate_fetcher_scopes(cls, v: Any) -> list[str]:
         if isinstance(v, str):
             return v.split(",")
         return v
 
     @field_validator("storage_settings", mode="after")
+    @classmethod
     def validate_storage_settings(
         cls,
         v: LocalStorageSettings | CloudflareR2Settings | AWSS3StorageSettings,
         info: ValidationInfo,
     ) -> LocalStorageSettings | CloudflareR2Settings | AWSS3StorageSettings:
-        if info.data.get("storage_service") == StorageServiceType.CLOUDFLARE_R2:
-            if not isinstance(v, CloudflareR2Settings):
-                raise ValueError("When storage_service is 'r2', storage_settings must be CloudflareR2Settings")
-        elif info.data.get("storage_service") == StorageServiceType.LOCAL:
-            if not isinstance(v, LocalStorageSettings):
-                raise ValueError("When storage_service is 'local', storage_settings must be LocalStorageSettings")
-        elif info.data.get("storage_service") == StorageServiceType.AWS_S3:
-            if not isinstance(v, AWSS3StorageSettings):
-                raise ValueError("When storage_service is 's3', storage_settings must be AWSS3StorageSettings")
+        service = info.data.get("storage_service")
+        if service == StorageServiceType.CLOUDFLARE_R2 and not isinstance(v, CloudflareR2Settings):
+            raise ValueError("When storage_service is 'r2', storage_settings must be CloudflareR2Settings")
+        if service == StorageServiceType.LOCAL and not isinstance(v, LocalStorageSettings):
+            raise ValueError("When storage_service is 'local', storage_settings must be LocalStorageSettings")
+        if service == StorageServiceType.AWS_S3 and not isinstance(v, AWSS3StorageSettings):
+            raise ValueError("When storage_service is 's3', storage_settings must be AWSS3StorageSettings")
         return v
 
 

@@ -1,10 +1,8 @@
-from __future__ import annotations
-
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
-from app.database.lazer_user import User
 from app.database.statistics import UserStatistics, UserStatisticsResp
+from app.database.user import User
 from app.dependencies.database import Database, get_redis
 from app.log import logger
 from app.models.score import GameMode
@@ -104,10 +102,10 @@ class V1User(AllStrModel):
 async def get_user(
     session: Database,
     background_tasks: BackgroundTasks,
-    user: str = Query(..., alias="u", description="用户"),
-    ruleset_id: int | None = Query(None, alias="m", description="Ruleset ID", ge=0),
-    type: Literal["string", "id"] | None = Query(None, description="用户类型：string 用户名称 / id 用户 ID"),
-    event_days: int = Query(default=1, ge=1, le=31, description="从现在起所有事件的最大天数"),
+    user: Annotated[str, Query(..., alias="u", description="用户")],
+    ruleset_id: Annotated[int | None, Query(alias="m", description="Ruleset ID", ge=0)] = None,
+    type: Annotated[Literal["string", "id"] | None, Query(description="用户类型：string 用户名称 / id 用户 ID")] = None,
+    event_days: Annotated[int, Query(ge=1, le=31, description="从现在起所有事件的最大天数")] = 1,
 ):
     redis = get_redis()
     cache_service = get_user_cache_service(redis)

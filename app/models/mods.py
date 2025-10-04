@@ -1,11 +1,9 @@
-from __future__ import annotations
-
 import hashlib
 import json
 from typing import Any, Literal, NotRequired, TypedDict
 
 from app.config import settings as app_settings
-from app.log import logger
+from app.log import log
 from app.path import CONFIG_DIR, STATIC_DIR
 
 from pydantic import ConfigDict, Field, create_model
@@ -268,7 +266,7 @@ def generate_ranked_mod_settings(enable_all: bool = False):
             for mod_acronym in ruleset_mods:
                 result[ruleset_id][mod_acronym] = {}
         if not enable_all:
-            logger.info("ENABLE_ALL_MODS_PP is deprecated, transformed to config/ranked_mods.json")
+            log("Mod").info("ENABLE_ALL_MODS_PP is deprecated, transformed to config/ranked_mods.json")
     result["$mods_checksum"] = checksum  # pyright: ignore[reportArgumentType]
     ranked_mods_file.write_text(json.dumps(result, indent=4))
 

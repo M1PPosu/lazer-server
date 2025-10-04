@@ -1,6 +1,4 @@
-from __future__ import annotations
-
-from datetime import datetime, timedelta
+from datetime import timedelta
 from enum import Enum
 import math
 import random
@@ -12,7 +10,6 @@ from app.database.beatmap_sync import BeatmapSync, SavedBeatmapMeta
 from app.database.beatmapset import Beatmapset, BeatmapsetResp
 from app.database.score import Score
 from app.dependencies.database import with_db
-from app.dependencies.scheduler import get_scheduler
 from app.dependencies.storage import get_storage_service
 from app.log import logger
 from app.models.beatmap import BeatmapRankStatus
@@ -111,9 +108,7 @@ class ProcessingBeatmapset:
         changed_beatmaps = []
         for bm in self.beatmapset.beatmaps:
             saved = next((s for s in self.record.beatmaps if s["beatmap_id"] == bm.id), None)
-            if not saved:
-                changed_beatmaps.append(ChangedBeatmap(bm.id, BeatmapChangeType.MAP_ADDED))
-            elif saved["is_deleted"]:
+            if not saved or saved["is_deleted"]:
                 changed_beatmaps.append(ChangedBeatmap(bm.id, BeatmapChangeType.MAP_ADDED))
             elif saved["md5"] != bm.checksum:
                 changed_beatmaps.append(ChangedBeatmap(bm.id, BeatmapChangeType.MAP_UPDATED))
@@ -136,9 +131,7 @@ class BeatmapsetUpdateService:
         status = BeatmapRankStatus(beatmapset.ranked)
         if status.has_pp() or status == BeatmapRankStatus.LOVED:
             return False
-        logger.opt(colors=True).debug(
-            f"<cyan>[BeatmapsetUpdateService]</cyan> added missing beatmapset {beatmapset_id} "
-        )
+        logger.debug(f"added missing beatmapset {beatmapset_id} ")
         return True
 
     async def add_missing_beatmapsets(self):
@@ -167,11 +160,9 @@ class BeatmapsetUpdateService:
                     if await self.add_missing_beatmapset(missing):
                         total += 1
                 except Exception as e:
-                    logger.opt(colors=True).error(
-                        f"<cyan>[BeatmapsetUpdateService]</cyan> failed to add missing beatmapset {missing}: {e}"
-                    )
+                    logger.error(f"failed to add missing beatmapset {missing}: {e}")
             if total > 0:
-                logger.opt(colors=True).info(f"<cyan>[BeatmapsetUpdateService]</cyan> added {total} missing beatmapset")
+                logger.opt(colors=True).info(f"added {total} missing beatmapset")
         self._adding_missing = False
 
     async def add(self, beatmapset: BeatmapsetResp):
@@ -212,22 +203,18 @@ class BeatmapsetUpdateService:
             next_time_delta = processing.calculate_next_sync_time()
             if not next_time_delta:
                 logger.opt(colors=True).info(
-                    f"<cyan>[BeatmapsetUpdateService]</cyan> [{beatmapset.id}] "
-                    "beatmapset has transformed to ranked or loved,"
-                    " removing from sync list"
+                    f"<g>[{beatmapset.id}]</g> beatmapset has transformed to ranked or loved, removing from sync list"
                 )
                 await session.delete(sync_record)
                 await session.commit()
                 return
             sync_record.next_sync_time = utcnow() + next_time_delta
-            logger.opt(colors=True).info(
-                f"<cyan>[BeatmapsetUpdateService]</cyan> [{beatmapset.id}] next sync at {sync_record.next_sync_time}"
-            )
+            logger.opt(colors=True).info(f"<g>[{beatmapset.id}]</g> next sync at {sync_record.next_sync_time}")
             await session.commit()
 
     async def _update_beatmaps(self):
         async with with_db() as session:
-            logger.opt(colors=True).info("<cyan>[BeatmapsetUpdateService]</cyan> checking for beatmapset updates...")
+            logger.info("checking for beatmapset updates...")
             now = utcnow()
             records = await session.exec(
                 select(BeatmapSync)
@@ -235,21 +222,18 @@ class BeatmapsetUpdateService:
                 .order_by(col(BeatmapSync.next_sync_time).desc())
             )
             for record in records:
-                logger.opt(colors=True).info(
-                    f"<cyan>[BeatmapsetUpdateService]</cyan> [{record.beatmapset_id}] syncing..."
-                )
+                logger.opt(colors=True).info(f"<g>[{record.beatmapset_id}]</g> syncing...")
                 try:
                     beatmapset = await self.fetcher.get_beatmapset(record.beatmapset_id)
                 except Exception as e:
                     if isinstance(e, HTTPError):
                         logger.opt(colors=True).warning(
-                            f"<cyan>[BeatmapsetUpdateService]</cyan> [{record.beatmapset_id}] "
+                            f"<g>[{record.beatmapset_id}]</g> "
                             f"failed to fetch beatmapset: [{e.__class__.__name__}] {e}, retrying later"
                         )
                     else:
                         logger.opt(colors=True).exception(
-                            f"<cyan>[BeatmapsetUpdateService]</cyan> [{record.beatmapset_id}] "
-                            f"unexpected error: {e}, retrying later"
+                            f"<g>[{record.beatmapset_id}]</g> unexpected error: {e}, retrying later"
                         )
                     record.next_sync_time = utcnow() + timedelta(seconds=MIN_DELTA)
                     continue
@@ -283,23 +267,21 @@ class BeatmapsetUpdateService:
                 next_time_delta = processing.calculate_next_sync_time()
                 if not next_time_delta:
                     logger.opt(colors=True).info(
-                        f"<cyan>[BeatmapsetUpdateService]</cyan> [{record.beatmapset_id}] beatmapset "
-                        "has transformed to ranked or loved,"
-                        " removing from sync list"
+                        f"<yellow>[{beatmapset.id}]</yellow> beatmapset has transformed to ranked or loved,"
+                        f" removing from sync list"
                     )
                     await session.delete(record)
                 else:
                     record.next_sync_time = utcnow() + next_time_delta
                     logger.opt(colors=True).info(
-                        f"<cyan>[BeatmapsetUpdateService]</cyan> [{record.beatmapset_id}] "
-                        f"next sync at {record.next_sync_time}"
+                        f"<g>[{record.beatmapset_id}]</g> next sync at {record.next_sync_time}"
                     )
             await session.commit()
 
     async def _process_changed_beatmapset(self, beatmapset: BeatmapsetResp):
         async with with_db() as session:
             db_beatmapset = await session.get(Beatmapset, beatmapset.id)
-            new_beatmapset = await Beatmapset.from_resp_no_save(session, beatmapset)
+            new_beatmapset = await Beatmapset.from_resp_no_save(beatmapset)
             if db_beatmapset:
                 await session.merge(new_beatmapset)
             await session.commit()
@@ -323,9 +305,7 @@ class BeatmapsetUpdateService:
                             await score.ranked_score.delete(session)
                     total += 1
                 if total > 0:
-                    logger.opt(colors=True).info(
-                        f"<cyan>[BeatmapsetUpdateService]</cyan> [beatmap: {beatmap_id}] processed {total} old scores"
-                    )
+                    logger.opt(colors=True).info(f"<g>[beatmap: {beatmap_id}]</g> processed {total} old scores")
                 await session.commit()
 
             for change in changed:
@@ -334,26 +314,22 @@ class BeatmapsetUpdateService:
                         beatmap = await self.fetcher.get_beatmap(change.beatmap_id)
                     except Exception as e:
                         logger.opt(colors=True).error(
-                            f"<cyan>[BeatmapsetUpdateService]</cyan> [beatmap: {change.beatmap_id}] "
-                            f"failed to fetch added beatmap: {e}, skipping"
+                            f"<g>[beatmap: {change.beatmap_id}]</g> failed to fetch added beatmap: {e}, skipping"
                         )
                         continue
-                    logger.opt(colors=True).info(
-                        f"<cyan>[BeatmapsetUpdateService]</cyan> [{beatmap.beatmapset_id}] adding beatmap {beatmap.id}"
-                    )
+                    logger.opt(colors=True).info(f"[{beatmap.beatmapset_id}] adding beatmap {beatmap.id}")
                     await Beatmap.from_resp_no_save(session, beatmap)
                 else:
                     try:
                         beatmap = await self.fetcher.get_beatmap(change.beatmap_id)
                     except Exception as e:
                         logger.opt(colors=True).error(
-                            f"<cyan>[BeatmapsetUpdateService]</cyan> [beatmap: {change.beatmap_id}] "
-                            f"failed to fetch changed beatmap: {e}, skipping"
+                            f"<g>[beatmap: {change.beatmap_id}]</g> failed to fetch changed beatmap: {e}, skipping"
                         )
                         continue
                     logger.opt(colors=True).info(
-                        f"<cyan>[BeatmapsetUpdateService]</cyan> [{beatmap.beatmapset_id}] processing beatmap "
-                        f"{beatmap.id} change {change.type}"
+                        f"<g>[{beatmap.beatmapset_id}]</g> processing beatmap <blue>{beatmap.id}</blue> "
+                        f"change <cyan>{change.type}</cyan>"
                     )
                     new_db_beatmap = await Beatmap.from_resp_no_save(session, beatmap)
                     existing_beatmap = await session.get(Beatmap, change.beatmap_id)
@@ -376,17 +352,7 @@ def init_beatmapset_update_service(fetcher: "Fetcher") -> BeatmapsetUpdateServic
 
 
 def get_beatmapset_update_service() -> BeatmapsetUpdateService:
+    if service is None:
+        raise ValueError("BeatmapsetUpdateService is not initialized")
     assert service is not None, "BeatmapsetUpdateService is not initialized"
     return service
-
-
-@get_scheduler().scheduled_job(
-    "interval",
-    id="update_beatmaps",
-    minutes=SCHEDULER_INTERVAL_MINUTES,
-    next_run_time=datetime.now() + timedelta(minutes=1),
-)
-async def beatmapset_update_job():
-    if service is not None:
-        bg_tasks.add_task(service.add_missing_beatmapsets)
-        await service._update_beatmaps()

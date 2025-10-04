@@ -1,19 +1,18 @@
-from __future__ import annotations
-
 import asyncio
-from typing import overload
+from typing import Annotated, overload
 
 from app.database.chat import ChannelType, ChatChannel, ChatChannelResp, ChatMessageResp
-from app.database.lazer_user import User
 from app.database.notification import UserNotification, insert_notification
+from app.database.user import User
 from app.dependencies.database import (
     DBFactory,
+    Redis,
     get_db_factory,
-    get_redis,
+    redis_message_client,
     with_db,
 )
 from app.dependencies.user import get_current_user_and_token
-from app.log import logger
+from app.log import log
 from app.models.chat import ChatEvent
 from app.models.notification import NotificationDetail
 from app.service.subscribers.chat import ChatSubscriber
@@ -22,16 +21,17 @@ from app.utils import bg_tasks
 from fastapi import APIRouter, Depends, Header, Query, WebSocket, WebSocketDisconnect
 from fastapi.security import SecurityScopes
 from fastapi.websockets import WebSocketState
-from redis.asyncio import Redis
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
+
+logger = log("NotificationServer")
 
 
 class ChatServer:
     def __init__(self):
         self.connect_client: dict[int, WebSocket] = {}
         self.channels: dict[int, list[int]] = {}
-        self.redis: Redis = get_redis()
+        self.redis: Redis = redis_message_client
 
         self.tasks: set[asyncio.Task] = set()
         self.ChatSubscriber = ChatSubscriber()
@@ -285,10 +285,10 @@ async def _listen_stop(ws: WebSocket, user_id: int, factory: DBFactory):
                 await ws.close(code=1000)
                 break
     except WebSocketDisconnect as e:
-        logger.info(f"[NotificationServer] Client {user_id} disconnected: {e.code}, {e.reason}")
+        logger.info(f"Client {user_id} disconnected: {e.code}, {e.reason}")
     except RuntimeError as e:
         if "disconnect message" in str(e):
-            logger.info(f"[NotificationServer] Client {user_id} closed the connection.")
+            logger.info(f"Client {user_id} closed the connection.")
         else:
             logger.exception(f"RuntimeError in client {user_id}: {e}")
     except Exception:
@@ -298,10 +298,10 @@ async def _listen_stop(ws: WebSocket, user_id: int, factory: DBFactory):
 @chat_router.websocket("/notification-server")
 async def chat_websocket(
     websocket: WebSocket,
-    token: str | None = Query(None, description="认证令牌，支持通过URL参数传递"),
-    access_token: str | None = Query(None, description="访问令牌，支持通过URL参数传递"),
-    authorization: str | None = Header(None, description="Bearer认证头"),
-    factory: DBFactory = Depends(get_db_factory),
+    factory: Annotated[DBFactory, Depends(get_db_factory)],
+    token: Annotated[str | None, Query(description="认证令牌，支持通过URL参数传递")] = None,
+    access_token: Annotated[str | None, Query(description="访问令牌，支持通过URL参数传递")] = None,
+    authorization: Annotated[str | None, Header(description="Bearer认证头")] = None,
 ):
     if not server._subscribed:
         server._subscribed = True
@@ -311,10 +311,7 @@ async def chat_websocket(
         # 优先使用查询参数中的token，支持token或access_token参数名
         auth_token = token or access_token
         if not auth_token and authorization:
-            if authorization.startswith("Bearer "):
-                auth_token = authorization[7:]
-            else:
-                auth_token = authorization
+            auth_token = authorization.removeprefix("Bearer ")
 
         if not auth_token:
             await websocket.close(code=1008, reason="Missing authentication token")

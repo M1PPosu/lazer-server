@@ -1,15 +1,14 @@
-from __future__ import annotations
+from typing import Annotated
 
 from app.database.auth import OAuthToken
 from app.database.verification import LoginSession, LoginSessionResp, TrustedDevice, TrustedDeviceResp
 from app.dependencies.database import Database
-from app.dependencies.geoip import get_geoip_helper
+from app.dependencies.geoip import GeoIPService
 from app.dependencies.user import UserAndToken, get_client_user_and_token
-from app.helpers.geoip_helper import GeoIPHelper
 
 from .router import router
 
-from fastapi import Depends, HTTPException, Security
+from fastapi import HTTPException, Security
 from pydantic import BaseModel
 from sqlmodel import col, select
 
@@ -28,8 +27,8 @@ class SessionsResp(BaseModel):
 )
 async def get_sessions(
     session: Database,
-    user_and_token: UserAndToken = Security(get_client_user_and_token),
-    geoip: GeoIPHelper = Depends(get_geoip_helper),
+    user_and_token: Annotated[UserAndToken, Security(get_client_user_and_token)],
+    geoip: GeoIPService,
 ):
     current_user, token = user_and_token
     sessions = (
@@ -57,7 +56,7 @@ async def get_sessions(
 async def delete_session(
     session: Database,
     session_id: int,
-    user_and_token: UserAndToken = Security(get_client_user_and_token),
+    user_and_token: Annotated[UserAndToken, Security(get_client_user_and_token)],
 ):
     current_user, token = user_and_token
     if session_id == token.id:
@@ -91,8 +90,8 @@ class TrustedDevicesResp(BaseModel):
 )
 async def get_trusted_devices(
     session: Database,
-    user_and_token: UserAndToken = Security(get_client_user_and_token),
-    geoip: GeoIPHelper = Depends(get_geoip_helper),
+    user_and_token: Annotated[UserAndToken, Security(get_client_user_and_token)],
+    geoip: GeoIPService,
 ):
     current_user, token = user_and_token
     devices = (
@@ -131,7 +130,7 @@ async def get_trusted_devices(
 async def delete_trusted_device(
     session: Database,
     device_id: int,
-    user_and_token: UserAndToken = Security(get_client_user_and_token),
+    user_and_token: Annotated[UserAndToken, Security(get_client_user_and_token)],
 ):
     current_user, token = user_and_token
     device = await session.get(TrustedDevice, device_id)

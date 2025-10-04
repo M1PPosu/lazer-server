@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import asyncio
 from copy import deepcopy
 from enum import Enum
@@ -7,7 +5,7 @@ import math
 from typing import TYPE_CHECKING
 
 from app.config import settings
-from app.log import logger
+from app.log import log
 from app.models.beatmap import BeatmapAttributes
 from app.models.mods import APIMod, parse_enum_to_str
 from app.models.score import GameMode
@@ -17,6 +15,8 @@ from osupyparser.osu.objects import Slider
 from redis.asyncio import Redis
 from sqlmodel import col, exists, select
 from sqlmodel.ext.asyncio.session import AsyncSession
+
+logger = log("Calculator")
 
 try:
     import rosu_pp_py as rosu
@@ -417,9 +417,8 @@ def too_dense(hit_objects: list[HitObject], per_1s: int, per_10s: int) -> bool:
         if len(hit_objects) > i + per_1s:
             if hit_objects[i + per_1s].start_time - hit_objects[i].start_time < 1000:
                 return True
-        elif len(hit_objects) > i + per_10s:
-            if hit_objects[i + per_10s].start_time - hit_objects[i].start_time < 10000:
-                return True
+        elif len(hit_objects) > i + per_10s and hit_objects[i + per_10s].start_time - hit_objects[i].start_time < 10000:
+            return True
     return False
 
 
@@ -446,10 +445,7 @@ def slider_is_sus(hit_objects: list[HitObject]) -> bool:
 
 
 def is_2b(hit_objects: list[HitObject]) -> bool:
-    for i in range(0, len(hit_objects) - 1):
-        if hit_objects[i] == hit_objects[i + 1].start_time:
-            return True
-    return False
+    return any(hit_objects[i] == hit_objects[i + 1].start_time for i in range(0, len(hit_objects) - 1))
 
 
 def is_suspicious_beatmap(content: str) -> bool:

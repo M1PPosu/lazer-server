@@ -1,7 +1,6 @@
-from __future__ import annotations
-
 from datetime import UTC, date
 import time
+from typing import Annotated
 
 from app.calculator import clamp
 from app.config import settings
@@ -18,7 +17,7 @@ from app.database import (
 from app.database.achievement import process_achievements
 from app.database.counts import ReplayWatchedCount
 from app.database.daily_challenge import process_daily_challenge_score
-from app.database.playlist_attempts import ItemAttemptsCount
+from app.database.item_attempts_count import ItemAttemptsCount
 from app.database.playlist_best_score import (
     PlaylistBestScore,
     get_position,
@@ -34,12 +33,11 @@ from app.database.score import (
     process_user,
 )
 from app.dependencies.api_version import APIVersion
-from app.dependencies.database import Database, get_redis, with_db
-from app.dependencies.fetcher import get_fetcher
-from app.dependencies.storage import get_storage_service
-from app.dependencies.user import get_client_user, get_current_user
-from app.fetcher import Fetcher
-from app.log import logger
+from app.dependencies.database import Database, Redis, get_redis, with_db
+from app.dependencies.fetcher import Fetcher, get_fetcher
+from app.dependencies.storage import StorageService
+from app.dependencies.user import ClientUser, get_current_user
+from app.log import log
 from app.models.beatmap import BeatmapRankStatus
 from app.models.room import RoomCategory
 from app.models.score import (
@@ -50,7 +48,6 @@ from app.models.score import (
 )
 from app.service.beatmap_cache_service import get_beatmap_cache_service
 from app.service.user_cache_service import refresh_user_cache_background
-from app.storage.base import StorageService
 from app.utils import utcnow
 
 from .router import router
@@ -69,12 +66,12 @@ from fastapi.responses import RedirectResponse
 from fastapi_limiter.depends import RateLimiter
 from httpx import HTTPError
 from pydantic import BaseModel
-from redis.asyncio import Redis
 from sqlalchemy.orm import joinedload
 from sqlmodel import col, exists, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 READ_SCORE_TIMEOUT = 10
+logger = log("Score")
 
 
 async def _process_user_achievement(score_id: int):
@@ -245,16 +242,18 @@ class BeatmapScores[T: ScoreResp | LegacyScoreResp](BaseModel):
 async def get_beatmap_scores(
     db: Database,
     api_version: APIVersion,
-    beatmap_id: int = Path(description="谱面 ID"),
-    mode: GameMode = Query(description="指定 auleset"),
-    legacy_only: bool = Query(None, description="是否只查询 Stable 分数"),
-    mods: list[str] = Query(default_factory=set, alias="mods[]", description="筛选使用的 Mods (可选，多值)"),
-    type: LeaderboardType = Query(
-        LeaderboardType.GLOBAL,
-        description=("排行榜类型：GLOBAL 全局 / COUNTRY 国家 / FRIENDS 好友 / TEAM 战队"),
-    ),
-    current_user: User = Security(get_current_user, scopes=["public"]),
-    limit: int = Query(50, ge=1, le=200, description="返回条数 (1-200)"),
+    beatmap_id: Annotated[int, Path(description="谱面 ID")],
+    mode: Annotated[GameMode, Query(description="指定 auleset")],
+    mods: Annotated[list[str], Query(default_factory=set, alias="mods[]", description="筛选使用的 Mods (可选，多值)")],
+    current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
+    legacy_only: Annotated[bool | None, Query(description="是否只查询 Stable 分数")] = None,
+    type: Annotated[
+        LeaderboardType,
+        Query(
+            description=("排行榜类型：GLOBAL 全局 / COUNTRY 国家 / FRIENDS 好友 / TEAM 战队"),
+        ),
+    ] = LeaderboardType.GLOBAL,
+    limit: Annotated[int, Query(ge=1, le=200, description="返回条数 (1-200)")] = 50,
 ):
     if legacy_only:
         raise HTTPException(status_code=404, detail="this server only contains lazer scores")
@@ -294,12 +293,12 @@ async def get_beatmap_scores(
 async def get_user_beatmap_score(
     db: Database,
     api_version: APIVersion,
-    beatmap_id: int = Path(description="谱面 ID"),
-    user_id: int = Path(description="用户 ID"),
-    legacy_only: bool = Query(None, description="是否只查询 Stable 分数"),
-    mode: GameMode | None = Query(None, description="指定 ruleset (可选)"),
-    mods: str = Query(None, description="筛选使用的 Mods (暂未实现)"),
-    current_user: User = Security(get_current_user, scopes=["public"]),
+    beatmap_id: Annotated[int, Path(description="谱面 ID")],
+    user_id: Annotated[int, Path(description="用户 ID")],
+    current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
+    legacy_only: Annotated[bool | None, Query(description="是否只查询 Stable 分数")] = None,
+    mode: Annotated[GameMode | None, Query(description="指定 ruleset (可选)")] = None,
+    mods: Annotated[str | None, Query(description="筛选使用的 Mods (暂未实现)")] = None,
 ):
     user_score = (
         await db.exec(
@@ -342,11 +341,11 @@ async def get_user_beatmap_score(
 async def get_user_all_beatmap_scores(
     db: Database,
     api_version: APIVersion,
-    beatmap_id: int = Path(description="谱面 ID"),
-    user_id: int = Path(description="用户 ID"),
-    legacy_only: bool = Query(None, description="是否只查询 Stable 分数"),
-    ruleset: GameMode | None = Query(None, description="指定 ruleset (可选)"),
-    current_user: User = Security(get_current_user, scopes=["public"]),
+    beatmap_id: Annotated[int, Path(description="谱面 ID")],
+    user_id: Annotated[int, Path(description="用户 ID")],
+    current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
+    legacy_only: Annotated[bool | None, Query(description="是否只查询 Stable 分数")] = None,
+    ruleset: Annotated[GameMode | None, Query(description="指定 ruleset (可选)")] = None,
 ):
     all_user_scores = (
         await db.exec(
@@ -374,11 +373,11 @@ async def get_user_all_beatmap_scores(
 async def create_solo_score(
     background_task: BackgroundTasks,
     db: Database,
-    beatmap_id: int = Path(description="谱面 ID"),
-    version_hash: str = Form("", description="游戏版本哈希"),
-    beatmap_hash: str = Form(description="谱面文件哈希"),
-    ruleset_id: int = Form(..., ge=0, le=3, description="ruleset 数字 ID (0-3)"),
-    current_user: User = Security(get_client_user),
+    beatmap_id: Annotated[int, Path(description="谱面 ID")],
+    beatmap_hash: Annotated[str, Form(description="谱面文件哈希")],
+    ruleset_id: Annotated[int, Form(..., ge=0, le=3, description="ruleset 数字 ID (0-3)")],
+    current_user: ClientUser,
+    version_hash: Annotated[str, Form(description="游戏版本哈希")] = "",
 ):
     # 立即获取用户ID，避免懒加载问题
     user_id = current_user.id
@@ -406,12 +405,12 @@ async def create_solo_score(
 async def submit_solo_score(
     background_task: BackgroundTasks,
     db: Database,
-    beatmap_id: int = Path(description="谱面 ID"),
-    token: int = Path(description="成绩令牌 ID"),
-    info: SoloScoreSubmissionInfo = Body(description="成绩提交信息"),
-    current_user: User = Security(get_client_user),
-    redis: Redis = Depends(get_redis),
-    fetcher=Depends(get_fetcher),
+    beatmap_id: Annotated[int, Path(description="谱面 ID")],
+    token: Annotated[int, Path(description="成绩令牌 ID")],
+    info: Annotated[SoloScoreSubmissionInfo, Body(description="成绩提交信息")],
+    current_user: ClientUser,
+    redis: Redis,
+    fetcher: Fetcher,
 ):
     return await submit_score(background_task, info, beatmap_id, token, current_user, db, redis, fetcher)
 
@@ -428,11 +427,11 @@ async def create_playlist_score(
     background_task: BackgroundTasks,
     room_id: int,
     playlist_id: int,
-    beatmap_id: int = Form(description="谱面 ID"),
-    beatmap_hash: str = Form(description="游戏版本哈希"),
-    ruleset_id: int = Form(..., ge=0, le=3, description="ruleset 数字 ID (0-3)"),
-    version_hash: str = Form("", description="谱面版本哈希"),
-    current_user: User = Security(get_client_user),
+    beatmap_id: Annotated[int, Form(description="谱面 ID")],
+    beatmap_hash: Annotated[str, Form(description="游戏版本哈希")],
+    ruleset_id: Annotated[int, Form(..., ge=0, le=3, description="ruleset 数字 ID (0-3)")],
+    current_user: ClientUser,
+    version_hash: Annotated[str, Form(description="谱面版本哈希")] = "",
 ):
     # 立即获取用户ID，避免懒加载问题
     user_id = current_user.id
@@ -496,9 +495,9 @@ async def submit_playlist_score(
     playlist_id: int,
     token: int,
     info: SoloScoreSubmissionInfo,
-    current_user: User = Security(get_client_user),
-    redis: Redis = Depends(get_redis),
-    fetcher: Fetcher = Depends(get_fetcher),
+    current_user: ClientUser,
+    redis: Redis,
+    fetcher: Fetcher,
 ):
     # 立即获取用户ID，避免懒加载问题
     user_id = current_user.id
@@ -555,9 +554,9 @@ async def index_playlist_scores(
     session: Database,
     room_id: int,
     playlist_id: int,
-    limit: int = Query(50, ge=1, le=50, description="返回条数 (1-50)"),
-    cursor: int = Query(2000000, alias="cursor[total_score]", description="分页游标（上一页最低分）"),
-    current_user: User = Security(get_current_user, scopes=["public"]),
+    current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
+    limit: Annotated[int, Query(ge=1, le=50, description="返回条数 (1-50)")] = 50,
+    cursor: Annotated[int, Query(alias="cursor[total_score]", description="分页游标（上一页最低分）")] = 2000000,
 ):
     # 立即获取用户ID，避免懒加载问题
     user_id = current_user.id
@@ -623,8 +622,8 @@ async def show_playlist_score(
     room_id: int,
     playlist_id: int,
     score_id: int,
-    current_user: User = Security(get_client_user),
-    redis: Redis = Depends(get_redis),
+    current_user: ClientUser,
+    redis: Redis,
 ):
     room = await session.get(Room, room_id)
     if not room:
@@ -692,7 +691,7 @@ async def get_user_playlist_score(
     room_id: int,
     playlist_id: int,
     user_id: int,
-    current_user: User = Security(get_client_user),
+    current_user: ClientUser,
 ):
     score_record = None
     start_time = time.time()
@@ -725,8 +724,8 @@ async def get_user_playlist_score(
 )
 async def pin_score(
     db: Database,
-    score_id: int = Path(description="成绩 ID"),
-    current_user: User = Security(get_client_user),
+    score_id: Annotated[int, Path(description="成绩 ID")],
+    current_user: ClientUser,
 ):
     # 立即获取用户ID，避免懒加载问题
     user_id = current_user.id
@@ -770,8 +769,8 @@ async def pin_score(
 )
 async def unpin_score(
     db: Database,
-    score_id: int = Path(description="成绩 ID"),
-    current_user: User = Security(get_client_user),
+    score_id: Annotated[int, Path(description="成绩 ID")],
+    current_user: ClientUser,
 ):
     # 立即获取用户ID，避免懒加载问题
     user_id = current_user.id
@@ -805,10 +804,10 @@ async def unpin_score(
 )
 async def reorder_score_pin(
     db: Database,
-    score_id: int = Path(description="成绩 ID"),
-    after_score_id: int | None = Body(default=None, description="放在该成绩之后"),
-    before_score_id: int | None = Body(default=None, description="放在该成绩之前"),
-    current_user: User = Security(get_client_user),
+    score_id: Annotated[int, Path(description="成绩 ID")],
+    current_user: ClientUser,
+    after_score_id: Annotated[int | None, Body(description="放在该成绩之后")] = None,
+    before_score_id: Annotated[int | None, Body(description="放在该成绩之前")] = None,
 ):
     # 立即获取用户ID，避免懒加载问题
     user_id = current_user.id
@@ -846,10 +845,7 @@ async def reorder_score_pin(
         detail = "After score not found" if after_score_id else "Before score not found"
         raise HTTPException(status_code=404, detail=detail)
 
-    if after_score_id:
-        target_order = reference_score.pinned_order + 1
-    else:
-        target_order = reference_score.pinned_order
+    target_order = reference_score.pinned_order + 1 if after_score_id else reference_score.pinned_order
 
     current_order = score_record.pinned_order
 
@@ -893,8 +889,8 @@ async def reorder_score_pin(
 async def download_score_replay(
     score_id: int,
     db: Database,
-    current_user: User = Security(get_current_user, scopes=["public"]),
-    storage_service: StorageService = Depends(get_storage_service),
+    current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
+    storage_service: StorageService,
 ):
     # 立即获取用户ID，避免懒加载问题
     user_id = current_user.id

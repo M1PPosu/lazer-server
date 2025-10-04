@@ -1,4 +1,4 @@
-from __future__ import annotations
+from typing import Annotated
 
 from app.auth import (
     check_totp_backup_code,
@@ -9,17 +9,15 @@ from app.auth import (
 )
 from app.const import BACKUP_CODE_LENGTH
 from app.database.auth import TotpKeys
-from app.database.lazer_user import User
-from app.dependencies.database import Database, get_redis
-from app.dependencies.user import get_client_user
+from app.dependencies.database import Database, Redis
+from app.dependencies.user import ClientUser
 from app.models.totp import FinishStatus, StartCreateTotpKeyResp
 
 from .router import router
 
-from fastapi import Body, Depends, HTTPException, Security
+from fastapi import Body, HTTPException
 from pydantic import BaseModel
 import pyotp
-from redis.asyncio import Redis
 
 
 class TotpStatusResp(BaseModel):
@@ -37,7 +35,7 @@ class TotpStatusResp(BaseModel):
     response_model=TotpStatusResp,
 )
 async def get_totp_status(
-    current_user: User = Security(get_client_user),
+    current_user: ClientUser,
 ):
     """检查用户是否已创建TOTP"""
     totp_key = await current_user.awaitable_attrs.totp_key
@@ -62,8 +60,8 @@ async def get_totp_status(
     status_code=201,
 )
 async def start_create_totp(
-    redis: Redis = Depends(get_redis),
-    current_user: User = Security(get_client_user),
+    redis: Redis,
+    current_user: ClientUser,
 ):
     if await current_user.awaitable_attrs.totp_key:
         raise HTTPException(status_code=400, detail="TOTP is already enabled for this user")
@@ -98,9 +96,9 @@ async def start_create_totp(
 )
 async def finish_create_totp(
     session: Database,
-    code: str = Body(..., embed=True, description="用户提供的 TOTP 代码"),
-    redis: Redis = Depends(get_redis),
-    current_user: User = Security(get_client_user),
+    code: Annotated[str, Body(..., embed=True, description="用户提供的 TOTP 代码")],
+    redis: Redis,
+    current_user: ClientUser,
 ):
     status, backup_codes = await finish_create_totp_key(current_user, code, redis, session)
     if status == FinishStatus.SUCCESS:
@@ -122,9 +120,9 @@ async def finish_create_totp(
 )
 async def disable_totp(
     session: Database,
-    code: str = Body(..., embed=True, description="用户提供的 TOTP 代码或备份码"),
-    redis: Redis = Depends(get_redis),
-    current_user: User = Security(get_client_user),
+    code: Annotated[str, Body(..., embed=True, description="用户提供的 TOTP 代码或备份码")],
+    redis: Redis,
+    current_user: ClientUser,
 ):
     totp = await session.get(TotpKeys, current_user.id)
     if not totp:

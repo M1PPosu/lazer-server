@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from enum import IntEnum
 from typing import Annotated, Any, Literal
 
@@ -204,3 +202,6 @@ class SearchQueryModel(BaseModel):
         default=None,
         description="游标字符串，用于分页",
     )
+
+
+SearchQueryModel.model_rebuild()

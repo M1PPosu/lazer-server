@@ -12,9 +12,9 @@ from app.calculator import (
 )
 from app.config import settings
 from app.const import BANCHOBOT_ID
-from app.database import BestScore, UserStatistics
+from app.database import TotalScoreBestScore, UserStatistics
 from app.database.beatmap import Beatmap
-from app.database.pp_best_score import PPBestScore
+from app.database.best_scores import BestScore
 from app.database.score import Score, calculate_playtime, calculate_user_pp
 from app.dependencies.database import engine, get_redis
 from app.dependencies.fetcher import get_fetcher
@@ -42,8 +42,8 @@ async def recalculate():
         fetcher = await get_fetcher()
         redis = get_redis()
         for mode in GameMode:
-            await session.execute(delete(PPBestScore).where(col(PPBestScore.gamemode) == mode))
             await session.execute(delete(BestScore).where(col(BestScore.gamemode) == mode))
+            await session.execute(delete(TotalScoreBestScore).where(col(TotalScoreBestScore.gamemode) == mode))
             await session.commit()
             logger.info(f"Recalculating for mode: {mode}")
             statistics_list = (
@@ -63,7 +63,7 @@ async def recalculate():
             )
             await run_in_batches(
                 [
-                    _recalculate_best_score(statistics.user_id, statistics.mode, session)
+                    _recalculate_total_score_best_score(statistics.user_id, statistics.mode, session)
                     for statistics in statistics_list
                 ],
                 batch_size=200,
@@ -97,7 +97,7 @@ async def _recalculate_pp(
                 )
             )
         ).all()
-        prev: dict[int, PPBestScore] = {}
+        prev: dict[int, BestScore] = {}
 
         async def cal(score: Score):
             time = 10
@@ -120,7 +120,7 @@ async def _recalculate_pp(
                         return
                     score.pp = pp
                     if score.beatmap_id not in prev or prev[score.beatmap_id].pp < pp:
-                        best_score = PPBestScore(
+                        best_score = BestScore(
                             user_id=user_id,
                             beatmap_id=beatmap_id,
                             acc=score.accuracy,
@@ -153,13 +153,13 @@ async def _recalculate_pp(
             session.add(best_score)
 
 
-async def _recalculate_best_score(
+async def _recalculate_total_score_best_score(
     user_id: int,
     gamemode: GameMode,
     session: AsyncSession,
 ):
     async with SEMAPHORE:
-        beatmap_best_score: dict[int, list[BestScore]] = {}
+        beatmap_best_score: dict[int, list[TotalScoreBestScore]] = {}
         scores = (
             await session.exec(
                 select(Score).where(
@@ -176,7 +176,7 @@ async def _recalculate_best_score(
             ):
                 continue
             mod_for_save = mod_to_save(score.mods)
-            bs = BestScore(
+            bs = TotalScoreBestScore(
                 user_id=score.user_id,
                 score_id=score.id,
                 beatmap_id=score.beatmap_id,

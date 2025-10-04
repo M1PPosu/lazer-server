@@ -13,7 +13,7 @@ services:
     environment:
       - MYSQL_HOST=mysql
       - MYSQL_PORT=3306
-      - REDIS_URL=redis://redis:6379/0
+      - REDIS_URL=redis://redis:6379
     env_file:
       - .env
     depends_on:

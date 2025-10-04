@@ -6,8 +6,6 @@ Create Date: 2025-10-02 10:50:21.169065
 
 """
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 from datetime import datetime, timedelta
 
@@ -27,8 +25,8 @@ def upgrade() -> None:
     op.add_column("oauth_tokens", sa.Column("refresh_token_expires_at", sa.DateTime(), nullable=True))
     op.create_index(op.f("ix_oauth_tokens_expires_at"), "oauth_tokens", ["expires_at"], unique=False)
     expires_at = datetime.now() + timedelta(days=15)
-    expires_at_str = expires_at.strftime('%Y-%m-%d %H:%M:%S')
-    op.execute(f"UPDATE oauth_tokens SET refresh_token_expires_at = '{expires_at_str}'")
+    expires_at_str = expires_at.strftime("%Y-%m-%d %H:%M:%S")
+    op.execute(f"UPDATE oauth_tokens SET refresh_token_expires_at = '{expires_at_str}'")  # noqa: S608
     op.create_index(
         op.f("ix_oauth_tokens_refresh_token_expires_at"), "oauth_tokens", ["refresh_token_expires_at"], unique=False
     )

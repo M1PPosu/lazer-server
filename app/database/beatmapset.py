@@ -130,7 +130,7 @@ class Beatmapset(AsyncAttrs, BeatmapsetBase, table=True):
     favourites: list["FavouriteBeatmapset"] = Relationship(back_populates="beatmapset")
 
     @classmethod
-    async def from_resp_no_save(cls, session: AsyncSession, resp: "BeatmapsetResp", from_: int = 0) -> "Beatmapset":
+    async def from_resp_no_save(cls, resp: "BeatmapsetResp") -> "Beatmapset":
         d = resp.model_dump()
         if resp.nominations:
             d["nominations_required"] = resp.nominations.required
@@ -158,10 +158,15 @@ class Beatmapset(AsyncAttrs, BeatmapsetBase, table=True):
         return beatmapset
 
     @classmethod
-    async def from_resp(cls, session: AsyncSession, resp: "BeatmapsetResp", from_: int = 0) -> "Beatmapset":
+    async def from_resp(
+        cls,
+        session: AsyncSession,
+        resp: "BeatmapsetResp",
+        from_: int = 0,
+    ) -> "Beatmapset":
         from .beatmap import Beatmap
 
-        beatmapset = await cls.from_resp_no_save(session, resp, from_=from_)
+        beatmapset = await cls.from_resp_no_save(resp)
         if not (await session.exec(select(exists()).where(Beatmapset.id == resp.id))).first():
             session.add(beatmapset)
             await session.commit()
@@ -334,5 +339,5 @@ class BeatmapsetResp(BeatmapsetBase):
 class SearchBeatmapsetsResp(SQLModel):
     beatmapsets: list[BeatmapsetResp]
     total: int
-    cursor: dict[str, int | float] | None = None
+    cursor: dict[str, int | float | str] | None = None
     cursor_string: str | None = None

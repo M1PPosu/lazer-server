@@ -1,7 +1,5 @@
-from __future__ import annotations
-
 from datetime import timedelta
-from typing import Literal
+from typing import Annotated, Literal
 
 from app.config import settings
 from app.const import BANCHOBOT_ID
@@ -12,17 +10,17 @@ from app.database import (
     User,
     UserResp,
 )
+from app.database.best_scores import BestScore
 from app.database.events import Event
-from app.database.lazer_user import SEARCH_INCLUDED
-from app.database.pp_best_score import PPBestScore
 from app.database.score import LegacyScoreResp, Score, ScoreResp, get_user_first_scores
+from app.database.user import SEARCH_INCLUDED
 from app.dependencies.api_version import APIVersion
 from app.dependencies.database import Database, get_redis
 from app.dependencies.user import get_current_user
-from app.log import logger
+from app.helpers.asset_proxy_helper import asset_proxy_response
+from app.log import log
 from app.models.score import GameMode
 from app.models.user import BeatmapsetType
-from app.service.asset_proxy_helper import process_response_assets
 from app.service.user_cache_service import get_user_cache_service
 from app.utils import utcnow
 
@@ -47,13 +45,17 @@ class BatchUserResponse(BaseModel):
 )
 @router.get("/users/lookup", response_model=BatchUserResponse, include_in_schema=False)
 @router.get("/users/lookup/", response_model=BatchUserResponse, include_in_schema=False)
+@asset_proxy_response
 async def get_users(
     session: Database,
     request: Request,
     background_task: BackgroundTasks,
-    user_ids: list[int] = Query(default_factory=list, alias="ids[]", description="要查询的用户 ID 列表"),
+    user_ids: Annotated[list[int], Query(default_factory=list, alias="ids[]", description="要查询的用户 ID 列表")],
     # current_user: User = Security(get_current_user, scopes=["public"]),
-    include_variant_statistics: bool = Query(default=False, description="是否包含各模式的统计信息"),  # TODO: future use
+    include_variant_statistics: Annotated[
+        bool,
+        Query(description="是否包含各模式的统计信息"),
+    ] = False,  # TODO: future use
 ):
     redis = get_redis()
     cache_service = get_user_cache_service(redis)
@@ -86,28 +88,25 @@ async def get_users(
                     # 异步缓存，不阻塞响应
                     background_task.add_task(cache_service.cache_user, user_resp)
 
-        # 处理资源代理
         response = BatchUserResponse(users=cached_users)
-        processed_response = await process_response_assets(response, request)
-        return processed_response
+        return response
     else:
         searched_users = (await session.exec(select(User).limit(50))).all()
         users = []
         for searched_user in searched_users:
-            if searched_user.id != BANCHOBOT_ID:
-                user_resp = await UserResp.from_db(
-                    searched_user,
-                    session,
-                    include=SEARCH_INCLUDED,
-                )
-                users.append(user_resp)
-                # 异步缓存
-                background_task.add_task(cache_service.cache_user, user_resp)
+            if searched_user.id == BANCHOBOT_ID:
+                continue
+            user_resp = await UserResp.from_db(
+                searched_user,
+                session,
+                include=SEARCH_INCLUDED,
+            )
+            users.append(user_resp)
+            # 异步缓存
+            background_task.add_task(cache_service.cache_user, user_resp)
 
-        # 处理资源代理
         response = BatchUserResponse(users=users)
-        processed_response = await process_response_assets(response, request)
-        return processed_response
+        return response
 
 
 @router.get(
@@ -119,9 +118,9 @@ async def get_users(
 )
 async def get_user_events(
     session: Database,
-    user_id: int = Path(description="用户 ID"),
-    limit: int | None = Query(None, description="限制返回的活动数量"),
-    offset: int | None = Query(None, description="活动日志的偏移量"),
+    user_id: Annotated[int, Path(description="用户 ID")],
+    limit: Annotated[int | None, Query(description="限制返回的活动数量")] = None,
+    offset: Annotated[int | None, Query(description="活动日志的偏移量")] = None,
 ):
     db_user = await session.get(User, user_id)
     if db_user is None or db_user.id == BANCHOBOT_ID:
@@ -147,9 +146,9 @@ async def get_user_events(
 )
 async def get_user_kudosu(
     session: Database,
-    user_id: int = Path(description="用户 ID"),
-    offset: int = Query(default=0, description="偏移量"),
-    limit: int = Query(default=6, description="返回记录数量限制"),
+    user_id: Annotated[int, Path(description="用户 ID")],
+    offset: Annotated[int, Query(description="偏移量")] = 0,
+    limit: Annotated[int, Query(description="返回记录数量限制")] = 6,
 ):
     """
     获取用户的 kudosu 记录
@@ -173,11 +172,12 @@ async def get_user_kudosu(
     description="通过用户 ID 或用户名获取单个用户的详细信息，并指定特定 ruleset。",
     tags=["用户"],
 )
+@asset_proxy_response
 async def get_user_info_ruleset(
     session: Database,
     background_task: BackgroundTasks,
-    user_id: str = Path(description="用户 ID 或用户名"),
-    ruleset: GameMode | None = Path(description="指定 ruleset"),
+    user_id: Annotated[str, Path(description="用户 ID 或用户名")],
+    ruleset: Annotated[GameMode | None, Path(description="指定 ruleset")],
     # current_user: User = Security(get_current_user, scopes=["public"]),
 ):
     redis = get_redis()
@@ -221,11 +221,12 @@ async def get_user_info_ruleset(
     description="通过用户 ID 或用户名获取单个用户的详细信息。",
     tags=["用户"],
 )
+@asset_proxy_response
 async def get_user_info(
     background_task: BackgroundTasks,
     session: Database,
     request: Request,
-    user_id: str = Path(description="用户 ID 或用户名"),
+    user_id: Annotated[str, Path(description="用户 ID 或用户名")],
     # current_user: User = Security(get_current_user, scopes=["public"]),
 ):
     redis = get_redis()
@@ -236,9 +237,7 @@ async def get_user_info(
         user_id_int = int(user_id)
         cached_user = await cache_service.get_user_from_cache(user_id_int)
         if cached_user:
-            # 处理资源代理
-            processed_user = await process_response_assets(cached_user, request)
-            return processed_user
+            return cached_user
 
     searched_user = (
         await session.exec(
@@ -259,9 +258,7 @@ async def get_user_info(
     # 异步缓存结果
     background_task.add_task(cache_service.cache_user, user_resp)
 
-    # 处理资源代理
-    processed_user = await process_response_assets(user_resp, request)
-    return processed_user
+    return user_resp
 
 
 @router.get(
@@ -271,14 +268,15 @@ async def get_user_info(
     description="获取指定用户特定类型的谱面集列表，如最常游玩、收藏等。",
     tags=["用户"],
 )
+@asset_proxy_response
 async def get_user_beatmapsets(
     session: Database,
     background_task: BackgroundTasks,
-    user_id: int = Path(description="用户 ID"),
-    type: BeatmapsetType = Path(description="谱面集类型"),
-    current_user: User = Security(get_current_user, scopes=["public"]),
-    limit: int = Query(100, ge=1, le=1000, description="返回条数 (1-1000)"),
-    offset: int = Query(0, ge=0, description="偏移量"),
+    user_id: Annotated[int, Path(description="用户 ID")],
+    type: Annotated[BeatmapsetType, Path(description="谱面集类型")],
+    current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
+    limit: Annotated[int, Query(ge=1, le=1000, description="返回条数 (1-1000)")] = 100,
+    offset: Annotated[int, Query(ge=0, description="偏移量")] = 0,
 ):
     redis = get_redis()
     cache_service = get_user_cache_service(redis)
@@ -333,7 +331,7 @@ async def get_user_beatmapsets(
         try:
             await cache_service.cache_user_beatmapsets(user_id, type.value, resp, limit, offset)
         except Exception as e:
-            logger.error(f"Error caching user beatmapsets for user {user_id}, type {type.value}: {e}")
+            log("Beatmapset").error(f"Error caching user beatmapsets for user {user_id}, type {type.value}: {e}")
 
     background_task.add_task(cache_beatmapsets)
 
@@ -351,21 +349,23 @@ async def get_user_beatmapsets(
     ),
     tags=["用户"],
 )
+@asset_proxy_response
 async def get_user_scores(
     request: Request,
     session: Database,
     api_version: APIVersion,
     background_task: BackgroundTasks,
-    user_id: int = Path(description="用户 ID"),
-    type: Literal["best", "recent", "firsts", "pinned"] = Path(
-        description=("成绩类型: best 最好成绩 / recent 最近 24h 游玩成绩 / firsts 第一名成绩 / pinned 置顶成绩")
-    ),
-    legacy_only: bool = Query(False, description="是否只查询 Stable 成绩"),
-    include_fails: bool = Query(False, description="是否包含失败的成绩"),
-    mode: GameMode | None = Query(None, description="指定 ruleset (可选，默认为用户主模式)"),
-    limit: int = Query(100, ge=1, le=1000, description="返回条数 (1-1000)"),
-    offset: int = Query(0, ge=0, description="偏移量"),
-    current_user: User = Security(get_current_user, scopes=["public"]),
+    user_id: Annotated[int, Path(description="用户 ID")],
+    type: Annotated[
+        Literal["best", "recent", "firsts", "pinned"],
+        Path(description=("成绩类型: best 最好成绩 / recent 最近 24h 游玩成绩 / firsts 第一名成绩 / pinned 置顶成绩")),
+    ],
+    current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
+    legacy_only: Annotated[bool, Query(description="是否只查询 Stable 成绩")] = False,
+    include_fails: Annotated[bool, Query(description="是否包含失败的成绩")] = False,
+    mode: Annotated[GameMode | None, Query(description="指定 ruleset (可选，默认为用户主模式)")] = None,
+    limit: Annotated[int, Query(ge=1, le=1000, description="返回条数 (1-1000)")] = 100,
+    offset: Annotated[int, Query(ge=0, description="偏移量")] = 0,
 ):
     is_legacy_api = api_version < 20220705
     redis = get_redis()
@@ -377,8 +377,7 @@ async def get_user_scores(
         user_id, type, include_fails, mode, limit, offset, is_legacy_api
     )
     if cached_scores is not None:
-        processed_scores = await process_response_assets(cached_scores, request)
-        return processed_scores
+        return cached_scores
 
     db_user = await session.get(User, user_id)
     if not db_user or db_user.id == BANCHOBOT_ID:
@@ -393,7 +392,7 @@ async def get_user_scores(
         where_clause &= Score.pinned_order > 0
         order_by = col(Score.pinned_order).asc()
     elif type == "best":
-        where_clause &= exists().where(col(PPBestScore.score_id) == Score.id)
+        where_clause &= exists().where(col(BestScore.score_id) == Score.id)
         order_by = col(Score.pp).desc()
     elif type == "recent":
         where_clause &= Score.ended_at > utcnow() - timedelta(hours=24)
@@ -433,6 +432,4 @@ async def get_user_scores(
         is_legacy_api,
     )
 
-    # 处理资源代理
-    processed_scores = await process_response_assets(score_responses, request)
-    return processed_scores
+    return score_responses

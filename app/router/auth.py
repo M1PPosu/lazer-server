@@ -1,8 +1,6 @@
-from __future__ import annotations
-
 from datetime import timedelta
 import re
-from typing import Literal
+from typing import Annotated, Literal
 
 from app.auth import (
     authenticate_user,
@@ -19,11 +17,10 @@ from app.const import BANCHOBOT_ID
 from app.database import DailyChallengeStats, OAuthClient, User
 from app.database.auth import TotpKeys
 from app.database.statistics import UserStatistics
-from app.dependencies.database import Database, get_redis
-from app.dependencies.geoip import get_client_ip, get_geoip_helper
+from app.dependencies.database import Database, Redis
+from app.dependencies.geoip import GeoIPService, IPAddress
 from app.dependencies.user_agent import UserAgentInfo
-from app.helpers.geoip_helper import GeoIPHelper
-from app.log import logger
+from app.log import log
 from app.models.extended_auth import ExtendedTokenResponse
 from app.models.oauth import (
     OAuthErrorResponse,
@@ -40,11 +37,12 @@ from app.service.verification_service import (
 )
 from app.utils import utcnow
 
-from fastapi import APIRouter, Depends, Form, Header, Request
+from fastapi import APIRouter, Form, Header, Request
 from fastapi.responses import JSONResponse
-from redis.asyncio import Redis
 from sqlalchemy import text
 from sqlmodel import exists, select
+
+logger = log("Auth")
 
 
 def create_oauth_error_response(error: str, description: str, hint: str, status_code: int = 400):
@@ -93,11 +91,11 @@ router = APIRouter(tags=["osu! OAuth 认证"])
 )
 async def register_user(
     db: Database,
-    request: Request,
-    user_username: str = Form(..., alias="user[username]", description="用户名"),
-    user_email: str = Form(..., alias="user[user_email]", description="电子邮箱"),
-    user_password: str = Form(..., alias="user[password]", description="密码"),
-    geoip: GeoIPHelper = Depends(get_geoip_helper),
+    user_username: Annotated[str, Form(..., alias="user[username]", description="用户名")],
+    user_email: Annotated[str, Form(..., alias="user[user_email]", description="电子邮箱")],
+    user_password: Annotated[str, Form(..., alias="user[password]", description="密码")],
+    geoip: GeoIPService,
+    client_ip: IPAddress,
 ):
     username_errors = validate_username(user_username)
     email_errors = validate_email(user_email)
@@ -126,22 +124,22 @@ async def register_user(
 
     try:
         # 获取客户端 IP 并查询地理位置
-        client_ip = get_client_ip(request)
-        country_code = "CN"  # 默认国家代码
+        country_code = None  # 默认国家代码
 
         try:
             # 查询 IP 地理位置
             geo_info = geoip.lookup(client_ip)
-            if geo_info and geo_info.get("country_iso"):
-                country_code = geo_info["country_iso"]
+            if geo_info and (country_code := geo_info.get("country_iso")):
                 logger.info(f"User {user_username} registering from {client_ip}, country: {country_code}")
             else:
                 logger.warning(f"Could not determine country for IP {client_ip}")
         except Exception as e:
             logger.warning(f"GeoIP lookup failed for {client_ip}: {e}")
+        if country_code is None:
+            country_code = "CN"
 
         # 创建新用户
-        # 确保 AUTO_INCREMENT 值从3开始（ID=1是BanchoBot，ID=2预留给ppy）
+        # 确保 AUTO_INCREMENT 值从3开始（ID=2是BanchoBot）
         result = await db.execute(
             text(
                 "SELECT AUTO_INCREMENT FROM information_schema.TABLES "
@@ -158,7 +156,7 @@ async def register_user(
             email=user_email,
             pw_bcrypt=get_password_hash(user_password),
             priv=1,  # 普通用户权限
-            country_code=country_code,  # 根据 IP 地理位置设置国家
+            country_code=country_code,
             join_date=utcnow(),
             last_visit=utcnow(),
             is_supporter=settings.enable_supporter_for_all_users,
@@ -201,19 +199,21 @@ async def oauth_token(
     db: Database,
     request: Request,
     user_agent: UserAgentInfo,
-    grant_type: Literal["authorization_code", "refresh_token", "password", "client_credentials"] = Form(
-        ..., description="授权类型：密码/刷新令牌/授权码/客户端凭证"
-    ),
-    client_id: int = Form(..., description="客户端 ID"),
-    client_secret: str = Form(..., description="客户端密钥"),
-    code: str | None = Form(None, description="授权码（仅授权码模式需要）"),
-    scope: str = Form("*", description="权限范围（空格分隔，默认为 '*'）"),
-    username: str | None = Form(None, description="用户名（仅密码模式需要）"),
-    password: str | None = Form(None, description="密码（仅密码模式需要）"),
-    refresh_token: str | None = Form(None, description="刷新令牌（仅刷新令牌模式需要）"),
-    redis: Redis = Depends(get_redis),
-    geoip: GeoIPHelper = Depends(get_geoip_helper),
-    web_uuid: str | None = Header(None, include_in_schema=False, alias="X-UUID"),
+    ip_address: IPAddress,
+    grant_type: Annotated[
+        Literal["authorization_code", "refresh_token", "password", "client_credentials"],
+        Form(..., description="授权类型：密码、刷新令牌和授权码三种授权方式。"),
+    ],
+    client_id: Annotated[int, Form(..., description="客户端 ID")],
+    client_secret: Annotated[str, Form(..., description="客户端密钥")],
+    redis: Redis,
+    geoip: GeoIPService,
+    code: Annotated[str | None, Form(description="授权码（仅授权码模式需要）")] = None,
+    scope: Annotated[str, Form(description="权限范围（空格分隔，默认为 '*'）")] = "*",
+    username: Annotated[str | None, Form(description="用户名（仅密码模式需要）")] = None,
+    password: Annotated[str | None, Form(description="密码（仅密码模式需要）")] = None,
+    refresh_token: Annotated[str | None, Form(description="刷新令牌（仅刷新令牌模式需要）")] = None,
+    web_uuid: Annotated[str | None, Header(include_in_schema=False, alias="X-UUID")] = None,
 ):
     scopes = scope.split(" ")
 
@@ -311,8 +311,6 @@ async def oauth_token(
         )
         token_id = token.id
 
-        ip_address = get_client_ip(request)
-
         # 获取国家代码
         geo_info = geoip.lookup(ip_address)
         country_code = geo_info.get("country_iso", "XX")
@@ -363,9 +361,7 @@ async def oauth_token(
             await LoginSessionService.mark_session_verified(
                 db, redis, user_id, token_id, ip_address, user_agent, web_uuid
             )
-            logger.debug(
-                f"[Auth] New location login detected but email verification disabled, auto-verifying user {user_id}"
-            )
+            logger.debug(f"New location login detected but email verification disabled, auto-verifying user {user_id}")
         else:
             # 不是新设备登录，正常登录
             await LoginLogService.record_login(
@@ -389,7 +385,7 @@ async def oauth_token(
 
         return TokenResponse(
             access_token=access_token,
-            token_type="Bearer",
+            token_type="Bearer",  # noqa: S106
             expires_in=settings.access_token_expire_minutes * 60,
             refresh_token=refresh_token_str,
             scope=scope,
@@ -442,7 +438,7 @@ async def oauth_token(
         )
         return TokenResponse(
             access_token=access_token,
-            token_type="Bearer",
+            token_type="Bearer",  # noqa: S106
             expires_in=settings.access_token_expire_minutes * 60,
             refresh_token=new_refresh_token,
             scope=scope,
@@ -508,11 +504,11 @@ async def oauth_token(
         )
 
         # 打印jwt
-        logger.info(f"[Auth] Generated JWT for user {user_id}: {access_token}")
+        logger.info(f"Generated JWT for user {user_id}: {access_token}")
 
         return TokenResponse(
             access_token=access_token,
-            token_type="Bearer",
+            token_type="Bearer",  # noqa: S106
             expires_in=settings.access_token_expire_minutes * 60,
             refresh_token=refresh_token_str,
             scope=" ".join(scopes),
@@ -557,7 +553,7 @@ async def oauth_token(
 
         return TokenResponse(
             access_token=access_token,
-            token_type="Bearer",
+            token_type="Bearer",  # noqa: S106
             expires_in=settings.access_token_expire_minutes * 60,
             refresh_token=refresh_token_str,
             scope=" ".join(scopes),
@@ -571,16 +567,14 @@ async def oauth_token(
 )
 async def request_password_reset(
     request: Request,
-    email: str = Form(..., description="邮箱地址"),
-    redis: Redis = Depends(get_redis),
+    email: Annotated[str, Form(..., description="邮箱地址")],
+    redis: Redis,
+    ip_address: IPAddress,
 ):
     """
     请求密码重置
     """
-    from app.dependencies.geoip import get_client_ip
-
     # 获取客户端信息
-    ip_address = get_client_ip(request)
     user_agent = request.headers.get("User-Agent", "")
 
     # 请求密码重置
@@ -599,20 +593,16 @@ async def request_password_reset(
 
 @router.post("/password-reset/reset", name="重置密码", description="使用验证码重置密码")
 async def reset_password(
-    request: Request,
-    email: str = Form(..., description="邮箱地址"),
-    reset_code: str = Form(..., description="重置验证码"),
-    new_password: str = Form(..., description="新密码"),
-    redis: Redis = Depends(get_redis),
+    email: Annotated[str, Form(..., description="邮箱地址")],
+    reset_code: Annotated[str, Form(..., description="重置验证码")],
+    new_password: Annotated[str, Form(..., description="新密码")],
+    redis: Redis,
+    ip_address: IPAddress,
 ):
     """
     重置密码
     """
-    from app.dependencies.geoip import get_client_ip
-
     # 获取客户端信息
-    ip_address = get_client_ip(request)
-
     # 重置密码
     success, message = await password_reset_service.reset_password(
         email=email.lower().strip(),
