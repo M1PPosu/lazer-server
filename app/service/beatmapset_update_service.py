@@ -15,7 +15,7 @@ from app.log import logger
 from app.models.beatmap import BeatmapRankStatus
 from app.utils import bg_tasks, utcnow
 
-from httpx import HTTPError
+from httpx import HTTPError, HTTPStatusError
 from sqlmodel import col, select
 
 if TYPE_CHECKING:
@@ -226,6 +226,13 @@ class BeatmapsetUpdateService:
                 try:
                     beatmapset = await self.fetcher.get_beatmapset(record.beatmapset_id)
                 except Exception as e:
+                    if isinstance(e, HTTPStatusError) and e.response.status_code == 404:
+                        logger.opt(colors=True).warning(
+                            f"<g>[{record.beatmapset_id}]</g> beatmapset not found (404), removing from sync list"
+                        )
+                        await session.delete(record)
+                        await session.commit()
+                        continue
                     if isinstance(e, HTTPError):
                         logger.opt(colors=True).warning(
                             f"<g>[{record.beatmapset_id}]</g> "
@@ -312,6 +319,17 @@ class BeatmapsetUpdateService:
                 if change.type == BeatmapChangeType.MAP_ADDED:
                     try:
                         beatmap = await self.fetcher.get_beatmap(change.beatmap_id)
+                    except HTTPStatusError as e:
+                        if e.response.status_code == 404:
+                            logger.opt(colors=True).warning(
+                                f"<g>[beatmap: {change.beatmap_id}]</g> beatmap not found (404), skipping"
+                            )
+                            continue
+                        logger.opt(colors=True).error(
+                            f"<g>[beatmap: {change.beatmap_id}]</g> failed to fetch added beatmap: "
+                            f"[{e.__class__.__name__}] {e}, skipping"
+                        )
+                        continue
                     except Exception as e:
                         logger.opt(colors=True).error(
                             f"<g>[beatmap: {change.beatmap_id}]</g> failed to fetch added beatmap: {e}, skipping"
@@ -322,6 +340,23 @@ class BeatmapsetUpdateService:
                 else:
                     try:
                         beatmap = await self.fetcher.get_beatmap(change.beatmap_id)
+                    except HTTPStatusError as e:
+                        if e.response.status_code == 404:
+                            if change.type == BeatmapChangeType.MAP_DELETED:
+                                logger.opt(colors=True).info(
+                                    f"<g>[beatmap: {change.beatmap_id}]</g> beatmap not found (404), assuming deleted"
+                                )
+                                await _process_update_or_delete_beatmaps(change.beatmap_id)
+                                continue
+                            logger.opt(colors=True).warning(
+                                f"<g>[beatmap: {change.beatmap_id}]</g> beatmap not found (404), skipping"
+                            )
+                            continue
+                        logger.opt(colors=True).error(
+                            f"<g>[beatmap: {change.beatmap_id}]</g> failed to fetch changed beatmap: "
+                            f"[{e.__class__.__name__}] {e}, skipping"
+                        )
+                        continue
                     except Exception as e:
                         logger.opt(colors=True).error(
                             f"<g>[beatmap: {change.beatmap_id}]</g> failed to fetch changed beatmap: {e}, skipping"
