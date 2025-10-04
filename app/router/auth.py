@@ -13,10 +13,11 @@ from app.auth import (
     validate_username,
 )
 from app.config import settings
-from app.const import BANCHOBOT_ID
+from app.const import BANCHOBOT_ID, SUPPORT_TOTP_VERIFICATION_VER
 from app.database import DailyChallengeStats, OAuthClient, User
 from app.database.auth import TotpKeys
 from app.database.statistics import UserStatistics
+from app.dependencies.api_version import APIVersion
 from app.dependencies.database import Database, Redis
 from app.dependencies.geoip import GeoIPService, IPAddress
 from app.dependencies.user_agent import UserAgentInfo
@@ -208,6 +209,7 @@ async def oauth_token(
     client_secret: Annotated[str, Form(..., description="客户端密钥")],
     redis: Redis,
     geoip: GeoIPService,
+    api_version: APIVersion,
     code: Annotated[str | None, Form(description="授权码（仅授权码模式需要）")] = None,
     scope: Annotated[str, Form(description="权限范围（空格分隔，默认为 '*'）")] = "*",
     username: Annotated[str | None, Form(description="用户名（仅密码模式需要）")] = None,
@@ -319,7 +321,7 @@ async def oauth_token(
         trusted_device = await LoginSessionService.check_trusted_device(db, user_id, ip_address, user_agent, web_uuid)
 
         session_verification_method = None
-        if settings.enable_totp_verification and totp_key is not None:
+        if settings.enable_totp_verification and totp_key is not None and api_version >= SUPPORT_TOTP_VERIFICATION_VER:
             session_verification_method = "totp"
             await LoginLogService.record_login(
                 db=db,
