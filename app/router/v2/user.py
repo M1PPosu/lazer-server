@@ -4,8 +4,10 @@ from typing import Annotated, Literal
 from app.config import settings
 from app.const import BANCHOBOT_ID
 from app.database import (
+    Beatmap,
     BeatmapPlaycounts,
     BeatmapPlaycountsResp,
+    BeatmapResp,
     BeatmapsetResp,
     User,
     UserResp,
@@ -19,6 +21,7 @@ from app.dependencies.database import Database, get_redis
 from app.dependencies.user import get_current_user
 from app.helpers.asset_proxy_helper import asset_proxy_response
 from app.log import log
+from app.models.mods import API_MODS
 from app.models.score import GameMode
 from app.models.user import BeatmapsetType
 from app.service.user_cache_service import get_user_cache_service
@@ -34,6 +37,19 @@ from sqlmodel.sql.expression import col
 
 class BatchUserResponse(BaseModel):
     users: list[UserResp]
+
+
+class BeatmapsPassedResponse(BaseModel):
+    beatmaps_passed: list[BeatmapResp]
+
+
+def _get_difficulty_reduction_mods() -> set[str]:
+    mods: set[str] = set()
+    for ruleset_mods in API_MODS.values():
+        for mod_acronym, mod_meta in ruleset_mods.items():
+            if mod_meta.get("Type") == "DifficultyReduction":
+                mods.add(mod_acronym)
+    return mods
 
 
 @router.get(
@@ -163,6 +179,94 @@ async def get_user_kudosu(
 
     # TODO: 实现 kudosu 记录获取逻辑
     return []
+
+
+@router.get(
+    "/users/{user_id}/beatmaps-passed",
+    response_model=BeatmapsPassedResponse,
+    name="获取用户已通过谱面",
+    description="获取指定用户在给定谱面集中的已通过谱面列表。",
+    tags=["用户"],
+)
+@asset_proxy_response
+async def get_user_beatmaps_passed(
+    session: Database,
+    user_id: Annotated[int, Path(description="用户 ID")],
+    current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
+    beatmapset_ids: Annotated[
+        list[int],
+        Query(
+            alias="beatmapset_ids[]",
+            description="要查询的谱面集 ID 列表 (最多 50 个)",
+        ),
+    ] = [],
+    ruleset_id: Annotated[
+        int | None,
+        Query(description="指定 ruleset ID"),
+    ] = None,
+    exclude_converts: Annotated[bool, Query(description="是否排除转谱成绩")] = False,
+    is_legacy: Annotated[bool | None, Query(description="是否仅返回 Stable 成绩")] = None,
+    no_diff_reduction: Annotated[bool, Query(description="是否排除减难 MOD 成绩")] = True,
+):
+    if not beatmapset_ids:
+        return BeatmapsPassedResponse(beatmaps_passed=[])
+    if len(beatmapset_ids) > 50:
+        raise HTTPException(status_code=413, detail="beatmapset_ids cannot exceed 50 items")
+
+    user = await session.get(User, user_id)
+    if not user or user.id == BANCHOBOT_ID:
+        raise HTTPException(404, detail="User not found")
+
+    allowed_mode: GameMode | None = None
+    if ruleset_id is not None:
+        try:
+            allowed_mode = GameMode.from_int_extra(ruleset_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=422, detail="Invalid ruleset_id") from exc
+
+    score_query = (
+        select(Score.beatmap_id, Score.mods, Score.gamemode, Beatmap.mode)
+        .where(
+            Score.user_id == user.id,
+            col(Score.beatmap_id).in_(select(Beatmap.id).where(col(Beatmap.beatmapset_id).in_(beatmapset_ids))),
+            col(Score.passed).is_(True),
+        )
+        .join(Beatmap, col(Beatmap.id) == Score.beatmap_id)
+    )
+    if allowed_mode:
+        score_query = score_query.where(Score.gamemode == allowed_mode)
+
+    scores = (await session.exec(score_query)).all()
+    if not scores:
+        return BeatmapsPassedResponse(beatmaps_passed=[])
+
+    difficulty_reduction_mods = _get_difficulty_reduction_mods() if no_diff_reduction else set()
+    passed_beatmap_ids: set[int] = set()
+    for beatmap_id, mods, _mode, _beatmap_mode in scores:
+        gamemode = GameMode(_mode)
+        beatmap_mode = GameMode(_beatmap_mode)
+
+        if exclude_converts and gamemode.to_base_ruleset() != beatmap_mode:
+            continue
+        if difficulty_reduction_mods and any(mod["acronym"] in difficulty_reduction_mods for mod in mods):
+            continue
+        passed_beatmap_ids.add(beatmap_id)
+    if not passed_beatmap_ids:
+        return BeatmapsPassedResponse(beatmaps_passed=[])
+
+    beatmaps = (
+        await session.exec(
+            select(Beatmap)
+            .where(col(Beatmap.id).in_(passed_beatmap_ids))
+            .order_by(col(Beatmap.difficulty_rating).desc())
+        )
+    ).all()
+
+    return BeatmapsPassedResponse(
+        beatmaps_passed=[
+            await BeatmapResp.from_db(beatmap, allowed_mode, session=session, user=user) for beatmap in beatmaps
+        ]
+    )
 
 
 @router.get(

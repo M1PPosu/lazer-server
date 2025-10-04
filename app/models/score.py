@@ -84,6 +84,15 @@ class GameMode(str, Enum):
             GameMode.FRUITSRX: "catch relax",
         }[self]
 
+    def to_base_ruleset(self) -> "GameMode":
+        gamemode = {
+            GameMode.OSURX: GameMode.OSU,
+            GameMode.OSUAP: GameMode.OSU,
+            GameMode.TAIKORX: GameMode.TAIKO,
+            GameMode.FRUITSRX: GameMode.FRUITS,
+        }.get(self)
+        return gamemode if gamemode else self
+
     def to_special_mode(self, mods: list[APIMod] | list[str]) -> "GameMode":
         if self not in (GameMode.OSU, GameMode.TAIKO, GameMode.FRUITS):
             return self
