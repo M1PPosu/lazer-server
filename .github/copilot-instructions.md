@@ -1,4 +1,6 @@
-# AGENTS
+# copilot-instruction
+
+> 此文件是 AGENTS.md 的复制。一切以 AGENTS.md 为主。
 
 > 使用自动化与 AI 代理（GitHub Copilot、依赖/CI 机器人，以及仓库中的运行时调度器/worker）的指导原则，适用于 g0v0-server 仓库。
 
