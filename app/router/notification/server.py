@@ -8,7 +8,7 @@ from app.dependencies.database import (
     DBFactory,
     Redis,
     get_db_factory,
-    get_redis,
+    redis_message_client,
     with_db,
 )
 from app.dependencies.user import get_current_user_and_token
@@ -31,7 +31,7 @@ class ChatServer:
     def __init__(self):
         self.connect_client: dict[int, WebSocket] = {}
         self.channels: dict[int, list[int]] = {}
-        self.redis: Redis = get_redis()
+        self.redis: Redis = redis_message_client
 
         self.tasks: set[asyncio.Task] = set()
         self.ChatSubscriber = ChatSubscriber()

@@ -141,7 +141,7 @@ STORAGE_SETTINGS='{
     ]
     redis_url: Annotated[
         str,
-        Field(default="redis://127.0.0.1:6379/0", description="Redis 连接 URL"),
+        Field(default="redis://127.0.0.1:6379", description="Redis 连接 URL"),
         "数据库设置",
     ]
 

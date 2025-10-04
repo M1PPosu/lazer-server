@@ -4,7 +4,14 @@ from pathlib import Path
 
 from app.config import settings
 from app.database import User
-from app.dependencies.database import Database, engine, get_redis, redis_client
+from app.dependencies.database import (
+    Database,
+    engine,
+    redis_binary_client,
+    redis_client,
+    redis_message_client,
+    redis_rate_limit_client,
+)
 from app.dependencies.fetcher import get_fetcher
 from app.dependencies.scheduler import start_scheduler, stop_scheduler
 from app.log import system_logger
@@ -50,39 +57,55 @@ import sentry_sdk
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # noqa: ARG001
-    # on startup
+    # === on startup ===
+    # init mods and achievements
     init_mods()
     init_ranked_mods()
-    await FastAPILimiter.init(get_redis())
-    fetcher = await get_fetcher()  # 初始化 fetcher
-    await init_geoip()  # 初始化 GeoIP 数据库
+    load_achievements()
+
+    # init rate limiter
+    await FastAPILimiter.init(redis_rate_limit_client)
+
+    # init fetcher
+    fetcher = await get_fetcher()
+    # init GeoIP
+    await init_geoip()
+
+    # init game server
     await create_rx_statistics()
     await calculate_user_rank(True)
     await daily_challenge_job()
     await process_daily_challenge_top()
     await create_banchobot()
-    await start_email_processor()  # 启动邮件队列处理器
-    await download_service.start_health_check()  # 启动下载服务健康检查
-    await start_cache_tasks()  # 启动缓存调度器
+
+    # services
+    await start_email_processor()
+    await download_service.start_health_check()
+    await start_cache_tasks()
     init_beatmapset_update_service(fetcher)  # 初始化谱面集更新服务
-    redis_message_system.start()  # 启动 Redis 消息系统
-    load_achievements()
+    redis_message_system.start()
     start_scheduler()
 
-    # 显示资源代理状态
+    # show the status of AssetProxy
     if settings.enable_asset_proxy:
         system_logger("AssetProxy").info(f"Asset Proxy enabled - Domain: {settings.custom_asset_domain}")
 
-    # on shutdown
     yield
+
+    # === on shutdown ===
+    # stop services
     bg_tasks.stop()
-    redis_message_system.stop()  # 停止 Redis 消息系统
-    await stop_cache_tasks()  # 停止缓存调度器
+    await stop_cache_tasks()
     stop_scheduler()
-    await download_service.stop_health_check()  # 停止下载服务健康检查
-    await stop_email_processor()  # 停止邮件队列处理器
+    await download_service.stop_health_check()
+    await stop_email_processor()
+
+    # close database & redis
     await engine.dispose()
     await redis_client.aclose()
+    await redis_binary_client.aclose()
+    await redis_message_client.aclose()
+    await redis_rate_limit_client.aclose()
 
 
 desc = f"""osu! API 模拟服务器，支持 osu! API v1, v2 和 osu!lazer 的绝大部分功能。
