@@ -75,7 +75,25 @@
 ### 实用工作流（提示模式）
 
 - **添加 v2 端点（正确方式）：** 在 `app/router/v2/` 下添加文件，导出路由，实现基于数据库与缓存依赖的异步处理函数。**不得**在 v1/v2 添加非官方端点。
-- **添加内部端点：** 放在 `app/router/private/`，保持处理器精简，将业务逻辑放入 `app/service/`。
+- **添加自定义端点：** 放在 `app/router/private/`，保持处理器精简，将业务逻辑放入 `app/service/`。
+- **鉴权：** 使用 [`app.dependencies.user`](../app/dependencies/user.py) 提供的依赖注入，如 `ClientUser` 和 `get_current_user`，参考下方。
+  
+  ```python
+  from typing import Annotated
+  from fastapi import Security
+  from app.dependencies.user import ClientUser, get_current_user
+
+
+  @router.get("/some-api")
+  async def _(current_user: Annotated[User, Security(get_current_user, scopes=["public"])]):
+      ...
+
+
+  @router.get("/some-client-api")
+  async def _(current_user: ClientUser):
+      ...
+  ```
+
 - **添加后台任务：** 将任务逻辑写在 `app/service/_job.py`（幂等、可重试）。调度器入口放在 `app/scheduler/_scheduler.py`，并在应用生命周期注册。
 - **数据库 schema 变更：** 修改 `app/models/` 中的 SQLModel 模型，运行 `alembic revision --autogenerate`，检查迁移并本地测试 `alembic upgrade head` 后再提交。
 - **缓存写入与响应：** 使用现有的 `UserResp` 模式和 `UserCacheService`；异步缓存写入应使用后台任务。

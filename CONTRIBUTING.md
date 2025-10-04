@@ -148,6 +148,36 @@ async with with_db() as session:
 - 如果返回需要资源代理，使用 `app.helpers.asset_proxy_helper` 的 `asset_proxy_response` 装饰器。
 - 如果需要记录日志，请使用 `app.log` 提供的 `log` 函数获取一个 logger 实例
 
+#### 鉴权
+
+如果这个 Router 可以为公开使用（客户端、前端、OAuth 程序），考虑使用 `Security(get_current_user, scopes=["some_scope"])`，例如：
+
+```python
+from typing import Annotated
+from fastapi import Security
+from app.dependencies.user import get_current_user
+
+
+@router.get("/some-api")
+async def _(current_user: Annotated[User, Security(get_current_user, scopes=["public"])]):
+    ...
+```
+
+其中 scopes 选择请参考 [`app.dependencies.user`](./app/dependencies/user.py) 的 `oauth2_code` 中的 `scopes`。
+
+如果这个 Router 仅限客户端和前端使用，请使用 `ClientUser` 依赖注入。
+
+```python
+from app.dependencies.user import ClientUser
+
+
+@router.get("/some-api")
+async def _(current_user: ClientUser):
+    ...
+```
+
+此外还存在 `get_current_user_and_token` 和 `get_client_user_and_token` 变种，用来同时获得当前用户的 token。
+
 ### Service
 
 所有的核心业务逻辑放在 `app.service` 里：
@@ -172,7 +202,7 @@ async with with_db() as session:
 
 使用 `pre-commit` 在提交之前执行代码质量标准。这确保所有代码都通过 `ruff`（用于代码检查和格式化）和 `pyright`（用于类型检查）的检查。
 
-### 设置
+#### 设置
 
 要设置 `pre-commit`，请运行以下命令：
 
