@@ -61,6 +61,7 @@ async def lookup_beatmap(
 
     if beatmap is None:
         raise HTTPException(status_code=404, detail="Beatmap not found")
+    await db.refresh(current_user)
 
     return await BeatmapResp.from_db(beatmap, session=db, user=current_user)
 
