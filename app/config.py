@@ -539,12 +539,6 @@ STORAGE_SETTINGS='{
         "缓存设置",
         "用户缓存",
     ]
-    user_cache_concurrent_limit: Annotated[
-        int,
-        Field(default=10, description="并发缓存用户的限制"),
-        "缓存设置",
-        "用户缓存",
-    ]
 
     # 资源代理设置
     enable_asset_proxy: Annotated[
