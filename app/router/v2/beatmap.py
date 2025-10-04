@@ -8,6 +8,7 @@ from app.database.beatmap import calculate_beatmap_attributes
 from app.dependencies.database import Database, Redis
 from app.dependencies.fetcher import Fetcher
 from app.dependencies.user import get_current_user
+from app.helpers.asset_proxy_helper import asset_proxy_response
 from app.models.beatmap import BeatmapAttributes
 from app.models.mods import APIMod, int_to_mods
 from app.models.score import (
@@ -39,6 +40,7 @@ class BatchGetResp(BaseModel):
     response_model=BeatmapResp,
     description=("根据谱面 ID / MD5 / 文件名 查询单个谱面。至少提供 id / checksum / filename 之一。"),
 )
+@asset_proxy_response
 async def lookup_beatmap(
     db: Database,
     current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
@@ -70,6 +72,7 @@ async def lookup_beatmap(
     response_model=BeatmapResp,
     description="获取单个谱面详情。",
 )
+@asset_proxy_response
 async def get_beatmap(
     db: Database,
     beatmap_id: Annotated[int, Path(..., description="谱面 ID")],
@@ -90,6 +93,7 @@ async def get_beatmap(
     response_model=BatchGetResp,
     description=("批量获取谱面。若不提供 ids[]，按最近更新时间返回最多 50 条。为空时按最近更新时间返回。"),
 )
+@asset_proxy_response
 async def batch_get_beatmaps(
     db: Database,
     beatmap_ids: Annotated[
