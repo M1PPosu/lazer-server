@@ -72,13 +72,8 @@ COUNTRIES = json.loads((STATIC_DIR / "iso3166.json").read_text())
 
 
 class UserBase(UTCBaseModel, SQLModel):
-<<<<<<< HEAD:app/database/lazer_user.py
-    avatar_url: str = ""
+    avatar_url: str = "https://lazer.m1pposu.dev/default.jpg"
     country_code: str = Field(default="PL", max_length=2, index=True)
-=======
-    avatar_url: str = "https://lazer-data.g0v0.top/default.jpg"
-    country_code: str = Field(default="CN", max_length=2, index=True)
->>>>>>> upstream/main:app/database/user.py
     # ? default_group: str|None
     is_active: bool = True
     is_bot: bool = False
