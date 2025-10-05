@@ -8,7 +8,7 @@ from sqlalchemy import Column, DateTime
 from sqlmodel import BigInteger, Field, ForeignKey, Relationship, SQLModel
 
 if TYPE_CHECKING:
-    from .lazer_user import User
+    from .user import User
 
 
 class Team(SQLModel, UTCBaseModel, table=True):

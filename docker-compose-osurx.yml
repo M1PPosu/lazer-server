@@ -11,7 +11,7 @@ services:
     environment:
       - MYSQL_HOST=mysql
       - MYSQL_PORT=3306
-      - REDIS_URL=redis://redis:6379/0
+      - REDIS_URL=redis://redis:6379
       - ENABLE_OSU_RX=true
       - ENABLE_OSU_AP=true
       - ENABLE_ALL_MODS_PP=true
@@ -30,6 +30,7 @@ services:
       - ./static:/app/static
       - ./logs:/app/logs
       - ./newrelic.ini:/app/newrelic.ini:ro
+      - ./config:/app/config
     restart: unless-stopped
     networks:
       - osu-network

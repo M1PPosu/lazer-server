@@ -1,9 +1,7 @@
-from __future__ import annotations
-
 from datetime import datetime, timedelta
-from typing import Literal
+from typing import Annotated, Literal
 
-from app.database.pp_best_score import PPBestScore
+from app.database.best_scores import BestScore
 from app.database.score import Score, get_leaderboard
 from app.dependencies.database import Database
 from app.models.mods import int_to_mods, mod_to_save, mods_to_int
@@ -69,10 +67,10 @@ class V1Score(AllStrModel):
 )
 async def get_user_best(
     session: Database,
-    user: str = Query(..., alias="u", description="用户"),
-    ruleset_id: int = Query(0, alias="m", description="Ruleset ID", ge=0),
-    type: Literal["string", "id"] | None = Query(None, description="用户类型：string 用户名称 / id 用户 ID"),
-    limit: int = Query(10, ge=1, le=100, description="返回的成绩数量"),
+    user: Annotated[str, Query(..., alias="u", description="用户")],
+    ruleset_id: Annotated[int, Query(alias="m", description="Ruleset ID", ge=0)] = 0,
+    type: Annotated[Literal["string", "id"] | None, Query(description="用户类型：string 用户名称 / id 用户 ID")] = None,
+    limit: Annotated[int, Query(ge=1, le=100, description="返回的成绩数量")] = 10,
 ):
     try:
         scores = (
@@ -81,7 +79,7 @@ async def get_user_best(
                 .where(
                     Score.user_id == user if type == "id" or user.isdigit() else col(Score.user).has(username=user),
                     Score.gamemode == GameMode.from_int_extra(ruleset_id),
-                    exists().where(col(PPBestScore.score_id) == Score.id),
+                    exists().where(col(BestScore.score_id) == Score.id),
                 )
                 .order_by(col(Score.pp).desc())
                 .options(joinedload(Score.beatmap))
@@ -101,10 +99,10 @@ async def get_user_best(
 )
 async def get_user_recent(
     session: Database,
-    user: str = Query(..., alias="u", description="用户"),
-    ruleset_id: int = Query(0, alias="m", description="Ruleset ID", ge=0),
-    type: Literal["string", "id"] | None = Query(None, description="用户类型：string 用户名称 / id 用户 ID"),
-    limit: int = Query(10, ge=1, le=100, description="返回的成绩数量"),
+    user: Annotated[str, Query(..., alias="u", description="用户")],
+    ruleset_id: Annotated[int, Query(alias="m", description="Ruleset ID", ge=0)] = 0,
+    type: Annotated[Literal["string", "id"] | None, Query(description="用户类型：string 用户名称 / id 用户 ID")] = None,
+    limit: Annotated[int, Query(ge=1, le=100, description="返回的成绩数量")] = 10,
 ):
     try:
         scores = (
@@ -133,12 +131,12 @@ async def get_user_recent(
 )
 async def get_scores(
     session: Database,
-    user: str | None = Query(None, alias="u", description="用户"),
-    beatmap_id: int = Query(alias="b", description="谱面 ID"),
-    ruleset_id: int = Query(0, alias="m", description="Ruleset ID", ge=0),
-    type: Literal["string", "id"] | None = Query(None, description="用户类型：string 用户名称 / id 用户 ID"),
-    limit: int = Query(10, ge=1, le=100, description="返回的成绩数量"),
-    mods: int = Query(0, description="成绩的 MOD"),
+    beatmap_id: Annotated[int, Query(alias="b", description="谱面 ID")],
+    user: Annotated[str | None, Query(alias="u", description="用户")] = None,
+    ruleset_id: Annotated[int, Query(alias="m", description="Ruleset ID", ge=0)] = 0,
+    type: Annotated[Literal["string", "id"] | None, Query(description="用户类型：string 用户名称 / id 用户 ID")] = None,
+    limit: Annotated[int, Query(ge=1, le=100, description="返回的成绩数量")] = 10,
+    mods: Annotated[int, Query(description="成绩的 MOD")] = 0,
 ):
     try:
         if user is not None:

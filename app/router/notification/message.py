@@ -1,4 +1,4 @@
-from __future__ import annotations
+from typing import Annotated
 
 from app.database import ChatMessageResp
 from app.database.chat import (
@@ -10,11 +10,11 @@ from app.database.chat import (
     SilenceUser,
     UserSilenceResp,
 )
-from app.database.lazer_user import User
-from app.dependencies.database import Database, get_redis
+from app.database.user import User
+from app.dependencies.database import Database, Redis
 from app.dependencies.param import BodyOrForm
 from app.dependencies.user import get_current_user
-from app.log import logger
+from app.log import log
 from app.models.notification import ChannelMessage, ChannelMessageTeam
 from app.router.v2 import api_v2_router as router
 from app.service.redis_message_system import redis_message_system
@@ -24,12 +24,14 @@ from .server import server
 
 from fastapi import Depends, HTTPException, Path, Query, Security
 from pydantic import BaseModel, Field
-from redis.asyncio import Redis
 from sqlmodel import col, select
 
 
 class KeepAliveResp(BaseModel):
     silences: list[UserSilenceResp] = Field(default_factory=list)
+
+
+logger = log("Chat")
 
 
 @router.post(
@@ -41,9 +43,9 @@ class KeepAliveResp(BaseModel):
 )
 async def keep_alive(
     session: Database,
-    history_since: int | None = Query(None, description="获取自此禁言 ID 之后的禁言记录"),
-    since: int | None = Query(None, description="获取自此消息 ID 之后的禁言记录"),
-    current_user: User = Security(get_current_user, scopes=["chat.read"]),
+    current_user: Annotated[User, Security(get_current_user, scopes=["chat.read"])],
+    history_since: Annotated[int | None, Query(description="获取自此禁言 ID 之后的禁言记录")] = None,
+    since: Annotated[int | None, Query(description="获取自此消息 ID 之后的禁言记录")] = None,
 ):
     resp = KeepAliveResp()
     if history_since:
@@ -73,9 +75,9 @@ class MessageReq(BaseModel):
 )
 async def send_message(
     session: Database,
-    channel: str = Path(..., description="频道 ID/名称"),
-    req: MessageReq = Depends(BodyOrForm(MessageReq)),
-    current_user: User = Security(get_current_user, scopes=["chat.write"]),
+    channel: Annotated[str, Path(..., description="频道 ID/名称")],
+    req: Annotated[MessageReq, Depends(BodyOrForm(MessageReq))],
+    current_user: Annotated[User, Security(get_current_user, scopes=["chat.write"])],
 ):
     # 使用明确的查询来获取 channel，避免延迟加载
     if channel.isdigit():
@@ -156,10 +158,10 @@ async def send_message(
 async def get_message(
     session: Database,
     channel: str,
-    limit: int = Query(50, ge=1, le=50, description="获取消息的数量"),
-    since: int = Query(0, ge=0, description="获取自此消息 ID 之后的消息（向前加载新消息）"),
-    until: int | None = Query(None, description="获取自此消息 ID 之前的消息（向后翻历史）"),
-    current_user: User = Security(get_current_user, scopes=["chat.read"]),
+    current_user: Annotated[User, Security(get_current_user, scopes=["chat.read"])],
+    limit: Annotated[int, Query(ge=1, le=50, description="获取消息的数量")] = 50,
+    since: Annotated[int, Query(ge=0, description="获取自此消息 ID 之后的消息（向前加载新消息）")] = 0,
+    until: Annotated[int | None, Query(description="获取自此消息 ID 之前的消息（向后翻历史）")] = None,
 ):
     # 1) 查频道
     if channel.isdigit():
@@ -220,9 +222,9 @@ async def get_message(
 )
 async def mark_as_read(
     session: Database,
-    channel: str = Path(..., description="频道 ID/名称"),
-    message: int = Path(..., description="消息 ID"),
-    current_user: User = Security(get_current_user, scopes=["chat.read"]),
+    channel: Annotated[str, Path(..., description="频道 ID/名称")],
+    message: Annotated[int, Path(..., description="消息 ID")],
+    current_user: Annotated[User, Security(get_current_user, scopes=["chat.read"])],
 ):
     # 使用明确的查询获取 channel，避免延迟加载
     if channel.isdigit():
@@ -259,9 +261,9 @@ class NewPMResp(BaseModel):
 )
 async def create_new_pm(
     session: Database,
-    req: PMReq = Depends(BodyOrForm(PMReq)),
-    current_user: User = Security(get_current_user, scopes=["chat.write"]),
-    redis: Redis = Depends(get_redis),
+    req: Annotated[PMReq, Depends(BodyOrForm(PMReq))],
+    current_user: Annotated[User, Security(get_current_user, scopes=["chat.write"])],
+    redis: Redis,
 ):
     user_id = current_user.id
     target = await session.get(User, req.target_id)

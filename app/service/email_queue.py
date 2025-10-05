@@ -3,8 +3,6 @@
 用于异步发送邮件
 """
 
-from __future__ import annotations
-
 import asyncio
 import concurrent.futures
 from datetime import datetime
@@ -17,7 +15,7 @@ import uuid
 
 from app.config import settings
 from app.log import logger
-from app.utils import bg_tasks  # 添加同步Redis导入
+from app.utils import bg_tasks
 
 import redis as sync_redis
 
@@ -33,12 +31,12 @@ class EmailQueue:
         self._retry_limit = 3  # 重试次数限制
 
         # 邮件配置
-        self.smtp_server = getattr(settings, "smtp_server", "localhost")
-        self.smtp_port = getattr(settings, "smtp_port", 587)
-        self.smtp_username = getattr(settings, "smtp_username", "")
-        self.smtp_password = getattr(settings, "smtp_password", "")
-        self.from_email = getattr(settings, "from_email", "noreply@example.com")
-        self.from_name = getattr(settings, "from_name", "osu! server")
+        self.smtp_server = settings.smtp_server
+        self.smtp_port = settings.smtp_port
+        self.smtp_username = settings.smtp_username
+        self.smtp_password = settings.smtp_password
+        self.from_email = settings.from_email
+        self.from_name = settings.from_name
 
     async def _run_in_executor(self, func, *args):
         """在线程池中运行同步操作"""
@@ -221,11 +219,6 @@ class EmailQueue:
             是否发送成功
         """
         try:
-            # 如果邮件发送功能被禁用，则只记录日志
-            if not getattr(settings, "enable_email_sending", True):
-                logger.info(f"[Mock Email] Would send to {email_data.get('to_email')}: {email_data.get('subject')}")
-                return True
-
             # 创建邮件
             msg = MIMEMultipart("alternative")
             msg["From"] = f"{self.from_name} <{self.from_email}>"

@@ -1,16 +1,17 @@
-"""
-Beatmapset缓存服务依赖注入
-"""
+from typing import Annotated
 
-from __future__ import annotations
-
-from app.dependencies.database import get_redis
-from app.service.beatmapset_cache_service import BeatmapsetCacheService, get_beatmapset_cache_service
+from app.dependencies.database import Redis
+from app.service.beatmapset_cache_service import (
+    BeatmapsetCacheService as OriginBeatmapsetCacheService,
+    get_beatmapset_cache_service,
+)
 
 from fastapi import Depends
-from redis.asyncio import Redis
 
 
-def get_beatmapset_cache_dependency(redis: Redis = Depends(get_redis)) -> BeatmapsetCacheService:
+def get_beatmapset_cache_dependency(redis: Redis) -> OriginBeatmapsetCacheService:
     """获取beatmapset缓存服务依赖"""
     return get_beatmapset_cache_service(redis)
+
+
+BeatmapsetCacheService = Annotated[OriginBeatmapsetCacheService, Depends(get_beatmapset_cache_dependency)]

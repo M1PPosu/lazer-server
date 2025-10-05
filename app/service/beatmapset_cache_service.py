@@ -3,8 +3,6 @@ Beatmapset缓存服务
 用于缓存beatmapset数据，减少数据库查询频率
 """
 
-from __future__ import annotations
-
 from datetime import datetime
 import hashlib
 import json
@@ -36,11 +34,8 @@ def safe_json_dumps(data) -> str:
 
 def generate_hash(data) -> str:
     """生成数据的MD5哈希值"""
-    if isinstance(data, str):
-        content = data
-    else:
-        content = safe_json_dumps(data)
-    return hashlib.md5(content.encode()).hexdigest()
+    content = data if isinstance(data, str) else safe_json_dumps(data)
+    return hashlib.md5(content.encode(), usedforsecurity=False).hexdigest()
 
 
 class BeatmapsetCacheService:
@@ -48,7 +43,7 @@ class BeatmapsetCacheService:
 
     def __init__(self, redis: Redis):
         self.redis = redis
-        self._default_ttl = getattr(settings, "beatmapset_cache_expire_seconds", 3600)  # 1小时默认TTL
+        self._default_ttl = settings.beatmapset_cache_expire_seconds
 
     def _get_beatmapset_cache_key(self, beatmapset_id: int) -> str:
         """生成beatmapset缓存键"""

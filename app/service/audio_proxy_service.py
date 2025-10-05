@@ -3,21 +3,21 @@
 提供从osu!官方获取beatmapset音频预览并缓存的功能
 """
 
-from __future__ import annotations
+from app.log import logger
 
 from fastapi import HTTPException
 import httpx
-from loguru import logger
 import redis.asyncio as redis
 
 
 class AudioProxyService:
     """音频代理服务"""
 
-    def __init__(self, redis_client: redis.Redis):
-        self.redis = redis_client
+    def __init__(self, redis_binary_client: redis.Redis, redis_text_client: redis.Redis):
+        self.redis_binary = redis_binary_client
+        self.redis_text = redis_text_client
         self.http_client = httpx.AsyncClient(timeout=30.0)
-        self._cache_ttl = 7 * 24 * 60 * 60  # 7天缓存
+        self._cache_ttl = 7 * 24 * 60 * 60
 
     async def close(self):
         """关闭HTTP客户端"""
@@ -37,14 +37,14 @@ class AudioProxyService:
             cache_key = self._get_beatmapset_cache_key(beatmapset_id)
             metadata_key = self._get_beatmapset_metadata_key(beatmapset_id)
 
-            # 获取音频数据和元数据
-            audio_data = await self.redis.get(cache_key)
-            metadata = await self.redis.get(metadata_key)
+            # 获取音频数据（二进制）和元数据（文本）
+            audio_data = await self.redis_binary.get(cache_key)
+            metadata = await self.redis_text.get(metadata_key)
 
             if audio_data and metadata:
                 logger.debug(f"Beatmapset audio cache hit for ID: {beatmapset_id}")
-                # metadata 格式为 "content_type"
-                return audio_data, metadata.decode()
+                # audio_data 已经是 bytes 类型，metadata 是 str 类型
+                return audio_data, metadata
             return None
         except (redis.RedisError, redis.ConnectionError) as e:
             logger.error(f"Error getting beatmapset audio from cache: {e}")
@@ -56,9 +56,9 @@ class AudioProxyService:
             cache_key = self._get_beatmapset_cache_key(beatmapset_id)
             metadata_key = self._get_beatmapset_metadata_key(beatmapset_id)
 
-            # 缓存音频数据和元数据
-            await self.redis.setex(cache_key, self._cache_ttl, audio_data)
-            await self.redis.setex(metadata_key, self._cache_ttl, content_type)
+            # 缓存音频数据（二进制）和元数据（文本）
+            await self.redis_binary.setex(cache_key, self._cache_ttl, audio_data)
+            await self.redis_text.setex(metadata_key, self._cache_ttl, content_type)
 
             logger.debug(f"Cached beatmapset audio for ID: {beatmapset_id}, size: {len(audio_data)} bytes")
         except (redis.RedisError, redis.ConnectionError) as e:
@@ -122,7 +122,7 @@ class AudioProxyService:
         return audio_data, content_type
 
 
-def get_audio_proxy_service(redis_client: redis.Redis) -> AudioProxyService:
+def get_audio_proxy_service(redis_binary_client: redis.Redis, redis_text_client: redis.Redis) -> AudioProxyService:
     """获取音频代理服务实例"""
     # 每次创建新实例，避免全局状态
-    return AudioProxyService(redis_client)
+    return AudioProxyService(redis_binary_client, redis_text_client)

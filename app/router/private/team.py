@@ -1,12 +1,11 @@
-from __future__ import annotations
-
 import hashlib
+from typing import Annotated
 
-from app.database.lazer_user import BASE_INCLUDES, User, UserResp
 from app.database.team import Team, TeamMember, TeamRequest
-from app.dependencies.database import Database, get_redis
-from app.dependencies.storage import get_storage_service
-from app.dependencies.user import get_client_user
+from app.database.user import BASE_INCLUDES, User, UserResp
+from app.dependencies.database import Database, Redis
+from app.dependencies.storage import StorageService
+from app.dependencies.user import ClientUser
 from app.models.notification import (
     TeamApplicationAccept,
     TeamApplicationReject,
@@ -14,27 +13,25 @@ from app.models.notification import (
 )
 from app.router.notification import server
 from app.service.ranking_cache_service import get_ranking_cache_service
-from app.storage.base import StorageService
 from app.utils import check_image, utcnow
 
 from .router import router
 
-from fastapi import Depends, File, Form, HTTPException, Path, Request, Security
+from fastapi import File, Form, HTTPException, Path, Request
 from pydantic import BaseModel
-from redis.asyncio import Redis
 from sqlmodel import exists, select
 
 
 @router.post("/team", name="创建战队", response_model=Team, tags=["战队", "g0v0 API"])
 async def create_team(
     session: Database,
-    storage: StorageService = Depends(get_storage_service),
-    current_user: User = Security(get_client_user),
-    flag: bytes = File(..., description="战队图标文件"),
-    cover: bytes = File(..., description="战队头图文件"),
-    name: str = Form(max_length=100, description="战队名称"),
-    short_name: str = Form(max_length=10, description="战队缩写"),
-    redis: Redis = Depends(get_redis),
+    storage: StorageService,
+    current_user: ClientUser,
+    flag: Annotated[bytes, File(..., description="战队图标文件")],
+    cover: Annotated[bytes, File(..., description="战队头图文件")],
+    name: Annotated[str, Form(max_length=100, description="战队名称")],
+    short_name: Annotated[str, Form(max_length=10, description="战队缩写")],
+    redis: Redis,
 ):
     """创建战队。
 
@@ -88,13 +85,13 @@ async def create_team(
 async def update_team(
     team_id: int,
     session: Database,
-    storage: StorageService = Depends(get_storage_service),
-    current_user: User = Security(get_client_user),
-    flag: bytes | None = File(default=None, description="战队图标文件"),
-    cover: bytes | None = File(default=None, description="战队头图文件"),
-    name: str | None = Form(default=None, max_length=100, description="战队名称"),
-    short_name: str | None = Form(default=None, max_length=10, description="战队缩写"),
-    leader_id: int | None = Form(default=None, description="战队队长 ID"),
+    storage: StorageService,
+    current_user: ClientUser,
+    flag: Annotated[bytes | None, File(description="战队图标文件")] = None,
+    cover: Annotated[bytes | None, File(description="战队头图文件")] = None,
+    name: Annotated[str | None, Form(max_length=100, description="战队名称")] = None,
+    short_name: Annotated[str | None, Form(max_length=10, description="战队缩写")] = None,
+    leader_id: Annotated[int | None, Form(description="战队队长 ID")] = None,
 ):
     """修改战队。
 
@@ -161,9 +158,9 @@ async def update_team(
 @router.delete("/team/{team_id}", name="删除战队", status_code=204, tags=["战队", "g0v0 API"])
 async def delete_team(
     session: Database,
-    team_id: int = Path(..., description="战队 ID"),
-    current_user: User = Security(get_client_user),
-    redis: Redis = Depends(get_redis),
+    team_id: Annotated[int, Path(..., description="战队 ID")],
+    current_user: ClientUser,
+    redis: Redis,
 ):
     team = await session.get(Team, team_id)
     if not team:
@@ -191,7 +188,7 @@ class TeamQueryResp(BaseModel):
 @router.get("/team/{team_id}", name="查询战队", response_model=TeamQueryResp, tags=["战队", "g0v0 API"])
 async def get_team(
     session: Database,
-    team_id: int = Path(..., description="战队 ID"),
+    team_id: Annotated[int, Path(..., description="战队 ID")],
 ):
     members = (await session.exec(select(TeamMember).where(TeamMember.team_id == team_id))).all()
     return TeamQueryResp(
@@ -203,8 +200,8 @@ async def get_team(
 @router.post("/team/{team_id}/request", name="请求加入战队", status_code=204, tags=["战队", "g0v0 API"])
 async def request_join_team(
     session: Database,
-    team_id: int = Path(..., description="战队 ID"),
-    current_user: User = Security(get_client_user),
+    team_id: Annotated[int, Path(..., description="战队 ID")],
+    current_user: ClientUser,
 ):
     team = await session.get(Team, team_id)
     if not team:
@@ -231,10 +228,10 @@ async def request_join_team(
 async def handle_request(
     req: Request,
     session: Database,
-    team_id: int = Path(..., description="战队 ID"),
-    user_id: int = Path(..., description="用户 ID"),
-    current_user: User = Security(get_client_user),
-    redis: Redis = Depends(get_redis),
+    team_id: Annotated[int, Path(..., description="战队 ID")],
+    user_id: Annotated[int, Path(..., description="用户 ID")],
+    current_user: ClientUser,
+    redis: Redis,
 ):
     team = await session.get(Team, team_id)
     if not team:
@@ -272,10 +269,10 @@ async def handle_request(
 @router.delete("/team/{team_id}/{user_id}", name="踢出成员 / 退出战队", status_code=204, tags=["战队", "g0v0 API"])
 async def kick_member(
     session: Database,
-    team_id: int = Path(..., description="战队 ID"),
-    user_id: int = Path(..., description="用户 ID"),
-    current_user: User = Security(get_client_user),
-    redis: Redis = Depends(get_redis),
+    team_id: Annotated[int, Path(..., description="战队 ID")],
+    user_id: Annotated[int, Path(..., description="用户 ID")],
+    current_user: ClientUser,
+    redis: Redis,
 ):
     team = await session.get(Team, team_id)
     if not team:

@@ -1,4 +1,3 @@
-# ruff: noqa: I002
 from enum import Enum
 from typing import Annotated, Any
 
@@ -36,6 +35,11 @@ class StorageServiceType(str, Enum):
     LOCAL = "local"
     CLOUDFLARE_R2 = "r2"
     AWS_S3 = "s3"
+
+
+class OldScoreProcessingMode(str, Enum):
+    STRICT = "strict"
+    NORMAL = "normal"
 
 
 SPECTATOR_DOC = """
@@ -137,7 +141,7 @@ STORAGE_SETTINGS='{
     ]
     redis_url: Annotated[
         str,
-        Field(default="redis://127.0.0.1:6379/0", description="Redis 连接 URL"),
+        Field(default="redis://127.0.0.1:6379", description="Redis 连接 URL"),
         "数据库设置",
     ]
 
@@ -165,6 +169,11 @@ STORAGE_SETTINGS='{
         Field(default=1440, description="访问令牌过期时间（分钟）"),
         "JWT 设置",
     ]
+    refresh_token_expire_minutes: Annotated[
+        int,
+        Field(default=21600, description="刷新令牌过期时间（分钟）"),
+        "JWT 设置",
+    ]  # 15 days
     jwt_audience: Annotated[
         str,
         Field(default="5", description="JWT 受众"),
@@ -207,7 +216,7 @@ STORAGE_SETTINGS='{
     # 服务器设置
     host: Annotated[
         str,
-        Field(default="0.0.0.0", description="服务器监听地址"),
+        Field(default="0.0.0.0", description="服务器监听地址"),  # noqa: S104
         "服务器设置",
     ]
     port: Annotated[
@@ -255,18 +264,6 @@ STORAGE_SETTINGS='{
             return str(self.server_url)
         else:
             return "/"
-
-    # SignalR 设置
-    signalr_negotiate_timeout: Annotated[
-        int,
-        Field(default=30, description="SignalR 协商超时时间（秒）"),
-        "SignalR 服务器设置",
-    ]
-    signalr_ping_interval: Annotated[
-        int,
-        Field(default=15, description="SignalR ping 间隔（秒）"),
-        "SignalR 服务器设置",
-    ]
 
     # Fetcher 设置
     fetcher_client_id: Annotated[
@@ -319,11 +316,6 @@ STORAGE_SETTINGS='{
         Field(default=False, description="是否启用邮件验证功能"),
         "验证服务设置",
     ]
-    enable_smart_verification: Annotated[
-        bool,
-        Field(default=True, description="是否启用智能验证（基于客户端类型和设备信任）"),
-        "验证服务设置",
-    ]
     enable_session_verification: Annotated[
         bool,
         Field(default=True, description="是否启用会话验证中间件"),
@@ -342,11 +334,6 @@ STORAGE_SETTINGS='{
     device_trust_duration_days: Annotated[
         int,
         Field(default=30, description="设备信任持续天数"),
-        "验证服务设置",
-    ]
-    location_trust_duration_days: Annotated[
-        int,
-        Field(default=90, description="位置信任持续天数"),
         "验证服务设置",
     ]
     smtp_server: Annotated[
@@ -433,11 +420,6 @@ STORAGE_SETTINGS='{
         ),
         "游戏设置",
     ]
-    enable_all_mods_pp: Annotated[
-        bool,
-        Field(default=False, description="启用所有 Mod 的 PP 计算"),
-        "游戏设置",
-    ]
     enable_supporter_for_all_users: Annotated[
         bool,
         Field(default=False, description="启用所有新注册用户的支持者状态"),
@@ -463,6 +445,16 @@ STORAGE_SETTINGS='{
         Field(default=2, description="显示在结算列表的标签所需的最低票数"),
         "游戏设置",
     ]
+    old_score_processing_mode: Annotated[
+        OldScoreProcessingMode,
+        Field(
+            default=OldScoreProcessingMode.NORMAL,
+            description=(
+                "旧成绩处理模式<br/>strict: 删除所有相关的成绩、pp、统计信息、回放<br/>normal: 删除 pp 和排行榜成绩"
+            ),
+        ),
+        "游戏设置",
+    ]
 
     # exclude mods from enable_all_mods_pp mods.
     disabled_pp_mods: list[str] = Field(default_factory=list)
@@ -479,6 +471,12 @@ STORAGE_SETTINGS='{
     beatmap_cache_expire_hours: Annotated[
         int,
         Field(default=24, description="谱面缓存过期时间（小时）"),
+        "缓存设置",
+        "谱面缓存",
+    ]
+    beatmapset_cache_expire_seconds: Annotated[
+        int,
+        Field(default=3600, description="Beatmapset 缓存过期时间（秒）"),
         "缓存设置",
         "谱面缓存",
     ]
@@ -546,12 +544,6 @@ STORAGE_SETTINGS='{
         "缓存设置",
         "用户缓存",
     ]
-    user_cache_concurrent_limit: Annotated[
-        int,
-        Field(default=10, description="并发缓存用户的限制"),
-        "缓存设置",
-        "用户缓存",
-    ]
 
     # 资源代理设置
     enable_asset_proxy: Annotated[
@@ -578,6 +570,18 @@ STORAGE_SETTINGS='{
         str,
         Field(default="b-ppy", description="b.ppy.sh 的自定义前缀"),
         "资源代理设置",
+    ]
+
+    # 谱面同步设置
+    enable_auto_beatmap_sync: Annotated[
+        bool,
+        Field(default=False, description="启用自动谱面同步"),
+        "谱面同步设置",
+    ]
+    beatmap_sync_interval_minutes: Annotated[
+        int,
+        Field(default=60, description="自动谱面同步间隔（分钟）"),
+        "谱面同步设置",
     ]
 
     # 反作弊设置
@@ -616,26 +620,26 @@ STORAGE_SETTINGS='{
     ]
 
     @field_validator("fetcher_scopes", mode="before")
+    @classmethod
     def validate_fetcher_scopes(cls, v: Any) -> list[str]:
         if isinstance(v, str):
             return v.split(",")
         return v
 
     @field_validator("storage_settings", mode="after")
+    @classmethod
     def validate_storage_settings(
         cls,
         v: LocalStorageSettings | CloudflareR2Settings | AWSS3StorageSettings,
         info: ValidationInfo,
     ) -> LocalStorageSettings | CloudflareR2Settings | AWSS3StorageSettings:
-        if info.data.get("storage_service") == StorageServiceType.CLOUDFLARE_R2:
-            if not isinstance(v, CloudflareR2Settings):
-                raise ValueError("When storage_service is 'r2', storage_settings must be CloudflareR2Settings")
-        elif info.data.get("storage_service") == StorageServiceType.LOCAL:
-            if not isinstance(v, LocalStorageSettings):
-                raise ValueError("When storage_service is 'local', storage_settings must be LocalStorageSettings")
-        elif info.data.get("storage_service") == StorageServiceType.AWS_S3:
-            if not isinstance(v, AWSS3StorageSettings):
-                raise ValueError("When storage_service is 's3', storage_settings must be AWSS3StorageSettings")
+        service = info.data.get("storage_service")
+        if service == StorageServiceType.CLOUDFLARE_R2 and not isinstance(v, CloudflareR2Settings):
+            raise ValueError("When storage_service is 'r2', storage_settings must be CloudflareR2Settings")
+        if service == StorageServiceType.LOCAL and not isinstance(v, LocalStorageSettings):
+            raise ValueError("When storage_service is 'local', storage_settings must be LocalStorageSettings")
+        if service == StorageServiceType.AWS_S3 and not isinstance(v, AWSS3StorageSettings):
+            raise ValueError("When storage_service is 's3', storage_settings must be AWSS3StorageSettings")
         return v
 
 

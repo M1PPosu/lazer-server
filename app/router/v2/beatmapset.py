@@ -1,28 +1,23 @@
-from __future__ import annotations
-
 import re
 from typing import Annotated, Literal
 from urllib.parse import parse_qs
 
 from app.database import Beatmap, Beatmapset, BeatmapsetResp, FavouriteBeatmapset, User
 from app.database.beatmapset import SearchBeatmapsetsResp
-from app.dependencies.beatmap_download import get_beatmap_download_service
-from app.dependencies.beatmapset_cache import get_beatmapset_cache_dependency
-from app.dependencies.database import Database, get_redis, with_db
-from app.dependencies.fetcher import get_fetcher
-from app.dependencies.geoip import get_client_ip, get_geoip_helper
-from app.dependencies.user import get_client_user, get_current_user
-from app.fetcher import Fetcher
+from app.dependencies.beatmap_download import DownloadService
+from app.dependencies.beatmapset_cache import BeatmapsetCacheService
+from app.dependencies.database import Database, Redis, with_db
+from app.dependencies.fetcher import Fetcher
+from app.dependencies.geoip import IPAddress, get_geoip_helper
+from app.dependencies.user import ClientUser, get_current_user
+from app.helpers.asset_proxy_helper import asset_proxy_response
 from app.models.beatmap import SearchQueryModel
-from app.service.asset_proxy_helper import process_response_assets
-from app.service.beatmap_download_service import BeatmapDownloadService
-from app.service.beatmapset_cache_service import BeatmapsetCacheService, generate_hash
+from app.service.beatmapset_cache_service import generate_hash
 
 from .router import router
 
 from fastapi import (
     BackgroundTasks,
-    Depends,
     Form,
     HTTPException,
     Path,
@@ -48,15 +43,15 @@ async def _save_to_db(sets: SearchBeatmapsetsResp):
     tags=["谱面集"],
     response_model=SearchBeatmapsetsResp,
 )
+@asset_proxy_response
 async def search_beatmapset(
-    db: Database,
-    query: Annotated[SearchQueryModel, Query(...)],
+    query: Annotated[SearchQueryModel, Query()],
     request: Request,
     background_tasks: BackgroundTasks,
-    current_user: User = Security(get_current_user, scopes=["public"]),
-    fetcher: Fetcher = Depends(get_fetcher),
-    redis=Depends(get_redis),
-    cache_service: BeatmapsetCacheService = Depends(get_beatmapset_cache_dependency),
+    current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
+    fetcher: Fetcher,
+    redis: Redis,
+    cache_service: BeatmapsetCacheService,
 ):
     params = parse_qs(qs=request.url.query, keep_blank_values=True)
     cursor = {}
@@ -106,9 +101,7 @@ async def search_beatmapset(
     cached_result = await cache_service.get_search_from_cache(query_hash, cursor_hash)
     if cached_result:
         sets = SearchBeatmapsetsResp(**cached_result)
-        # 处理资源代理
-        processed_sets = await process_response_assets(sets, request)
-        return processed_sets
+        return sets
 
     try:
         sets = await fetcher.search_beatmapset(query, cursor, redis)
@@ -116,10 +109,7 @@ async def search_beatmapset(
 
         # 缓存搜索结果
         await cache_service.cache_search_result(query_hash, cursor_hash, sets.model_dump())
-
-        # 处理资源代理
-        processed_sets = await process_response_assets(sets, request)
-        return processed_sets
+        return sets
     except HTTPError as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -131,20 +121,19 @@ async def search_beatmapset(
     response_model=BeatmapsetResp,
     description=("通过谱面 ID 查询所属谱面集。"),
 )
+@asset_proxy_response
 async def lookup_beatmapset(
     db: Database,
     request: Request,
-    beatmap_id: int = Query(description="谱面 ID"),
-    current_user: User = Security(get_current_user, scopes=["public"]),
-    fetcher: Fetcher = Depends(get_fetcher),
-    cache_service: BeatmapsetCacheService = Depends(get_beatmapset_cache_dependency),
+    beatmap_id: Annotated[int, Query(description="谱面 ID")],
+    current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
+    fetcher: Fetcher,
+    cache_service: BeatmapsetCacheService,
 ):
     # 先尝试从缓存获取
     cached_resp = await cache_service.get_beatmap_lookup_from_cache(beatmap_id)
     if cached_resp:
-        # 处理资源代理
-        processed_resp = await process_response_assets(cached_resp, request)
-        return processed_resp
+        return cached_resp
 
     try:
         beatmap = await Beatmap.get_or_fetch(db, fetcher, bid=beatmap_id)
@@ -152,10 +141,7 @@ async def lookup_beatmapset(
 
         # 缓存结果
         await cache_service.cache_beatmap_lookup(beatmap_id, resp)
-
-        # 处理资源代理
-        processed_resp = await process_response_assets(resp, request)
-        return processed_resp
+        return resp
     except HTTPError as exc:
         raise HTTPException(status_code=404, detail="Beatmap not found") from exc
 
@@ -167,20 +153,19 @@ async def lookup_beatmapset(
     response_model=BeatmapsetResp,
     description="获取单个谱面集详情。",
 )
+@asset_proxy_response
 async def get_beatmapset(
     db: Database,
     request: Request,
-    beatmapset_id: int = Path(..., description="谱面集 ID"),
-    current_user: User = Security(get_current_user, scopes=["public"]),
-    fetcher: Fetcher = Depends(get_fetcher),
-    cache_service: BeatmapsetCacheService = Depends(get_beatmapset_cache_dependency),
+    beatmapset_id: Annotated[int, Path(..., description="谱面集 ID")],
+    current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
+    fetcher: Fetcher,
+    cache_service: BeatmapsetCacheService,
 ):
     # 先尝试从缓存获取
     cached_resp = await cache_service.get_beatmapset_from_cache(beatmapset_id)
     if cached_resp:
-        # 处理资源代理
-        processed_resp = await process_response_assets(cached_resp, request)
-        return processed_resp
+        return cached_resp
 
     try:
         beatmapset = await Beatmapset.get_or_fetch(db, fetcher, beatmapset_id)
@@ -188,10 +173,7 @@ async def get_beatmapset(
 
         # 缓存结果
         await cache_service.cache_beatmapset(resp)
-
-        # 处理资源代理
-        processed_resp = await process_response_assets(resp, request)
-        return processed_resp
+        return resp
     except HTTPError as exc:
         raise HTTPException(status_code=404, detail="Beatmapset not found") from exc
 
@@ -203,14 +185,12 @@ async def get_beatmapset(
     description="\n下载谱面集文件。基于请求IP地理位置智能分流，支持负载均衡和自动故障转移。中国IP使用Sayobot镜像，其他地区使用Nerinyan和OsuDirect镜像。",
 )
 async def download_beatmapset(
-    request: Request,
-    beatmapset_id: int = Path(..., description="谱面集 ID"),
-    no_video: bool = Query(True, alias="noVideo", description="是否下载无视频版本"),
-    current_user: User = Security(get_client_user),
-    download_service: BeatmapDownloadService = Depends(get_beatmap_download_service),
+    client_ip: IPAddress,
+    beatmapset_id: Annotated[int, Path(..., description="谱面集 ID")],
+    current_user: ClientUser,
+    download_service: DownloadService,
+    no_video: Annotated[bool, Query(alias="noVideo", description="是否下载无视频版本")] = True,
 ):
-    client_ip = get_client_ip(request)
-
     geoip_helper = get_geoip_helper()
     geo_info = geoip_helper.lookup(client_ip)
     country_code = geo_info.get("country_iso", "")
@@ -231,7 +211,11 @@ async def download_beatmapset(
                 f"https://dl.sayobot.cn/beatmaps/download/{'novideo' if no_video else 'full'}/{beatmapset_id}"
             )
         else:
+<<<<<<< HEAD
             return RedirectResponse(f"https://catboy.best/d/{sid}")
+=======
+            return RedirectResponse(f"https://catboy.best/d/{beatmapset_id}{'n' if no_video else ''}")
+>>>>>>> upstream/main
 
 
 @router.post(
@@ -242,9 +226,12 @@ async def download_beatmapset(
 )
 async def favourite_beatmapset(
     db: Database,
-    beatmapset_id: int = Path(..., description="谱面集 ID"),
-    action: Literal["favourite", "unfavourite"] = Form(description="操作类型：favourite 收藏 / unfavourite 取消收藏"),
-    current_user: User = Security(get_client_user),
+    beatmapset_id: Annotated[int, Path(..., description="谱面集 ID")],
+    action: Annotated[
+        Literal["favourite", "unfavourite"],
+        Form(description="操作类型：favourite 收藏 / unfavourite 取消收藏"),
+    ],
+    current_user: ClientUser,
 ):
     existing_favourite = (
         await db.exec(
