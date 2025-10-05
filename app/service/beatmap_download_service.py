@@ -55,10 +55,6 @@ class BeatmapDownloadService:
             DownloadEndpoint(
                 name="Catboy",
                 base_url="https://catboy.best",
-<<<<<<< HEAD
-                health_check_url="https://catboy.best/",
-                url_template="https://catboy.best/d/{sid}",
-=======
                 health_check_url="https://catboy.best/api",
                 url_template="https://catboy.best/d/{sid}",
                 is_china=False,
@@ -70,13 +66,10 @@ class BeatmapDownloadService:
                 base_url="https://api.nerinyan.moe",
                 health_check_url="https://api.nerinyan.moe/health",
                 url_template="https://api.nerinyan.moe/d/{sid}?noVideo={no_video}",
->>>>>>> upstream/main
                 is_china=False,
                 priority=1,
                 timeout=10,
             ),
-<<<<<<< HEAD
-=======
             DownloadEndpoint(
                 name="OsuDirect",
                 base_url="https://osu.direct",
@@ -86,7 +79,6 @@ class BeatmapDownloadService:
                 priority=2,
                 timeout=10,
             ),
->>>>>>> upstream/main
         ]
 
         # 端点状态跟踪
