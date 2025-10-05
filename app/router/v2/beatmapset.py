@@ -211,11 +211,7 @@ async def download_beatmapset(
                 f"https://dl.sayobot.cn/beatmaps/download/{'novideo' if no_video else 'full'}/{beatmapset_id}"
             )
         else:
-<<<<<<< HEAD
-            return RedirectResponse(f"https://catboy.best/d/{sid}")
-=======
             return RedirectResponse(f"https://catboy.best/d/{beatmapset_id}{'n' if no_video else ''}")
->>>>>>> upstream/main
 
 
 @router.post(
