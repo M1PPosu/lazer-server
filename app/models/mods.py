@@ -246,21 +246,6 @@ class _LegacyModSettings(BaseModel):
     enable_all_mods_pp: bool = False
 
 
-<<<<<<< HEAD
-def mods_can_get_pp(ruleset_id: int, mods: list[APIMod]) -> bool:
-    for mod in mods:
-        if app_settings.disable_rate_change_pp and mod["acronym"] in {"DT", "NC", "HT", "DC"}:
-            if mod.get("settings"):
-                return False
-            
-    if app_settings.enable_all_mods_pp:
-        for mod in mods:
-            if mod["acronym"] in app_settings.disabled_pp_mods:
-                return False
-        return True
-
-    ranked_mods = RANKED_MODS[ruleset_id]
-=======
 def _get_mods_file_checksum() -> str:
     current_mods_file = STATIC_DIR / "mods.json"
     if not current_mods_file.exists():
@@ -345,7 +330,6 @@ def check_settings(mod: APIMod, ranked_mods: RulesetRankedMods) -> bool:
 
 
 def _mods_can_get_pp(ruleset_id: int, mods: list[APIMod], ranked_mods: RankedMods) -> bool:
->>>>>>> upstream/main
     for mod in mods:
         if app_settings.enable_rx and mod["acronym"] == "RX" and ruleset_id in {0, 1, 2}:
             continue
@@ -354,19 +338,6 @@ def _mods_can_get_pp(ruleset_id: int, mods: list[APIMod], ranked_mods: RankedMod
         check_settings_result = check_settings(mod, ranked_mods[ruleset_id])
         if not check_settings_result:
             return False
-<<<<<<< HEAD
-        if settings == {}:
-            continue
-        for setting, value in mod["settings"].items():
-            if (expected_value := settings.get(setting)) is None:
-                return False
-            if expected_value != NO_CHECK and value != expected_value:
-                return False
-
-    return True
-
-
-=======
     return True
 
 
@@ -377,7 +348,6 @@ def mods_can_get_pp_vanilla(ruleset_id: int, mods: list[APIMod]) -> bool:
 def mods_can_get_pp(ruleset_id: int, mods: list[APIMod]) -> bool:
     return _mods_can_get_pp(ruleset_id, mods, RANKED_MODS)
 
->>>>>>> upstream/main
 
 ENUM_TO_STR = {
     0: {
