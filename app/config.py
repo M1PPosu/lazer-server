@@ -567,6 +567,18 @@ STORAGE_SETTINGS='{
         "资源代理设置",
     ]
 
+    # 谱面同步设置
+    enable_auto_beatmap_sync: Annotated[
+        bool,
+        Field(default=False, description="启用自动谱面同步"),
+        "谱面同步设置",
+    ]
+    beatmap_sync_interval_minutes: Annotated[
+        int,
+        Field(default=60, description="自动谱面同步间隔（分钟）"),
+        "谱面同步设置",
+    ]
+
     # 反作弊设置
     suspicious_score_check: Annotated[
         bool,
