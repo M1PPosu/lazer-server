@@ -1,3 +1,4 @@
+import datetime
 from datetime import timedelta
 from enum import Enum
 import math
@@ -161,6 +162,20 @@ class BeatmapsetUpdateService:
                 try:
                     if await self.add_missing_beatmapset(missing):
                         total += 1
+                except HTTPStatusError as e:
+                    if e.response.status_code == 404:
+                        logger.opt(colors=True).warning(f"beatmapset {missing} not found (404), skipping")
+
+                        session.add(
+                            BeatmapSync(
+                                beatmapset_id=missing,
+                                beatmap_status=BeatmapRankStatus.GRAVEYARD,
+                                next_sync_time=datetime.datetime.max,
+                                beatmaps=[],
+                            )
+                        )
+                    else:
+                        logger.error(f"failed to add missing beatmapset {missing}: [{e.__class__.__name__}] {e}")
                 except Exception as e:
                     logger.error(f"failed to add missing beatmapset {missing}: {e}")
             if total > 0:
@@ -199,12 +214,8 @@ class BeatmapsetUpdateService:
                 processing = ProcessingBeatmapset(beatmapset, sync_record)
                 next_time_delta = processing.calculate_next_sync_time()
                 if not next_time_delta:
-                    logger.opt(colors=True).info(
-                        f"<g>[{beatmapset.id}]</g> beatmapset has transformed to "
-                        "ranked or loved, removing from sync list"
-                    )
-                    await session.delete(sync_record)
-                    await session.commit()
+                    # for qualified -> ranked, run immediate sync
+                    await BeatmapsetUpdateService._sync_immediately(self, beatmapset)
                     return
                 sync_record.next_sync_time = utcnow() + next_time_delta
             logger.opt(colors=True).info(f"<g>[{beatmapset.id}]</g> next sync at {sync_record.next_sync_time}")
