@@ -10,11 +10,13 @@ from app.database.beatmap import Beatmap, BeatmapResp
 from app.database.beatmap_sync import BeatmapSync, SavedBeatmapMeta
 from app.database.beatmapset import Beatmapset, BeatmapsetResp
 from app.database.score import Score
-from app.dependencies.database import with_db
+from app.dependencies.database import get_redis, with_db
 from app.dependencies.storage import get_storage_service
 from app.log import logger
 from app.models.beatmap import BeatmapRankStatus
 from app.utils import bg_tasks, utcnow
+
+from .beatmapset_cache_service import get_beatmapset_cache_service
 
 from httpx import HTTPError, HTTPStatusError
 from sqlmodel import col, select
@@ -341,6 +343,7 @@ class BeatmapsetUpdateService:
             new_beatmapset = await Beatmapset.from_resp_no_save(beatmapset)
             if db_beatmapset:
                 await session.merge(new_beatmapset)
+            await get_beatmapset_cache_service(get_redis()).invalidate_beatmapset_cache(beatmapset.id)
             await session.commit()
 
     async def _process_changed_beatmaps(self, changed: list[ChangedBeatmap], beatmaps_list: list[BeatmapResp]):
@@ -397,6 +400,7 @@ class BeatmapsetUpdateService:
                         await session.commit()
                     if change.type != BeatmapChangeType.STATUS_CHANGED:
                         await _process_update_or_delete_beatmaps(change.beatmap_id)
+                await get_beatmapset_cache_service(get_redis()).invalidate_beatmap_lookup_cache(change.beatmap_id)
 
 
 service: BeatmapsetUpdateService | None = None
