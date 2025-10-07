@@ -168,8 +168,6 @@ class BeatmapsetUpdateService:
         self._adding_missing = False
 
     async def add(self, beatmapset: BeatmapsetResp, calculate_next_sync: bool = True):
-        if BeatmapRankStatus(beatmapset.ranked).ranked():
-            return
         async with with_db() as session:
             sync_record = await session.get(BeatmapSync, beatmapset.id)
             if not sync_record:
@@ -349,7 +347,9 @@ class BeatmapsetUpdateService:
                             f"<g>[beatmap: {change.beatmap_id}]</g> beatmap data not found in beatmapset, skipping"
                         )
                         continue
-                    logger.opt(colors=True).info(f"[{beatmap.beatmapset_id}] adding beatmap {beatmap.id}")
+                    logger.opt(colors=True).info(
+                        f"<g>[{beatmap.beatmapset_id}]</g> adding beatmap <blue>{beatmap.id}</blue>"
+                    )
                     await Beatmap.from_resp_no_save(session, beatmap)
                 else:
                     beatmap = beatmaps.get(change.beatmap_id)
