@@ -186,9 +186,22 @@ class BeatmapsetUpdateService:
         async with with_db() as session:
             sync_record = await session.get(BeatmapSync, beatmapset.id)
             if not sync_record:
-                sync_record = BeatmapSync(
-                    beatmapset_id=beatmapset.id,
-                    beatmaps=[
+                database_beatmapset = await session.get(Beatmapset, beatmapset.id)
+                if database_beatmapset:
+                    status = BeatmapRankStatus(database_beatmapset.beatmap_status)
+                    await database_beatmapset.awaitable_attrs.beatmaps
+                    beatmaps = [
+                        SavedBeatmapMeta(
+                            beatmap_id=bm.id,
+                            md5=bm.checksum,
+                            is_deleted=False,
+                            beatmap_status=BeatmapRankStatus(bm.beatmap_status),
+                        )
+                        for bm in database_beatmapset.beatmaps
+                    ]
+                else:
+                    status = BeatmapRankStatus(beatmapset.ranked)
+                    beatmaps = [
                         SavedBeatmapMeta(
                             beatmap_id=bm.id,
                             md5=bm.checksum,
@@ -196,8 +209,12 @@ class BeatmapsetUpdateService:
                             beatmap_status=BeatmapRankStatus(bm.ranked),
                         )
                         for bm in beatmapset.beatmaps
-                    ],
-                    beatmap_status=BeatmapRankStatus(beatmapset.ranked),
+                    ]
+
+                sync_record = BeatmapSync(
+                    beatmapset_id=beatmapset.id,
+                    beatmaps=beatmaps,
+                    beatmap_status=status,
                 )
                 session.add(sync_record)
                 await session.commit()
