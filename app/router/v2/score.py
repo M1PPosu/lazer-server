@@ -798,6 +798,7 @@ async def unpin_score(
     ).all()
     for s in changed_score:
         s.pinned_order -= 1
+    score_record.pinned_order = 0
     await db.commit()
 
 
