@@ -10,6 +10,7 @@ from app.auth import (
     get_token_by_refresh_token,
     get_user_by_authorization_code,
     store_token,
+    validate_password,
     validate_username,
 )
 from app.config import settings
@@ -64,20 +65,6 @@ def validate_email(email: str) -> list[str]:
     email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
     if not re.match(email_pattern, email):
         errors.append("Please enter a valid email address")
-
-    return errors
-
-
-def validate_password(password: str) -> list[str]:
-    """验证密码"""
-    errors = []
-
-    if not password:
-        errors.append("Password is required")
-        return errors
-
-    if len(password) < 8:
-        errors.append("Password must be at least 8 characters long")
 
     return errors
 

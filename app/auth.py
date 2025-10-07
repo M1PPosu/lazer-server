@@ -60,6 +60,20 @@ def validate_username(username: str) -> list[str]:
     return errors
 
 
+def validate_password(password: str) -> list[str]:
+    """验证密码"""
+    errors = []
+
+    if not password:
+        errors.append("Password is required")
+        return errors
+
+    if len(password) < 8:
+        errors.append("Password must be at least 8 characters long")
+
+    return errors
+
+
 def verify_password_legacy(plain_password: str, bcrypt_hash: str) -> bool:
     """
     验证密码 - 使用 osu! 的验证方式
