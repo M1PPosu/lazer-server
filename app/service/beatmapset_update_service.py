@@ -5,7 +5,7 @@ import random
 from typing import TYPE_CHECKING, NamedTuple
 
 from app.config import OldScoreProcessingMode, settings
-from app.database.beatmap import Beatmap
+from app.database.beatmap import Beatmap, BeatmapResp
 from app.database.beatmap_sync import BeatmapSync, SavedBeatmapMeta
 from app.database.beatmapset import Beatmapset, BeatmapsetResp
 from app.database.score import Score
@@ -128,9 +128,6 @@ class BeatmapsetUpdateService:
 
     async def add_missing_beatmapset(self, beatmapset_id: int, immediate: bool = False) -> bool:
         beatmapset = await self.fetcher.get_beatmapset(beatmapset_id)
-        status = BeatmapRankStatus(beatmapset.ranked)
-        if status.ranked():
-            return False
         if immediate:
             await self._sync_immediately(beatmapset)
             logger.debug(f"triggered immediate sync for beatmapset {beatmapset_id} ")
@@ -279,6 +276,7 @@ class BeatmapsetUpdateService:
             bg_tasks.add_task(
                 self._process_changed_beatmaps,
                 changed_beatmaps,
+                beatmapset.beatmaps,
             )
             bg_tasks.add_task(
                 self._process_changed_beatmapset,
@@ -319,8 +317,10 @@ class BeatmapsetUpdateService:
                 await session.merge(new_beatmapset)
             await session.commit()
 
-    async def _process_changed_beatmaps(self, changed: list[ChangedBeatmap]):
+    async def _process_changed_beatmaps(self, changed: list[ChangedBeatmap], beatmaps_list: list[BeatmapResp]):
         storage_service = get_storage_service()
+        beatmaps = {bm.id: bm for bm in beatmaps_list}
+
         async with with_db() as session:
 
             async def _process_update_or_delete_beatmaps(beatmap_id: int):
@@ -343,49 +343,19 @@ class BeatmapsetUpdateService:
 
             for change in changed:
                 if change.type == BeatmapChangeType.MAP_ADDED:
-                    try:
-                        beatmap = await self.fetcher.get_beatmap(change.beatmap_id)
-                    except HTTPStatusError as e:
-                        if e.response.status_code == 404:
-                            logger.opt(colors=True).warning(
-                                f"<g>[beatmap: {change.beatmap_id}]</g> beatmap not found (404), skipping"
-                            )
-                            continue
-                        logger.opt(colors=True).error(
-                            f"<g>[beatmap: {change.beatmap_id}]</g> failed to fetch added beatmap: "
-                            f"[{e.__class__.__name__}] {e}, skipping"
-                        )
-                        continue
-                    except Exception as e:
-                        logger.opt(colors=True).error(
-                            f"<g>[beatmap: {change.beatmap_id}]</g> failed to fetch added beatmap: {e}, skipping"
+                    beatmap = beatmaps.get(change.beatmap_id)
+                    if not beatmap:
+                        logger.opt(colors=True).warning(
+                            f"<g>[beatmap: {change.beatmap_id}]</g> beatmap data not found in beatmapset, skipping"
                         )
                         continue
                     logger.opt(colors=True).info(f"[{beatmap.beatmapset_id}] adding beatmap {beatmap.id}")
                     await Beatmap.from_resp_no_save(session, beatmap)
                 else:
-                    try:
-                        beatmap = await self.fetcher.get_beatmap(change.beatmap_id)
-                    except HTTPStatusError as e:
-                        if e.response.status_code == 404:
-                            if change.type == BeatmapChangeType.MAP_DELETED:
-                                logger.opt(colors=True).info(
-                                    f"<g>[beatmap: {change.beatmap_id}]</g> beatmap not found (404), assuming deleted"
-                                )
-                                await _process_update_or_delete_beatmaps(change.beatmap_id)
-                                continue
-                            logger.opt(colors=True).warning(
-                                f"<g>[beatmap: {change.beatmap_id}]</g> beatmap not found (404), skipping"
-                            )
-                            continue
-                        logger.opt(colors=True).error(
-                            f"<g>[beatmap: {change.beatmap_id}]</g> failed to fetch changed beatmap: "
-                            f"[{e.__class__.__name__}] {e}, skipping"
-                        )
-                        continue
-                    except Exception as e:
-                        logger.opt(colors=True).error(
-                            f"<g>[beatmap: {change.beatmap_id}]</g> failed to fetch changed beatmap: {e}, skipping"
+                    beatmap = beatmaps.get(change.beatmap_id)
+                    if not beatmap:
+                        logger.opt(colors=True).warning(
+                            f"<g>[beatmap: {change.beatmap_id}]</g> beatmap data not found in beatmapset, skipping"
                         )
                         continue
                     logger.opt(colors=True).info(
