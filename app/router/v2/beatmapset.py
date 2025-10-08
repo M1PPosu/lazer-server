@@ -5,7 +5,7 @@ from urllib.parse import parse_qs
 from app.database import Beatmap, Beatmapset, BeatmapsetResp, FavouriteBeatmapset, User
 from app.database.beatmapset import SearchBeatmapsetsResp
 from app.dependencies.beatmap_download import DownloadService
-from app.dependencies.beatmapset_cache import BeatmapsetCacheService
+from app.dependencies.cache import BeatmapsetCacheService
 from app.dependencies.database import Database, Redis, with_db
 from app.dependencies.fetcher import Fetcher
 from app.dependencies.geoip import IPAddress, get_geoip_helper

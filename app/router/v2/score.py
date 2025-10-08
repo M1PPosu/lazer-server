@@ -33,6 +33,7 @@ from app.database.score import (
     process_user,
 )
 from app.dependencies.api_version import APIVersion
+from app.dependencies.cache import UserCacheService
 from app.dependencies.database import Database, Redis, get_redis, with_db
 from app.dependencies.fetcher import Fetcher, get_fetcher
 from app.dependencies.storage import StorageService
@@ -730,8 +731,9 @@ async def get_user_playlist_score(
 )
 async def pin_score(
     db: Database,
-    score_id: Annotated[int, Path(description="成绩 ID")],
     current_user: ClientUser,
+    user_cache_service: UserCacheService,
+    score_id: Annotated[int, Path(description="成绩 ID")],
 ):
     # 立即获取用户ID，避免懒加载问题
     user_id = current_user.id
@@ -763,6 +765,7 @@ async def pin_score(
         or 0
     ) + 1
     score_record.pinned_order = next_order
+    await user_cache_service.invalidate_user_scores_cache(user_id, score_record.gamemode)
     await db.commit()
 
 
@@ -775,6 +778,7 @@ async def pin_score(
 )
 async def unpin_score(
     db: Database,
+    user_cache_service: UserCacheService,
     score_id: Annotated[int, Path(description="成绩 ID")],
     current_user: ClientUser,
 ):
@@ -799,6 +803,7 @@ async def unpin_score(
     for s in changed_score:
         s.pinned_order -= 1
     score_record.pinned_order = 0
+    await user_cache_service.invalidate_user_scores_cache(user_id, score_record.gamemode)
     await db.commit()
 
 
@@ -811,8 +816,9 @@ async def unpin_score(
 )
 async def reorder_score_pin(
     db: Database,
-    score_id: Annotated[int, Path(description="成绩 ID")],
+    user_cache_service: UserCacheService,
     current_user: ClientUser,
+    score_id: Annotated[int, Path(description="成绩 ID")],
     after_score_id: Annotated[int | None, Body(description="放在该成绩之后")] = None,
     before_score_id: Annotated[int | None, Body(description="放在该成绩之前")] = None,
 ):
@@ -882,7 +888,7 @@ async def reorder_score_pin(
             score_to_update.pinned_order = new_order
 
     score_record.pinned_order = final_target
-
+    await user_cache_service.invalidate_user_scores_cache(user_id, score_record.gamemode)
     await db.commit()
 
 
