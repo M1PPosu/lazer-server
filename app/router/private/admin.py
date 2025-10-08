@@ -31,6 +31,8 @@ async def get_sessions(
     geoip: GeoIPService,
 ):
     current_user, token = user_and_token
+    current = 0
+
     sessions = (
         await session.exec(
             select(
@@ -40,10 +42,16 @@ async def get_sessions(
             .order_by(col(LoginSession.created_at).desc())
         )
     ).all()
+    resp = []
+    for s in sessions:
+        resp.append(LoginSessionResp.from_db(s, geoip))
+        if s.token_id == token.id:
+            current = s.id
+
     return SessionsResp(
         total=len(sessions),
-        current=token.id,
-        sessions=[LoginSessionResp.from_db(s, geoip) for s in sessions],
+        current=current,
+        sessions=resp,
     )
 
 
