@@ -55,7 +55,7 @@ from .statistics import (
     UserStatistics,
     UserStatisticsResp,
 )
-from .team import Team, TeamMember, TeamRequest
+from .team import Team, TeamMember, TeamRequest, TeamResp
 from .total_score_best_scores import TotalScoreBestScore
 from .user import (
     MeResp,
@@ -131,6 +131,7 @@ __all__ = [
     "Team",
     "TeamMember",
     "TeamRequest",
+    "TeamResp",
     "TotalScoreBestScore",
     "TotpKeys",
     "TrustedDevice",

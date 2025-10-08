@@ -1,7 +1,7 @@
 import hashlib
 from typing import Annotated
 
-from app.database.team import Team, TeamMember, TeamRequest
+from app.database.team import Team, TeamMember, TeamRequest, TeamResp
 from app.database.user import BASE_INCLUDES, User, UserResp
 from app.dependencies.database import Database, Redis
 from app.dependencies.storage import StorageService
@@ -11,13 +11,14 @@ from app.models.notification import (
     TeamApplicationReject,
     TeamApplicationStore,
 )
+from app.models.score import GameMode
 from app.router.notification import server
 from app.service.ranking_cache_service import get_ranking_cache_service
 from app.utils import check_image, utcnow
 
 from .router import router
 
-from fastapi import File, Form, HTTPException, Path, Request
+from fastapi import File, Form, HTTPException, Path, Query, Request
 from pydantic import BaseModel
 from sqlmodel import col, exists, select
 
@@ -32,6 +33,9 @@ async def create_team(
     name: Annotated[str, Form(max_length=100, description="战队名称")],
     short_name: Annotated[str, Form(max_length=10, description="战队缩写")],
     redis: Redis,
+    playmode: Annotated[GameMode, Form(description="战队游戏模式")] = GameMode.OSU,
+    description: Annotated[str | None, Form(description="战队简介")] = None,
+    website: Annotated[str | None, Form(description="战队网址")] = None,
 ):
     """创建战队。
 
@@ -55,8 +59,19 @@ async def create_team(
     flag_format = check_image(flag, 2 * 1024 * 1024, 240, 120)
     cover_format = check_image(cover, 10 * 1024 * 1024, 3000, 2000)
 
+    if website and not (website.startswith("http://") or website.startswith("https://")):
+        website = "https://" + website
+
     now = utcnow()
-    team = Team(name=name, short_name=short_name, leader_id=user_id, created_at=now)
+    team = Team(
+        name=name,
+        short_name=short_name,
+        leader_id=user_id,
+        created_at=now,
+        playmode=playmode,
+        description=description,
+        website=website,
+    )
     session.add(team)
     await session.commit()
     await session.refresh(team)
@@ -95,6 +110,9 @@ async def update_team(
     name: Annotated[str | None, Form(max_length=100, description="战队名称")] = None,
     short_name: Annotated[str | None, Form(max_length=10, description="战队缩写")] = None,
     leader_id: Annotated[int | None, Form(description="战队队长 ID")] = None,
+    playmode: Annotated[GameMode, Form(description="战队游戏模式")] = GameMode.OSU,
+    description: Annotated[str | None, Form(description="战队简介")] = None,
+    website: Annotated[str | None, Form(description="战队网址")] = None,
 ):
     """修改战队。
 
@@ -121,6 +139,13 @@ async def update_team(
             raise HTTPException(status_code=409, detail="Short name already exists")
         else:
             team.short_name = short_name
+
+    team.playmode = playmode or team.playmode
+    team.description = description
+    if website is not None:
+        if website and not (website.startswith("http://") or website.startswith("https://")):
+            website = "https://" + website
+        team.website = website
 
     if flag:
         format_ = check_image(flag, 2 * 1024 * 1024, 240, 120)
@@ -190,7 +215,7 @@ async def delete_team(
 
 
 class TeamQueryResp(BaseModel):
-    team: Team
+    team: TeamResp
     members: list[UserResp]
 
 
@@ -198,6 +223,7 @@ class TeamQueryResp(BaseModel):
 async def get_team(
     session: Database,
     team_id: Annotated[int, Path(..., description="战队 ID")],
+    gamemode: Annotated[GameMode | None, Query(description="游戏模式")] = None,
 ):
     members = (
         await session.exec(
@@ -208,7 +234,7 @@ async def get_team(
         )
     ).all()
     return TeamQueryResp(
-        team=members[0].team,
+        team=await TeamResp.from_db(members[0].team, session, gamemode),
         members=[await UserResp.from_db(m.user, session, include=BASE_INCLUDES) for m in members],
     )
 
