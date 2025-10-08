@@ -44,10 +44,10 @@ async def change_password(
     if errors := validate_password(new_password):
         raise HTTPException(status_code=400, detail="; ".join(errors))
 
-    async with session.begin():
-        current_user.pw_bcrypt = get_password_hash(new_password)
+    current_user.pw_bcrypt = get_password_hash(new_password)
 
-        await session.execute(delete(TrustedDevice).where(col(TrustedDevice.user_id) == current_user.id))
-        await session.execute(delete(LoginSession).where(col(LoginSession.user_id) == current_user.id))
-        await session.execute(delete(OAuthToken).where(col(OAuthToken.user_id) == current_user.id))
-        logger.info(f"User {current_user.id} changed password and sessions revoked")
+    await session.execute(delete(TrustedDevice).where(col(TrustedDevice.user_id) == current_user.id))
+    await session.execute(delete(LoginSession).where(col(LoginSession.user_id) == current_user.id))
+    await session.execute(delete(OAuthToken).where(col(OAuthToken.user_id) == current_user.id))
+    logger.info(f"User {current_user.id} changed password and sessions revoked")
+    await session.commit()
