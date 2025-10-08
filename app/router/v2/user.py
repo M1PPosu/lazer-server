@@ -151,9 +151,10 @@ async def get_user_events(
     user_id: Annotated[int, Path(description="用户 ID")],
     limit: Annotated[int | None, Query(description="限制返回的活动数量")] = None,
     offset: Annotated[int | None, Query(description="活动日志的偏移量")] = None,
+    current_user: User | None = Security(get_optional_user, scopes=["public"]),
 ):
     db_user = await session.get(User, user_id)
-    if db_user is None or not await visible_to_current_user(db_user, None, session):
+    if db_user is None or not await visible_to_current_user(db_user, current_user, session):
         raise HTTPException(404, "User Not found")
     events = (
         await session.exec(
@@ -179,6 +180,7 @@ async def get_user_kudosu(
     user_id: Annotated[int, Path(description="用户 ID")],
     offset: Annotated[int, Query(description="偏移量")] = 0,
     limit: Annotated[int, Query(description="返回记录数量限制")] = 6,
+    current_user: User | None = Security(get_optional_user, scopes=["public"]),
 ):
     """
     获取用户的 kudosu 记录
@@ -188,7 +190,7 @@ async def get_user_kudosu(
     """
     # 验证用户是否存在
     db_user = await session.get(User, user_id)
-    if db_user is None or not await visible_to_current_user(db_user, None, session):
+    if db_user is None or not await visible_to_current_user(db_user, current_user, session):
         raise HTTPException(404, "User not found")
 
     # TODO: 实现 kudosu 记录获取逻辑
@@ -206,7 +208,7 @@ async def get_user_kudosu(
 async def get_user_beatmaps_passed(
     session: Database,
     user_id: Annotated[int, Path(description="用户 ID")],
-    current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
+    current_user: User | None = Security(get_optional_user, scopes=["public"]),
     beatmapset_ids: Annotated[
         list[int],
         Query(
