@@ -33,6 +33,7 @@ from app.models.oauth import (
 from app.models.score import GameMode
 from app.service.login_log_service import LoginLogService
 from app.service.password_reset_service import password_reset_service
+from app.service.turnstile_service import turnstile_service
 from app.service.verification_service import (
     EmailVerificationService,
     LoginSessionService,
@@ -84,7 +85,19 @@ async def register_user(
     user_password: Annotated[str, Form(..., alias="user[password]", description="密码")],
     geoip: GeoIPService,
     client_ip: IPAddress,
+    user_agent: UserAgentInfo,
+    cf_turnstile_response: Annotated[
+        str, Form(description="Cloudflare Turnstile 响应 token")
+    ] = "XXXX.DUMMY.TOKEN.XXXX",
 ):
+    # Turnstile 验证（仅对非 osu! 客户端）
+    if settings.enable_turnstile_verification and not user_agent.is_client:
+        success, error_msg = await turnstile_service.verify_token(cf_turnstile_response, client_ip)
+        logger.info(f"Turnstile verification result: {success}, error_msg: {error_msg}")
+        if not success:
+            errors = RegistrationRequestErrors(message=f"Verification failed: {error_msg}")
+            return JSONResponse(status_code=400, content={"form_error": errors.model_dump()})
+
     username_errors = validate_username(user_username)
     email_errors = validate_email(user_email)
     password_errors = validate_password(user_password)
@@ -203,7 +216,25 @@ async def oauth_token(
     password: Annotated[str | None, Form(description="密码（仅密码模式需要）")] = None,
     refresh_token: Annotated[str | None, Form(description="刷新令牌（仅刷新令牌模式需要）")] = None,
     web_uuid: Annotated[str | None, Header(include_in_schema=False, alias="X-UUID")] = None,
+    cf_turnstile_response: Annotated[
+        str, Form(description="Cloudflare Turnstile 响应 token")
+    ] = "XXXX.DUMMY.TOKEN.XXXX",
 ):
+    # Turnstile 验证（仅对非 osu! 客户端的密码授权模式）
+    if grant_type == "password" and settings.enable_turnstile_verification and not user_agent.is_client:
+        logger.debug(
+            f"Turnstile check: grant_type={grant_type}, token={cf_turnstile_response[:20]}..., "
+            f"enabled={settings.enable_turnstile_verification}, is_client={user_agent.is_client}"
+        )
+        success, error_msg = await turnstile_service.verify_token(cf_turnstile_response, ip_address)
+        logger.info(f"Turnstile verification result: success={success}, error={error_msg}, ip={ip_address}")
+        if not success:
+            return create_oauth_error_response(
+                error="invalid_request",
+                description=f"Verification failed: {error_msg}",
+                hint="Invalid or expired verification token",
+            )
+
     scopes = scope.split(" ")
 
     client = (
@@ -560,18 +591,31 @@ async def request_password_reset(
     email: Annotated[str, Form(..., description="邮箱地址")],
     redis: Redis,
     ip_address: IPAddress,
+    user_agent: UserAgentInfo,
+    cf_turnstile_response: Annotated[
+        str, Form(description="Cloudflare Turnstile 响应 token")
+    ] = "XXXX.DUMMY.TOKEN.XXXX",
 ):
     """
     请求密码重置
     """
+    # Turnstile 验证（仅对非 osu! 客户端）
+    if settings.enable_turnstile_verification and not user_agent.is_client:
+        success, error_msg = await turnstile_service.verify_token(cf_turnstile_response, ip_address)
+        if not success:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": f"Verification failed: {error_msg}"},
+            )
+
     # 获取客户端信息
-    user_agent = request.headers.get("User-Agent", "")
+    user_agent_str = request.headers.get("User-Agent", "")
 
     # 请求密码重置
     success, message = await password_reset_service.request_password_reset(
         email=email.lower().strip(),
         ip_address=ip_address,
-        user_agent=user_agent,
+        user_agent=user_agent_str,
         redis=redis,
     )
 

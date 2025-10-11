@@ -311,6 +311,21 @@ STORAGE_SETTINGS='{
         Field(default=True, description="在TOTP标签中使用用户名而不是邮箱"),
         "验证服务设置",
     ]
+    enable_turnstile_verification: Annotated[
+        bool,
+        Field(default=False, description="是否启用 Cloudflare Turnstile 验证（仅对非 osu! 客户端）"),
+        "验证服务设置",
+    ]
+    turnstile_secret_key: Annotated[
+        str,
+        Field(default="", description="Cloudflare Turnstile Secret Key"),
+        "验证服务设置",
+    ]
+    turnstile_dev_mode: Annotated[
+        bool,
+        Field(default=False, description="Turnstile 开发模式（跳过验证，用于本地开发）"),
+        "验证服务设置",
+    ]
     enable_email_verification: Annotated[
         bool,
         Field(default=False, description="是否启用邮件验证功能"),
