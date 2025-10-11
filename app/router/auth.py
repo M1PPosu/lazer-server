@@ -396,12 +396,12 @@ async def oauth_token(
 
         if session_verification_method:
             await LoginSessionService.create_session(
-                db, user_id, token_id, ip_address, user_agent.raw_ua, trusted_device, web_uuid, False
+                db, user_id, token_id, ip_address, user_agent.raw_ua, not trusted_device, web_uuid, False
             )
             await LoginSessionService.set_login_method(user_id, token_id, session_verification_method, redis)
         else:
             await LoginSessionService.create_session(
-                db, user_id, token_id, ip_address, user_agent.raw_ua, trusted_device, web_uuid, True
+                db, user_id, token_id, ip_address, user_agent.raw_ua, not trusted_device, web_uuid, True
             )
 
         return TokenResponse(
