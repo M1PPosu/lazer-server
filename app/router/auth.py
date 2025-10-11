@@ -338,8 +338,13 @@ async def oauth_token(
         # 检查是否为新位置登录
         trusted_device = await LoginSessionService.check_trusted_device(db, user_id, ip_address, user_agent, web_uuid)
 
+        # 根据 osu-web 逻辑确定验证方法：
+        # 1. 如果 API 版本支持 TOTP 且用户启用了 TOTP，则始终要求 TOTP 验证（无论是否为信任设备）
+        # 2. 否则，如果是新设备且启用了邮件验证，则要求邮件验证
+        # 3. 否则，不需要验证或自动验证
         session_verification_method = None
-        if settings.enable_totp_verification and totp_key is not None and api_version >= SUPPORT_TOTP_VERIFICATION_VER:
+        if api_version >= SUPPORT_TOTP_VERIFICATION_VER and settings.enable_totp_verification and totp_key is not None:
+            # TOTP 验证优先（参考 osu-web State.php:36）
             session_verification_method = "totp"
             await LoginLogService.record_login(
                 db=db,

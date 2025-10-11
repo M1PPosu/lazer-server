@@ -88,10 +88,9 @@ async def verify_session(
     try:
         totp_key: TotpKeys | None = await current_user.awaitable_attrs.totp_key
         if verify_method is None:
-            # 智能选择验证方法（参考osu-web实现）
+            # 智能选择验证方法（参考osu-web实现 State.php:36）
             # API版本较老或用户未设置TOTP时强制使用邮件验证
-            # print(api_version, totp_key)
-            verify_method = "mail" if api_version < 20240101 or totp_key is None else "totp"
+            verify_method = "mail" if api_version < SUPPORT_TOTP_VERIFICATION_VER or totp_key is None else "totp"
             await LoginSessionService.set_login_method(user_id, token_id, verify_method, redis)
         login_method = verify_method
 
@@ -210,7 +209,9 @@ async def reissue_verification_code(
         return SessionReissueResponse(success=False, message="当前会话不需要验证")
 
     verify_method: str | None = (
-        "mail" if api_version < 20250913 else await LoginSessionService.get_login_method(user_id, token_id, redis)
+        "mail"
+        if api_version < SUPPORT_TOTP_VERIFICATION_VER
+        else await LoginSessionService.get_login_method(user_id, token_id, redis)
     )
     if verify_method != "mail":
         return SessionReissueResponse(success=False, message="当前会话不支持重新发送验证码")

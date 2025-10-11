@@ -121,12 +121,12 @@ async def get_client_user(
             verify_method = await LoginSessionService.get_login_method(user.id, token.id, redis)
 
         if verify_method is None:
-            # 智能选择验证方式（有TOTP优先TOTP）
+            # 智能选择验证方式（参考 osu-web State.php:36）
             totp_key = await user.awaitable_attrs.totp_key
             verify_method = "totp" if totp_key is not None and api_version >= SUPPORT_TOTP_VERIFICATION_VER else "mail"
 
             # 设置选择的验证方法到Redis中，避免重复选择
-            if api_version >= 20250913:
+            if api_version >= SUPPORT_TOTP_VERIFICATION_VER:
                 await LoginSessionService.set_login_method(user.id, token.id, verify_method, redis)
 
         # 返回符合 osu! API 标准的错误响应
