@@ -101,7 +101,14 @@ async def verify_session(
                 if settings.enable_email_verification:
                     await LoginSessionService.set_login_method(user_id, token_id, "mail", redis)
                     await EmailVerificationService.send_verification_email(
-                        db, redis, user_id, current_user.username, current_user.email, ip_address, user_agent
+                        db,
+                        redis,
+                        user_id,
+                        current_user.username,
+                        current_user.email,
+                        ip_address,
+                        user_agent,
+                        current_user.country_code,
                     )
                     verify_method = "mail"
                     raise VerifyFailedError("用户TOTP已被删除，已切换到邮件验证")
@@ -162,7 +169,14 @@ async def verify_session(
         if hasattr(e, "should_reissue") and e.should_reissue and verify_method == "mail":
             try:
                 await EmailVerificationService.send_verification_email(
-                    db, redis, user_id, current_user.username, current_user.email, ip_address, user_agent
+                    db,
+                    redis,
+                    user_id,
+                    current_user.username,
+                    current_user.email,
+                    ip_address,
+                    user_agent,
+                    current_user.country_code,
                 )
                 error_response["reissued"] = True
             except Exception:
@@ -203,7 +217,7 @@ async def reissue_verification_code(
 
     try:
         user_id = current_user.id
-        success, message = await EmailVerificationService.resend_verification_code(
+        success, message, _ = await EmailVerificationService.resend_verification_code(
             db,
             redis,
             user_id,
@@ -211,6 +225,7 @@ async def reissue_verification_code(
             current_user.email,
             ip_address,
             user_agent,
+            current_user.country_code,
         )
 
         return SessionReissueResponse(success=success, message=message)
@@ -241,7 +256,7 @@ async def fallback_email(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="当前会话不需要回退")
 
     await LoginSessionService.set_login_method(current_user.id, token_id, "mail", redis)
-    success, message = await EmailVerificationService.resend_verification_code(
+    success, message, _ = await EmailVerificationService.resend_verification_code(
         db,
         redis,
         current_user.id,
@@ -249,6 +264,7 @@ async def fallback_email(
         current_user.email,
         ip_address,
         user_agent,
+        current_user.country_code,
     )
     if not success:
         log("Verification").error(

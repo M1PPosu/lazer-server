@@ -96,7 +96,14 @@ class SessionState:
 
                 # 这里可以触发邮件发送
                 await EmailVerificationService.send_verification_email(
-                    self.db, self.redis, self.user.id, self.user.username, self.user.email, None, None
+                    self.db,
+                    self.redis,
+                    self.user.id,
+                    self.user.username,
+                    self.user.email,
+                    None,
+                    None,
+                    self.user.country_code,
                 )
         except Exception as e:
             logger.error(f"Error issuing mail: {e}")

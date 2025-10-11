@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import (
     AliasChoices,
@@ -336,6 +336,11 @@ STORAGE_SETTINGS='{
         Field(default=30, description="设备信任持续天数"),
         "验证服务设置",
     ]
+    email_provider: Annotated[
+        Literal["smtp", "mailersend"],
+        Field(default="smtp", description="邮件发送提供商：smtp（SMTP）或 mailersend（MailerSend）"),
+        "验证服务设置",
+    ]
     smtp_server: Annotated[
         str,
         Field(default="localhost", description="SMTP 服务器地址"),
@@ -364,6 +369,16 @@ STORAGE_SETTINGS='{
     from_name: Annotated[
         str,
         Field(default="osu! server", description="发件人名称"),
+        "验证服务设置",
+    ]
+    mailersend_api_key: Annotated[
+        str,
+        Field(default="", description="MailerSend API Key"),
+        "验证服务设置",
+    ]
+    mailersend_from_email: Annotated[
+        str,
+        Field(default="", description="MailerSend 发件人邮箱（需要在 MailerSend 中验证）"),
         "验证服务设置",
     ]
 

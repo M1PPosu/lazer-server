@@ -331,6 +331,7 @@ async def oauth_token(
                 user.email,
                 ip_address,
                 user_agent,
+                user.country_code,
             )
 
             # 记录需要二次验证的登录尝试

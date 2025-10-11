@@ -30,13 +30,19 @@ class EmailQueue:
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
         self._retry_limit = 3  # 重试次数限制
 
-        # 邮件配置
+        # 邮件提供商配置
+        self.email_provider = settings.email_provider
+
+        # SMTP 邮件配置
         self.smtp_server = settings.smtp_server
         self.smtp_port = settings.smtp_port
         self.smtp_username = settings.smtp_username
         self.smtp_password = settings.smtp_password
         self.from_email = settings.from_email
         self.from_name = settings.from_name
+
+        # MailerSend 服务（延迟初始化）
+        self._mailersend_service = None
 
     async def _run_in_executor(self, func, *args):
         """在线程池中运行同步操作"""
@@ -218,6 +224,21 @@ class EmailQueue:
         Returns:
             是否发送成功
         """
+        if self.email_provider == "mailersend":
+            return await self._send_email_mailersend(email_data)
+        else:
+            return await self._send_email_smtp(email_data)
+
+    async def _send_email_smtp(self, email_data: dict[str, Any]) -> bool:
+        """
+        使用 SMTP 发送邮件
+
+        Args:
+            email_data: 邮件数据
+
+        Returns:
+            是否发送成功
+        """
         try:
             # 创建邮件
             msg = MIMEMultipart("alternative")
@@ -248,7 +269,53 @@ class EmailQueue:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to send email: {e}")
+            logger.error(f"Failed to send email via SMTP: {e}")
+            return False
+
+    async def _send_email_mailersend(self, email_data: dict[str, Any]) -> bool:
+        """
+        使用 MailerSend 发送邮件
+
+        Args:
+            email_data: 邮件数据
+
+        Returns:
+            是否发送成功
+        """
+        try:
+            # 延迟初始化 MailerSend 服务
+            if self._mailersend_service is None:
+                from app.service.mailersend_service import get_mailersend_service
+
+                self._mailersend_service = get_mailersend_service()
+
+            # 提取邮件数据
+            to_email = email_data.get("to_email", "")
+            subject = email_data.get("subject", "")
+            content = email_data.get("content", "")
+            html_content = email_data.get("html_content", "")
+            metadata_str = email_data.get("metadata", "{}")
+            metadata = json.loads(metadata_str) if metadata_str else {}
+
+            # 发送邮件
+            response = await self._mailersend_service.send_email(
+                to_email=to_email,
+                subject=subject,
+                content=content,
+                html_content=html_content if html_content else None,
+                metadata=metadata,
+            )
+
+            # 检查响应中是否有 id
+            if response and response.get("id"):
+                logger.info(f"Email sent via MailerSend, message_id: {response['id']}")
+                return True
+            else:
+                logger.error("MailerSend response missing 'id'")
+                return False
+
+        except Exception as e:
+            logger.error(f"Failed to send email via MailerSend: {e}")
             return False
 
 
