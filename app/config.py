@@ -120,6 +120,7 @@ CALCULATOR="performance_server"
 CALCULATOR_CONFIG='{
     "server_url": "http://localhost:5225"
 }'
+```
 """,
             }
         },
