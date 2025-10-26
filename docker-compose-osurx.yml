@@ -79,7 +79,7 @@ services:
     command: redis-server --appendonly yes
 
   spectator:
-    image:  ghcr.io/googuteam/osu-server-spectator:master
+    image:  ghcr.io/googuteam/osu-server-spectator-custom-rulesets:master
     pull_policy: never
     environment:
       - REPLAY_UPLOAD_THREADS=${REPLAY_UPLOAD_THREADS:-1}
