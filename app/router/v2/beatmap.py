@@ -3,6 +3,7 @@ import hashlib
 import json
 from typing import Annotated
 
+from app.calculator import get_calculator
 from app.calculators.performance import ConvertError
 from app.database import Beatmap, BeatmapResp, User
 from app.database.beatmap import calculate_beatmap_attributes
@@ -147,7 +148,7 @@ async def get_beatmap_attributes(
     redis: Redis,
     fetcher: Fetcher,
     ruleset: Annotated[GameMode | None, Query(description="指定 ruleset；为空则使用谱面自身模式")] = None,
-    ruleset_id: Annotated[int | None, Query(description="以数字指定 ruleset （与 ruleset 二选一）", ge=0, le=3)] = None,
+    ruleset_id: Annotated[int | None, Query(description="以数字指定 ruleset （与 ruleset 二选一）")] = None,
 ):
     mods_ = []
     if mods and mods[0].isdigit():
@@ -170,6 +171,10 @@ async def get_beatmap_attributes(
     )
     if await redis.exists(key):
         return DifficultyAttributes.model_validate_json(await redis.get(key))  # pyright: ignore[reportArgumentType]
+
+    if await get_calculator().can_calculate_difficulty(ruleset) is False:
+        raise HTTPException(status_code=422, detail="Cannot calculate difficulty for the specified ruleset")
+
     try:
         return await calculate_beatmap_attributes(beatmap_id, ruleset, mods_, redis, fetcher)
     except HTTPStatusError:

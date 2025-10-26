@@ -374,12 +374,28 @@ async def create_solo_score(
     db: Database,
     beatmap_id: Annotated[int, Path(description="谱面 ID")],
     beatmap_hash: Annotated[str, Form(description="谱面文件哈希")],
-    ruleset_id: Annotated[int, Form(..., ge=0, le=3, description="ruleset 数字 ID (0-3)")],
+    ruleset_id: Annotated[int, Form(..., description="ruleset 数字 ID (0-3)")],
     current_user: ClientUser,
     version_hash: Annotated[str, Form(description="游戏版本哈希")] = "",
+    ruleset_hash: Annotated[str, Form(description="ruleset 版本哈希")] = "",
 ):
     # 立即获取用户ID，避免懒加载问题
     user_id = current_user.id
+
+    try:
+        gamemode = GameMode.from_int(ruleset_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid ruleset ID")
+
+    if not (result := gamemode.check_ruleset_version(ruleset_hash)):
+        logger.info(
+            f"Ruleset version check failed for user {current_user.id} on beatmap {beatmap_id} "
+            f"(ruleset: {ruleset_id}, hash: {ruleset_hash})"
+        )
+        raise HTTPException(
+            status_code=422,
+            detail=result.error_msg or "Ruleset version check failed",
+        )
 
     background_task.add_task(_preload_beatmap_for_pp_calculation, beatmap_id)
     async with db:
@@ -428,10 +444,26 @@ async def create_playlist_score(
     playlist_id: int,
     beatmap_id: Annotated[int, Form(description="谱面 ID")],
     beatmap_hash: Annotated[str, Form(description="游戏版本哈希")],
-    ruleset_id: Annotated[int, Form(..., ge=0, le=3, description="ruleset 数字 ID (0-3)")],
+    ruleset_id: Annotated[int, Form(..., description="ruleset 数字 ID (0-3)")],
     current_user: ClientUser,
     version_hash: Annotated[str, Form(description="谱面版本哈希")] = "",
+    ruleset_hash: Annotated[str, Form(description="ruleset 版本哈希")] = "",
 ):
+    try:
+        gamemode = GameMode.from_int(ruleset_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid ruleset ID")
+
+    if not (result := gamemode.check_ruleset_version(ruleset_hash)):
+        logger.info(
+            f"Ruleset version check failed for user {current_user.id} on room {room_id}, playlist {playlist_id},"
+            f" (ruleset: {ruleset_id}, hash: {ruleset_hash})"
+        )
+        raise HTTPException(
+            status_code=422,
+            detail=result.error_msg or "Ruleset version check failed",
+        )
+
     if await current_user.is_restricted(session):
         raise HTTPException(status_code=403, detail="You are restricted from submitting multiplayer scores")
 
