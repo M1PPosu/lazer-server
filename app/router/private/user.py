@@ -320,7 +320,8 @@ async def change_user_preference(
         user_pref.extra = (user_pref.extra or {}) | request.extra
 
     if request.playmode is not None:
-        current_user.playmode = request.playmode.to_base_ruleset()
+        if request.playmode.is_official():
+            current_user.playmode = request.playmode.to_base_ruleset()
         current_user.g0v0_playmode = request.playmode
 
     for field, value in request.model_dump(include=USER_PROFILE_FIELDS, exclude_none=True).items():
