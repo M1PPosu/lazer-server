@@ -257,3 +257,11 @@ async def calculate_beatmap_attributes(
     attr = await get_calculator().calculate_difficulty(resp, mods_, ruleset)
     await redis.set(key, attr.model_dump_json())
     return attr
+
+
+async def clear_cached_beatmap_raws(redis: Redis, beatmaps: list[int] = []):
+    if beatmaps:
+        keys = [f"beatmap:{bid}:raw" for bid in beatmaps]
+        await redis.delete(*keys)
+        return
+    await redis.delete("beatmap:*:raw")
