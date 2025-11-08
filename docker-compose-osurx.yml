@@ -17,7 +17,7 @@ services:
       - ENABLE_ALL_MODS_PP=true
       - ENABLE_SUPPORTER_FOR_ALL_USERS=true
       - ENABLE_ALL_BEATMAP_LEADERBOARD=true
-      - CALCULATOR_CONFIG='{"server_url":"http://performance-server:8080"}'
+      - CALCULATOR_CONFIG={"server_url":"http://performance-server:8080"}
     env_file:
       - .env
     depends_on:
