@@ -5,7 +5,7 @@ from urllib.parse import parse_qs
 from app.database import Beatmap, Beatmapset, BeatmapsetResp, FavouriteBeatmapset, User
 from app.database.beatmapset import SearchBeatmapsetsResp
 from app.dependencies.beatmap_download import DownloadService
-from app.dependencies.cache import BeatmapsetCacheService
+from app.dependencies.cache import BeatmapsetCacheService, UserCacheService
 from app.dependencies.database import Database, Redis, with_db
 from app.dependencies.fetcher import Fetcher
 from app.dependencies.geoip import IPAddress, get_geoip_helper
@@ -222,6 +222,7 @@ async def download_beatmapset(
 )
 async def favourite_beatmapset(
     db: Database,
+    cache_service: UserCacheService,
     beatmapset_id: Annotated[int, Path(..., description="谱面集 ID")],
     action: Annotated[
         Literal["favourite", "unfavourite"],
@@ -247,3 +248,4 @@ async def favourite_beatmapset(
     else:
         await db.delete(existing_favourite)
     await db.commit()
+    await cache_service.invalidate_user_beatmapsets_cache(current_user.id)

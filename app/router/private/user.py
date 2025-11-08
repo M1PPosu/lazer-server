@@ -14,7 +14,8 @@ from app.database.user_preference import (
     UserListView,
     UserPreference,
 )
-from app.dependencies.database import Database, Redis
+from app.dependencies.cache import UserCacheService
+from app.dependencies.database import Database
 from app.dependencies.user import ClientUser
 from app.models.score import GameMode
 from app.models.user import Page
@@ -26,7 +27,6 @@ from app.models.userpage import (
     ValidateBBCodeResponse,
 )
 from app.service.bbcode_service import bbcode_service
-from app.service.user_cache_service import get_user_cache_service
 from app.utils import hex_to_hue, utcnow
 
 from .router import router
@@ -41,6 +41,7 @@ async def user_rename(
     session: Database,
     new_name: Annotated[str, Body(..., description="新的用户名")],
     current_user: ClientUser,
+    cache_service: UserCacheService,
 ):
     """修改用户名
 
@@ -81,6 +82,9 @@ async def user_rename(
     }
     session.add(rename_event)
     await session.commit()
+
+    await cache_service.invalidate_user_cache(current_user.id)
+
     return None
 
 
@@ -95,6 +99,7 @@ async def update_userpage(
     request: UpdateUserpageRequest,
     session: Database,
     current_user: ClientUser,
+    cache_service: UserCacheService,
 ):
     """更新用户页面内容"""
     if await current_user.is_restricted(session):
@@ -109,6 +114,8 @@ async def update_userpage(
         session.add(current_user)
         await session.commit()
         await session.refresh(current_user)
+
+        await cache_service.invalidate_user_cache(current_user.id)
 
         # 返回官方格式的响应：只包含html
         return UpdateUserpageResponse(html=processed_page["html"])
@@ -295,12 +302,10 @@ async def change_user_preference(
     request: Preferences,
     session: Database,
     current_user: ClientUser,
-    redis: Redis,
+    cache_service: UserCacheService,
 ):
     if await current_user.is_restricted(session):
         raise HTTPException(403, "Your account is restricted and cannot perform this action.")
-
-    cache_service = get_user_cache_service(redis)
 
     await current_user.awaitable_attrs.user_preference
     user_pref: UserPreference | None = current_user.user_preference
@@ -355,15 +360,14 @@ async def overwrite_user_preference(
     request: Preferences,
     session: Database,
     current_user: ClientUser,
-    redis: Redis,
+    cache_service: UserCacheService,
 ):
     if await current_user.is_restricted(session):
         raise HTTPException(403, "Your account is restricted and cannot perform this action.")
 
     await Preferences.clear(current_user, [])
-    await change_user_preference(request, session, current_user, redis)
+    await change_user_preference(request, session, current_user, cache_service)
 
-    cache_service = get_user_cache_service(redis)
     await cache_service.invalidate_user_cache(current_user.id)
     await session.commit()
 
@@ -379,13 +383,12 @@ async def delete_user_preference(
     session: Database,
     current_user: ClientUser,
     fields: list[str],
-    redis: Redis,
+    cache_service: UserCacheService,
 ):
     if await current_user.is_restricted(session):
         raise HTTPException(403, "Your account is restricted and cannot perform this action.")
 
     await Preferences.clear(current_user, fields)
 
-    cache_service = get_user_cache_service(redis)
     await cache_service.invalidate_user_cache(current_user.id)
     await session.commit()

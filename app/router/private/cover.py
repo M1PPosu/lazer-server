@@ -2,6 +2,7 @@ import hashlib
 from typing import Annotated
 
 from app.database.user import UserProfileCover
+from app.dependencies.cache import UserCacheService
 from app.dependencies.database import Database
 from app.dependencies.storage import StorageService
 from app.dependencies.user import ClientUser
@@ -18,6 +19,7 @@ async def upload_cover(
     content: Annotated[bytes, File(...)],
     current_user: ClientUser,
     storage: StorageService,
+    cache_service: UserCacheService,
 ):
     """上传用户头图
 
@@ -49,6 +51,8 @@ async def upload_cover(
     url = await storage.get_file_url(storage_path)
     current_user.cover = UserProfileCover(url=url)
     await session.commit()
+
+    await cache_service.invalidate_user_cache(current_user.id)
 
     return {
         "url": url,

@@ -17,6 +17,7 @@ from app.database.events import Event
 from app.database.score import LegacyScoreResp, Score, ScoreResp, get_user_first_scores
 from app.database.user import ALL_INCLUDED, SEARCH_INCLUDED
 from app.dependencies.api_version import APIVersion
+from app.dependencies.cache import UserCacheService
 from app.dependencies.database import Database, get_redis
 from app.dependencies.user import get_current_user, get_optional_user
 from app.helpers.asset_proxy_helper import asset_proxy_response
@@ -406,15 +407,13 @@ async def get_user_info(
 async def get_user_beatmapsets(
     session: Database,
     background_task: BackgroundTasks,
+    cache_service: UserCacheService,
     user_id: Annotated[int, Path(description="用户 ID")],
     type: Annotated[BeatmapsetType, Path(description="谱面集类型")],
     current_user: Annotated[User, Security(get_current_user, scopes=["public"])],
     limit: Annotated[int, Query(ge=1, le=1000, description="返回条数 (1-1000)")] = 100,
     offset: Annotated[int, Query(ge=0, description="偏移量")] = 0,
 ):
-    redis = get_redis()
-    cache_service = get_user_cache_service(redis)
-
     # 先尝试从缓存获取
     cached_result = await cache_service.get_user_beatmapsets_from_cache(user_id, type.value, limit, offset)
     if cached_result is not None:
