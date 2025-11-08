@@ -1,24 +1,18 @@
 import datetime
 from enum import Enum
-import importlib.util
 from inspect import isclass
 import json
-from pathlib import Path
+import os
 import sys
 from types import NoneType, UnionType
 from typing import Any, Literal, Union, get_origin
 
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from app.config import SPECTATOR_DOC, Settings
+
 from pydantic import AliasChoices, BaseModel, HttpUrl
 from pydantic_settings import BaseSettings
-
-file_path = Path("./app/config.py").resolve()
-
-spec = importlib.util.spec_from_file_location("config", str(file_path))
-module = importlib.util.module_from_spec(spec)  # pyright: ignore[reportArgumentType]
-sys.modules["my_module"] = module
-spec.loader.exec_module(module)  # pyright: ignore[reportOptionalMemberAccess]
-
-model: type[BaseSettings] = module.Settings
 
 commit = sys.argv[1] if len(sys.argv) > 1 else "unknown"
 
@@ -29,7 +23,7 @@ uncategorized = []
 def new_paragraph(name: str, has_sub_paragraph: bool) -> None:
     doc.append("")
     doc.append(f"## {name}")
-    if desc := model.model_config["json_schema_extra"]["paragraphs_desc"].get(name):  # type: ignore
+    if desc := Settings.model_config["json_schema_extra"]["paragraphs_desc"].get(name):  # type: ignore
         doc.append(desc)
     if not has_sub_paragraph:
         doc.append("| 变量名 | 描述 | 类型 | 默认值 |")
@@ -99,7 +93,7 @@ def mapping_type(typ: type) -> str:
 
 last_paragraph = ""
 last_sub_paragraph = ""
-for name, field in model.model_fields.items():
+for name, field in Settings.model_fields.items():
     if len(field.metadata) == 0:
         uncategorized.append((name, field))
         continue
@@ -133,7 +127,7 @@ for name, field in model.model_fields.items():
 
 doc.extend(
     [
-        module.SPECTATOR_DOC,
+        SPECTATOR_DOC,
         "",
         f"> 上次生成：{datetime.datetime.now(datetime.UTC).strftime('%Y-%m-%d %H:%M:%S %Z')} "
         f"于提交 {f'[`{commit}`](https://github.com/GooGuTeam/g0v0-server/commit/{commit})' if commit != 'unknown' else 'unknown'}",  # noqa: E501
