@@ -16,6 +16,12 @@ urls = [
 logger = fetcher_logger("BeatmapRawFetcher")
 
 
+class NoBeatmapError(Exception):
+    """Beatmap 不存在异常"""
+
+    pass
+
+
 class BeatmapRawFetcher(BaseFetcher):
     def __init__(self, client_id: str = "", client_secret: str = "", **kwargs):
         # BeatmapRawFetcher 不需要 OAuth，传递空值给父类
@@ -107,12 +113,12 @@ class BeatmapRawFetcher(BaseFetcher):
 
                 if resp.status_code >= 400:
                     logger.warning(f"Beatmap {beatmap_id} from {req_url}: HTTP {resp.status_code}")
-                    last_error = HTTPError(f"HTTP {resp.status_code}")
+                    last_error = NoBeatmapError(f"HTTP {resp.status_code}")
                     continue
 
                 if not resp.text:
                     logger.warning(f"Beatmap {beatmap_id} from {req_url}: empty response")
-                    last_error = HTTPError("Empty response")
+                    last_error = NoBeatmapError("Empty response")
                     continue
 
                 logger.debug(f"Successfully fetched beatmap {beatmap_id} from {req_url}")
@@ -125,9 +131,9 @@ class BeatmapRawFetcher(BaseFetcher):
 
         # 所有 URL 都失败了
         error_msg = f"Failed to fetch beatmap {beatmap_id} from all sources"
-        if last_error:
-            raise HTTPError(error_msg) from last_error
-        raise HTTPError(error_msg)
+        if last_error and isinstance(last_error, NoBeatmapError):
+            raise last_error
+        raise HTTPError(error_msg) from last_error
 
     async def get_or_fetch_beatmap_raw(self, redis: redis.Redis, beatmap_id: int) -> str:
         from app.config import settings

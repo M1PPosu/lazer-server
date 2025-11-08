@@ -26,6 +26,7 @@ from app.database.score import Score, calculate_playtime, calculate_user_pp
 from app.dependencies.database import engine, get_redis
 from app.dependencies.fetcher import get_fetcher
 from app.fetcher import Fetcher
+from app.fetcher.beatmap_raw import NoBeatmapError
 from app.log import log
 from app.models.mods import init_mods, init_ranked_mods, mod_to_save, mods_can_get_pp
 from app.models.score import GameMode, Rank
@@ -667,6 +668,17 @@ async def recalc_score_pp(
                 continue
             attempts -= 1
             await asyncio.sleep(2)
+        except NoBeatmapError:
+            logger.warning(f"Beatmap raw not found for beatmap {score.beatmap_id}; cannot calculate pp")
+            return None
+        except CalculateError as exc:
+            attempts -= 1
+            logger.warning(
+                f"Calculation error for score {score.id} on "
+                f"beatmap {score.beatmap_id}: {exc}; attempts left: {attempts}"
+            )
+            await asyncio.sleep(2)
+            continue
         except Exception:
             logger.exception(f"Failed to calculate pp for score {score.id} on beatmap {score.beatmap_id}")
             return None
@@ -1125,6 +1137,9 @@ async def recalculate_beatmap_rating(
                     else:
                         logger.exception(f"Failed to calculate rating for beatmap {beatmap_id} after multiple attempts")
                         return
+                except NoBeatmapError:
+                    logger.error(f"Beatmap data for {beatmap_id} not found; cannot calculate rating")
+                    return
                 except Exception:
                     logger.exception(f"Unexpected error calculating rating for beatmap {beatmap_id}")
                     return
