@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 from collections.abc import Awaitable, Sequence
+import contextlib
 import csv
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -41,7 +42,12 @@ warnings.filterwarnings("ignore")
 
 
 class BeatmapCacheManager:
-    """管理beatmap缓存，确保不超过指定数量"""
+    """管理beatmap缓存，确保不超过指定数量
+
+    优化：
+    1. 将清理操作移到锁外，减少持锁时间
+    2. 使用 LRU 策略，已存在的 beatmap 移到最后
+    """
 
     def __init__(self, max_count: int, additional_count: int, redis: Redis):
         self.max_count = max_count
@@ -52,13 +58,18 @@ class BeatmapCacheManager:
         self.lock = asyncio.Lock()
 
     async def add_beatmap(self, beatmap_id: int) -> None:
-        """添加beatmap到缓存跟踪列表"""
+        """添加beatmap到缓存跟踪列表（LRU策略）"""
         if self.max_count <= 0:  # 不限制
             return
 
+        to_remove: list[int] = []
+
         async with self.lock:
-            # 如果已经存在，不重复添加
+            # 如果已经存在，更新其位置（移到最后，表示最近使用）
             if beatmap_id in self.beatmap_id_set:
+                with contextlib.suppress(ValueError):
+                    self.beatmap_ids.remove(beatmap_id)
+                self.beatmap_ids.append(beatmap_id)
                 return
 
             self.beatmap_ids.append(beatmap_id)
@@ -69,24 +80,28 @@ class BeatmapCacheManager:
             if len(self.beatmap_ids) > threshold:
                 # 计算需要删除的数量
                 to_remove_count = max(1, self.additional_count)
-                await self._cleanup(to_remove_count)
+                # 获取要删除的 beatmap ids（最旧的）
+                to_remove = self.beatmap_ids[:to_remove_count]
+                self.beatmap_ids = self.beatmap_ids[to_remove_count:]
+                # 从 set 中移除
+                for bid in to_remove:
+                    self.beatmap_id_set.discard(bid)
 
-    async def _cleanup(self, count: int) -> None:
-        """清理最早的count个beatmap缓存"""
-        if count <= 0 or not self.beatmap_ids:
+        # 在锁外执行清理（避免阻塞其他协程）
+        if to_remove:
+            await self._cleanup_async(to_remove)
+
+    async def _cleanup_async(self, to_remove: list[int]) -> None:
+        """异步清理 beatmap 缓存（在锁外执行）"""
+        if not to_remove:
             return
 
-        # 获取要删除的beatmap ids
-        to_remove = self.beatmap_ids[:count]
-        self.beatmap_ids = self.beatmap_ids[count:]
-
-        # 从set中移除
-        for bid in to_remove:
-            self.beatmap_id_set.discard(bid)
-
-        # 从Redis中删除缓存
-        await clear_cached_beatmap_raws(self.redis, to_remove)
-        logger.info(f"Cleaned up {len(to_remove)} beatmap caches (total: {len(self.beatmap_ids)})")
+        try:
+            # 从 Redis 中删除缓存
+            await clear_cached_beatmap_raws(self.redis, to_remove)
+            logger.info(f"Cleaned up {len(to_remove)} beatmap caches (remaining: {len(self.beatmap_ids)})")
+        except Exception as e:
+            logger.warning(f"Failed to cleanup {len(to_remove)} beatmap caches: {e}")
 
     def get_stats(self) -> dict:
         """获取统计信息"""
@@ -1071,7 +1086,15 @@ async def recalculate_beatmap_rating(
             while attempts > 0:
                 try:
                     ruleset = GameMode(beatmap.mode) if isinstance(beatmap.mode, int) else beatmap.mode
-                    attributes = await calculate_beatmap_attributes(beatmap_id, ruleset, [], redis, fetcher)
+                    # 添加整体超时保护（30秒），防止单个请求卡死
+                    try:
+                        attributes = await asyncio.wait_for(
+                            calculate_beatmap_attributes(beatmap_id, ruleset, [], redis, fetcher), timeout=30.0
+                        )
+                    except TimeoutError:
+                        logger.error(f"Timeout calculating attributes for beatmap {beatmap_id} after 30s")
+                        return
+
                     # 记录使用的beatmap
                     if cache_manager:
                         await cache_manager.add_beatmap(beatmap_id)

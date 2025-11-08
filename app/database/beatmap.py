@@ -260,8 +260,19 @@ async def calculate_beatmap_attributes(
 
 
 async def clear_cached_beatmap_raws(redis: Redis, beatmaps: list[int] = []):
+    """清理缓存的 beatmap 原始数据，使用非阻塞方式"""
     if beatmaps:
-        keys = [f"beatmap:{bid}:raw" for bid in beatmaps]
-        await redis.delete(*keys)
+        # 分批删除，避免一次删除太多 key 导致阻塞
+        batch_size = 50
+        for i in range(0, len(beatmaps), batch_size):
+            batch = beatmaps[i : i + batch_size]
+            keys = [f"beatmap:{bid}:raw" for bid in batch]
+            # 使用 unlink 而不是 delete（非阻塞，更快）
+            try:
+                await redis.unlink(*keys)
+            except Exception:
+                # 如果 unlink 不支持，回退到 delete
+                await redis.delete(*keys)
         return
+
     await redis.delete("beatmap:*:raw")
