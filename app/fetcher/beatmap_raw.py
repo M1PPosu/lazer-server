@@ -91,11 +91,17 @@ class BeatmapRawFetcher(BaseFetcher):
         try:
             # 实际执行请求
             result = await self._fetch_beatmap_raw(beatmap_id)
-            future.set_result(result)
+            if not future.done():
+                future.set_result(result)
             return result
-        except Exception as e:
-            future.set_exception(e)
+        except asyncio.CancelledError:
+            if not future.done():
+                future.cancel()
             raise
+        except Exception as e:
+            if not future.done():
+                future.set_exception(e)
+            return await future
         finally:
             # 清理
             async with self._request_lock:
@@ -153,3 +159,4 @@ class BeatmapRawFetcher(BaseFetcher):
         raw = await self.get_beatmap_raw(beatmap_id)
         await redis.set(cache_key, raw, ex=cache_expire)
         return raw
+
