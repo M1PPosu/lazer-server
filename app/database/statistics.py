@@ -34,7 +34,7 @@ class UserStatisticsBase(SQLModel):
     count_miss: int = Field(default=0, sa_column=Column(BigInteger))
 
     pp: float = Field(default=0.0, index=True)
-    ranked_score: int = Field(default=0)
+    ranked_score: int = Field(default=0, sa_column=Column(BigInteger))
     hit_accuracy: float = Field(default=0.00)
     total_score: int = Field(default=0, sa_column=Column(BigInteger))
     total_hits: int = Field(default=0, sa_column=Column(BigInteger))
