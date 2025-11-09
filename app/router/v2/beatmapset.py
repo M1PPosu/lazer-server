@@ -247,5 +247,5 @@ async def favourite_beatmapset(
         db.add(favourite)
     else:
         await db.delete(existing_favourite)
-    await db.commit()
     await cache_service.invalidate_user_beatmapsets_cache(current_user.id)
+    await db.commit()

@@ -81,9 +81,8 @@ async def user_rename(
         "previous_username": current_user.previous_usernames[-1],
     }
     session.add(rename_event)
-    await session.commit()
-
     await cache_service.invalidate_user_cache(current_user.id)
+    await session.commit()
 
     return None
 
