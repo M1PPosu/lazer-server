@@ -159,4 +159,3 @@ class BeatmapRawFetcher(BaseFetcher):
         raw = await self.get_beatmap_raw(beatmap_id)
         await redis.set(cache_key, raw, ex=cache_expire)
         return raw
-
