@@ -9,7 +9,7 @@ from app.log import logger
 from sqlmodel import select
 
 
-@get_scheduler().scheduled_job("interval", id="recalculate_banned_beatmap", minutes=5)
+@get_scheduler().scheduled_job("interval", id="recalculate_failed_beatmap", minutes=5)
 async def recalculate_failed_score():
     redis = get_redis()
     fetcher = await get_fetcher()

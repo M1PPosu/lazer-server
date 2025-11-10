@@ -1,14 +1,37 @@
 from enum import Enum
-from typing import TYPE_CHECKING, Literal, TypedDict, cast
+import json
+from typing import NamedTuple, TypedDict, cast
 
 from app.config import settings
+from app.path import STATIC_DIR
 
 from .mods import API_MODS, APIMod
 
 from pydantic import BaseModel, Field, ValidationInfo, field_serializer, field_validator
 
-if TYPE_CHECKING:
-    import rosu_pp_py as rosu
+VersionEntry = TypedDict("VersionEntry", {"latest-version": str, "versions": dict[str, str]})
+DOWNLOAD_URL = "https://github.com/GooGuTeam/custom-rulesets/releases/tag/{version}"
+
+
+class RulesetCheckResult(NamedTuple):
+    is_current: bool
+    latest_version: str = ""
+    current_version: str | None = None
+    download_url: str | None = None
+
+    def __bool__(self) -> bool:
+        return self.is_current
+
+    @property
+    def error_msg(self) -> str | None:
+        if self.is_current:
+            return None
+        msg = f"Ruleset is outdated. Latest version: {self.latest_version}."
+        if self.current_version:
+            msg += f" Current version: {self.current_version}."
+        if self.download_url:
+            msg += f" Download at: {self.download_url}"
+        return msg
 
 
 class GameMode(str, Enum):
@@ -16,24 +39,17 @@ class GameMode(str, Enum):
     TAIKO = "taiko"
     FRUITS = "fruits"
     MANIA = "mania"
+
     OSURX = "osurx"
     OSUAP = "osuap"
     TAIKORX = "taikorx"
     FRUITSRX = "fruitsrx"
 
-    def to_rosu(self) -> "rosu.GameMode":
-        import rosu_pp_py as rosu
-
-        return {
-            GameMode.OSU: rosu.GameMode.Osu,
-            GameMode.TAIKO: rosu.GameMode.Taiko,
-            GameMode.FRUITS: rosu.GameMode.Catch,
-            GameMode.MANIA: rosu.GameMode.Mania,
-            GameMode.OSURX: rosu.GameMode.Osu,
-            GameMode.OSUAP: rosu.GameMode.Osu,
-            GameMode.TAIKORX: rosu.GameMode.Taiko,
-            GameMode.FRUITSRX: rosu.GameMode.Catch,
-        }[self]
+    SENTAKKI = "Sentakki"
+    TAU = "tau"
+    RUSH = "rush"
+    HISHIGATA = "hishigata"
+    SOYOKAZE = "soyokaze"
 
     def __int__(self) -> int:
         return {
@@ -45,6 +61,11 @@ class GameMode(str, Enum):
             GameMode.OSUAP: 0,
             GameMode.TAIKORX: 1,
             GameMode.FRUITSRX: 2,
+            GameMode.SENTAKKI: 10,
+            GameMode.TAU: 11,
+            GameMode.RUSH: 12,
+            GameMode.HISHIGATA: 13,
+            GameMode.SOYOKAZE: 14,
         }[self]
 
     def __str__(self) -> str:
@@ -57,20 +78,22 @@ class GameMode(str, Enum):
             1: GameMode.TAIKO,
             2: GameMode.FRUITS,
             3: GameMode.MANIA,
+            10: GameMode.SENTAKKI,
+            11: GameMode.TAU,
+            12: GameMode.RUSH,
+            13: GameMode.HISHIGATA,
+            14: GameMode.SOYOKAZE,
         }[v]
 
     @classmethod
     def from_int_extra(cls, v: int) -> "GameMode":
-        return {
-            0: GameMode.OSU,
-            1: GameMode.TAIKO,
-            2: GameMode.FRUITS,
-            3: GameMode.MANIA,
+        gamemode = {
             4: GameMode.OSURX,
             5: GameMode.OSUAP,
             6: GameMode.TAIKORX,
             7: GameMode.FRUITSRX,
-        }[v]
+        }.get(v)
+        return gamemode or cls.from_int(v)
 
     def readable(self) -> str:
         return {
@@ -82,7 +105,26 @@ class GameMode(str, Enum):
             GameMode.OSUAP: "osu!autopilot",
             GameMode.TAIKORX: "taiko relax",
             GameMode.FRUITSRX: "catch relax",
+            GameMode.SENTAKKI: "sentakki",
+            GameMode.TAU: "tau",
+            GameMode.RUSH: "Rush!",
+            GameMode.HISHIGATA: "hishigata",
+            GameMode.SOYOKAZE: "soyokaze!",
         }[self]
+
+    def is_official(self) -> bool:
+        return self in {
+            GameMode.OSU,
+            GameMode.TAIKO,
+            GameMode.FRUITS,
+            GameMode.MANIA,
+            GameMode.OSURX,
+            GameMode.TAIKORX,
+            GameMode.FRUITSRX,
+        }
+
+    def is_custom_ruleset(self) -> bool:
+        return not self.is_official()
 
     def to_base_ruleset(self) -> "GameMode":
         gamemode = {
@@ -91,7 +133,7 @@ class GameMode(str, Enum):
             GameMode.TAIKORX: GameMode.TAIKO,
             GameMode.FRUITSRX: GameMode.FRUITS,
         }.get(self)
-        return gamemode if gamemode else self
+        return gamemode or self
 
     def to_special_mode(self, mods: list[APIMod] | list[str]) -> "GameMode":
         if self not in (GameMode.OSU, GameMode.TAIKO, GameMode.FRUITS):
@@ -109,6 +151,27 @@ class GameMode(str, Enum):
                 GameMode.FRUITS: GameMode.FRUITSRX,
             }[self]
         return self
+
+    def check_ruleset_version(self, hash: str) -> RulesetCheckResult:
+        if not settings.check_ruleset_version or self.is_official():
+            return RulesetCheckResult(True)
+
+        entry = RULESETS_VERSION_HASH.get(self)
+        if not entry:
+            return RulesetCheckResult(True)
+        latest_version = entry["latest-version"]
+        current_version = None
+        for version, version_hash in entry["versions"].items():
+            if version_hash == hash:
+                current_version = version
+                break
+        is_current = current_version == latest_version
+        return RulesetCheckResult(
+            is_current=is_current,
+            latest_version=latest_version,
+            current_version=current_version,
+            download_url=DOWNLOAD_URL.format(version=latest_version) if not is_current else None,
+        )
 
     @classmethod
     def parse(cls, v: str | int) -> "GameMode | None":
@@ -188,6 +251,28 @@ class HitResult(str, Enum):
             HitResult.IGNORE_MISS,
         )
 
+    def is_basic(self) -> bool:
+        """
+        Check if a HitResult is a basic (non-tick, non-bonus) result.
+
+        Based on: https://github.com/ppy/osu/blob/master/osu.Game/Rulesets/Scoring/HitResult.cs
+        """
+        if self in {HitResult.LEGACY_COMBO_INCREASE, HitResult.COMBO_BREAK}:
+            return False
+
+        # Check if it's scorable and not a tick or bonus
+        is_tick = self in {
+            HitResult.LARGE_TICK_HIT,
+            HitResult.LARGE_TICK_MISS,
+            HitResult.SMALL_TICK_HIT,
+            HitResult.SMALL_TICK_MISS,
+            HitResult.SLIDER_TAIL_HIT,
+        }
+
+        is_bonus = self in {HitResult.SMALL_BONUS, HitResult.LARGE_BONUS}
+
+        return self.is_scorable() and not is_tick and not is_bonus
+
 
 class LeaderboardType(Enum):
     GLOBAL = "global"
@@ -206,7 +291,7 @@ class SoloScoreSubmissionInfo(BaseModel):
     accuracy: float = Field(ge=0, le=1)
     pp: float = Field(default=0, ge=0, le=2**31 - 1)
     max_combo: int = 0
-    ruleset_id: Literal[0, 1, 2, 3]
+    ruleset_id: int
     passed: bool = False
     mods: list[APIMod] = Field(default_factory=list)
     statistics: ScoreStatistics = Field(default_factory=dict)
@@ -258,3 +343,21 @@ class LegacyReplaySoloScoreInfo(TypedDict):
     rank: Rank
     user_id: int
     total_score_without_mods: int
+
+
+RULESETS_VERSION_HASH: dict[GameMode, VersionEntry] = {}
+
+
+def init_ruleset_version_hash() -> None:
+    hash_file = STATIC_DIR / "custom_ruleset_version_hash.json"
+    if not hash_file.exists():
+        if settings.check_ruleset_version:
+            raise RuntimeError("Custom ruleset version hash file is missing")
+        rulesets = {}
+    else:
+        rulesets = json.loads(hash_file.read_text(encoding="utf-8"))
+    for mode_str, entry in rulesets.items():
+        mode = GameMode.parse(mode_str)
+        if mode is None:
+            continue
+        RULESETS_VERSION_HASH[mode] = entry

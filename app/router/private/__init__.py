@@ -1,6 +1,18 @@
 from app.config import settings
 
-from . import admin, audio_proxy, avatar, beatmapset, cover, oauth, relationship, score, team, user  # noqa: F401
+from . import (  # noqa: F401
+    admin,
+    audio_proxy,
+    avatar,
+    beatmapset,
+    cover,
+    oauth,
+    password,
+    relationship,
+    score,
+    team,
+    user,
+)
 from .router import router as private_router
 
 if settings.enable_totp_verification:

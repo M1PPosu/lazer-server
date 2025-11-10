@@ -1,3 +1,4 @@
+import datetime
 from datetime import timedelta
 from enum import Enum
 import math
@@ -5,15 +6,17 @@ import random
 from typing import TYPE_CHECKING, NamedTuple
 
 from app.config import OldScoreProcessingMode, settings
-from app.database.beatmap import Beatmap
+from app.database.beatmap import Beatmap, BeatmapResp
 from app.database.beatmap_sync import BeatmapSync, SavedBeatmapMeta
 from app.database.beatmapset import Beatmapset, BeatmapsetResp
 from app.database.score import Score
-from app.dependencies.database import with_db
+from app.dependencies.database import get_redis, with_db
 from app.dependencies.storage import get_storage_service
 from app.log import logger
 from app.models.beatmap import BeatmapRankStatus
 from app.utils import bg_tasks, utcnow
+
+from .beatmapset_cache_service import get_beatmapset_cache_service
 
 from httpx import HTTPError, HTTPStatusError
 from sqlmodel import col, select
@@ -128,9 +131,6 @@ class BeatmapsetUpdateService:
 
     async def add_missing_beatmapset(self, beatmapset_id: int, immediate: bool = False) -> bool:
         beatmapset = await self.fetcher.get_beatmapset(beatmapset_id)
-        status = BeatmapRankStatus(beatmapset.ranked)
-        if status.ranked():
-            return False
         if immediate:
             await self._sync_immediately(beatmapset)
             logger.debug(f"triggered immediate sync for beatmapset {beatmapset_id} ")
@@ -164,21 +164,47 @@ class BeatmapsetUpdateService:
                 try:
                     if await self.add_missing_beatmapset(missing):
                         total += 1
+                except HTTPStatusError as e:
+                    if e.response.status_code == 404:
+                        logger.opt(colors=True).warning(f"beatmapset {missing} not found (404), skipping")
+
+                        session.add(
+                            BeatmapSync(
+                                beatmapset_id=missing,
+                                beatmap_status=BeatmapRankStatus.GRAVEYARD,
+                                next_sync_time=datetime.datetime.max,
+                                beatmaps=[],
+                            )
+                        )
+                    else:
+                        logger.error(f"failed to add missing beatmapset {missing}: [{e.__class__.__name__}] {e}")
                 except Exception as e:
                     logger.error(f"failed to add missing beatmapset {missing}: {e}")
             if total > 0:
                 logger.opt(colors=True).info(f"added {total} missing beatmapset")
+            await session.commit()
         self._adding_missing = False
 
     async def add(self, beatmapset: BeatmapsetResp, calculate_next_sync: bool = True):
-        if BeatmapRankStatus(beatmapset.ranked).ranked():
-            return
         async with with_db() as session:
             sync_record = await session.get(BeatmapSync, beatmapset.id)
             if not sync_record:
-                sync_record = BeatmapSync(
-                    beatmapset_id=beatmapset.id,
-                    beatmaps=[
+                database_beatmapset = await session.get(Beatmapset, beatmapset.id)
+                if database_beatmapset:
+                    status = BeatmapRankStatus(database_beatmapset.beatmap_status)
+                    await database_beatmapset.awaitable_attrs.beatmaps
+                    beatmaps = [
+                        SavedBeatmapMeta(
+                            beatmap_id=bm.id,
+                            md5=bm.checksum,
+                            is_deleted=False,
+                            beatmap_status=BeatmapRankStatus(bm.beatmap_status),
+                        )
+                        for bm in database_beatmapset.beatmaps
+                    ]
+                else:
+                    status = BeatmapRankStatus(beatmapset.ranked)
+                    beatmaps = [
                         SavedBeatmapMeta(
                             beatmap_id=bm.id,
                             md5=bm.checksum,
@@ -186,8 +212,12 @@ class BeatmapsetUpdateService:
                             beatmap_status=BeatmapRankStatus(bm.ranked),
                         )
                         for bm in beatmapset.beatmaps
-                    ],
-                    beatmap_status=BeatmapRankStatus(beatmapset.ranked),
+                    ]
+
+                sync_record = BeatmapSync(
+                    beatmapset_id=beatmapset.id,
+                    beatmaps=beatmaps,
+                    beatmap_status=status,
                 )
                 session.add(sync_record)
                 await session.commit()
@@ -204,12 +234,8 @@ class BeatmapsetUpdateService:
                 processing = ProcessingBeatmapset(beatmapset, sync_record)
                 next_time_delta = processing.calculate_next_sync_time()
                 if not next_time_delta:
-                    logger.opt(colors=True).info(
-                        f"<g>[{beatmapset.id}]</g> beatmapset has transformed to "
-                        "ranked or loved, removing from sync list"
-                    )
-                    await session.delete(sync_record)
-                    await session.commit()
+                    # for qualified -> ranked, run immediate sync
+                    await BeatmapsetUpdateService._sync_immediately(self, beatmapset)
                     return
                 sync_record.next_sync_time = utcnow() + next_time_delta
             logger.opt(colors=True).info(f"<g>[{beatmapset.id}]</g> next sync at {sync_record.next_sync_time}")
@@ -279,6 +305,7 @@ class BeatmapsetUpdateService:
             bg_tasks.add_task(
                 self._process_changed_beatmaps,
                 changed_beatmaps,
+                beatmapset.beatmaps,
             )
             bg_tasks.add_task(
                 self._process_changed_beatmapset,
@@ -317,10 +344,13 @@ class BeatmapsetUpdateService:
             new_beatmapset = await Beatmapset.from_resp_no_save(beatmapset)
             if db_beatmapset:
                 await session.merge(new_beatmapset)
+            await get_beatmapset_cache_service(get_redis()).invalidate_beatmapset_cache(beatmapset.id)
             await session.commit()
 
-    async def _process_changed_beatmaps(self, changed: list[ChangedBeatmap]):
+    async def _process_changed_beatmaps(self, changed: list[ChangedBeatmap], beatmaps_list: list[BeatmapResp]):
         storage_service = get_storage_service()
+        beatmaps = {bm.id: bm for bm in beatmaps_list}
+
         async with with_db() as session:
 
             async def _process_update_or_delete_beatmaps(beatmap_id: int):
@@ -343,49 +373,21 @@ class BeatmapsetUpdateService:
 
             for change in changed:
                 if change.type == BeatmapChangeType.MAP_ADDED:
-                    try:
-                        beatmap = await self.fetcher.get_beatmap(change.beatmap_id)
-                    except HTTPStatusError as e:
-                        if e.response.status_code == 404:
-                            logger.opt(colors=True).warning(
-                                f"<g>[beatmap: {change.beatmap_id}]</g> beatmap not found (404), skipping"
-                            )
-                            continue
-                        logger.opt(colors=True).error(
-                            f"<g>[beatmap: {change.beatmap_id}]</g> failed to fetch added beatmap: "
-                            f"[{e.__class__.__name__}] {e}, skipping"
+                    beatmap = beatmaps.get(change.beatmap_id)
+                    if not beatmap:
+                        logger.opt(colors=True).warning(
+                            f"<g>[beatmap: {change.beatmap_id}]</g> beatmap data not found in beatmapset, skipping"
                         )
                         continue
-                    except Exception as e:
-                        logger.opt(colors=True).error(
-                            f"<g>[beatmap: {change.beatmap_id}]</g> failed to fetch added beatmap: {e}, skipping"
-                        )
-                        continue
-                    logger.opt(colors=True).info(f"[{beatmap.beatmapset_id}] adding beatmap {beatmap.id}")
+                    logger.opt(colors=True).info(
+                        f"<g>[{beatmap.beatmapset_id}]</g> adding beatmap <blue>{beatmap.id}</blue>"
+                    )
                     await Beatmap.from_resp_no_save(session, beatmap)
                 else:
-                    try:
-                        beatmap = await self.fetcher.get_beatmap(change.beatmap_id)
-                    except HTTPStatusError as e:
-                        if e.response.status_code == 404:
-                            if change.type == BeatmapChangeType.MAP_DELETED:
-                                logger.opt(colors=True).info(
-                                    f"<g>[beatmap: {change.beatmap_id}]</g> beatmap not found (404), assuming deleted"
-                                )
-                                await _process_update_or_delete_beatmaps(change.beatmap_id)
-                                continue
-                            logger.opt(colors=True).warning(
-                                f"<g>[beatmap: {change.beatmap_id}]</g> beatmap not found (404), skipping"
-                            )
-                            continue
-                        logger.opt(colors=True).error(
-                            f"<g>[beatmap: {change.beatmap_id}]</g> failed to fetch changed beatmap: "
-                            f"[{e.__class__.__name__}] {e}, skipping"
-                        )
-                        continue
-                    except Exception as e:
-                        logger.opt(colors=True).error(
-                            f"<g>[beatmap: {change.beatmap_id}]</g> failed to fetch changed beatmap: {e}, skipping"
+                    beatmap = beatmaps.get(change.beatmap_id)
+                    if not beatmap:
+                        logger.opt(colors=True).warning(
+                            f"<g>[beatmap: {change.beatmap_id}]</g> beatmap data not found in beatmapset, skipping"
                         )
                         continue
                     logger.opt(colors=True).info(
@@ -396,9 +398,18 @@ class BeatmapsetUpdateService:
                     existing_beatmap = await session.get(Beatmap, change.beatmap_id)
                     if existing_beatmap:
                         await session.merge(new_db_beatmap)
+                        if change.type == BeatmapChangeType.MAP_DELETED:
+                            existing_beatmap.deleted_at = utcnow()
                         await session.commit()
+                    else:
+                        if change.type == BeatmapChangeType.MAP_DELETED:
+                            logger.opt(colors=True).warning(
+                                f"<g>[beatmap: {change.beatmap_id}]</g> MAP_DELETED received "
+                                f"but beatmap not found in database; deletion skipped"
+                            )
                     if change.type != BeatmapChangeType.STATUS_CHANGED:
                         await _process_update_or_delete_beatmaps(change.beatmap_id)
+                await get_beatmapset_cache_service(get_redis()).invalidate_beatmap_lookup_cache(change.beatmap_id)
 
 
 service: BeatmapsetUpdateService | None = None

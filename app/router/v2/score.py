@@ -33,6 +33,7 @@ from app.database.score import (
     process_user,
 )
 from app.dependencies.api_version import APIVersion
+from app.dependencies.cache import UserCacheService
 from app.dependencies.database import Database, Redis, get_redis, with_db
 from app.dependencies.fetcher import Fetcher, get_fetcher
 from app.dependencies.storage import StorageService
@@ -255,9 +256,6 @@ async def get_beatmap_scores(
     ] = LeaderboardType.GLOBAL,
     limit: Annotated[int, Query(ge=1, le=200, description="返回条数 (1-200)")] = 50,
 ):
-    if legacy_only:
-        raise HTTPException(status_code=404, detail="this server only contains lazer scores")
-
     all_scores, user_score, count = await get_leaderboard(
         db,
         beatmap_id,
@@ -355,6 +353,7 @@ async def get_user_all_beatmap_scores(
                 Score.beatmap_id == beatmap_id,
                 Score.user_id == user_id,
                 col(Score.passed).is_(True),
+                ~User.is_restricted_query(col(Score.user_id)),
             )
             .order_by(col(Score.total_score).desc())
         )
@@ -375,12 +374,28 @@ async def create_solo_score(
     db: Database,
     beatmap_id: Annotated[int, Path(description="谱面 ID")],
     beatmap_hash: Annotated[str, Form(description="谱面文件哈希")],
-    ruleset_id: Annotated[int, Form(..., ge=0, le=3, description="ruleset 数字 ID (0-3)")],
+    ruleset_id: Annotated[int, Form(..., description="ruleset 数字 ID (0-3)")],
     current_user: ClientUser,
     version_hash: Annotated[str, Form(description="游戏版本哈希")] = "",
+    ruleset_hash: Annotated[str, Form(description="ruleset 版本哈希")] = "",
 ):
     # 立即获取用户ID，避免懒加载问题
     user_id = current_user.id
+
+    try:
+        gamemode = GameMode.from_int(ruleset_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid ruleset ID")
+
+    if not (result := gamemode.check_ruleset_version(ruleset_hash)):
+        logger.info(
+            f"Ruleset version check failed for user {current_user.id} on beatmap {beatmap_id} "
+            f"(ruleset: {ruleset_id}, hash: {ruleset_hash})"
+        )
+        raise HTTPException(
+            status_code=422,
+            detail=result.error_msg or "Ruleset version check failed",
+        )
 
     background_task.add_task(_preload_beatmap_for_pp_calculation, beatmap_id)
     async with db:
@@ -429,11 +444,29 @@ async def create_playlist_score(
     playlist_id: int,
     beatmap_id: Annotated[int, Form(description="谱面 ID")],
     beatmap_hash: Annotated[str, Form(description="游戏版本哈希")],
-    ruleset_id: Annotated[int, Form(..., ge=0, le=3, description="ruleset 数字 ID (0-3)")],
+    ruleset_id: Annotated[int, Form(..., description="ruleset 数字 ID (0-3)")],
     current_user: ClientUser,
     version_hash: Annotated[str, Form(description="谱面版本哈希")] = "",
+    ruleset_hash: Annotated[str, Form(description="ruleset 版本哈希")] = "",
 ):
-    # 立即获取用户ID，避免懒加载问题
+    try:
+        gamemode = GameMode.from_int(ruleset_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid ruleset ID")
+
+    if not (result := gamemode.check_ruleset_version(ruleset_hash)):
+        logger.info(
+            f"Ruleset version check failed for user {current_user.id} on room {room_id}, playlist {playlist_id},"
+            f" (ruleset: {ruleset_id}, hash: {ruleset_hash})"
+        )
+        raise HTTPException(
+            status_code=422,
+            detail=result.error_msg or "Ruleset version check failed",
+        )
+
+    if await current_user.is_restricted(session):
+        raise HTTPException(status_code=403, detail="You are restricted from submitting multiplayer scores")
+
     user_id = current_user.id
 
     room = await session.get(Room, room_id)
@@ -499,7 +532,9 @@ async def submit_playlist_score(
     redis: Redis,
     fetcher: Fetcher,
 ):
-    # 立即获取用户ID，避免懒加载问题
+    if await current_user.is_restricted(session):
+        raise HTTPException(status_code=403, detail="You are restricted from submitting multiplayer scores")
+
     user_id = current_user.id
 
     item = (await session.exec(select(Playlist).where(Playlist.id == playlist_id, Playlist.room_id == room_id))).first()
@@ -574,6 +609,7 @@ async def index_playlist_scores(
                 PlaylistBestScore.playlist_id == playlist_id,
                 PlaylistBestScore.room_id == room_id,
                 PlaylistBestScore.total_score < cursor,
+                ~User.is_restricted_query(col(PlaylistBestScore.user_id)),
             )
             .order_by(col(PlaylistBestScore.total_score).desc())
             .limit(limit + 1)
@@ -641,6 +677,7 @@ async def show_playlist_score(
                         PlaylistBestScore.score_id == score_id,
                         PlaylistBestScore.playlist_id == playlist_id,
                         PlaylistBestScore.room_id == room_id,
+                        ~User.is_restricted_query(col(PlaylistBestScore.user_id)),
                     )
                 )
             ).first()
@@ -658,6 +695,7 @@ async def show_playlist_score(
                 select(PlaylistBestScore).where(
                     PlaylistBestScore.playlist_id == playlist_id,
                     PlaylistBestScore.room_id == room_id,
+                    ~User.is_restricted_query(col(PlaylistBestScore.user_id)),
                 )
             )
         ).all()
@@ -702,6 +740,7 @@ async def get_user_playlist_score(
                     PlaylistBestScore.user_id == user_id,
                     PlaylistBestScore.playlist_id == playlist_id,
                     PlaylistBestScore.room_id == room_id,
+                    ~User.is_restricted_query(col(PlaylistBestScore.user_id)),
                 )
             )
         ).first()
@@ -724,8 +763,9 @@ async def get_user_playlist_score(
 )
 async def pin_score(
     db: Database,
-    score_id: Annotated[int, Path(description="成绩 ID")],
     current_user: ClientUser,
+    user_cache_service: UserCacheService,
+    score_id: Annotated[int, Path(description="成绩 ID")],
 ):
     # 立即获取用户ID，避免懒加载问题
     user_id = current_user.id
@@ -757,6 +797,7 @@ async def pin_score(
         or 0
     ) + 1
     score_record.pinned_order = next_order
+    await user_cache_service.invalidate_user_scores_cache(user_id, score_record.gamemode)
     await db.commit()
 
 
@@ -769,6 +810,7 @@ async def pin_score(
 )
 async def unpin_score(
     db: Database,
+    user_cache_service: UserCacheService,
     score_id: Annotated[int, Path(description="成绩 ID")],
     current_user: ClientUser,
 ):
@@ -792,6 +834,8 @@ async def unpin_score(
     ).all()
     for s in changed_score:
         s.pinned_order -= 1
+    score_record.pinned_order = 0
+    await user_cache_service.invalidate_user_scores_cache(user_id, score_record.gamemode)
     await db.commit()
 
 
@@ -804,8 +848,9 @@ async def unpin_score(
 )
 async def reorder_score_pin(
     db: Database,
-    score_id: Annotated[int, Path(description="成绩 ID")],
+    user_cache_service: UserCacheService,
     current_user: ClientUser,
+    score_id: Annotated[int, Path(description="成绩 ID")],
     after_score_id: Annotated[int | None, Body(description="放在该成绩之后")] = None,
     before_score_id: Annotated[int | None, Body(description="放在该成绩之前")] = None,
 ):
@@ -875,7 +920,7 @@ async def reorder_score_pin(
             score_to_update.pinned_order = new_order
 
     score_record.pinned_order = final_target
-
+    await user_cache_service.invalidate_user_scores_cache(user_id, score_record.gamemode)
     await db.commit()
 
 

@@ -1,9 +1,8 @@
 from datetime import datetime, timedelta
 import json
-from typing import TYPE_CHECKING, Literal, NotRequired, TypedDict
+from typing import TYPE_CHECKING, Literal, NotRequired, TypedDict, overload
 
 from app.config import settings
-from app.database.auth import TotpKeys
 from app.models.model import UTCBaseModel
 from app.models.score import GameMode
 from app.models.user import Country, Page
@@ -11,6 +10,7 @@ from app.path import STATIC_DIR
 from app.utils import utcnow
 
 from .achievement import UserAchievement, UserAchievementResp
+from .auth import TotpKeys
 from .beatmap_playcounts import BeatmapPlaycounts
 from .counts import CountResp, MonthlyPlaycounts, ReplayWatchedCount
 from .daily_challenge import DailyChallengeStats, DailyChallengeStatsResp
@@ -18,10 +18,12 @@ from .events import Event
 from .rank_history import RankHistory, RankHistoryResp, RankTop
 from .statistics import UserStatistics, UserStatisticsResp
 from .team import Team, TeamMember
-from .user_account_history import UserAccountHistory, UserAccountHistoryResp
+from .user_account_history import UserAccountHistory, UserAccountHistoryResp, UserAccountHistoryType
+from .user_preference import DEFAULT_ORDER, UserPreference
 
 from pydantic import field_validator
 from sqlalchemy.ext.asyncio import AsyncAttrs
+from sqlalchemy.orm import Mapped
 from sqlmodel import (
     JSON,
     BigInteger,
@@ -31,13 +33,16 @@ from sqlmodel import (
     Relationship,
     SQLModel,
     col,
+    exists,
     func,
     select,
+    text,
 )
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 if TYPE_CHECKING:
     from .favourite_beatmapset import FavouriteBeatmapset
+    from .matchmaking import MatchmakingUserStats
     from .relationship import RelationshipResp
 
 
@@ -88,7 +93,6 @@ class UserBase(UTCBaseModel, SQLModel):
     badges: list[Badge] = Field(default_factory=list, sa_column=Column(JSON))
 
     # optional
-    is_restricted: bool = False
     # blocks
     cover: UserProfileCover = Field(
         default=UserProfileCover(url=""),
@@ -110,18 +114,6 @@ class UserBase(UTCBaseModel, SQLModel):
     playstyle: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     # TODO: post_count
     profile_hue: int | None = None
-    profile_order: list[str] = Field(
-        default_factory=lambda: [
-            "me",
-            "recent_activity",
-            "top_ranks",
-            "medals",
-            "historical",
-            "beatmaps",
-            "kudosu",
-        ],
-        sa_column=Column(JSON),
-    )
     title: str | None = None
     title_url: str | None = None
     twitter: str | None = None
@@ -134,6 +126,9 @@ class UserBase(UTCBaseModel, SQLModel):
     is_gmt: bool = False
     is_qat: bool = False
     is_bng: bool = False
+
+    # g0v0-extra
+    g0v0_playmode: GameMode = GameMode.OSU
 
     @field_validator("playmode", mode="before")
     @classmethod
@@ -155,11 +150,12 @@ class User(AsyncAttrs, UserBase, table=True):
         default=None,
         sa_column=Column(BigInteger, primary_key=True, autoincrement=True, index=True),
     )
-    account_history: list[UserAccountHistory] = Relationship()
-    statistics: list[UserStatistics] = Relationship()
+    account_history: list[UserAccountHistory] = Relationship(back_populates="user")
+    statistics: list[UserStatistics] = Relationship(back_populates="user")
     achievement: list[UserAchievement] = Relationship(back_populates="user")
     team_membership: TeamMember | None = Relationship(back_populates="user")
     daily_challenge_stats: DailyChallengeStats | None = Relationship(back_populates="user")
+    matchmaking_stats: list["MatchmakingUserStats"] = Relationship(back_populates="user")
     monthly_playcounts: list[MonthlyPlaycounts] = Relationship(back_populates="user")
     replays_watched_counts: list[ReplayWatchedCount] = Relationship(back_populates="user")
     favourite_beatmapsets: list["FavouriteBeatmapset"] = Relationship(back_populates="user")
@@ -168,6 +164,7 @@ class User(AsyncAttrs, UserBase, table=True):
     )
     events: list[Event] = Relationship(back_populates="user")
     totp_key: TotpKeys | None = Relationship(back_populates="user")
+    user_preference: UserPreference | None = Relationship(back_populates="user")
 
     email: str = Field(max_length=254, unique=True, index=True, exclude=True)
     priv: int = Field(default=1, exclude=True)
@@ -206,7 +203,42 @@ class User(AsyncAttrs, UserBase, table=True):
             return False, "Target user has blocked you."
         if self.pm_friends_only and (not relationship or relationship.type != RelationshipType.FOLLOW):
             return False, "Target user has disabled non-friend communications"
+        if await self.is_restricted(session):
+            return False, "Target user is restricted"
         return True, ""
+
+    @classmethod
+    @overload
+    def is_restricted_query(cls, user_id: int): ...
+
+    @classmethod
+    @overload
+    def is_restricted_query(cls, user_id: Mapped[int]): ...
+
+    @classmethod
+    def is_restricted_query(cls, user_id: int | Mapped[int]):
+        return exists().where(
+            (col(UserAccountHistory.user_id) == user_id)
+            & (col(UserAccountHistory.type) == UserAccountHistoryType.RESTRICTION)
+            & (
+                (col(UserAccountHistory.permanent).is_(True))
+                | (
+                    (
+                        func.timestampadd(
+                            text("SECOND"),
+                            col(UserAccountHistory.length),
+                            col(UserAccountHistory.timestamp),
+                        )
+                        > func.now()
+                    )
+                    & (func.now() > col(UserAccountHistory.timestamp))
+                )
+            ),
+        )
+
+    async def is_restricted(self, session: AsyncSession) -> bool:
+        active_restrictions = (await session.exec(select(self.is_restricted_query(self.id)))).first()
+        return active_restrictions or False
 
 
 class UserResp(UserBase):
@@ -246,8 +278,13 @@ class UserResp(UserBase):
     daily_challenge_user_stats: DailyChallengeStatsResp | None = None
     default_group: str = ""
     is_deleted: bool = False  # TODO
+    is_restricted: bool = False
+    user_preference: UserPreference | None = None
+    profile_order: list[str] = Field(
+        default_factory=lambda: DEFAULT_ORDER,
+    )
 
-    # TODO: monthly_playcounts, unread_pm_count， rank_history, user_preferences
+    # TODO: unread_pm_count
 
     @classmethod
     async def from_db(
@@ -294,6 +331,13 @@ class UserResp(UserBase):
         redis = get_redis()
         u.is_online = bool(await redis.exists(f"metadata:online:{obj.id}"))
         u.cover_url = obj.cover.get("url", "") if obj.cover else ""
+
+        await obj.awaitable_attrs.user_preference
+        if obj.user_preference:
+            u.profile_order = obj.user_preference.extras_order
+
+        if "user_preference" in include:
+            u.user_preference = obj.user_preference
 
         if "friends" in include:
             u.friends = [
@@ -370,6 +414,8 @@ class UserResp(UserBase):
                     if rank_top
                     else None
                 )
+        if "is_restricted" in include:
+            u.is_restricted = await obj.is_restricted(session)
 
         u.favourite_beatmapset_count = (
             await session.exec(
@@ -468,7 +514,9 @@ ALL_INCLUDED = [
     "monthly_playcounts",
     "replays_watched_counts",
     "rank_history",
+    "is_restricted",
     "session_verified",
+    "user_preference",
 ]
 
 

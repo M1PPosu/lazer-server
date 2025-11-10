@@ -15,12 +15,32 @@
 
 - **OAuth 2.0 认证**: 支持密码流和刷新令牌流
 - **用户数据管理**: 完整的用户信息、统计数据、成就等
-- **多游戏模式支持**: osu! (RX, AP), taiko (RX), catch (RX), mania
+- **多游戏模式支持**: osu! (RX, AP), taiko (RX), catch (RX), mania 和自定义 ruleset（见下）
 - **数据库持久化**: MySQL 存储用户数据
 - **缓存支持**: Redis 缓存令牌和会话信息
 - **多种存储后端**: 支持本地存储、Cloudflare R2、AWS S3
 - **容器化部署**: Docker 和 Docker Compose 支持
 - **资源文件反向代理**: 可以将 osu! 官方的资源链接（头像、谱面封面、音频等）替换为自定义域名。
+
+## 支持的 ruleset
+
+**Ruleset**|**ID**|**ShortName**|**PP 算法 (rosu)**|**PP 算法 (performance-server)**
+:-----:|:-----:|:-----:|:-----:|:-----:
+osu!|`0`|`osu`|✅|✅
+osu!taiko|`1`|`taiko`|✅|✅
+osu!catch|`2`|`fruits`|✅|✅
+osu!mania|`3`|`mania`|✅|✅
+osu! (RX)|`4`|`osurx`|✅|✅
+osu! (AP)|`5`|`osuap`|✅|✅
+osu!taiko (RX)|`6`|`taikorx`|✅|✅
+osu!catch (RX)|`7`|`fruitsrx`|✅|✅
+[Sentakki](https://github.com/LumpBloom7/sentakki)|`10`|`Sentakki`|❌|❌
+[tau](https://github.com/taulazer/tau)|`11`|`tau`|❌|✅
+[Rush!](https://github.com/Beamographic/rush)|`12`|`rush`|❌|❌
+[hishigata](https://github.com/LumpBloom7/hishigata)|`13`|`hishigata`|❌|❌
+[soyokaze!](https://github.com/goodtrailer/soyokaze)|`14`|`soyokaze`|❌|✅
+
+前往 [custom-rulesets](https://github.com/GooGuTeam/custom-rulesets/releases/latest) 下载为 g0v0-server 修改的自定义 ruleset。
 
 ## 快速开始
 
@@ -40,7 +60,11 @@ cd g0v0-server
 cp .env.example .env
 ```
 
-3. 启动服务
+3. （可选）下载 rulesets
+
+前往 [custom-rulesets](https://github.com/GooGuTeam/custom-rulesets/releases/latest) 下载为 g0v0-server 修改的自定义 ruleset。将下载的 DLL 放入 `rulesets/` 目录，以在旁观服务器和表现分计算器中启用自定义 ruleset 支持。
+
+4. 启动服务
 ```bash
 # 标准服务器
 docker-compose -f docker-compose.yml up -d
@@ -48,7 +72,7 @@ docker-compose -f docker-compose.yml up -d
 docker-compose -f docker-compose-osurx.yml up -d
 ```
 
-4. 通过游戏连接服务器
+5. 通过游戏连接服务器
 
 使用[自定义的 osu!lazer 客户端](https://github.com/GooGuTeam/osu)，或者使用 [LazerAuthlibInjection](https://github.com/MingxuanGame/LazerAuthlibInjection)，修改服务器设置为服务器的 IP
 
@@ -79,6 +103,36 @@ docker-compose -f docker-compose-osurx.yml up -d
 项目目前处于快速迭代状态，欢迎提交 Issue 和 Pull Request！
 
 查看 [贡献指南](./CONTRIBUTING.md) 获取更多信息。
+
+## 贡献者
+
+<!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
+[![All Contributors](https://img.shields.io/badge/all_contributors-5-orange.svg?style=flat-square)](#contributors-)
+<!-- ALL-CONTRIBUTORS-BADGE:END -->
+
+感谢所有参与此项目的贡献者！ ([emoji key](https://allcontributors.org/docs/en/emoji-key))
+
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/GooGuJiang"><img src="https://avatars.githubusercontent.com/u/74496778?v=4?s=100" width="100px;" alt="咕谷酱"/><br /><sub><b>咕谷酱</b></sub></a><br /><a href="https://github.com/GooGuTeam/g0v0-server/commits?author=GooGuJiang" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://blog.mxgame.top/"><img src="https://avatars.githubusercontent.com/u/68982190?v=4?s=100" width="100px;" alt="MingxuanGame"/><br /><sub><b>MingxuanGame</b></sub></a><br /><a href="https://github.com/GooGuTeam/g0v0-server/commits?author=MingxuanGame" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/chenjintang-shrimp"><img src="https://avatars.githubusercontent.com/u/110657724?v=4?s=100" width="100px;" alt="陈晋瑭"/><br /><sub><b>陈晋瑭</b></sub></a><br /><a href="https://github.com/GooGuTeam/g0v0-server/commits?author=chenjintang-shrimp" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://4ayo.ovh"><img src="https://avatars.githubusercontent.com/u/115783539?v=4?s=100" width="100px;" alt="4ayo"/><br /><sub><b>4ayo</b></sub></a><br /><a href="#ideas-4aya" title="Ideas, Planning, & Feedback">🤔</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/kyiuu1"><img src="https://avatars.githubusercontent.com/u/188347675?v=4?s=100" width="100px;" alt="kyiuu1"/><br /><sub><b>kyiuu1</b></sub></a><br /><a href="#ideas-kyiuu1" title="Ideas, Planning, & Feedback">🤔</a></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- markdownlint-restore -->
+<!-- prettier-ignore-end -->
+
+<!-- ALL-CONTRIBUTORS-LIST:END -->
+
+本项目遵循 [all-contributors](https://github.com/all-contributors/all-contributors) 规范。欢迎任何形式的贡献！
 
 ## 参与讨论
 

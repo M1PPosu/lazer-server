@@ -1,14 +1,15 @@
 import asyncio
-from copy import deepcopy
 from enum import Enum
+import importlib
 import math
 from typing import TYPE_CHECKING
 
+from app.calculators.performance import PerformanceCalculator
 from app.config import settings
+from app.const import MAX_SCORE
 from app.log import log
-from app.models.beatmap import BeatmapAttributes
-from app.models.mods import APIMod, parse_enum_to_str
-from app.models.score import GameMode
+from app.models.score import GameMode, HitResult, ScoreStatistics
+from app.models.scoring_mode import ScoringMode
 
 from osupyparser import HitObject, OsuFile
 from osupyparser.osu.objects import Slider
@@ -16,21 +17,32 @@ from redis.asyncio import Redis
 from sqlmodel import col, exists, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-logger = log("Calculator")
-
-try:
-    import rosu_pp_py as rosu
-except ImportError:
-    raise ImportError(
-        "rosu-pp-py is not installed. "
-        "Please install it.\n"
-        "   Official: uv add rosu-pp-py\n"
-        "   ppy-sb: uv add git+https://github.com/ppy-sb/rosu-pp-py.git"
-    )
-
 if TYPE_CHECKING:
     from app.database.score import Score
     from app.fetcher import Fetcher
+
+
+logger = log("Calculator")
+
+CALCULATOR: PerformanceCalculator | None = None
+
+
+async def init_calculator():
+    global CALCULATOR
+    try:
+        module = importlib.import_module(f"app.calculators.performance.{settings.calculator}")
+        CALCULATOR = module.PerformanceCalculator(**settings.calculator_config)
+        if CALCULATOR is not None:
+            await CALCULATOR.init()
+    except (ImportError, AttributeError) as e:
+        raise ImportError(f"Failed to import performance calculator for {settings.calculator}") from e
+    return CALCULATOR
+
+
+def get_calculator() -> PerformanceCalculator:
+    if CALCULATOR is None:
+        raise RuntimeError("Performance calculator is not initialized")
+    return CALCULATOR
 
 
 def clamp[T: int | float](n: T, min_value: T, max_value: T) -> T:
@@ -42,27 +54,75 @@ def clamp[T: int | float](n: T, min_value: T, max_value: T) -> T:
         return n
 
 
-def calculate_beatmap_attribute(
-    beatmap: str,
-    gamemode: GameMode | None = None,
-    mods: int | list[APIMod] | list[str] = 0,
-) -> BeatmapAttributes:
-    map = rosu.Beatmap(content=beatmap)
-    if gamemode is not None:
-        map.convert(gamemode.to_rosu(), mods)  # pyright: ignore[reportArgumentType]
-    diff = rosu.Difficulty(mods=mods).calculate(map)
-    return BeatmapAttributes(
-        star_rating=diff.stars,
-        max_combo=diff.max_combo,
-        aim_difficulty=diff.aim,
-        aim_difficult_slider_count=diff.aim_difficult_slider_count,
-        speed_difficulty=diff.speed,
-        speed_note_count=diff.speed_note_count,
-        slider_factor=diff.slider_factor,
-        aim_difficult_strain_count=diff.aim_difficult_strain_count,
-        speed_difficult_strain_count=diff.speed_difficult_strain_count,
-        mono_stamina_factor=diff.stamina,
+def get_display_score(ruleset_id: int, total_score: int, mode: ScoringMode, maximum_statistics: ScoreStatistics) -> int:
+    """
+    Calculate the display score based on the scoring mode.
+
+    Based on: https://github.com/ppy/osu/blob/master/osu.Game/Scoring/Legacy/ScoreInfoExtensions.cs
+
+    Args:
+        ruleset_id: The ruleset ID (0=osu!, 1=taiko, 2=catch, 3=mania)
+        total_score: The standardised total score
+        mode: The scoring mode (standardised or classic)
+        maximum_statistics: Dictionary of maximum statistics for the score
+
+    Returns:
+        The display score in the requested scoring mode
+    """
+    if mode == ScoringMode.STANDARDISED:
+        return total_score
+
+    # Calculate max basic judgements
+    max_basic_judgements = sum(
+        count for hit_result, count in maximum_statistics.items() if HitResult(hit_result).is_basic()
     )
+
+    return _convert_standardised_to_classic(ruleset_id, total_score, max_basic_judgements)
+
+
+def _convert_standardised_to_classic(ruleset_id: int, standardised_total_score: int, object_count: int) -> int:
+    """
+    Convert a standardised score to classic score.
+
+    The coefficients were determined by a least-squares fit to minimise relative error
+    of maximum possible base score across all beatmaps.
+
+    Args:
+        ruleset_id: The ruleset ID (0=osu!, 1=taiko, 2=catch, 3=mania)
+        standardised_total_score: The standardised total score
+        object_count: The number of basic hit objects
+
+    Returns:
+        The classic score
+    """
+    if ruleset_id == 0:  # osu!
+        return round((object_count**2 * 32.57 + 100000) * standardised_total_score / MAX_SCORE)
+    elif ruleset_id == 1:  # taiko
+        return round((object_count * 1109 + 100000) * standardised_total_score / MAX_SCORE)
+    elif ruleset_id == 2:  # catch
+        return round((standardised_total_score / MAX_SCORE * object_count) ** 2 * 21.62 + standardised_total_score / 10)
+    else:  # mania (ruleset_id == 3) or default
+        return standardised_total_score
+
+
+def calculate_pp_for_no_calculator(score: "Score", star_rating: float) -> float:
+    # TODO: Improve this algorithm
+    # https://www.desmos.com/calculator/i2aa7qm3o6
+    k = 4.0
+
+    pmax = 1.4 * (star_rating**2.8)
+    b = 0.95 - 0.33 * ((clamp(star_rating, 1, 8) - 1) / 7)
+
+    x = score.total_score / 1000000
+
+    if x < b:
+        # Linear section
+        return pmax * x
+    else:
+        # Exponential reward section
+        x = (x - b) / (1 - b)
+        exp_part = (math.exp(k * x) - 1) / (math.exp(k) - 1)
+        return pmax * (b + (1 - b) * exp_part)
 
 
 async def calculate_pp(score: "Score", beatmap: str, session: AsyncSession) -> float:
@@ -83,41 +143,23 @@ async def calculate_pp(score: "Score", beatmap: str, session: AsyncSession) -> f
         except Exception:
             logger.exception(f"Error checking if beatmap {score.beatmap_id} is suspicious")
 
-    # 使用线程池执行计算密集型操作以避免阻塞事件循环
+    if not (await get_calculator().can_calculate_performance(score.gamemode)):
+        if not settings.fallback_no_calculator_pp:
+            return 0
+        star_rating = -1
+        if await get_calculator().can_calculate_difficulty(score.gamemode):
+            star_rating = (await get_calculator().calculate_difficulty(beatmap, score.mods, score.gamemode)).star_rating
+        if star_rating < 0:
+            star_rating = (await score.awaitable_attrs.beatmap).difficulty_rating
+        pp = calculate_pp_for_no_calculator(score, star_rating)
+    else:
+        attrs = await get_calculator().calculate_performance(beatmap, score)
+        pp = attrs.pp
 
-    loop = asyncio.get_event_loop()
-
-    def _calculate_pp_sync():
-        map = rosu.Beatmap(content=beatmap)
-        mods = deepcopy(score.mods.copy())
-        parse_enum_to_str(int(score.gamemode), mods)
-        map.convert(score.gamemode.to_rosu(), mods)  # pyright: ignore[reportArgumentType]
-        perf = rosu.Performance(
-            mods=mods,
-            lazer=True,
-            accuracy=clamp(score.accuracy * 100, 0, 100),
-            combo=score.max_combo,
-            large_tick_hits=score.nlarge_tick_hit or 0,
-            slider_end_hits=score.nslider_tail_hit or 0,
-            small_tick_hits=score.nsmall_tick_hit or 0,
-            n_geki=score.ngeki,
-            n_katu=score.nkatu,
-            n300=score.n300,
-            n100=score.n100,
-            n50=score.n50,
-            misses=score.nmiss,
-        )
-        return perf.calculate(map)
-
-    # 在线程池中执行计算
-    attrs = await loop.run_in_executor(None, _calculate_pp_sync)
-    pp = attrs.pp
-
-    # mrekk bp1: 2048pp; ppy-sb top1 rxbp1: 2198pp
-    if settings.suspicious_score_check and ((attrs.difficulty.stars > 25 and score.accuracy < 0.8) or pp > 3000):
+    if settings.suspicious_score_check and (pp > 3000):
         logger.warning(
             f"User {score.user_id} played {score.beatmap_id} "
-            f"(star={attrs.difficulty.stars}) with {pp=} "
+            f"with {pp=} "
             f"acc={score.accuracy}. The score is suspicious and return 0pp"
             f"({score.id=})"
         )
@@ -168,74 +210,6 @@ async def pre_fetch_and_calculate_pp(
 
     # 调用已优化的PP计算函数
     return await calculate_pp(score, beatmap_raw, session), True
-
-
-async def batch_calculate_pp(
-    scores_data: list[tuple["Score", int]], session: AsyncSession, redis, fetcher
-) -> list[float]:
-    """
-    批量计算PP：适用于重新计算或批量处理场景
-    Args:
-        scores_data: [(score, beatmap_id), ...] 的列表
-    Returns:
-        对应的PP值列表
-    """
-    import asyncio
-
-    from app.database.beatmap import BannedBeatmaps
-
-    if not scores_data:
-        return []
-
-    # 提取所有唯一的beatmap_id
-    unique_beatmap_ids = list({beatmap_id for _, beatmap_id in scores_data})
-
-    # 批量检查被封禁的beatmap
-    banned_beatmaps = set()
-    if settings.suspicious_score_check:
-        banned_results = await session.exec(
-            select(BannedBeatmaps.beatmap_id).where(col(BannedBeatmaps.beatmap_id).in_(unique_beatmap_ids))
-        )
-        banned_beatmaps = set(banned_results.all())
-
-    # 并发获取所有需要的beatmap原始文件
-    async def fetch_beatmap_safe(beatmap_id: int) -> tuple[int, str | None]:
-        if beatmap_id in banned_beatmaps:
-            return beatmap_id, None
-        try:
-            content = await fetcher.get_or_fetch_beatmap_raw(redis, beatmap_id)
-            return beatmap_id, content
-        except Exception as e:
-            logger.error(f"Failed to fetch beatmap {beatmap_id}: {e}")
-            return beatmap_id, None
-
-    # 并发获取所有beatmap文件
-    fetch_tasks = [fetch_beatmap_safe(bid) for bid in unique_beatmap_ids]
-    fetch_results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
-
-    # 构建beatmap_id -> content的映射
-    beatmap_contents = {}
-    for result in fetch_results:
-        if isinstance(result, tuple):
-            beatmap_id, content = result
-            beatmap_contents[beatmap_id] = content
-
-    # 为每个score计算PP
-    pp_results = []
-    for score, beatmap_id in scores_data:
-        beatmap_content = beatmap_contents.get(beatmap_id)
-        if beatmap_content is None:
-            pp_results.append(0.0)
-            continue
-
-        try:
-            pp = await calculate_pp(score, beatmap_content, session)
-            pp_results.append(pp)
-        except Exception as e:
-            logger.error(f"Failed to calculate PP for score {score.id}: {e}")
-            pp_results.append(0.0)
-
-    return pp_results
 
 
 # https://osu.ppy.sh/wiki/Gameplay/Score/Total_score

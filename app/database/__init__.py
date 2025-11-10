@@ -33,6 +33,11 @@ from .item_attempts_count import (
     ItemAttemptsResp,
     PlaylistAggregateScore,
 )
+from .matchmaking import (
+    MatchmakingPool,
+    MatchmakingPoolBeatmap,
+    MatchmakingUserStats,
+)
 from .multiplayer_event import MultiplayerEvent, MultiplayerEventResp
 from .notification import Notification, UserNotification
 from .password_reset import PasswordReset
@@ -55,7 +60,7 @@ from .statistics import (
     UserStatistics,
     UserStatisticsResp,
 )
-from .team import Team, TeamMember, TeamRequest
+from .team import Team, TeamMember, TeamRequest, TeamResp
 from .total_score_best_scores import TotalScoreBestScore
 from .user import (
     MeResp,
@@ -68,6 +73,7 @@ from .user_account_history import (
     UserAccountHistoryType,
 )
 from .user_login_log import UserLoginLog
+from .user_preference import UserPreference
 from .verification import EmailVerification, LoginSession, LoginSessionResp, TrustedDevice, TrustedDeviceResp
 
 __all__ = [
@@ -97,6 +103,9 @@ __all__ = [
     "ItemAttemptsResp",
     "LoginSession",
     "LoginSessionResp",
+    "MatchmakingPool",
+    "MatchmakingPoolBeatmap",
+    "MatchmakingUserStats",
     "MeResp",
     "MonthlyPlaycounts",
     "MultiplayerEvent",
@@ -130,6 +139,7 @@ __all__ = [
     "Team",
     "TeamMember",
     "TeamRequest",
+    "TeamResp",
     "TotalScoreBestScore",
     "TotpKeys",
     "TrustedDevice",
@@ -143,6 +153,7 @@ __all__ = [
     "UserAchievementResp",
     "UserLoginLog",
     "UserNotification",
+    "UserPreference",
     "UserResp",
     "UserStatistics",
     "UserStatisticsResp",

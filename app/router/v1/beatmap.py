@@ -10,6 +10,7 @@ from app.dependencies.database import Database, Redis
 from app.dependencies.fetcher import Fetcher
 from app.models.beatmap import BeatmapRankStatus, Genre, Language
 from app.models.mods import int_to_mods
+from app.models.performance import OsuDifficultyAttributes
 from app.models.score import GameMode
 
 from .router import AllStrModel, router
@@ -151,7 +152,7 @@ async def get_beatmaps(
     beatmap_id: Annotated[int | None, Query(alias="b", description="谱面 ID")] = None,
     user: Annotated[str | None, Query(alias="u", description="谱师")] = None,
     type: Annotated[Literal["string", "id"] | None, Query(description="用户类型：string 用户名称 / id 用户 ID")] = None,
-    ruleset_id: Annotated[int | None, Query(alias="m", description="Ruleset ID", ge=0, le=3)] = None,  # TODO
+    ruleset_id: Annotated[int | None, Query(alias="m", description="Ruleset ID")] = None,  # TODO
     convert: Annotated[bool, Query(alias="a", description="转谱")] = False,  # TODO
     checksum: Annotated[str | None, Query(alias="h", description="谱面文件 MD5")] = None,
     limit: Annotated[int, Query(ge=1, le=500, description="返回结果数量限制")] = 500,
@@ -193,7 +194,12 @@ async def get_beatmaps(
                     redis,
                     fetcher,
                 )
-                results.append(await V1Beatmap.from_db(session, beatmap, attrs.aim_difficulty, attrs.speed_difficulty))
+                aim_diff = None
+                speed_diff = None
+                if isinstance(attrs, OsuDifficultyAttributes):
+                    aim_diff = attrs.aim_difficulty
+                    speed_diff = attrs.speed_difficulty
+                results.append(await V1Beatmap.from_db(session, beatmap, aim_diff, speed_diff))
                 continue
             except Exception:
                 ...

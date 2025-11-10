@@ -1,5 +1,7 @@
 from enum import Enum
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
+
+from app.models.scoring_mode import ScoringMode
 
 from pydantic import (
     AliasChoices,
@@ -8,7 +10,7 @@ from pydantic import (
     ValidationInfo,
     field_validator,
 )
-from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class AWSS3StorageSettings(BaseSettings):
@@ -51,6 +53,12 @@ SPECTATOR_DOC = """
 | `SHARED_INTEROP_DOMAIN` | API 服务器（即本服务）地址 | string (url) | `http://localhost:8000` |
 | `SERVER_PORT` | 旁观服务器端口 | integer | `8006` |
 | `SP_SENTRY_DSN` | 旁观服务器的 Sentry DSN | string | `null` |
+| `MATCHMAKING_ROOM_ROUNDS` | 匹配对战房间的回合数 | integer | 5 |
+| `MATCHMAKING_ALLOW_SKIP` | 是否允许用户跳过匹配阶段 | boolean | false |
+| `MATCHMAKING_LOBBY_UPDATE_RATE` | 更新匹配大厅的频率（以秒为单位） | integer | 5 |
+| `MATCHMAKING_QUEUE_UPDATE_RATE` | 更新匹配队列的频率（以秒为单位） | integer | 1 |
+| `MATCHMAKING_QUEUE_BAN_DURATION` | 玩家拒绝邀请后暂时禁止进入匹配队列的时间（以秒为单位） | integer | 60 |
+| `MATCHMAKING_POOL_SIZE` | 每个匹配房间的谱面数量 | integer | 50 |
 """
 
 
@@ -102,6 +110,24 @@ STORAGE_SETTINGS='{
   "s3_region_name": "us-east-1",
   "s3_public_url_base": "https://your-custom-domain.com"
 }'
+```
+""",
+                "表现计算设置": """配置表现分计算器及其参数。
+
+### [osu-performance-server](https://github.com/GooGuTeam/osu-performance-server) (默认)
+
+```bash
+CALCULATOR="performance_server"
+CALCULATOR_CONFIG='{
+    "server_url": "http://localhost:5225"
+}'
+```
+
+### rosu-pp-py
+
+```bash
+CALCULATOR="rosu"
+CALCULATOR_CONFIG='{}'
 ```
 """,
             }
@@ -276,16 +302,26 @@ STORAGE_SETTINGS='{
         Field(default="", description="Fetcher 客户端密钥"),
         "Fetcher 设置",
     ]
-    fetcher_scopes: Annotated[
-        list[str],
-        Field(default=["public"], description="Fetcher 权限范围，以逗号分隔每个权限"),
-        "Fetcher 设置",
-        NoDecode,
-    ]
 
-    @property
-    def fetcher_callback_url(self) -> str:
-        return f"{self.server_url}fetcher/callback"
+    # NOTE: Reserve for user-based-fetcher
+
+    # fetcher_scopes: Annotated[
+    #     list[str],
+    #     Field(default=["public"], description="Fetcher 权限范围，以逗号分隔每个权限"),
+    #     "Fetcher 设置",
+    #     NoDecode,
+    # ]
+
+    # @field_validator("fetcher_scopes", mode="before")
+    # @classmethod
+    # def validate_fetcher_scopes(cls, v: Any) -> list[str]:
+    #     if isinstance(v, str):
+    #         return v.split(",")
+    #     return v
+
+    # @property
+    # def fetcher_callback_url(self) -> str:
+    #     return f"{self.server_url}fetcher/callback"
 
     # 日志设置
     log_level: Annotated[
@@ -311,6 +347,21 @@ STORAGE_SETTINGS='{
         Field(default=True, description="在TOTP标签中使用用户名而不是邮箱"),
         "验证服务设置",
     ]
+    enable_turnstile_verification: Annotated[
+        bool,
+        Field(default=False, description="是否启用 Cloudflare Turnstile 验证（仅对非 osu! 客户端）"),
+        "验证服务设置",
+    ]
+    turnstile_secret_key: Annotated[
+        str,
+        Field(default="", description="Cloudflare Turnstile Secret Key"),
+        "验证服务设置",
+    ]
+    turnstile_dev_mode: Annotated[
+        bool,
+        Field(default=False, description="Turnstile 开发模式（跳过验证，用于本地开发）"),
+        "验证服务设置",
+    ]
     enable_email_verification: Annotated[
         bool,
         Field(default=False, description="是否启用邮件验证功能"),
@@ -334,6 +385,11 @@ STORAGE_SETTINGS='{
     device_trust_duration_days: Annotated[
         int,
         Field(default=30, description="设备信任持续天数"),
+        "验证服务设置",
+    ]
+    email_provider: Annotated[
+        Literal["smtp", "mailersend"],
+        Field(default="smtp", description="邮件发送提供商：smtp（SMTP）或 mailersend（MailerSend）"),
         "验证服务设置",
     ]
     smtp_server: Annotated[
@@ -364,6 +420,16 @@ STORAGE_SETTINGS='{
     from_name: Annotated[
         str,
         Field(default="osu! server", description="发件人名称"),
+        "验证服务设置",
+    ]
+    mailersend_api_key: Annotated[
+        str,
+        Field(default="", description="MailerSend API Key"),
+        "验证服务设置",
+    ]
+    mailersend_from_email: Annotated[
+        str,
+        Field(default="", description="MailerSend 发件人邮箱（需要在 MailerSend 中验证）"),
         "验证服务设置",
     ]
 
@@ -454,6 +520,34 @@ STORAGE_SETTINGS='{
             ),
         ),
         "游戏设置",
+    ]
+    scoring_mode: Annotated[
+        ScoringMode,
+        Field(
+            default=ScoringMode.STANDARDISED,
+            description="分数计算模式：standardised（标准化）或 classic（经典）",
+        ),
+        "游戏设置",
+    ]
+
+    # 表现计算设置
+    calculator: Annotated[
+        Literal["rosu", "performance_server"],
+        Field(default="performance_server", description="表现分计算器"),
+        "表现计算设置",
+    ]
+    calculator_config: Annotated[
+        dict[str, Any],
+        Field(
+            default={"server_url": "http://localhost:5225"},
+            description="表现分计算器配置 (JSON 格式)，具体配置项请参考上方",
+        ),
+        "表现计算设置",
+    ]
+    fallback_no_calculator_pp: Annotated[
+        bool,
+        Field(default=False, description="当计算器不支持某个模式时，使用简化的 pp 计算方法作为后备"),
+        "表现计算设置",
     ]
 
     # exclude mods from enable_all_mods_pp mods.
@@ -587,7 +681,7 @@ STORAGE_SETTINGS='{
     # 反作弊设置
     suspicious_score_check: Annotated[
         bool,
-        Field(default=True, description="启用可疑分数检查（star>25&acc<80 或 pp>3000）"),
+        Field(default=True, description="启用可疑分数检查（pp>3000）"),
         "反作弊设置",
     ]
     banned_name: Annotated[
@@ -606,6 +700,16 @@ STORAGE_SETTINGS='{
         ),
         "反作弊设置",
     ]
+    allow_delete_scores: Annotated[
+        bool,
+        Field(default=False, description="允许用户删除自己的成绩"),
+        "反作弊设置",
+    ]
+    check_ruleset_version: Annotated[
+        bool,
+        Field(default=True, description="检查自定义 ruleset 版本"),
+        "反作弊设置",
+    ]
 
     # 存储设置
     storage_service: Annotated[
@@ -618,13 +722,6 @@ STORAGE_SETTINGS='{
         Field(default=LocalStorageSettings(), description="存储服务配置 (JSON 格式)"),
         "存储服务设置",
     ]
-
-    @field_validator("fetcher_scopes", mode="before")
-    @classmethod
-    def validate_fetcher_scopes(cls, v: Any) -> list[str]:
-        if isinstance(v, str):
-            return v.split(",")
-        return v
 
     @field_validator("storage_settings", mode="after")
     @classmethod

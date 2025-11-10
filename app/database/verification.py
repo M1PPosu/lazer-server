@@ -117,8 +117,8 @@ class TrustedDeviceResp(UTCBaseModel, TrustedDeviceBase):
     def from_db(cls, device: TrustedDevice, get_geoip_helper: GeoIPHelper) -> "TrustedDeviceResp":
         device_ = cls.model_validate(device.model_dump())
         device_.user_agent_info = extract_user_agent(device_.user_agent)
-        if device_.ip_address:
-            loc = get_geoip_helper.lookup(device_.ip_address)
+        if device.ip_address:
+            loc = get_geoip_helper.lookup(device.ip_address)
             device_.location = Location(
                 country=loc.get("country_name", ""),
                 city=loc.get("city_name", ""),

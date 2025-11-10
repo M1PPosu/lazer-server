@@ -1,14 +1,32 @@
 from typing import Annotated
 
-from app.database import MeResp
+from app.database import FavouriteBeatmapset, MeResp, User
 from app.dependencies.database import Database
-from app.dependencies.user import UserAndToken, get_current_user_and_token
+from app.dependencies.user import UserAndToken, get_current_user, get_current_user_and_token
 from app.models.score import GameMode
 
 from .router import router
 
 from fastapi import Path, Security
 from fastapi.responses import RedirectResponse
+from sqlmodel import select
+
+
+@router.get(
+    "/me/beatmapset-favourites",
+    response_model=list[int],
+    name="获取当前用户收藏的谱面集 ID 列表",
+    description="获取当前登录用户收藏的谱面集 ID 列表。",
+    tags=["用户", "谱面集"],
+)
+async def get_user_beatmapset_favourites(
+    session: Database,
+    current_user: Annotated[User, Security(get_current_user, scopes=["identify"])],
+):
+    beatmapset_ids = await session.exec(
+        select(FavouriteBeatmapset.beatmapset_id).where(FavouriteBeatmapset.user_id == current_user.id)
+    )
+    return beatmapset_ids.all()
 
 
 @router.get(

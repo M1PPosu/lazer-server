@@ -3,10 +3,10 @@ version: '3.8'
 services:
   app:
     # or use
-    # image: mingxuangame/g0v0-server:osurx
+    # image: mingxuangame/g0v0-server:latest
     build:
       context: .
-      dockerfile: Dockerfile-osurx
+      dockerfile: Dockerfile
     container_name: osu_api_server_osurx
     environment:
       - MYSQL_HOST=mysql
@@ -17,6 +17,7 @@ services:
       - ENABLE_ALL_MODS_PP=true
       - ENABLE_SUPPORTER_FOR_ALL_USERS=true
       - ENABLE_ALL_BEATMAP_LEADERBOARD=true
+      - CALCULATOR_CONFIG={"server_url":"http://performance-server:8080"}
     env_file:
       - .env
     depends_on:
@@ -96,6 +97,8 @@ services:
       - mysql
       - redis
     restart: unless-stopped
+    volumes:
+      - ./rulesets:/data/rulesets
     networks:
       - osu-network
 
@@ -108,6 +111,17 @@ services:
     restart: unless-stopped
     networks:
       - osu-network
+
+  performance-server:
+    image: ghcr.io/googuteam/osu-performance-server-osurx
+    container_name: performance_server_osurx
+    environment:
+      - SAVE_BEATMAP_FILES=false
+    restart: unless-stopped
+    networks:
+      - osu-network
+    volumes:
+      - ./rulesets:/data/rulesets
 
 volumes:
   mysql_data:

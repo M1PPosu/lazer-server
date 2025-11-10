@@ -279,6 +279,18 @@ class UserCacheService:
         except Exception as e:
             logger.error(f"Error invalidating user scores cache: {e}")
 
+    async def invalidate_user_beatmapsets_cache(self, user_id: int):
+        """使用户谱面集缓存失效"""
+        try:
+            # 删除用户谱面集相关缓存
+            pattern = f"user:{user_id}:beatmapsets:*"
+            keys = await self.redis.keys(pattern)
+            if keys:
+                await self.redis.delete(*keys)
+                logger.info(f"Invalidated {len(keys)} beatmapset cache entries for user {user_id}")
+        except Exception as e:
+            logger.error(f"Error invalidating user beatmapsets cache: {e}")
+
     async def preload_user_cache(self, session: AsyncSession, user_ids: list[int]):
         """预加载用户缓存"""
         if self._refreshing:

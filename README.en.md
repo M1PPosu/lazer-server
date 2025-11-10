@@ -15,11 +15,31 @@ This is an osu! API server implemented with FastAPI + MySQL + Redis, supporting 
 
 -   **OAuth 2.0 Authentication**: Supports password and refresh token flows.
 -   **User Data Management**: Complete user information, statistics, achievements, etc.
--   **Multi-game Mode Support**: osu! (RX, AP), taiko (RX), catch (RX), mania.
+-   **Multi-game Mode Support**: osu! (RX, AP), taiko (RX), catch (RX), mania and custom rulesets (see below).
 -   **Database Persistence**: MySQL for storing user data.
 -   **Cache Support**: Redis for caching tokens and session information.
 -   **Multiple Storage Backends**: Supports local storage, Cloudflare R2, and AWS S3.
 -   **Containerized Deployment**: Docker and Docker Compose support.
+
+## Supported Rulesets
+
+**Ruleset**|**ID**|**ShortName**|**PP Algorithm (rosu)**|**PP Algorithm (performance-server)**
+:-----:|:-----:|:-----:|:-----:|:-----:
+osu!|`0`|`osu`|✅|✅
+osu!taiko|`1`|`taiko`|✅|✅
+osu!catch|`2`|`fruits`|✅|✅
+osu!mania|`3`|`mania`|✅|✅
+osu! (RX)|`4`|`osurx`|✅|✅
+osu! (AP)|`5`|`osuap`|✅|✅
+osu!taiko (RX)|`6`|`taikorx`|✅|✅
+osu!catch (RX)|`7`|`fruitsrx`|✅|✅
+[Sentakki](https://github.com/LumpBloom7/sentakki)|`10`|`Sentakki`|❌|❌
+[tau](https://github.com/taulazer/tau)|`11`|`tau`|❌|✅
+[Rush!](https://github.com/Beamographic/rush)|`12`|`rush`|❌|❌
+[hishigata](https://github.com/LumpBloom7/hishigata)|`13`|`hishigata`|❌|❌
+[soyokaze!](https://github.com/goodtrailer/soyokaze)|`14`|`soyokaze`|❌|✅
+
+Go to [custom-rulesets](https://github.com/GooGuTeam/custom-rulesets) to download the custom rulesets modified for g0v0-server.
 
 ## Quick Start
 
@@ -36,14 +56,16 @@ This is an osu! API server implemented with FastAPI + MySQL + Redis, supporting 
     ```bash
     cp .env.example .env
     ```
-3.  Start the service
+3. (Optional) Download rulesets
+    Go to [custom-rulesets](https://github.com/GooGuTeam/custom-rulesets/releases/latest) to download the custom rulesets modified for g0v0-server. Place the downloaded DLLs into the `rulesets/` directory to enable custom ruleset support in the spectator server and performance calculator.
+4.  Start the service
     ```bash
     # Standard server
     docker-compose -f docker-compose.yml up -d
     # Enable osu!RX and osu!AP statistics (Gu pp algorithm based on ppy-sb pp algorithm)
     docker-compose -f docker-compose-osurx.yml up -d
     ```
-4.  Connect to the server from the game
+5.  Connect to the server from the game
 
     Use a [custom osu!lazer client](https://github.com/GooGuTeam/osu), or use [LazerAuthlibInjection](https://github.com/MingxuanGame/LazerAuthlibInjection), and change the server settings to the server's address.
 
@@ -74,6 +96,36 @@ Any derivative work, modification, or deployment **MUST clearly and prominently 
 The project is currently in a state of rapid iteration. Issues and Pull Requests are welcome!
 
 See [Contributing Guide](./CONTRIBUTING.md) for more information.
+
+## Contributors
+
+<!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
+[![All Contributors](https://img.shields.io/badge/all_contributors-5-orange.svg?style=flat-square)](#contributors-)
+<!-- ALL-CONTRIBUTORS-BADGE:END -->
+
+Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
+
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/GooGuJiang"><img src="https://avatars.githubusercontent.com/u/74496778?v=4?s=100" width="100px;" alt="咕谷酱"/><br /><sub><b>咕谷酱</b></sub></a><br /><a href="https://github.com/GooGuTeam/g0v0-server/commits?author=GooGuJiang" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://blog.mxgame.top/"><img src="https://avatars.githubusercontent.com/u/68982190?v=4?s=100" width="100px;" alt="MingxuanGame"/><br /><sub><b>MingxuanGame</b></sub></a><br /><a href="https://github.com/GooGuTeam/g0v0-server/commits?author=MingxuanGame" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/chenjintang-shrimp"><img src="https://avatars.githubusercontent.com/u/110657724?v=4?s=100" width="100px;" alt="陈晋瑭"/><br /><sub><b>陈晋瑭</b></sub></a><br /><a href="https://github.com/GooGuTeam/g0v0-server/commits?author=chenjintang-shrimp" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://4ayo.ovh"><img src="https://avatars.githubusercontent.com/u/115783539?v=4?s=100" width="100px;" alt="4ayo"/><br /><sub><b>4ayo</b></sub></a><br /><a href="#ideas-4aya" title="Ideas, Planning, & Feedback">🤔</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/kyiuu1"><img src="https://avatars.githubusercontent.com/u/188347675?v=4?s=100" width="100px;" alt="kyiuu1"/><br /><sub><b>kyiuu1</b></sub></a><br /><a href="#ideas-kyiuu1" title="Ideas, Planning, & Feedback">🤔</a></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- markdownlint-restore -->
+<!-- prettier-ignore-end -->
+
+<!-- ALL-CONTRIBUTORS-LIST:END -->
+
+This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
 
 ## Discussion
 

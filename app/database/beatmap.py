@@ -1,20 +1,20 @@
-import asyncio
 from datetime import datetime
 import hashlib
 from typing import TYPE_CHECKING
 
-from app.calculator import calculate_beatmap_attribute
+from app.calculator import get_calculator
 from app.config import settings
 from app.database.beatmap_tags import BeatmapTagVote
 from app.database.failtime import FailTime, FailTimeResp
-from app.models.beatmap import BeatmapAttributes, BeatmapRankStatus
+from app.models.beatmap import BeatmapRankStatus
 from app.models.mods import APIMod
+from app.models.performance import DifficultyAttributesUnion
 from app.models.score import GameMode
 
 from .beatmap_playcounts import BeatmapPlaycounts
 from .beatmapset import Beatmapset, BeatmapsetResp
 
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 from redis.asyncio import Redis
 from sqlalchemy import Column, DateTime
 from sqlmodel import VARCHAR, Field, Relationship, SQLModel, col, exists, func, select
@@ -160,6 +160,7 @@ class BeatmapResp(BeatmapBase):
     failtimes: FailTimeResp | None = None
     top_tag_ids: list[APIBeatmapTag] | None = None
     current_user_tag_ids: list[int] | None = None
+    is_deleted: bool = False
 
     @classmethod
     async def from_db(
@@ -184,6 +185,7 @@ class BeatmapResp(BeatmapBase):
             beatmap_["status"] = beatmap_status.name.lower()
             beatmap_["ranked"] = beatmap_status.value
         beatmap_["mode_int"] = int(beatmap.mode)
+        beatmap_["is_deleted"] = beatmap.deleted_at is not None
         if not from_set:
             beatmap_["beatmapset"] = await BeatmapsetResp.from_db(beatmap.beatmapset, session=session, user=user)
         if beatmap.failtimes is not None:
@@ -246,11 +248,31 @@ async def calculate_beatmap_attributes(
     mods_: list[APIMod],
     redis: Redis,
     fetcher: "Fetcher",
-):
+) -> DifficultyAttributesUnion:
     key = f"beatmap:{beatmap_id}:{ruleset}:{hashlib.sha256(str(mods_).encode()).hexdigest()}:attributes"
     if await redis.exists(key):
-        return BeatmapAttributes.model_validate_json(await redis.get(key))
+        return TypeAdapter(DifficultyAttributesUnion).validate_json(await redis.get(key))
     resp = await fetcher.get_or_fetch_beatmap_raw(redis, beatmap_id)
-    attr = await asyncio.get_event_loop().run_in_executor(None, calculate_beatmap_attribute, resp, ruleset, mods_)
+
+    attr = await get_calculator().calculate_difficulty(resp, mods_, ruleset)
     await redis.set(key, attr.model_dump_json())
     return attr
+
+
+async def clear_cached_beatmap_raws(redis: Redis, beatmaps: list[int] = []):
+    """清理缓存的 beatmap 原始数据，使用非阻塞方式"""
+    if beatmaps:
+        # 分批删除，避免一次删除太多 key 导致阻塞
+        batch_size = 50
+        for i in range(0, len(beatmaps), batch_size):
+            batch = beatmaps[i : i + batch_size]
+            keys = [f"beatmap:{bid}:raw" for bid in batch]
+            # 使用 unlink 而不是 delete（非阻塞，更快）
+            try:
+                await redis.unlink(*keys)
+            except Exception:
+                # 如果 unlink 不支持，回退到 delete
+                await redis.delete(*keys)
+        return
+
+    await redis.delete("beatmap:*:raw")

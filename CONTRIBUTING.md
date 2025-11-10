@@ -6,11 +6,18 @@
 git clone https://github.com/GooGuTeam/g0v0-server.git
 ```
 
-此外，您还需要 clone 一个 spectator-server 到 g0v0-server 的文件夹。
+此外，您还需要：
 
+- clone 旁观服务器到 g0v0-server 的文件夹。
 ```bash
 git clone https://github.com/GooGuTeam/osu-server-spectator.git spectator-server
 ```
+- clone 表现分计算器到 g0v0-server 的文件夹。
+
+```bash
+git clone https://github.com/GooGuTeam/osu-performance-server.git performance-server
+```
+- 下载并放置自定义规则集 DLL 到 `rulesets/` 目录（如果需要）。
 
 ## 开发环境
 
@@ -242,5 +249,9 @@ pre-commit 不提供 pyright 的 hook，您需要手动运行 `pyright` 检查�
 - Ruff Lint
 - Pyright Lint
 - pre-commit
+
+## 添加贡献者
+
+仓库维护者需要使用 [all-contributors-bot](https://allcontributors.org/docs/en/bot/usage) 添加有效贡献者。
 
 感谢您的贡献！
