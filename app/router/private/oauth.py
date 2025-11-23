@@ -46,9 +46,8 @@ async def create_oauth_app(
     await session.commit()
     await session.refresh(oauth_client)
     return {
-        "client_id": oauth_client.client_id,
         "client_secret": oauth_client.client_secret,
-        "redirect_uris": oauth_client.redirect_uris,
+        **oauth_client.model_dump(exclude={"client_secret"}),
     }
 
 
@@ -57,6 +56,7 @@ async def create_oauth_app(
     name="获取 OAuth 应用信息",
     description="通过客户端 ID 获取 OAuth 应用的详细信息",
     tags=["osu! OAuth 认证", "g0v0 API"],
+    response_model=OAuthClient,
 )
 async def get_oauth_app(
     session: Database,
@@ -66,12 +66,7 @@ async def get_oauth_app(
     oauth_app = await session.get(OAuthClient, client_id)
     if not oauth_app:
         raise HTTPException(status_code=404, detail="OAuth app not found")
-    return {
-        "name": oauth_app.name,
-        "description": oauth_app.description,
-        "redirect_uris": oauth_app.redirect_uris,
-        "client_id": oauth_app.client_id,
-    }
+    return oauth_app
 
 
 @router.get(
@@ -79,21 +74,14 @@ async def get_oauth_app(
     name="获取用户的 OAuth 应用列表",
     description="获取当前用户创建的所有 OAuth 应用程序",
     tags=["osu! OAuth 认证", "g0v0 API"],
+    response_model=list[OAuthClient],
 )
 async def get_user_oauth_apps(
     session: Database,
     current_user: ClientUser,
 ):
     oauth_apps = await session.exec(select(OAuthClient).where(OAuthClient.owner_id == current_user.id))
-    return [
-        {
-            "name": app.name,
-            "description": app.description,
-            "redirect_uris": app.redirect_uris,
-            "client_id": app.client_id,
-        }
-        for app in oauth_apps
-    ]
+    return oauth_apps.all()
 
 
 @router.delete(
@@ -150,9 +138,8 @@ async def update_oauth_app(
     await session.refresh(oauth_client)
 
     return {
-        "client_id": oauth_client.client_id,
         "client_secret": oauth_client.client_secret,
-        "redirect_uris": oauth_client.redirect_uris,
+        **oauth_client.model_dump(exclude={"client_secret"}),
     }
 
 
@@ -182,9 +169,8 @@ async def refresh_secret(
     await session.refresh(oauth_client)
 
     return {
-        "client_id": oauth_client.client_id,
         "client_secret": oauth_client.client_secret,
-        "redirect_uris": oauth_client.redirect_uris,
+        **oauth_client.model_dump(exclude={"client_secret"}),
     }
 
 

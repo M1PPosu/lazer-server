@@ -16,6 +16,7 @@ from sqlmodel import (
     Relationship,
     SQLModel,
     Text,
+    text,
 )
 
 if TYPE_CHECKING:
@@ -40,14 +41,20 @@ class OAuthToken(UTCBaseModel, SQLModel, table=True):
     login_session: LoginSession | None = Relationship(back_populates="token", passive_deletes=True)
 
 
-class OAuthClient(SQLModel, table=True):
+class OAuthClient(UTCBaseModel, SQLModel, table=True):
     __tablename__: str = "oauth_clients"
     name: str = Field(max_length=100, index=True)
     description: str = Field(sa_column=Column(Text), default="")
     client_id: int | None = Field(default=None, primary_key=True, index=True)
-    client_secret: str = Field(default_factory=secrets.token_hex, index=True)
+    client_secret: str = Field(default_factory=secrets.token_hex, index=True, exclude=True)
     redirect_uris: list[str] = Field(default_factory=list, sa_column=Column(JSON))
-    owner_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True))
+    owner_id: int = Field(sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), index=True), exclude=True)
+
+    created_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime))
+    updated_at: datetime = Field(
+        default_factory=utcnow,
+        sa_column=Column(DateTime, onupdate=text("CURRENT_TIMESTAMP")),
+    )
 
 
 class V1APIKeys(SQLModel, table=True):
