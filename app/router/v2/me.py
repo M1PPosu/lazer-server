@@ -14,7 +14,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlmodel import select
 
-ME_INCLUDES = [*User.USER_INCLUDES, "session_verified", "session_verification_method"]
+ME_INCLUDES = [*User.USER_INCLUDES, "session_verified", "session_verification_method", "user_preferences"]
 
 
 class BeatmapsetIds(BaseModel):
