@@ -30,10 +30,8 @@ async def get_fetcher() -> OriginFetcher:
         try:
             await fetcher.ensure_valid_access_token()
         except TokenAuthError as exc:
-            logger.warning(
-                f"Failed to refresh fetcher access token during startup: {exc}. Will retry on demand."
-            )
-        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"Failed to refresh fetcher access token during startup: {exc}. Will retry on demand.")
+        except Exception as exc:
             logger.exception("Unexpected error while initializing fetcher access token", exc_info=exc)
     return fetcher
 

@@ -204,7 +204,7 @@ class BaseFetcher:
                         f"HTTP error while requesting access token for client {self.client_id}"
                         f" (status: {exc.response.status_code}, attempt {attempt}/{retries})"
                     )
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:
                     last_error = exc
                     logger.exception(
                         f"Unexpected error while requesting access token for client {self.client_id}"
