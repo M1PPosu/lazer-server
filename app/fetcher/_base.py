@@ -5,7 +5,7 @@ import time
 from app.dependencies.database import get_redis
 from app.log import fetcher_logger
 
-from httpx import AsyncClient, HTTPStatusError
+from httpx import AsyncClient, HTTPStatusError, TimeoutException
 
 
 class TokenAuthError(Exception):
@@ -159,35 +159,62 @@ class BaseFetcher:
             return True
         return self.token_expiry <= int(time.time()) or not self.access_token
 
-    async def grant_access_token(self) -> None:
-        async with AsyncClient() as client:
-            response = await client.post(
-                "https://osu.ppy.sh/oauth/token",
-                data={
-                    "client_id": self.client_id,
-                    "client_secret": self.client_secret,
-                    "grant_type": "client_credentials",
-                    "scope": "public",
-                },
-            )
-            response.raise_for_status()
-            token_data = response.json()
-            self.access_token = token_data["access_token"]
-            self.token_expiry = int(time.time()) + token_data["expires_in"]
-            redis = get_redis()
-            await redis.set(
-                f"fetcher:access_token:{self.client_id}",
-                self.access_token,
-                ex=token_data["expires_in"],
-            )
-            await redis.set(
-                f"fetcher:expire_at:{self.client_id}",
-                self.token_expiry,
-                ex=token_data["expires_in"],
-            )
-            logger.success(
-                f"Granted new access token for client {self.client_id}, expires in {token_data['expires_in']} seconds"
-            )
+    async def grant_access_token(self, retries: int = 3, backoff: float = 1.0) -> None:
+        last_error: Exception | None = None
+        async with AsyncClient(timeout=30.0) as client:
+            for attempt in range(1, retries + 1):
+                try:
+                    response = await client.post(
+                        "https://osu.ppy.sh/oauth/token",
+                        data={
+                            "client_id": self.client_id,
+                            "client_secret": self.client_secret,
+                            "grant_type": "client_credentials",
+                            "scope": "public",
+                        },
+                    )
+                    response.raise_for_status()
+                    token_data = response.json()
+                    self.access_token = token_data["access_token"]
+                    self.token_expiry = int(time.time()) + token_data["expires_in"]
+                    redis = get_redis()
+                    await redis.set(
+                        f"fetcher:access_token:{self.client_id}",
+                        self.access_token,
+                        ex=token_data["expires_in"],
+                    )
+                    await redis.set(
+                        f"fetcher:expire_at:{self.client_id}",
+                        self.token_expiry,
+                        ex=token_data["expires_in"],
+                    )
+                    logger.success(
+                        f"Granted new access token for client {self.client_id}, expires in {token_data['expires_in']} seconds"
+                    )
+                    return
+
+                except TimeoutException as exc:
+                    last_error = exc
+                    logger.warning(
+                        f"Timed out while requesting access token for client {self.client_id} (attempt {attempt}/{retries})"
+                    )
+                except HTTPStatusError as exc:
+                    last_error = exc
+                    logger.warning(
+                        f"HTTP error while requesting access token for client {self.client_id}"
+                        f" (status: {exc.response.status_code}, attempt {attempt}/{retries})"
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    last_error = exc
+                    logger.exception(
+                        f"Unexpected error while requesting access token for client {self.client_id}"
+                        f" (attempt {attempt}/{retries})"
+                    )
+
+                if attempt < retries:
+                    await asyncio.sleep(backoff * attempt)
+
+        raise TokenAuthError("Failed to grant access token after retries") from last_error
 
     async def ensure_valid_access_token(self) -> None:
         if self.is_token_expired():
