@@ -189,14 +189,16 @@ class BaseFetcher:
                         ex=token_data["expires_in"],
                     )
                     logger.success(
-                        f"Granted new access token for client {self.client_id}, expires in {token_data['expires_in']} seconds"
+                        f"Granted new access token for client {self.client_id}, "
+                        f"expires in {token_data['expires_in']} seconds"
                     )
                     return
 
                 except TimeoutException as exc:
                     last_error = exc
                     logger.warning(
-                        f"Timed out while requesting access token for client {self.client_id} (attempt {attempt}/{retries})"
+                        f"Timed out while requesting access token for "
+                        f"client {self.client_id} (attempt {attempt}/{retries})"
                     )
                 except HTTPStatusError as exc:
                     last_error = exc
