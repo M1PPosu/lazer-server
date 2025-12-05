@@ -107,7 +107,7 @@ async def add_relationship(
     ).first()
     if relationship:
         relationship.type = relationship_type
-        # 这里原来如何是 block 也会修改为 follow
+        # 这里原来如果是 block 也会修改为 follow
         # 与 ppy/osu-web 的行为保持一致
     else:
         relationship = Relationship(
@@ -129,6 +129,7 @@ async def add_relationship(
         if target_relationship and target_relationship.type == RelationshipType.FOLLOW:
             await db.delete(target_relationship)
     current_user_id = current_user.id
+    current_gamemode = current_user.playmode
     await db.commit()
     if origin_type == RelationshipType.FOLLOW:
         relationship = (
@@ -143,7 +144,7 @@ async def add_relationship(
             "user_relation": await RelationshipModel.transform(
                 relationship,
                 includes=[],
-                ruleset=current_user.playmode,
+                ruleset=current_gamemode,
             )
         }
 
