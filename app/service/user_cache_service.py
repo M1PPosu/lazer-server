@@ -244,13 +244,25 @@ class UserCacheService:
         """使用户缓存失效"""
         try:
             # 删除用户信息缓存
-            pattern = f"user:{user_id}*"
+            pattern = f"user:{user_id}:ruleset:*"
             keys = await self.redis.keys(pattern)
             if keys:
                 await self.redis.delete(*keys)
                 logger.info(f"Invalidated {len(keys)} cache entries for user {user_id}")
         except Exception as e:
             logger.error(f"Error invalidating user cache: {e}")
+
+    async def invalidate_user_all_cache(self, user_id: int):
+        """使用户所有缓存失效"""
+        try:
+            # 删除用户信息缓存
+            pattern = f"user:{user_id}*"
+            keys = await self.redis.keys(pattern)
+            if keys:
+                await self.redis.delete(*keys)
+                logger.info(f"Invalidated {len(keys)} all cache entries for user {user_id}")
+        except Exception as e:
+            logger.error(f"Error invalidating user all cache: {e}")
 
     async def invalidate_user_scores_cache(self, user_id: int, mode: GameMode | None = None):
         """使用户成绩缓存失效"""

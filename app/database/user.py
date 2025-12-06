@@ -90,6 +90,7 @@ class UserDict(TypedDict):
     pm_friends_only: bool
     profile_colour: str | None
     username: str
+    is_online: bool
     g0v0_playmode: GameMode
     page: NotRequired[Page]
     previous_usernames: NotRequired[list[str]]
@@ -154,7 +155,6 @@ class UserDict(TypedDict):
     kudosu: NotRequired[Kudosu]
     unread_pm_count: NotRequired[int]
     default_group: NotRequired[str]
-    is_online: NotRequired[bool]
     session_verified: NotRequired[bool]
     session_verification_method: NotRequired[Literal["totp", "mail"] | None]
 
@@ -270,6 +270,7 @@ class UserModel(DatabaseModel[UserDict]):
     is_active: bool = True
     is_bot: bool = False
     is_supporter: bool = False
+    is_online: bool = False
     last_visit: datetime | None = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True)))
     pm_friends_only: bool = False
     profile_colour: str | None = None
@@ -660,14 +661,6 @@ class UserModel(DatabaseModel[UserDict]):
     @staticmethod
     async def default_group(_session: AsyncSession, obj: "User") -> str:
         return "default" if not obj.is_bot else "bot"
-
-    @included
-    @staticmethod
-    async def is_online(_session: AsyncSession, obj: "User") -> bool:
-        from app.dependencies.database import get_redis
-
-        redis = get_redis()
-        return bool(await redis.exists(f"metadata:online:{obj.id}"))
 
     @ondemand
     @staticmethod
