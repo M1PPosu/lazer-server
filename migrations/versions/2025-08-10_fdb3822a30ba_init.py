@@ -792,10 +792,10 @@ def upgrade() -> None:
         sa.Column("playlist_id", sa.Integer(), nullable=False),
         sa.Column("total_score", sa.BigInteger(), nullable=True),
         sa.Column("attempts", sa.Integer(), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["playlist_id"],
-            ["room_playlists.id"],
-        ),
+        # sa.ForeignKeyConstraint(
+        #     ["playlist_id"],
+        #     ["room_playlists.id"],
+        # ),
         sa.ForeignKeyConstraint(
             ["room_id"],
             ["rooms.id"],

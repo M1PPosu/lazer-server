@@ -24,9 +24,9 @@ class MatchmakingUserStatsBase(SQLModel, UTCBaseModel):
         default=None,
         sa_column=Column(BigInteger, ForeignKey("lazer_users.id"), primary_key=True),
     )
-    ruleset_id: int = Field(
+    pool_id: int = Field(
         default=None,
-        sa_column=Column(SmallInteger, primary_key=True),
+        sa_column=Column(ForeignKey("matchmaking_pools.id"), primary_key=True, nullable=True),
     )
     first_placements: int = Field(default=0, ge=0)
     total_points: int = Field(default=0, ge=0)
@@ -43,8 +43,13 @@ class MatchmakingUserStatsBase(SQLModel, UTCBaseModel):
 
 class MatchmakingUserStats(MatchmakingUserStatsBase, table=True):
     __tablename__: str = "matchmaking_user_stats"
+    __table_args__ = (
+        Index("matchmaking_user_stats_pool_first_idx", "pool_id", "first_placements"),
+        Index("matchmaking_user_stats_pool_points_idx", "pool_id", "total_points"),
+    )
 
     user: "User" = Relationship(back_populates="matchmaking_stats", sa_relationship_kwargs={"lazy": "joined"})
+    pool: "MatchmakingPool" = Relationship()
 
 
 class MatchmakingPoolBase(SQLModel, UTCBaseModel):
@@ -53,13 +58,11 @@ class MatchmakingPoolBase(SQLModel, UTCBaseModel):
         default=0,
         sa_column=Column(SmallInteger, nullable=False),
     )
-    variant_id: int = Field(
-        default=0,
-        ge=0,
-        sa_column=Column(SmallInteger, nullable=False, server_default="0"),
-    )
     name: str = Field(max_length=255)
     active: bool = Field(default=True)
+    lobby_size: int = Field(default=8)
+    rating_search_radius: int = Field(default=20)
+    rating_search_radius_exp: int = Field(default=15)
     created_at: datetime | None = Field(
         default=None,
         sa_column=Column(DateTime(timezone=True), server_default=func.now()),
@@ -72,7 +75,7 @@ class MatchmakingPoolBase(SQLModel, UTCBaseModel):
 
 class MatchmakingPool(MatchmakingPoolBase, table=True):
     __tablename__: str = "matchmaking_pools"
-    __table_args__ = (Index("matchmaking_pools_ruleset_variant_active_idx", "ruleset_id", "variant_id", "active"),)
+    __table_args__ = (Index("matchmaking_pools_ruleset_active_idx", "ruleset_id", "active"),)
 
     beatmaps: list["MatchmakingPoolBeatmap"] = Relationship(
         back_populates="pool",
@@ -93,7 +96,7 @@ class MatchmakingPoolBeatmapBase(SQLModel, UTCBaseModel):
         sa_column=Column(ForeignKey("beatmaps.id"), nullable=False),
     )
     mods: list[APIMod] | None = Field(default=None, sa_column=Column(JSON))
-    rating: int = Field(default=1500)
+    rating: int | None = Field(default=1500)
     selection_count: int = Field(default=0)
 
 

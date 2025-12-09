@@ -9,5 +9,9 @@
     {
       "path": "performance-server"
     }
-  ]
+  ],
+  "settings": {
+    "python.languageServer": "None",
+    "python.analysis.typeCheckingMode": "off"
+  }
 }

@@ -3,10 +3,13 @@ from typing import Annotated
 from app.config import settings
 from app.dependencies.database import get_redis
 from app.fetcher import Fetcher as OriginFetcher
+from app.fetcher._base import TokenAuthError
+from app.log import fetcher_logger
 
 from fastapi import Depends
 
 fetcher: OriginFetcher | None = None
+logger = fetcher_logger("FetcherDependency")
 
 
 async def get_fetcher() -> OriginFetcher:
@@ -24,7 +27,12 @@ async def get_fetcher() -> OriginFetcher:
         if access_token:
             fetcher.access_token = str(access_token)
         # Always ensure the access token is valid, regardless of initial state
-        await fetcher.ensure_valid_access_token()
+        try:
+            await fetcher.ensure_valid_access_token()
+        except TokenAuthError as exc:
+            logger.warning(f"Failed to refresh fetcher access token during startup: {exc}. Will retry on demand.")
+        except Exception as exc:
+            logger.exception("Unexpected error while initializing fetcher access token", exc_info=exc)
     return fetcher
 
 

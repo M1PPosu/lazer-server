@@ -35,6 +35,7 @@ from app.service.beatmap_download_service import download_service
 from app.service.beatmapset_update_service import init_beatmapset_update_service
 from app.service.email_queue import start_email_processor, stop_email_processor
 from app.service.redis_message_system import redis_message_system
+from app.service.subscribers.user_cache import user_online_subscriber
 from app.tasks import (
     calculate_user_rank,
     create_banchobot,
@@ -90,6 +91,7 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
     init_beatmapset_update_service(fetcher)  # 初始化谱面集更新服务
     redis_message_system.start()
     start_scheduler()
+    await user_online_subscriber.start_subscribe()
 
     # show the status of AssetProxy
     if settings.enable_asset_proxy:

@@ -147,6 +147,8 @@ DEFAULT_RANKED_MODS = {
         "NS": {"hidden_combo_count": {"check": False, "type": "number"}},
         "SO": {},
         "TC": {},
+        "AL": {},
+        "SG": {},
     },
     1: {
         "EZ": {},
@@ -171,6 +173,7 @@ DEFAULT_RANKED_MODS = {
             "mute_combo_count": {"check": False, "type": "number"},
             "affects_hit_sounds": {"check": False, "type": "boolean"},
         },
+        "SG": {},
     },
     2: {
         "EZ": {"retries": {"type": "number", "eq": 2}},
@@ -347,27 +350,6 @@ def mods_can_get_pp_vanilla(ruleset_id: int, mods: list[APIMod]) -> bool:
 
 def mods_can_get_pp(ruleset_id: int, mods: list[APIMod]) -> bool:
     return _mods_can_get_pp(ruleset_id, mods, RANKED_MODS)
-
-
-ENUM_TO_STR = {
-    0: {
-        "MR": {"reflection"},
-        "AC": {"accuracy_judge_mode"},
-        "BR": {"direction"},
-        "AD": {"style"},
-    },
-    1: {"AC": {"accuracy_judge_mode"}},
-    2: {"AC": {"accuracy_judge_mode"}},
-    3: {"AC": {"accuracy_judge_mode"}},
-}
-
-
-def parse_enum_to_str(ruleset_id: int, mods: list[APIMod]):
-    for mod in mods:
-        if mod["acronym"] in ENUM_TO_STR.get(ruleset_id, {}):
-            for setting in mod.get("settings", {}):
-                if setting in ENUM_TO_STR[ruleset_id][mod["acronym"]]:
-                    mod["settings"][setting] = str(mod["settings"][setting])  # pyright: ignore[reportTypedDictNotRequiredAccess]
 
 
 def mod_to_save(mods: list[APIMod]) -> list[str]:

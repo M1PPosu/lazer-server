@@ -3,7 +3,7 @@ from copy import deepcopy
 from typing import TYPE_CHECKING, ClassVar
 
 from app.calculator import clamp
-from app.models.mods import APIMod, parse_enum_to_str
+from app.models.mods import APIMod
 from app.models.performance import (
     DifficultyAttributes,
     ManiaPerformanceAttributes,
@@ -46,6 +46,26 @@ DIFFICULTY_CLASS = {
     GameMode.OSU: OsuDifficultyAttributes,
     GameMode.TAIKO: TaikoDifficultyAttributes,
 }
+
+_enum_to_str = {
+    0: {
+        "MR": {"reflection"},
+        "AC": {"accuracy_judge_mode"},
+        "BR": {"direction"},
+        "AD": {"style"},
+    },
+    1: {"AC": {"accuracy_judge_mode"}},
+    2: {"AC": {"accuracy_judge_mode"}},
+    3: {"AC": {"accuracy_judge_mode"}},
+}
+
+
+def _parse_enum_to_str(ruleset_id: int, mods: list[APIMod]):
+    for mod in mods:
+        if mod["acronym"] in _enum_to_str.get(ruleset_id, {}):
+            for setting in mod.get("settings", {}):
+                if setting in _enum_to_str[ruleset_id][mod["acronym"]]:
+                    mod["settings"][setting] = str(mod["settings"][setting])  # pyright: ignore[reportTypedDictNotRequiredAccess]
 
 
 class RosuPerformanceCalculator(BasePerformanceCalculator):
@@ -125,7 +145,7 @@ class RosuPerformanceCalculator(BasePerformanceCalculator):
         try:
             map = rosu.Beatmap(content=beatmap_raw)
             mods = deepcopy(score.mods.copy())
-            parse_enum_to_str(int(score.gamemode), mods)
+            _parse_enum_to_str(int(score.gamemode), mods)
             map.convert(self._to_rosu_mode(score.gamemode), mods)  # pyright: ignore[reportArgumentType]
             perf = rosu.Performance(
                 mods=mods,
