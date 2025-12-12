@@ -174,6 +174,7 @@ DEFAULT_RANKED_MODS = {
             "affects_hit_sounds": {"check": False, "type": "boolean"},
         },
         "SG": {},
+        "SW": {},
     },
     2: {
         "EZ": {"retries": {"type": "number", "eq": 2}},
